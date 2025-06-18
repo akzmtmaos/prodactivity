@@ -1,0 +1,25 @@
+/* index.css - Global Styles */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
+
+body {
+  font-family: 'Poppins', sans-serif;
+  background-color: #f5f7fb; /* Light background for the entire page */
+  color: #333; /* Dark text for readability */
+}
+
+h1, h2, h3, h4 {
+  font-weight: 600;
+}
+
+a {
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* Smooth Scroll */
+html {
+  scroll-behavior: smooth;
+}

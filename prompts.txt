@@ -1,0 +1,8 @@
+i change the "categories" table attributes to "category_id category_name user_id created_at updated_at"
+
+as well as "notes" table attributes to "note_id category_id title content created_at updated_at"
+
+
+
+SAVE PROMPTS FOR LATER:
+i change the "categories" table attributes to "category_id category_name user_id created_at updated_at"  as well as "notes" table attributes to "note_id category_id title content created_at updated_at"  I need some fixing when storing into the database, when creating Category, Notes, it will store on the database depends on which account was used
