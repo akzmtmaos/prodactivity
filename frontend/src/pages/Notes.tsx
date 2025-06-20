@@ -404,7 +404,7 @@ const Notes = () => {
     if (isNewNoteEditor && selectedCategory) {
       try {
         const response = await axios.post(`${API_URL}/notes/`, {
-          title: (title && title.trim()) ? title.trim() : 'Untitled Note',
+          title: title.trim() || 'Untitled Note',
           content,
           category: selectedCategory.id
         }, {
@@ -426,7 +426,7 @@ const Notes = () => {
     } else if (noteEditorNote) {
       try {
         const response = await axios.put(`${API_URL}/notes/${noteEditorNote.id}/`, {
-          title: title.trim(),
+          title: title.trim() || 'Untitled Note',
           content,
           category: noteEditorNote.category
         }, {

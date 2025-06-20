@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Mail, Lock, CheckCircle, Eye, EyeOff } from 'lucide-react';
+import TermsModal from '../components/common/TermsModal';
 
 interface RegisterProps {
   setIsAuthenticated: (value: boolean | ((prevState: boolean) => boolean)) => void;
@@ -18,6 +19,8 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' | 'info' } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -28,6 +31,15 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
+
+    if (!agreedToTerms) {
+      setMessage({
+        text: 'You must agree to the Terms and Conditions to register.',
+        type: 'error'
+      });
+      setLoading(false);
+      return;
+    }
 
     if (form.password !== form.confirmPassword) {
       setMessage({
@@ -159,6 +171,29 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
             </button>
           </div>
 
+          {/* Terms and Conditions */}
+          <div className="flex items-center">
+            <input
+              id="terms"
+              type="checkbox"
+              checked={agreedToTerms}
+              onChange={e => setAgreedToTerms(e.target.checked)}
+              className="mr-2 h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              required
+            />
+            <label htmlFor="terms" className="text-gray-600 text-sm">
+              I agree to the{' '}
+              <button
+                type="button"
+                className="text-indigo-600 underline hover:text-indigo-800 focus:outline-none"
+                onClick={() => setShowTermsModal(true)}
+                tabIndex={0}
+              >
+                Terms and Conditions
+              </button>
+            </label>
+          </div>
+
           <button
             type="submit"
             disabled={loading}
@@ -194,6 +229,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
           </p>
         </div>
       </div>
+      <TermsModal open={showTermsModal} onClose={() => setShowTermsModal(false)} />
     </div>
   );
 };

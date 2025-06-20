@@ -25,6 +25,9 @@ class NoteSerializer(serializers.ModelSerializer):
     
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
+        # Only set default title for new notes
+        if not validated_data.get('title', '').strip():
+            validated_data['title'] = 'Untitled Note'
         return super().create(validated_data)
     
     def validate_category(self, value):
@@ -34,8 +37,7 @@ class NoteSerializer(serializers.ModelSerializer):
         return value
 
     def validate(self, data):
-        # Default title to 'Untitled Note' if missing or blank
-        title = data.get('title', '').strip()
-        if not title:
+        # Only validate title for new notes
+        if not self.instance and not data.get('title', '').strip():
             data['title'] = 'Untitled Note'
         return data

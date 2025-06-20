@@ -39,6 +39,8 @@ INSTALLED_APPS = [
     'accounts', # login
     'notes',  # notes
     'decks',  # decks
+    'tasks',  # tasks
+    'core',   # core app for CMS and terms
 ]
 
 REST_FRAMEWORK = {
