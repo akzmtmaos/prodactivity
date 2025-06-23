@@ -42,6 +42,7 @@ interface NotesListProps {
   onNoteContentChange: (content: string) => void;
   onUpdateNoteTitle: (noteId: number, newTitle: string) => void;
   onBulkDelete: (noteIds: number[]) => void;
+  deletingNoteId?: number | null;
 }
 
 const NotesList: React.FC<NotesListProps> = ({
@@ -62,6 +63,7 @@ const NotesList: React.FC<NotesListProps> = ({
   onNoteContentChange,
   onUpdateNoteTitle,
   onBulkDelete,
+  deletingNoteId,
 }) => {
   const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
   const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);

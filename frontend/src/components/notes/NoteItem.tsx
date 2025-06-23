@@ -20,9 +20,10 @@ interface NoteItemProps {
   onEdit: (note: Note) => void;
   onEditTitle: (note: Note) => void;
   onDelete: (noteId: number) => void;
+  deletingNoteId?: number | null;
 }
 
-const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete }) => {
+const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete, deletingNoteId }) => {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showEditModal, setShowEditModal] = React.useState(false);
   const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api/notes';
@@ -84,7 +85,10 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
 
   return (
     <>
-      <div className="group border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer relative" onClick={handleNoteClick}>
+      <div
+        className={`group border border-gray-200 dark:border-gray-700 rounded-lg p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors cursor-pointer relative ${deletingNoteId === note.id ? 'animate-fadeOut' : ''}`}
+        onClick={handleNoteClick}
+      >
         <div className="flex justify-between items-center">
           <div className="flex-1">
             <h3 className="text-base font-medium text-gray-900 dark:text-white truncate">
@@ -108,7 +112,7 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
                   <Edit size={14} className="inline mr-2" /> Edit Title
                 </button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); setShowMenu(false); if (window.confirm(`Delete note "${note.title}"?`)) { onDelete(note.id); } }}
+                  onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDelete(note.id); }}
                   className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   <Trash2 size={14} className="inline mr-2 text-red-600" /> Delete

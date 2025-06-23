@@ -1,10 +1,15 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 /* index.css - Global Styles */
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap');
 
 body {
   font-family: 'Poppins', sans-serif;
-  background-color: #f5f7fb; /* Light background for the entire page */
-  color: #333; /* Dark text for readability */
+  /* Remove static background and color to allow Tailwind dark mode to work */
+  /* background-color: #f5f7fb; */
+  /* color: #333; */
 }
 
 h1, h2, h3, h4 {

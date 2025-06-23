@@ -160,4 +160,49 @@ class SummarizeView(APIView):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
+class ReviewView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not model or not tokenizer:
+            return Response(
+                {"error": "AI model is not available. Please try again later."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        try:
+            text = request.data.get('text', '')
+            if not text:
+                return Response(
+                    {"error": "No text provided"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            # Compose a review prompt
+            review_prompt = (
+                "You are an expert reviewer. Read the following note and provide constructive feedback, suggestions for improvement, and highlight any strengths or weaknesses.\n\nNote Content:\n" + text + "\n\nReview:" 
+            )
+            inputs = tokenizer(review_prompt, max_length=1024, truncation=True, return_tensors="pt")
+            inputs = inputs.to(device)
+            with torch.no_grad():
+                outputs = model.generate(
+                    **inputs,
+                    max_length=256,
+                    min_length=50,
+                    num_beams=4,
+                    length_penalty=2.0,
+                    early_stopping=True
+                )
+            review = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            if not review:
+                return Response(
+                    {"error": "Failed to generate review. Please try again."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            return Response({"review": review})
+        except Exception as e:
+            logger.error(f"Error in review: {str(e)}")
+            return Response(
+                {"error": "Failed to generate review. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
 

@@ -1,7 +1,7 @@
 # notes/urls.py
 from django.urls import path
 from . import views
-from .ai_views import SummarizeView, chat
+from .ai_views import SummarizeView, chat, ReviewView
 
 urlpatterns = [
     # Note endpoints
@@ -14,6 +14,9 @@ urlpatterns = [
 
     # Summary endpoint
     path('summarize/', SummarizeView.as_view(), name='summarize'),
+
+    # Review endpoint
+    path('review/', ReviewView.as_view(), name='review'),
 
     # Document conversion endpoint
     path('convert-doc/', views.convert_doc, name='convert-doc'),

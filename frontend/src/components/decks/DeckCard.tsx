@@ -58,15 +58,15 @@ const DeckCard: React.FC<DeckCardProps> = ({
       <div className="p-6">
         {/* Card Header */}
         <div className="flex justify-between items-start mb-4">
-          <div>
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1 truncate">
               {deck.title}
             </h3>
             <p className="text-gray-600 dark:text-gray-400 text-sm">
               {deck.flashcardCount} cards
             </p>
           </div>
-          <div className="relative">
+          <div className="relative flex-shrink-0">
             <button
               onClick={(e) => {
                 e.stopPropagation();

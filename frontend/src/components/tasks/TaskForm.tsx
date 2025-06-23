@@ -66,7 +66,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel }) => {
               id="title"
               name="title"
               required
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               value={formData.title}
               onChange={handleInputChange}
             />
@@ -81,7 +81,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel }) => {
               id="description"
               name="description"
               rows={3}
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               value={formData.description}
               onChange={handleInputChange}
             />
@@ -97,7 +97,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel }) => {
               id="dueDate"
               name="dueDate"
               required
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               value={formData.dueDate}
               onChange={handleInputChange}
             />
@@ -111,7 +111,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel }) => {
             <select
               id="priority"
               name="priority"
-              className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+              className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
               value={formData.priority}
               onChange={handleInputChange}
             >

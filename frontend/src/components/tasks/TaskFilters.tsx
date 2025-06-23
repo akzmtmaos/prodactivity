@@ -26,7 +26,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
           <div className="relative rounded-md shadow-sm">
             <input
               type="text"
-              className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white pl-10 pr-3 py-2 text-sm"
+              className="block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white pl-10 pr-3 py-2 text-sm"
               placeholder="Search tasks..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
@@ -43,7 +43,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
         <div className="flex flex-wrap gap-3 w-full sm:w-auto">
           {/* Status filter */}
           <select
-            className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"
+            className="rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"
             value={filterCompleted === null ? 'all' : (filterCompleted ? 'completed' : 'pending')}
             onChange={(e) => {
               const val = e.target.value;
@@ -58,7 +58,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
           
           {/* Priority filter */}
           <select
-            className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"
+            className="rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"
             value={filterPriority}
             onChange={(e) => onFilterPriorityChange(e.target.value as Task['priority'] | 'all')}
           >

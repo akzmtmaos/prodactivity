@@ -81,7 +81,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
             value={newCategoryName}
             onChange={(e) => onCategoryNameChange(e.target.value)}
             placeholder="Category name"
-            className="w-full mb-2 p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+            className="w-full mb-2 p-2 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <div className="flex gap-2">
             <button
@@ -110,7 +110,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                   type="text"
                   value={newCategoryName}
                   onChange={(e) => onCategoryNameChange(e.target.value)}
-                  className="w-full mb-2 p-2 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                  className="w-full mb-2 p-2 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <div className="flex gap-2">
                   <button

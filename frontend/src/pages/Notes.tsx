@@ -7,6 +7,7 @@ import NotesList from '../components/notes/NotesList';
 import SearchBar from '../components/notes/SearchBar';
 import NoteEditor from '../components/notes/NoteEditor';
 import PageLayout from '../components/PageLayout';
+import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 
 interface Category {
   id: number;
@@ -64,6 +65,12 @@ const Notes = () => {
   const [noteEditorNote, setNoteEditorNote] = useState<Note | null>(null);
   const [isNewNoteEditor, setIsNewNoteEditor] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
+
+  // Add filter state
+  const [filterType, setFilterType] = useState<'all' | 'title' | 'content' | 'date'>('all');
+
+  // Add tab state
+  const [activeTab, setActiveTab] = useState<'notes' | 'reviewer' | 'logs' | 'archived'>('notes');
 
   // Get auth headers for API calls
   const getAuthHeaders = () => {
@@ -459,11 +466,21 @@ const Notes = () => {
     navigate('/notes');
   };
 
-  // Filter notes based on search term
-  const filteredNotes = notes.filter(note =>
-    note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    note.content.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Update filteredNotes logic to use filterType
+  const filteredNotes = notes.filter(note => {
+    const term = searchTerm.toLowerCase();
+    if (!term) return true;
+    if (filterType === 'title') return note.title.toLowerCase().includes(term);
+    if (filterType === 'content') return note.content.toLowerCase().includes(term);
+    if (filterType === 'date') return note.created_at.toLowerCase().includes(term) || note.updated_at.toLowerCase().includes(term);
+    // 'all'
+    return (
+      note.title.toLowerCase().includes(term) ||
+      note.content.toLowerCase().includes(term) ||
+      note.created_at.toLowerCase().includes(term) ||
+      note.updated_at.toLowerCase().includes(term)
+    );
+  });
 
   // Add handler to update note title
   const handleUpdateNoteTitle = async (noteId: number, newTitle: string) => {
@@ -587,6 +604,15 @@ const Notes = () => {
     }
   };
 
+  // Add state for Delete Confirmation Modal
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
+
+  const handleRequestDeleteNote = (note: Note) => {
+    setShowDeleteModal(true);
+    setNoteToDelete(note);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -603,85 +629,157 @@ const Notes = () => {
       <div className="flex h-full">
         <div className="flex-1 space-y-6">
           {/* Header */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Notes
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              Create and manage your notes
-            </p>
-          </div>
-
-          {/* Error display */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-              {error}
-              <button 
-                onClick={() => setError(null)}
-                className="ml-4 text-red-900 hover:text-red-700"
+          <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Notes
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-2">
+                Create and manage your notes
+              </p>
+            </div>
+            {/* Search and Filter Bar */}
+            <div className="flex items-center gap-2 mt-4 sm:mt-0 justify-end w-full sm:w-auto">
+              <select
+                value={filterType}
+                onChange={e => setFilterType(e.target.value as any)}
+                className="h-10 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                style={{ minWidth: '100px' }}
               >
-                ×
+                <option value="all">All</option>
+                <option value="title">Title</option>
+                <option value="content">Content</option>
+                <option value="date">Date</option>
+              </select>
+              <div className="w-64">
+                <SearchBar
+                  searchTerm={searchTerm}
+                  onSearchChange={setSearchTerm}
+                  placeholder="Search notes..."
+                  inputClassName="h-10"
+                  noMargin
+                />
+              </div>
+            </div>
+          </div>
+          {/* Tabs */}
+          <div>
+            <div className="flex space-x-2 mt-4">
+              <button
+                onClick={() => setActiveTab('notes')}
+                className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'notes' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              >
+                Notes
+              </button>
+              <button
+                onClick={() => setActiveTab('reviewer')}
+                className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'reviewer' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              >
+                Reviewer
+              </button>
+              <button
+                onClick={() => setActiveTab('logs')}
+                className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'logs' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              >
+                Logs
+              </button>
+              <button
+                onClick={() => setActiveTab('archived')}
+                className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'archived' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              >
+                Archived
               </button>
             </div>
-          )}
-          {/* Search Bar */}
-          {selectedCategory && (
-            <SearchBar
-              searchTerm={searchTerm}
-              onSearchChange={setSearchTerm}
-              placeholder="Search notes..."
-            />
-          )}
-          {/* Main Content */}
-          <div className="flex flex-col lg:flex-row gap-6">
-            {/* Categories Panel */}
-            <CategoryList
-              categories={categories}
-              selectedCategory={selectedCategory}
-              isAddingCategory={isAddingCategory}
-              editingCategory={editingCategory}
-              newCategoryName={newCategoryName}
-              onCategorySelect={handleCategorySelect}
-              onAddCategory={handleAddCategory}
-              onUpdateCategory={handleUpdateCategory}
-              onDeleteCategory={handleDeleteCategory}
-              onStartAddingCategory={handleStartAddingCategory}
-              onCancelAddingCategory={handleCancelAddingCategory}
-              onStartEditingCategory={handleStartEditingCategory}
-              onCancelEditingCategory={handleCancelEditingCategory}
-              onCategoryNameChange={setNewCategoryName}
-            />
-            {/* Notes Panel */}
-            <NotesList
-              selectedCategory={selectedCategory}
-              notes={filteredNotes}
-              isAddingNote={false}
-              editingNote={null}
-              noteTitle={newNote.title}
-              noteContent={newNote.content}
-              onStartAddingNote={handleStartAddingNote}
-              onCancelAddingNote={handleCancelAddingNote}
-              onAddNote={handleAddNote}
-              onEditNote={handleEditNote}
-              onCancelEditingNote={handleCancelEditingNote}
-              onUpdateNote={handleUpdateNote}
-              onDeleteNote={handleDeleteNote}
-              onNoteTitleChange={(title) => setNewNote({ ...newNote, title })}
-              onNoteContentChange={(content) => setNewNote({ ...newNote, content })}
-              onUpdateNoteTitle={handleUpdateNoteTitle}
-              onBulkDelete={handleBulkDeleteNotes}
-            />
+            <hr className="border-t border-gray-300 dark:border-gray-700 mb-6" />
           </div>
-          {/* NoteEditor Modal */}
-          {showNoteEditor && (
-            <NoteEditor
-              note={noteEditorNote}
-              isNewNote={isNewNoteEditor}
-              onSave={handleSaveNoteEditor}
-              onDelete={handleDeleteNote}
-              onBack={handleCloseNoteEditor}
-              isSaving={isSavingNote}
-            />
+          {/* Tab Content */}
+          {activeTab === 'notes' && (
+            <>
+              {/* Error display */}
+              {error && (
+                <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+                  {error}
+                  <button 
+                    onClick={() => setError(null)}
+                    className="ml-4 text-red-900 hover:text-red-700"
+                  >
+                    ×
+                  </button>
+                </div>
+              )}
+              {/* Main Content */}
+              <div className="flex flex-col lg:flex-row gap-6">
+                {/* Categories Panel */}
+                <CategoryList
+                  categories={categories}
+                  selectedCategory={selectedCategory}
+                  isAddingCategory={isAddingCategory}
+                  editingCategory={editingCategory}
+                  newCategoryName={newCategoryName}
+                  onCategorySelect={handleCategorySelect}
+                  onAddCategory={handleAddCategory}
+                  onUpdateCategory={handleUpdateCategory}
+                  onDeleteCategory={handleDeleteCategory}
+                  onStartAddingCategory={handleStartAddingCategory}
+                  onCancelAddingCategory={handleCancelAddingCategory}
+                  onStartEditingCategory={handleStartEditingCategory}
+                  onCancelEditingCategory={handleCancelEditingCategory}
+                  onCategoryNameChange={setNewCategoryName}
+                />
+                {/* Notes Panel */}
+                <NotesList
+                  selectedCategory={selectedCategory}
+                  notes={filteredNotes}
+                  isAddingNote={false}
+                  editingNote={null}
+                  noteTitle={newNote.title}
+                  noteContent={newNote.content}
+                  onStartAddingNote={handleStartAddingNote}
+                  onCancelAddingNote={handleCancelAddingNote}
+                  onAddNote={handleAddNote}
+                  onEditNote={handleEditNote}
+                  onCancelEditingNote={handleCancelEditingNote}
+                  onUpdateNote={handleUpdateNote}
+                  onDeleteNote={(noteId) => {
+                    const note = notes.find(n => n.id === noteId);
+                    if (note) handleRequestDeleteNote(note);
+                  }}
+                  onNoteTitleChange={(title) => setNewNote({ ...newNote, title })}
+                  onNoteContentChange={(content) => setNewNote({ ...newNote, content })}
+                  onUpdateNoteTitle={handleUpdateNoteTitle}
+                  onBulkDelete={handleBulkDeleteNotes}
+                  deletingNoteId={noteToDelete?.id || null}
+                />
+              </div>
+              {/* NoteEditor Modal */}
+              {showNoteEditor && (
+                <NoteEditor
+                  note={noteEditorNote}
+                  isNewNote={isNewNoteEditor}
+                  onSave={handleSaveNoteEditor}
+                  onDelete={handleDeleteNote}
+                  onBack={handleCloseNoteEditor}
+                  isSaving={isSavingNote}
+                />
+              )}
+              {/* Delete Confirmation Modal */}
+              <DeleteConfirmationModal
+                isOpen={showDeleteModal}
+                onClose={() => { setShowDeleteModal(false); setNoteToDelete(null); }}
+                onConfirm={() => noteToDelete && handleDeleteNote(noteToDelete.id)}
+                title="Delete Note"
+                message={`Are you sure you want to delete the note "${noteToDelete?.title || ''}"? This action cannot be undone.`}
+              />
+            </>
+          )}
+          {activeTab === 'reviewer' && (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">Reviewer content coming soon.</div>
+          )}
+          {activeTab === 'logs' && (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">Logs content coming soon.</div>
+          )}
+          {activeTab === 'archived' && (
+            <div className="p-8 text-center text-gray-500 dark:text-gray-400">Archived notes will appear here.</div>
           )}
         </div>
       </div>

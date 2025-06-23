@@ -123,7 +123,7 @@ const Settings: React.FC = () => {
         {/* Content */}
         <div className="space-y-6">
           {/* Appearance Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+          <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl shadow-md border border-indigo-100 dark:border-indigo-700">
             <div className="p-6">
               <div className="flex items-center mb-4">
                 <div className="p-3 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
@@ -184,7 +184,7 @@ const Settings: React.FC = () => {
           </div>
 
           {/* Notifications Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
             <div className="p-6">
               <div className="flex items-center mb-4">
                 <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
@@ -223,7 +223,7 @@ const Settings: React.FC = () => {
           </div>
 
           {/* Language & Region Section */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
             <div className="p-6">
               <div className="flex items-center mb-4">
                 <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
@@ -242,7 +242,7 @@ const Settings: React.FC = () => {
                   <select
                     value={settings.language}
                     onChange={(e) => handleSettingChange('language', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                   >
                     <option value="en">English</option>
                     <option value="es">Español</option>
@@ -258,7 +258,7 @@ const Settings: React.FC = () => {
                   <select
                     value={settings.timezone}
                     onChange={(e) => handleSettingChange('timezone', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                    className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                   >
                     <option value="UTC">UTC</option>
                     <option value="America/New_York">Eastern Time</option>

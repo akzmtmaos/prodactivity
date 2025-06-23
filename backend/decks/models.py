@@ -8,6 +8,7 @@ class Deck(models.Model):
     parent = models.ForeignKey('self', null=True, blank=True, on_delete=models.CASCADE, related_name='subdecks')
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+    progress = models.PositiveIntegerField(default=0)
 
     class Meta:
         unique_together = ['title', 'user', 'parent']

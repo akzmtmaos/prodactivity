@@ -131,91 +131,85 @@ const Schedule = () => {
 
   return (
     <PageLayout>
-      <div className="flex flex-col h-full">
-        {/* Header section */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between py-4 border-b border-gray-200 dark:border-gray-700">
+      <div className="flex h-full">
+        <div className="flex-1 space-y-6">
+          {/* Header section */}
+          <div className="mb-8 flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Schedule
+              </h1>
+              <p className="mt-1 text-gray-600 dark:text-gray-300">
+                {greeting}, {user.username}. Here's your upcoming schedule.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowAddEvent(true)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+            >
+              Add Event
+            </button>
+          </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 dark:bg-red-900 dark:text-red-200 dark:border-red-700 px-4 py-3 rounded relative mt-4 mx-4" role="alert">
+              <span className="block sm:inline">{error}</span>
+              <button
+                className="absolute top-0 bottom-0 right-0 px-4 py-3"
+                onClick={() => setError(null)}
+              >
+                <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                  <title>Close</title>
+                  <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/>
+                </svg>
+              </button>
+            </div>
+          )}
+
+          {/* Tabs styled like StudyTimer */}
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Schedule
-            </h1>
-            <p className="mt-1 text-gray-600 dark:text-gray-300">
-              {greeting}, {user.username}. Here's your upcoming schedule.
-            </p>
+            <div className="flex space-x-2 mt-4">
+              <button
+                onClick={() => setActiveTab('calendar')}
+                className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'calendar' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              >
+                Calendar
+              </button>
+              <button
+                onClick={() => setActiveTab('upcoming')}
+                className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'upcoming' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              >
+                Upcoming Events
+              </button>
+            </div>
+            <hr className="border-t border-gray-300 dark:border-gray-700 mb-6" />
+            <div className="mt-4 flex-1 overflow-auto">
+              {/* Tab content */}
+              {activeTab === 'calendar' && (
+                <Calendar
+                  currentDate={currentDate}
+                  events={events}
+                  onDateChange={setCurrentDate}
+                  onDeleteEvent={deleteEvent}
+                />
+              )}
+              {activeTab === 'upcoming' && (
+                <UpcomingEvents
+                  events={events}
+                  onDeleteEvent={deleteEvent}
+                />
+              )}
+            </div>
           </div>
-          <button
-            onClick={() => setShowAddEvent(true)}
-            className="mt-4 md:mt-0 px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
-          >
-            Add Event
-          </button>
+
+          {/* Add Event Modal */}
+          <AddEventModal
+            isOpen={showAddEvent}
+            onClose={() => setShowAddEvent(false)}
+            onAddEvent={handleAddEvent}
+          />
         </div>
-
-        {/* Error message */}
-        {error && (
-          <div className="bg-red-100 border border-red-400 text-red-700 dark:bg-red-900 dark:text-red-200 dark:border-red-700 px-4 py-3 rounded relative mt-4 mx-4" role="alert">
-            <span className="block sm:inline">{error}</span>
-            <button
-              className="absolute top-0 bottom-0 right-0 px-4 py-3"
-              onClick={() => setError(null)}
-            >
-              <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                <title>Close</title>
-                <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/>
-              </svg>
-            </button>
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div className="border-b border-gray-200 dark:border-gray-700">
-          <nav className="-mb-px flex space-x-8">
-            <button
-              onClick={() => setActiveTab('calendar')}
-              className={`${
-                activeTab === 'calendar'
-                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Calendar
-            </button>
-            <button
-              onClick={() => setActiveTab('upcoming')}
-              className={`${
-                activeTab === 'upcoming'
-                  ? 'border-indigo-500 text-indigo-600 dark:text-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-300 hover:text-gray-800 dark:hover:text-white hover:border-gray-300'
-              } whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm`}
-            >
-              Upcoming Events
-            </button>
-          </nav>
-        </div>
-
-        {/* Tab content */}
-        <div className="flex-1 overflow-auto">
-          {activeTab === 'calendar' && (
-            <Calendar
-              currentDate={currentDate}
-              events={events}
-              onDateChange={setCurrentDate}
-              onDeleteEvent={deleteEvent}
-            />
-          )}
-          {activeTab === 'upcoming' && (
-            <UpcomingEvents
-              events={events}
-              onDeleteEvent={deleteEvent}
-            />
-          )}
-        </div>
-
-        {/* Add Event Modal */}
-        <AddEventModal
-          isOpen={showAddEvent}
-          onClose={() => setShowAddEvent(false)}
-          onAddEvent={handleAddEvent}
-        />
       </div>
     </PageLayout>
   );

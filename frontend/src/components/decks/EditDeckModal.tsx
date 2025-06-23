@@ -60,7 +60,11 @@ const EditDeckModal: React.FC<EditDeckModalProps> = ({
               placeholder="Enter deck title"
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
               required
+              maxLength={30}
             />
+            {title.length === 30 && (
+              <p className="text-xs text-red-500 mt-1">Maximum 30 characters reached</p>
+            )}
           </div>
 
           <div className="flex justify-end space-x-3">

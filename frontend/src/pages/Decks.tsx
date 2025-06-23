@@ -63,51 +63,7 @@ interface CreateDeckModalProps {
 
 const Decks = () => {
   const navigate = useNavigate();
-  const [decks, setDecks] = useState<Deck[]>([
-    {
-      id: '1',
-      title: 'Spanish Basics',
-      flashcardCount: 3,
-      progress: 0,
-      created_at: '2024-01-15',
-      updated_at: '2024-01-15',
-      createdAt: '2024-01-15',
-      flashcards: [
-        { id: '1', question: 'Hello', answer: 'Hola' },
-        { id: '2', question: 'Goodbye', answer: 'Adiós' },
-        { id: '3', question: 'Thank you', answer: 'Gracias' }
-      ],
-      is_deleted: false,
-    },
-    {
-      id: '2',
-      title: 'JavaScript Concepts',
-      flashcardCount: 2,
-      progress: 0,
-      created_at: '2024-01-10',
-      updated_at: '2024-01-10',
-      createdAt: '2024-01-10',
-      flashcards: [
-        { id: '4', question: 'What is a closure?', answer: 'A closure is a function that has access to variables in its outer (enclosing) scope even after the outer function has returned.' },
-        { id: '5', question: 'What is hoisting?', answer: 'Hoisting is JavaScript\'s default behavior of moving declarations to the top of their scope.' }
-      ],
-      is_deleted: false,
-    },
-    {
-      id: '3',
-      title: 'World History',
-      flashcardCount: 1,
-      progress: 0,
-      created_at: '2024-01-05',
-      updated_at: '2024-01-05',
-      createdAt: '2024-01-05',
-      flashcards: [
-        { id: '6', question: 'When did World War II end?', answer: 'September 2, 1945' }
-      ],
-      is_deleted: false,
-    }
-  ]);
-
+  const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [selectedDeckStats, setSelectedDeckStats] = useState<DeckStats | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -125,74 +81,68 @@ const Decks = () => {
   const [showQuizSession, setShowQuizSession] = useState(false);
 
   useEffect(() => {
-    initializeSampleDecks();
+    const fetchDecks = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        const res = await fetch('http://localhost:8000/api/decks/decks/', {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+        });
+        if (!res.ok) throw new Error('Failed to fetch decks');
+        const data = await res.json();
+        setDecks(data.map((deck: any) => ({
+          id: deck.id.toString(),
+          title: deck.title,
+          flashcardCount: deck.flashcard_count || 0,
+          progress: 0,
+          created_at: deck.created_at,
+          updated_at: deck.updated_at,
+          createdAt: deck.created_at,
+          flashcards: (deck.flashcards || []).map((fc: any) => ({
+            id: fc.id.toString(),
+            question: fc.front,
+            answer: fc.back,
+            front: fc.front,
+            back: fc.back,
+            difficulty: undefined
+          })),
+          is_deleted: false,
+        })));
+      } catch (error) {
+        setDecks([]);
+      }
+    };
+    fetchDecks();
   }, []);
 
-  const initializeSampleDecks = () => {
-    const sampleDecks: Deck[] = [
-      {
-        id: '1',
-        title: 'Spanish Vocabulary',
-        flashcardCount: 3,
-        progress: 80,
-        lastStudied: '2024-01-15',
-        created_at: '2024-01-15',
-        updated_at: '2024-01-15',
-        createdAt: '2024-01-15',
-        flashcards: [
-          { id: '1', question: 'Hello', answer: 'Hola' },
-          { id: '2', question: 'Goodbye', answer: 'Adiós' },
-          { id: '3', question: 'Thank you', answer: 'Gracias' }
-        ],
+  const handleCreateDeck = async (deckData: { title: string }) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch('http://localhost:8000/api/decks/decks/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({ title: deckData.title })
+      });
+      if (!res.ok) throw new Error('Failed to create deck');
+      const data = await res.json();
+      setDecks(prev => [...prev, {
+        id: data.id.toString(),
+        title: data.title,
+        flashcardCount: data.flashcard_count || 0,
+        progress: 0,
+        created_at: data.created_at,
+        updated_at: data.updated_at,
+        createdAt: data.created_at,
+        flashcards: [],
         is_deleted: false,
-      },
-      {
-        id: '2',
-        title: 'JavaScript Concepts',
-        flashcardCount: 2,
-        progress: 70,
-        lastStudied: '2024-01-10',
-        created_at: '2024-01-10',
-        updated_at: '2024-01-10',
-        createdAt: '2024-01-10',
-        flashcards: [
-          { id: '4', question: 'What is a closure?', answer: 'A function that has access to variables from its outer scope' },
-          { id: '5', question: 'What is hoisting?', answer: 'The behavior of moving declarations to the top of their scope' }
-        ],
-        is_deleted: false,
-      },
-      {
-        id: '3',
-        title: 'History Facts',
-        flashcardCount: 1,
-        progress: 60,
-        lastStudied: '2024-01-05',
-        created_at: '2024-01-05',
-        updated_at: '2024-01-05',
-        createdAt: '2024-01-05',
-        flashcards: [
-          { id: '6', question: 'When did World War II end?', answer: 'September 2, 1945' }
-        ],
-        is_deleted: false,
-      }
-    ];
-    setDecks(sampleDecks);
-  };
-
-  const handleCreateDeck = (deckData: { title: string }) => {
-    const now = new Date().toISOString();
-    const newDeck: Deck = {
-      id: Date.now().toString(),
-      title: deckData.title,
-      flashcardCount: 0,
-      progress: 0,
-      created_at: now,
-      updated_at: now,
-      createdAt: now,
-      flashcards: [],
-      is_deleted: false
-    };
-    setDecks([...decks, newDeck]);
+      }]);
+    } catch (error) {
+      alert('Error creating deck.');
+    }
   };
 
   const handleUpdateDeck = (deckId: string, deckData: { title: string }) => {
@@ -310,23 +260,49 @@ const Decks = () => {
     }
   };
 
-  const handleAddFlashcard = (flashcard: Omit<FlashcardData, 'id'>) => {
-    const newFlashcard: FlashcardData = {
-      ...flashcard,
-      id: Date.now().toString(),
-      front: flashcard.question,
-      back: flashcard.answer
-    };
-    setDecks(decks.map(deck => 
-      deck.id === selectedDeck?.id 
-        ? { 
-            ...deck, 
+  const handleAddFlashcard = async (flashcard: Omit<FlashcardData, 'id'>) => {
+    if (!selectedDeck) return;
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch('http://localhost:8000/api/decks/flashcards/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          deck: selectedDeck.id,
+          front: flashcard.question,
+          back: flashcard.answer
+        })
+      });
+      if (!res.ok) throw new Error('Failed to create flashcard');
+      const data = await res.json();
+      const newFlashcard: FlashcardData = {
+        id: data.id.toString(),
+        question: data.front,
+        answer: data.back,
+        front: data.front,
+        back: data.back,
+        difficulty: undefined
+      };
+      let updatedDeck: Deck | null = null;
+      setDecks(prevDecks => prevDecks.map(deck => {
+        if (deck.id === selectedDeck.id) {
+          updatedDeck = {
+            ...deck,
             flashcards: [...deck.flashcards, newFlashcard],
             flashcardCount: deck.flashcardCount + 1,
             updated_at: new Date().toISOString()
-          }
-        : deck
-    ));
+          };
+          return updatedDeck;
+        }
+        return deck;
+      }));
+      if (updatedDeck) setSelectedDeck(updatedDeck);
+    } catch (error) {
+      alert('Error creating flashcard.');
+    }
   };
 
   // Filter and sort decks
@@ -580,7 +556,7 @@ const Decks = () => {
             </div>
 
             {/* Decks Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               {filteredDecks.map((deck) => (
                 <DeckCard
                   key={deck.id}
