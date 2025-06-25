@@ -1,12 +1,12 @@
 # notes/serializers.py
 from rest_framework import serializers
-from .models import Category, Note
+from .models import Notebook, Note
 
-class CategorySerializer(serializers.ModelSerializer):
+class NotebookSerializer(serializers.ModelSerializer):
     notes_count = serializers.ReadOnlyField()
     
     class Meta:
-        model = Category
+        model = Notebook
         fields = ['id', 'name', 'created_at', 'updated_at', 'notes_count']
         read_only_fields = ['id', 'created_at', 'updated_at'] 
     
@@ -15,13 +15,13 @@ class CategorySerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class NoteSerializer(serializers.ModelSerializer):
-    category_name = serializers.ReadOnlyField()
+    notebook_name = serializers.ReadOnlyField()
     
     class Meta:
         model = Note
-        fields = ['id', 'title', 'content', 'category', 'category_name', 
+        fields = ['id', 'title', 'content', 'notebook', 'notebook_name', 
                  'created_at', 'updated_at', 'last_visited', 'is_deleted']
-        read_only_fields = ['id', 'created_at', 'updated_at', 'category_name']
+        read_only_fields = ['id', 'created_at', 'updated_at', 'notebook_name']
     
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
@@ -30,10 +30,10 @@ class NoteSerializer(serializers.ModelSerializer):
             validated_data['title'] = 'Untitled Note'
         return super().create(validated_data)
     
-    def validate_category(self, value):
-        # Ensure user can only create notes in their own categories
+    def validate_notebook(self, value):
+        # Ensure user can only create notes in their own notebooks
         if value.user != self.context['request'].user:
-            raise serializers.ValidationError("You can only create notes in your own categories.")
+            raise serializers.ValidationError("You can only create notes in your own notebooks.")
         return value
 
     def validate(self, data):

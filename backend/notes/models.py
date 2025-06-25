@@ -3,15 +3,15 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
 
-class Category(models.Model):
+class Notebook(models.Model):
     name = models.CharField(max_length=255)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='categories')
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notebooks')
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True) 
     
     class Meta:
-        verbose_name_plural = "Categories"
-        unique_together = ['name', 'user']  # Prevent duplicate category names per user
+        verbose_name_plural = "Notebooks"
+        unique_together = ['name', 'user']  # Prevent duplicate notebook names per user
         ordering = ['name']
     
     def __str__(self):
@@ -24,7 +24,7 @@ class Category(models.Model):
 class Note(models.Model):
     title = models.CharField(max_length=255)
     content = models.TextField(blank=True)
-    category = models.ForeignKey(Category, on_delete=models.CASCADE, related_name='notes')
+    notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, related_name='notes')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notes')
     is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
@@ -35,8 +35,8 @@ class Note(models.Model):
         ordering = ['-created_at']  # Most recent first
     
     def __str__(self):
-        return f"{self.title} - {self.category.name}"
+        return f"{self.title} - {self.notebook.name}"
     
     @property
-    def category_name(self):
-        return self.category.name
+    def notebook_name(self):
+        return self.notebook.name

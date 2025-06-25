@@ -3,8 +3,8 @@ from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from django.db.models import Q
-from .models import Category, Note
-from .serializers import CategorySerializer, NoteSerializer
+from .models import Notebook, Note
+from .serializers import NotebookSerializer, NoteSerializer
 import os
 from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
@@ -13,27 +13,27 @@ from django.core.files.base import ContentFile
 import docx
 import tempfile
 
-class CategoryListCreateView(generics.ListCreateAPIView):
-    serializer_class = CategorySerializer
+class NotebookListCreateView(generics.ListCreateAPIView):
+    serializer_class = NotebookSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return Category.objects.filter(user=self.request.user)
+        return Notebook.objects.filter(user=self.request.user)
 
-class CategoryRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
-    serializer_class = CategorySerializer
+class NotebookRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class = NotebookSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return Category.objects.filter(user=self.request.user)
+        return Notebook.objects.filter(user=self.request.user)
     
     def destroy(self, request, *args, **kwargs):
-        category = self.get_object()
-        # Check if category has notes
-        if category.notes.filter(is_deleted=False).exists():
-            # Soft delete all notes in this category
-            category.notes.update(is_deleted=True)
-        category.delete()
+        notebook = self.get_object()
+        # Check if notebook has notes
+        if notebook.notes.filter(is_deleted=False).exists():
+            # Soft delete all notes in this notebook
+            notebook.notes.update(is_deleted=True)
+        notebook.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 class NoteListCreateView(generics.ListCreateAPIView):
@@ -43,10 +43,10 @@ class NoteListCreateView(generics.ListCreateAPIView):
     def get_queryset(self):
         queryset = Note.objects.filter(user=self.request.user, is_deleted=False)
         
-        # Filter by category if provided
-        category_id = self.request.query_params.get('category', None)
-        if category_id is not None:
-            queryset = queryset.filter(category_id=category_id)
+        # Filter by notebook if provided
+        notebook_id = self.request.query_params.get('notebook', None)
+        if notebook_id is not None:
+            queryset = queryset.filter(notebook_id=notebook_id)
         
         # Search functionality
         search = self.request.query_params.get('search', None)

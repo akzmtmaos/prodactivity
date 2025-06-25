@@ -1,11 +1,10 @@
-// frontend/src/components/notes/CategorySidebar.tsx
+// frontend/src/components/notes/NotebookSidebar.tsx
 import React, { useState } from 'react';
 import { 
-  Plus, Edit, Trash2, Folder, FolderOpen, FileText, 
-  ChevronLeft, ChevronRight, Save, X 
+  Plus, Edit, Trash2, BookOpen, ChevronLeft, ChevronRight, Save, X, FileText 
 } from 'lucide-react';
 
-interface Category {
+interface Notebook {
   id: number;
   name: string;
   created_at: string;
@@ -17,74 +16,74 @@ interface Note {
   id: number;
   title: string;
   content: string;
-  category: number;
-  category_name: string;
+  notebook: number;
+  notebook_name: string;
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
 }
 
-interface CategorySidebarProps {
-  categories: Category[];
+interface NotebookSidebarProps {
+  notebooks: Notebook[];
   notes: Note[];
-  selectedCategory: Category | null;
+  selectedNotebook: Notebook | null;
   selectedNote: Note | null;
   collapsed: boolean;
-  onCategorySelect: (category: Category) => void;
-  onCategoryAdd: (name: string) => Promise<Category>;
-  onCategoryUpdate: (categoryId: number, name: string) => Promise<Category>;
-  onCategoryDelete: (categoryId: number) => void;
+  onNotebookSelect: (notebook: Notebook) => void;
+  onNotebookAdd: (name: string) => Promise<Notebook>;
+  onNotebookUpdate: (notebookId: number, name: string) => Promise<Notebook>;
+  onNotebookDelete: (notebookId: number) => void;
   onNoteSelect: (note: Note) => void;
   onNoteCreate: (title: string, content: string) => Promise<Note>;
   onNoteDelete: (noteId: number) => void;
   onToggleCollapse: () => void;
 }
 
-const CategorySidebar: React.FC<CategorySidebarProps> = ({
-  categories,
+const NotebookSidebar: React.FC<NotebookSidebarProps> = ({
+  notebooks,
   notes,
-  selectedCategory,
+  selectedNotebook,
   selectedNote,
   collapsed,
-  onCategorySelect,
-  onCategoryAdd,
-  onCategoryUpdate,
-  onCategoryDelete,
+  onNotebookSelect,
+  onNotebookAdd,
+  onNotebookUpdate,
+  onNotebookDelete,
   onNoteSelect,
   onNoteCreate,
   onNoteDelete,
   onToggleCollapse,
 }) => {
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
-  const [categoryName, setCategoryName] = useState('');
+  const [isAddingNotebook, setIsAddingNotebook] = useState(false);
+  const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null);
+  const [notebookName, setNotebookName] = useState('');
 
-  const handleAddCategory = async () => {
-    if (!categoryName.trim()) return;
+  const handleAddNotebook = async () => {
+    if (!notebookName.trim()) return;
     
     try {
-      await onCategoryAdd(categoryName);
-      setIsAddingCategory(false);
-      setCategoryName('');
+      await onNotebookAdd(notebookName);
+      setIsAddingNotebook(false);
+      setNotebookName('');
     } catch (error) {
       // Error handled in parent component
     }
   };
 
-  const handleUpdateCategory = async () => {
-    if (!editingCategory || !categoryName.trim()) return;
+  const handleUpdateNotebook = async () => {
+    if (!editingNotebook || !notebookName.trim()) return;
     
     try {
-      await onCategoryUpdate(editingCategory.id, categoryName);
-      setEditingCategory(null);
-      setCategoryName('');
+      await onNotebookUpdate(editingNotebook.id, notebookName);
+      setEditingNotebook(null);
+      setNotebookName('');
     } catch (error) {
       // Error handled in parent component
     }
   };
 
   const handleCreateNewNote = async () => {
-    if (!selectedCategory) return;
+    if (!selectedNotebook) return;
     
     try {
       await onNoteCreate('Untitled Note', '');
@@ -121,7 +120,7 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         {!collapsed && (
           <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-            Categories
+            Notebooks
           </h2>
         )}
         <button
@@ -134,31 +133,31 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
 
       {!collapsed && (
         <div className="flex-1 overflow-y-auto">
-          {/* Add Category Button */}
+          {/* Add Notebook Button */}
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">
             <button
-              onClick={() => setIsAddingCategory(true)}
+              onClick={() => setIsAddingNotebook(true)}
               className="w-full flex items-center justify-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               <Plus size={16} className="mr-2" />
-              New Category
+              New Notebook
             </button>
           </div>
 
-          {/* Add Category Form */}
-          {isAddingCategory && (
+          {/* Add Notebook Form */}
+          {isAddingNotebook && (
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
               <input
                 type="text"
-                value={categoryName}
-                onChange={(e) => setCategoryName(e.target.value)}
-                placeholder="Category name"
+                value={notebookName}
+                onChange={(e) => setNotebookName(e.target.value)}
+                placeholder="Notebook name"
                 className="w-full mb-3 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
                 autoFocus
               />
               <div className="flex gap-2">
                 <button
-                  onClick={handleAddCategory}
+                  onClick={handleAddNotebook}
                   className="flex items-center px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                 >
                   <Save size={14} className="mr-1" />
@@ -166,8 +165,8 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
                 </button>
                 <button
                   onClick={() => {
-                    setIsAddingCategory(false);
-                    setCategoryName('');
+                    setIsAddingNotebook(false);
+                    setNotebookName('');
                   }}
                   className="flex items-center px-3 py-1 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
                 >
@@ -178,21 +177,21 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
             </div>
           )}
 
-          {/* Categories List */}
+          {/* Notebooks List */}
           <div className="p-2">
-            {categories.map((category) => (
-              <div key={category.id} className="mb-2">
-                {editingCategory?.id === category.id ? (
+            {notebooks.map((notebook) => (
+              <div key={notebook.id} className="mb-2">
+                {editingNotebook?.id === notebook.id ? (
                   <div className="p-3 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700">
                     <input
                       type="text"
-                      value={categoryName}
-                      onChange={(e) => setCategoryName(e.target.value)}
+                      value={notebookName}
+                      onChange={(e) => setNotebookName(e.target.value)}
                       className="w-full mb-3 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:bg-gray-800 dark:text-white"
                     />
                     <div className="flex gap-2">
                       <button
-                        onClick={handleUpdateCategory}
+                        onClick={handleUpdateNotebook}
                         className="flex items-center px-3 py-1 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
                       >
                         <Save size={14} className="mr-1" />
@@ -200,8 +199,8 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
                       </button>
                       <button
                         onClick={() => {
-                          setEditingCategory(null);
-                          setCategoryName('');
+                          setEditingNotebook(null);
+                          setNotebookName('');
                         }}
                         className="flex items-center px-3 py-1 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
                       >
@@ -214,22 +213,22 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
                   <div>
                     <div
                       className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
-                        selectedCategory?.id === category.id
+                        selectedNotebook?.id === notebook.id
                           ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200'
                           : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300'
                       }`}
-                      onClick={() => onCategorySelect(category)}
+                      onClick={() => onNotebookSelect(notebook)}
                     >
                       <div className="flex items-center min-w-0">
-                        {selectedCategory?.id === category.id ? (
-                          <FolderOpen className="mr-3 flex-shrink-0" size={18} />
+                        {selectedNotebook?.id === notebook.id ? (
+                          <BookOpen className="mr-3 flex-shrink-0" size={18} />
                         ) : (
-                          <Folder className="mr-3 flex-shrink-0" size={18} />
+                          <BookOpen className="mr-3 flex-shrink-0" size={18} />
                         )}
                         <div className="min-w-0">
-                          <div className="font-medium truncate">{category.name}</div>
+                          <div className="font-medium truncate">{notebook.name}</div>
                           <div className="text-xs text-gray-500 dark:text-gray-400">
-                            {category.notes_count} notes
+                            {notebook.notes_count} notes
                           </div>
                         </div>
                       </div>
@@ -237,8 +236,8 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            setEditingCategory(category);
-                            setCategoryName(category.name);
+                            setEditingNotebook(notebook);
+                            setNotebookName(notebook.name);
                           }}
                           className="p-1 text-gray-500 hover:text-indigo-600 mr-1"
                         >
@@ -247,8 +246,8 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            if (window.confirm(`Delete category "${category.name}"? This will also delete all notes in this category.`)) {
-                              onCategoryDelete(category.id);
+                            if (window.confirm(`Delete notebook "${notebook.name}"? This will also delete all notes in this notebook.`)) {
+                              onNotebookDelete(notebook.id);
                             }
                           }}
                           className="p-1 text-gray-500 hover:text-red-600"
@@ -258,8 +257,8 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
                       </div>
                     </div>
 
-                    {/* Notes list for selected category */}
-                    {selectedCategory?.id === category.id && (
+                    {/* Notes list for selected notebook */}
+                    {selectedNotebook?.id === notebook.id && (
                       <div className="ml-4 mt-2 space-y-1">
                         <button
                           onClick={handleCreateNewNote}
@@ -316,4 +315,4 @@ const CategorySidebar: React.FC<CategorySidebarProps> = ({
   );
 };
 
-export default CategorySidebar;
+export default NotebookSidebar;

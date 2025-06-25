@@ -8,9 +8,9 @@ urlpatterns = [
     path('', views.NoteListCreateView.as_view(), name='note-list-create'),
     path('<int:pk>/', views.NoteRetrieveUpdateDestroyView.as_view(), name='note-detail'),
     
-    # Category endpoints
-    path('categories/', views.CategoryListCreateView.as_view(), name='category-list-create'),
-    path('categories/<int:pk>/', views.CategoryRetrieveUpdateDestroyView.as_view(), name='category-detail'),
+    # Notebook endpoints
+    path('notebooks/', views.NotebookListCreateView.as_view(), name='notebook-list-create'),
+    path('notebooks/<int:pk>/', views.NotebookRetrieveUpdateDestroyView.as_view(), name='notebook-detail'),
 
     # Summary endpoint
     path('summarize/', SummarizeView.as_view(), name='summarize'),

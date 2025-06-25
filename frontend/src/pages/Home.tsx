@@ -16,8 +16,8 @@ interface Note {
   id: number;
   title: string;
   content: string;
-  category: number;
-  category_name: string;
+  notebook: number;
+  notebook_name: string;
   created_at: string;
   updated_at: string;
   last_visited?: string;
@@ -289,9 +289,9 @@ const Home = () => {
                       <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 px-1">
                         {note.title || 'Untitled Note'}
                       </h3>
-                      {note.category_name && (
+                      {note.notebook_name && (
                         <span className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 px-1">
-                          {note.category_name}
+                          {note.notebook_name}
                         </span>
                       )}
                     </div>

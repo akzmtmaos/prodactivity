@@ -1,11 +1,11 @@
 // frontend/src/components/NotesList.tsx
 import React, { useState } from 'react';
-import { Plus, ChevronRight, FileText, Folder, Trash2 } from 'lucide-react';
+import { Plus, ChevronRight, FileText, BookOpen, Trash2 } from 'lucide-react';
 import NoteItem from './NoteItem';
 import NoteForm from './NoteForm';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
 
-interface Category {
+interface Notebook {
   id: number;
   name: string;
   created_at: string;
@@ -17,15 +17,15 @@ interface Note {
   id: number;
   title: string;
   content: string;
-  category: number;
-  category_name: string;
+  notebook: number;
+  notebook_name: string;
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
 }
 
 interface NotesListProps {
-  selectedCategory: Category | null;
+  selectedNotebook: Notebook | null;
   notes: Note[];
   isAddingNote: boolean;
   editingNote: Note | null;
@@ -46,7 +46,7 @@ interface NotesListProps {
 }
 
 const NotesList: React.FC<NotesListProps> = ({
-  selectedCategory,
+  selectedNotebook,
   notes,
   isAddingNote,
   editingNote,
@@ -99,16 +99,16 @@ const NotesList: React.FC<NotesListProps> = ({
     setShowBulkDeleteModal(false);
   };
 
-  if (!selectedCategory) {
+  if (!selectedNotebook) {
     return (
       <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)]">
         <div className="p-5 text-center">
-          <Folder className="mx-auto h-12 w-12 text-gray-400 dark:text-white" />
+          <BookOpen className="mx-auto h-12 w-12 text-gray-400 dark:text-white" />
           <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-            No category selected
+            No notebook selected
           </h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Select a category to view and manage notes.
+            Select a notebook to view and manage notes.
           </p>
         </div>
       </div>
@@ -123,7 +123,7 @@ const NotesList: React.FC<NotesListProps> = ({
           <div className="flex items-center">
             <ChevronRight className="mr-2 text-gray-400 dark:text-white" size={20} />
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-              {selectedCategory.name}
+              {selectedNotebook.name}
             </h2>
             <span className="ml-3 text-sm text-gray-500 dark:text-gray-400">
               {notes.length} notes

@@ -28,6 +28,15 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   onClose,
   onComplete
 }) => {
+  // Shuffle flashcards once at the start
+  const [shuffledFlashcards] = useState(() => {
+    const arr = [...flashcards];
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  });
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
@@ -35,14 +44,14 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   const [quizComplete, setQuizComplete] = useState(false);
   const [options, setOptions] = useState<string[]>([]);
 
-  const currentQuestion = flashcards[currentQuestionIndex];
-  const progress = ((currentQuestionIndex + 1) / flashcards.length) * 100;
+  const currentQuestion = shuffledFlashcards[currentQuestionIndex];
+  const progress = ((currentQuestionIndex + 1) / shuffledFlashcards.length) * 100;
 
   // Generate multiple choice options for current question
   useEffect(() => {
     if (currentQuestion) {
       // Get 3 random wrong answers from other flashcards
-      const wrongAnswers = flashcards
+      const wrongAnswers = shuffledFlashcards
         .filter(f => f.id !== currentQuestion.id)
         .sort(() => Math.random() - 0.5)
         .slice(0, 3)
@@ -54,7 +63,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
       
       setOptions(allOptions);
     }
-  }, [currentQuestionIndex, flashcards]);
+  }, [currentQuestionIndex, shuffledFlashcards]);
 
   const handleAnswerSelect = (answer: string) => {
     setSelectedAnswer(answer);
@@ -67,7 +76,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
 
     // Move to next question after a short delay
     setTimeout(() => {
-      if (currentQuestionIndex < flashcards.length - 1) {
+      if (currentQuestionIndex < shuffledFlashcards.length - 1) {
         setCurrentQuestionIndex(prev => prev + 1);
         setSelectedAnswer(null);
       } else {
@@ -79,13 +88,13 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   const completeQuiz = () => {
     const timeSpent = Math.round((Date.now() - startTime) / 1000 / 60); // minutes
     const correctAnswers = Object.entries(answers).filter(
-      ([id, answer]) => flashcards.find(f => f.id === id)?.back === answer
+      ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
     ).length;
 
     const quizResults: QuizResults = {
-      totalQuestions: flashcards.length,
+      totalQuestions: shuffledFlashcards.length,
       correctAnswers,
-      score: Math.round((correctAnswers / flashcards.length) * 100),
+      score: Math.round((correctAnswers / shuffledFlashcards.length) * 100),
       timeSpent
     };
 
@@ -95,9 +104,9 @@ const QuizSession: React.FC<QuizSessionProps> = ({
 
   if (quizComplete) {
     const correctAnswers = Object.entries(answers).filter(
-      ([id, answer]) => flashcards.find(f => f.id === id)?.back === answer
+      ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
     ).length;
-    const score = Math.round((correctAnswers / flashcards.length) * 100);
+    const score = Math.round((correctAnswers / shuffledFlashcards.length) * 100);
 
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
@@ -133,7 +142,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
                 {score}%
               </div>
               <p className="text-gray-600 dark:text-gray-400">
-                {correctAnswers} out of {flashcards.length} correct
+                {correctAnswers} out of {shuffledFlashcards.length} correct
               </p>
             </div>
 
@@ -166,7 +175,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
               {deckTitle} - Quiz
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Question {currentQuestionIndex + 1} of {flashcards.length}
+              Question {currentQuestionIndex + 1} of {shuffledFlashcards.length}
             </p>
           </div>
         </div>

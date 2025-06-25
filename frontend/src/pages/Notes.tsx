@@ -2,14 +2,14 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
-import CategoryList from '../components/notes/CategoryList';
+import NotebookList from '../components/notes/NotebookList';
 import NotesList from '../components/notes/NotesList';
 import SearchBar from '../components/notes/SearchBar';
 import NoteEditor from '../components/notes/NoteEditor';
 import PageLayout from '../components/PageLayout';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 
-interface Category {
+interface Notebook {
   id: number;
   name: string;
   created_at: string;
@@ -21,8 +21,8 @@ interface Note {
   id: number;
   title: string;
   content: string;
-  category: number;
-  category_name: string;
+  notebook: number;
+  notebook_name: string;
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
@@ -44,20 +44,20 @@ const Notes = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
-  // State for categories and notes
-  const [categories, setCategories] = useState<Category[]>([]);
+  // State for notebooks and notes
+  const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<Category | null>(null);
+  const [selectedNotebook, setSelectedNotebook] = useState<Notebook | null>(null);
   
   // State for form inputs
-  const [newCategoryName, setNewCategoryName] = useState('');
+  const [newNotebookName, setNewNotebookName] = useState('');
   const [newNote, setNewNote] = useState({ title: '', content: '' });
   const [searchTerm, setSearchTerm] = useState(''); 
   
   // UI state management
-  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [isAddingNotebook, setIsAddingNotebook] = useState(false);
   const [isAddingNote, setIsAddingNote] = useState(false);
-  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
 
   // 1. Add state for NoteEditor modal
@@ -124,9 +124,9 @@ const Notes = () => {
       else setGreeting('Good evening');
       
       try {
-        await fetchCategories();
+        await fetchNotebooks();
       } catch (error: any) {
-        console.error('Failed to fetch categories:', error);
+        console.error('Failed to fetch notebooks:', error);
         if (error?.response?.status === 401) {
           window.location.href = '/login';
           return;
@@ -151,8 +151,8 @@ const Notes = () => {
     setError(message);
   };
 
-  // Fetch categories from API
-  const fetchCategories = async () => {
+  // Fetch notebooks from API
+  const fetchNotebooks = async () => {
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) {
@@ -160,7 +160,7 @@ const Notes = () => {
         return;
       }
 
-      const response = await axios.get(`${API_URL}/notes/categories/`, {
+      const response = await axios.get(`${API_URL}/notes/notebooks/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
@@ -168,12 +168,12 @@ const Notes = () => {
       });
       
       if (response.data) {
-        setCategories(response.data);
+        setNotebooks(response.data);
       } else {
-        setError('No categories found');
+        setError('No notebooks found');
       }
     } catch (error: any) {
-      console.error('Failed to fetch categories:', error);
+      console.error('Failed to fetch notebooks:', error);
       if (error.response?.status === 401) {
         // Token expired or invalid
         localStorage.removeItem('accessToken');
@@ -181,15 +181,15 @@ const Notes = () => {
         localStorage.removeItem('user');
         window.location.href = '/login';
       } else {
-        setError('Failed to fetch categories. Please try again.');
+        setError('Failed to fetch notebooks. Please try again.');
       }
     }
   };
 
-  // Fetch notes for selected category
-  const fetchNotes = async (categoryId: number) => {
+  // Fetch notes for selected notebook
+  const fetchNotes = async (notebookId: number) => {
     try {
-      const response = await axios.get(`${API_URL}/notes/?category=${categoryId}`, {
+      const response = await axios.get(`${API_URL}/notes/?notebook=${notebookId}`, {
         headers: getAuthHeaders()
       });
       setNotes(response.data);
@@ -198,91 +198,91 @@ const Notes = () => {
     }
   };
 
-  // Category management functions
-  const handleCategorySelect = (category: Category) => {
-    setSelectedCategory(category);
-    fetchNotes(category.id);
+  // Notebook management functions
+  const handleNotebookSelect = (notebook: Notebook) => {
+    setSelectedNotebook(notebook);
+    fetchNotes(notebook.id);
     setSearchTerm('');
   };
 
-  const handleStartAddingCategory = () => {
-    setIsAddingCategory(true);
-    setNewCategoryName('');
+  const handleStartAddingNotebook = () => {
+    setIsAddingNotebook(true);
+    setNewNotebookName('');
   };
 
-  const handleCancelAddingCategory = () => {
-    setIsAddingCategory(false);
-    setNewCategoryName('');
+  const handleCancelAddingNotebook = () => {
+    setIsAddingNotebook(false);
+    setNewNotebookName('');
   };
 
-  const handleAddCategory = async () => {
-    if (!newCategoryName.trim()) return;
+  const handleAddNotebook = async () => {
+    if (!newNotebookName.trim()) return;
     
     try {
-      const response = await axios.post(`${API_URL}/notes/categories/`, {
-        name: newCategoryName.trim()
+      const response = await axios.post(`${API_URL}/notes/notebooks/`, {
+        name: newNotebookName.trim()
       }, {
         headers: getAuthHeaders()
       });
       
-      setCategories([...categories, response.data]);
-      setIsAddingCategory(false);
-      setNewCategoryName('');
+      setNotebooks([...notebooks, response.data]);
+      setIsAddingNotebook(false);
+      setNewNotebookName('');
     } catch (error) {
-      handleError(error, 'Failed to create category');
+      handleError(error, 'Failed to create notebook');
     }
   };
 
-  const handleStartEditingCategory = (category: Category) => {
-    setEditingCategory(category);
-    setNewCategoryName(category.name);
+  const handleStartEditingNotebook = (notebook: Notebook) => {
+    setEditingNotebook(notebook);
+    setNewNotebookName(notebook.name);
   };
 
-  const handleCancelEditingCategory = () => {
-    setEditingCategory(null);
-    setNewCategoryName('');
+  const handleCancelEditingNotebook = () => {
+    setEditingNotebook(null);
+    setNewNotebookName('');
   };
 
-  const handleUpdateCategory = async () => {
-    if (!editingCategory || !newCategoryName.trim()) return;
+  const handleUpdateNotebook = async () => {
+    if (!editingNotebook || !newNotebookName.trim()) return;
     
     try {
-      const response = await axios.put(`${API_URL}/categories/${editingCategory.id}/`, {
-        name: newCategoryName.trim()
+      const response = await axios.put(`${API_URL}/notebooks/${editingNotebook.id}/`, {
+        name: newNotebookName.trim()
       }, {
         headers: getAuthHeaders()
       });
       
-      const updatedCategories = categories.map(cat => 
-        cat.id === editingCategory.id ? response.data : cat
+      const updatedNotebooks = notebooks.map(nb => 
+        nb.id === editingNotebook.id ? response.data : nb
       );
-      setCategories(updatedCategories);
+      setNotebooks(updatedNotebooks);
       
-      if (selectedCategory?.id === editingCategory.id) {
-        setSelectedCategory(response.data);
+      if (selectedNotebook?.id === editingNotebook.id) {
+        setSelectedNotebook(response.data);
       }
       
-      setEditingCategory(null);
-      setNewCategoryName('');
+      setEditingNotebook(null);
+      setNewNotebookName('');
     } catch (error) {
-      handleError(error, 'Failed to update category');
+      handleError(error, 'Failed to update notebook');
     }
   };
 
-  const handleDeleteCategory = async (categoryId: number) => {
+  const handleDeleteNotebook = async (notebookId: number) => {
     try {
-      await axios.delete(`${API_URL}/notes/categories/${categoryId}/`, {
+      await axios.delete(`${API_URL}/notes/notebooks/${notebookId}/`, {
         headers: getAuthHeaders()
       });
       
-      setCategories(categories.filter(cat => cat.id !== categoryId));
+      setNotebooks(notebooks.filter(nb => nb.id !== notebookId));
       
-      if (selectedCategory?.id === categoryId) {
-        setSelectedCategory(null);
+      if (selectedNotebook?.id === notebookId) {
+        setSelectedNotebook(null);
         setNotes([]);
       }
     } catch (error) {
-      handleError(error, 'Failed to delete category');
+      handleError(error, 'Failed to delete notebook');
     }
   };
 
@@ -300,26 +300,26 @@ const Notes = () => {
   };
 
   const handleAddNote = async () => {
-    if (!selectedCategory) return;
+    if (!selectedNotebook) return;
     try {
       const response = await axios.post(`${API_URL}/notes/`, {
         title: (newNote.title && newNote.title.trim()) ? newNote.title.trim() : 'Untitled Note',
         content: newNote.content,
-        category: selectedCategory.id
+        notebook: selectedNotebook.id
       }, {
         headers: getAuthHeaders()
       });
       setNotes([response.data, ...notes]);
       setIsAddingNote(false);
       setNewNote({ title: '', content: '' });
-      // Update category notes count
-      const updatedCategories = categories.map(cat => 
-        cat.id === selectedCategory.id 
-          ? { ...cat, notes_count: cat.notes_count + 1 }
-          : cat
+      // Update notebook notes count
+      const updatedNotebooks = notebooks.map(nb => 
+        nb.id === selectedNotebook.id 
+          ? { ...nb, notes_count: nb.notes_count + 1 }
+          : nb
       );
-      setCategories(updatedCategories);
-      setSelectedCategory({ ...selectedCategory, notes_count: selectedCategory.notes_count + 1 });
+      setNotebooks(updatedNotebooks);
+      setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count + 1 });
     } catch (error) {
       handleError(error, 'Failed to create note');
     }
@@ -365,7 +365,7 @@ const Notes = () => {
       const response = await axios.put(`${API_URL}/notes/${editingNote.id}/`, {
         title: newNote.title.trim(),
         content: newNote.content,
-        category: editingNote.category
+        notebook: editingNote.notebook
       }, {
         headers: getAuthHeaders()
       });
@@ -390,15 +390,15 @@ const Notes = () => {
       
       setNotes(notes.filter(note => note.id !== noteId));
       
-      // Update category notes count
-      if (selectedCategory) {
-        const updatedCategories = categories.map(cat => 
-          cat.id === selectedCategory.id 
-            ? { ...cat, notes_count: cat.notes_count - 1 }
-            : cat
+      // Update notebook notes count
+      if (selectedNotebook) {
+        const updatedNotebooks = notebooks.map(nb => 
+          nb.id === selectedNotebook.id 
+            ? { ...nb, notes_count: nb.notes_count - 1 }
+            : nb
         );
-        setCategories(updatedCategories);
-        setSelectedCategory({ ...selectedCategory, notes_count: selectedCategory.notes_count - 1 });
+        setNotebooks(updatedNotebooks);
+        setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count - 1 });
       }
     } catch (error) {
       handleError(error, 'Failed to delete note');
@@ -408,24 +408,24 @@ const Notes = () => {
   // 3. Add handlers for saving and closing NoteEditor
   const handleSaveNoteEditor = async (title: string, content: string, closeAfterSave = false) => {
     setIsSavingNote(true);
-    if (isNewNoteEditor && selectedCategory) {
+    if (isNewNoteEditor && selectedNotebook) {
       try {
         const response = await axios.post(`${API_URL}/notes/`, {
           title: title.trim() || 'Untitled Note',
           content,
-          category: selectedCategory.id
+          notebook: selectedNotebook.id
         }, {
           headers: getAuthHeaders()
         });
         setNotes([response.data, ...notes]);
-        // Update category notes count
-        const updatedCategories = categories.map(cat => 
-          cat.id === selectedCategory.id 
-            ? { ...cat, notes_count: cat.notes_count + 1 }
-            : cat
+        // Update notebook notes count
+        const updatedNotebooks = notebooks.map(nb => 
+          nb.id === selectedNotebook.id 
+            ? { ...nb, notes_count: nb.notes_count + 1 }
+            : nb
         );
-        setCategories(updatedCategories);
-        setSelectedCategory({ ...selectedCategory, notes_count: selectedCategory.notes_count + 1 });
+        setNotebooks(updatedNotebooks);
+        setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count + 1 });
         if (closeAfterSave) setShowNoteEditor(false);
       } catch (error) {
         handleError(error, 'Failed to create note');
@@ -435,7 +435,7 @@ const Notes = () => {
         const response = await axios.put(`${API_URL}/notes/${noteEditorNote.id}/`, {
           title: title.trim() || 'Untitled Note',
           content,
-          category: noteEditorNote.category
+          notebook: noteEditorNote.notebook
         }, {
           headers: getAuthHeaders()
         });
@@ -450,8 +450,8 @@ const Notes = () => {
         setNoteEditorNote(response.data);
         
         // Always re-fetch notes from backend after update
-        if (selectedCategory) {
-          await fetchNotes(selectedCategory.id);
+        if (selectedNotebook) {
+          await fetchNotes(selectedNotebook.id);
         }
         
         if (closeAfterSave) setShowNoteEditor(false);
@@ -490,14 +490,14 @@ const Notes = () => {
       const response = await axios.put(`${API_URL}/notes/${noteId}/`, {
         title: newTitle.trim() || 'Untitled Note',
         content: note.content,
-        category: note.category
+        notebook: note.notebook
       }, {
         headers: getAuthHeaders()
       });
       const updatedNotes = notes.map(n => n.id === noteId ? response.data : n);
       setNotes(updatedNotes);
-      if (selectedCategory) {
-        await fetchNotes(selectedCategory.id);
+      if (selectedNotebook) {
+        await fetchNotes(selectedNotebook.id);
       }
     } catch (error) {
       handleError(error, 'Failed to update note title');
@@ -514,11 +514,11 @@ const Notes = () => {
           });
           const note = response.data;
           
-          // Find the category for this note
-          const category = categories.find(cat => cat.id === note.category);
-          if (category) {
-            setSelectedCategory(category);
-            await fetchNotes(category.id);
+          // Find the notebook for this note
+          const notebook = notebooks.find(nb => nb.id === note.notebook);
+          if (notebook) {
+            setSelectedNotebook(notebook);
+            await fetchNotes(notebook.id);
           }
           
           // Open the note in the editor
@@ -533,11 +533,11 @@ const Notes = () => {
       }
     };
 
-    // Only try to open note if we have categories loaded
-    if (categories.length > 0) {
+    // Only try to open note if we have notebooks loaded
+    if (notebooks.length > 0) {
       openNoteFromUrl();
     }
-  }, [categories, noteIdFromUrl]);
+  }, [notebooks, noteIdFromUrl]);
 
   // Add useEffect to handle opening note from localStorage
   useEffect(() => {
@@ -551,11 +551,11 @@ const Notes = () => {
           });
           const note = response.data;
           
-          // Find the category for this note
-          const category = categories.find(cat => cat.id === note.category);
-          if (category) {
-            setSelectedCategory(category);
-            await fetchNotes(category.id);
+          // Find the notebook for this note
+          const notebook = notebooks.find(nb => nb.id === note.notebook);
+          if (notebook) {
+            setSelectedNotebook(notebook);
+            await fetchNotes(notebook.id);
           }
           
           // Open the note in the editor
@@ -571,11 +571,11 @@ const Notes = () => {
       }
     };
 
-    // Only try to open note if we have categories loaded
-    if (categories.length > 0) {
+    // Only try to open note if we have notebooks loaded
+    if (notebooks.length > 0) {
       openNoteFromStorage();
     }
-  }, [categories]); // Re-run when categories are loaded
+  }, [notebooks]); // Re-run when notebooks are loaded
 
   const handleBulkDeleteNotes = async (noteIds: number[]) => {
     try {
@@ -589,15 +589,15 @@ const Notes = () => {
       // Update the notes list
       setNotes(notes.filter(note => !noteIds.includes(note.id)));
       
-      // Update category notes count
-      if (selectedCategory) {
-        const updatedCategories = categories.map(cat => 
-          cat.id === selectedCategory.id 
-            ? { ...cat, notes_count: cat.notes_count - noteIds.length }
-            : cat
+      // Update notebook notes count
+      if (selectedNotebook) {
+        const updatedNotebooks = notebooks.map(nb => 
+          nb.id === selectedNotebook.id 
+            ? { ...nb, notes_count: nb.notes_count - noteIds.length }
+            : nb
         );
-        setCategories(updatedCategories);
-        setSelectedCategory({ ...selectedCategory, notes_count: selectedCategory.notes_count - noteIds.length });
+        setNotebooks(updatedNotebooks);
+        setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count - noteIds.length });
       }
     } catch (error) {
       handleError(error, 'Failed to delete notes');
@@ -709,26 +709,26 @@ const Notes = () => {
               )}
               {/* Main Content */}
               <div className="flex flex-col lg:flex-row gap-6">
-                {/* Categories Panel */}
-                <CategoryList
-                  categories={categories}
-                  selectedCategory={selectedCategory}
-                  isAddingCategory={isAddingCategory}
-                  editingCategory={editingCategory}
-                  newCategoryName={newCategoryName}
-                  onCategorySelect={handleCategorySelect}
-                  onAddCategory={handleAddCategory}
-                  onUpdateCategory={handleUpdateCategory}
-                  onDeleteCategory={handleDeleteCategory}
-                  onStartAddingCategory={handleStartAddingCategory}
-                  onCancelAddingCategory={handleCancelAddingCategory}
-                  onStartEditingCategory={handleStartEditingCategory}
-                  onCancelEditingCategory={handleCancelEditingCategory}
-                  onCategoryNameChange={setNewCategoryName}
+                {/* Notebooks Panel */}
+                <NotebookList
+                  notebooks={notebooks}
+                  selectedNotebook={selectedNotebook}
+                  isAddingNotebook={isAddingNotebook}
+                  editingNotebook={editingNotebook}
+                  newNotebookName={newNotebookName}
+                  onNotebookSelect={handleNotebookSelect}
+                  onAddNotebook={handleAddNotebook}
+                  onUpdateNotebook={handleUpdateNotebook}
+                  onDeleteNotebook={handleDeleteNotebook}
+                  onStartAddingNotebook={handleStartAddingNotebook}
+                  onCancelAddingNotebook={handleCancelAddingNotebook}
+                  onStartEditingNotebook={handleStartEditingNotebook}
+                  onCancelEditingNotebook={handleCancelEditingNotebook}
+                  onNotebookNameChange={setNewNotebookName}
                 />
                 {/* Notes Panel */}
                 <NotesList
-                  selectedCategory={selectedCategory}
+                  selectedNotebook={selectedNotebook}
                   notes={filteredNotes}
                   isAddingNote={false}
                   editingNote={null}

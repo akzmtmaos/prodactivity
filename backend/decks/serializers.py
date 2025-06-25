@@ -18,7 +18,7 @@ class DeckSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Deck
-        fields = ['id', 'title', 'user', 'parent', 'created_at', 'updated_at', 'subdecks', 'flashcard_count', 'flashcards']
+        fields = ['id', 'title', 'user', 'parent', 'created_at', 'updated_at', 'progress', 'subdecks', 'flashcard_count', 'flashcards']
         read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'subdecks', 'flashcard_count', 'flashcards']
 
     def get_subdecks(self, obj):
@@ -29,4 +29,9 @@ class DeckSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         validated_data['user'] = self.context['request'].user
-        return super().create(validated_data) 
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        # Ensure user is always set
+        validated_data['user'] = self.context['request'].user
+        return super().update(instance, validated_data) 

@@ -1,9 +1,9 @@
-// frontend/src/components/CategoryList.tsx
+// frontend/src/components/NotebookList.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Edit, Trash2, Folder, Save, X } from 'lucide-react';
+import { Plus, Edit, Trash2, BookOpen, Save, X } from 'lucide-react';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
 
-interface Category {
+interface Notebook {
   id: number; 
   name: string;
   created_at: string;
@@ -11,51 +11,51 @@ interface Category {
   notes_count: number;
 }
 
-interface CategoryListProps {
-  categories: Category[];
-  selectedCategory: Category | null;
-  isAddingCategory: boolean;
-  editingCategory: Category | null;
-  newCategoryName: string;
-  onCategorySelect: (category: Category) => void;
-  onAddCategory: () => void;
-  onUpdateCategory: () => void;
-  onDeleteCategory: (categoryId: number) => void;
-  onStartAddingCategory: () => void;
-  onCancelAddingCategory: () => void;
-  onStartEditingCategory: (category: Category) => void;
-  onCancelEditingCategory: () => void;
-  onCategoryNameChange: (name: string) => void;
+interface NotebookListProps {
+  notebooks: Notebook[];
+  selectedNotebook: Notebook | null;
+  isAddingNotebook: boolean;
+  editingNotebook: Notebook | null;
+  newNotebookName: string;
+  onNotebookSelect: (notebook: Notebook) => void;
+  onAddNotebook: () => void;
+  onUpdateNotebook: () => void;
+  onDeleteNotebook: (notebookId: number) => void;
+  onStartAddingNotebook: () => void;
+  onCancelAddingNotebook: () => void;
+  onStartEditingNotebook: (notebook: Notebook) => void;
+  onCancelEditingNotebook: () => void;
+  onNotebookNameChange: (name: string) => void;
 }
 
-const CategoryList: React.FC<CategoryListProps> = ({
-  categories,
-  selectedCategory,
-  isAddingCategory,
-  editingCategory,
-  newCategoryName,
-  onCategorySelect,
-  onAddCategory,
-  onUpdateCategory,
-  onDeleteCategory,
-  onStartAddingCategory,
-  onCancelAddingCategory,
-  onStartEditingCategory,
-  onCancelEditingCategory,
-  onCategoryNameChange,
+const NotebookList: React.FC<NotebookListProps> = ({
+  notebooks,
+  selectedNotebook,
+  isAddingNotebook,
+  editingNotebook,
+  newNotebookName,
+  onNotebookSelect,
+  onAddNotebook,
+  onUpdateNotebook,
+  onDeleteNotebook,
+  onStartAddingNotebook,
+  onCancelAddingNotebook,
+  onStartEditingNotebook,
+  onCancelEditingNotebook,
+  onNotebookNameChange,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
-  const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+  const [notebookToDelete, setNotebookToDelete] = useState<Notebook | null>(null);
 
   useEffect(() => {
-    if (editorRef.current && editingCategory) {
-      editorRef.current.innerHTML = newCategoryName;
+    if (editorRef.current && editingNotebook) {
+      editorRef.current.innerHTML = newNotebookName;
     }
-  }, [editingCategory, newCategoryName]);
+  }, [editingNotebook, newNotebookName]);
 
   const handleContentChange = () => {
     if (editorRef.current) {
-      onCategoryNameChange(editorRef.current.innerHTML);
+      onNotebookNameChange(editorRef.current.innerHTML);
     }
   };
 
@@ -63,35 +63,35 @@ const CategoryList: React.FC<CategoryListProps> = ({
     <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 rounded-lg shadow p-5 h-[calc(100vh-12rem)] flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-          Categories
+          Notebooks
         </h2>
         <button 
-          onClick={onStartAddingCategory}
+          onClick={onStartAddingNotebook}
           className="p-2 bg-indigo-100 text-indigo-600 rounded-full hover:bg-indigo-200 transition-colors"
         >
           <Plus size={18} className="text-white" />
         </button>
       </div>
       
-      {/* Add category form */}
-      {isAddingCategory && (
+      {/* Add notebook form */}
+      {isAddingNotebook && (
         <div className="mb-4 p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
           <input
             type="text"
-            value={newCategoryName}
-            onChange={(e) => onCategoryNameChange(e.target.value)}
-            placeholder="Category name"
+            value={newNotebookName}
+            onChange={(e) => onNotebookNameChange(e.target.value)}
+            placeholder="Notebook name"
             className="w-full mb-2 p-2 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
           <div className="flex gap-2">
             <button
-              onClick={onAddCategory}
+              onClick={onAddNotebook}
               className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
             >
               <Save size={16} className="text-white" />
             </button>
             <button
-              onClick={onCancelAddingCategory}
+              onClick={onCancelAddingNotebook}
               className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
             >
               <X size={16} className="text-white" />
@@ -100,27 +100,27 @@ const CategoryList: React.FC<CategoryListProps> = ({
         </div>
       )}
       
-      {/* Categories list */}
+      {/* Notebooks list */}
       <div className="space-y-2 flex-1 overflow-y-auto">
-        {categories.map((category) => (
-          <div key={category.id} className="group">
-            {editingCategory?.id === category.id ? (
+        {notebooks.map((notebook) => (
+          <div key={notebook.id} className="group">
+            {editingNotebook?.id === notebook.id ? (
               <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
                 <input
                   type="text"
-                  value={newCategoryName}
-                  onChange={(e) => onCategoryNameChange(e.target.value)}
+                  value={newNotebookName}
+                  onChange={(e) => onNotebookNameChange(e.target.value)}
                   className="w-full mb-2 p-2 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
                 <div className="flex gap-2">
                   <button
-                    onClick={onUpdateCategory}
+                    onClick={onUpdateNotebook}
                     className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
                   >
                     <Save size={16} className="text-white" />
                   </button>
                   <button
-                    onClick={onCancelEditingCategory}
+                    onClick={onCancelEditingNotebook}
                     className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
                   >
                     <X size={16} className="text-white" />
@@ -130,18 +130,18 @@ const CategoryList: React.FC<CategoryListProps> = ({
             ) : (
               <div
                 className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
-                  selectedCategory?.id === category.id
+                  selectedNotebook?.id === notebook.id
                     ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200'
                     : 'hover:bg-gray-100 dark:hover:bg-gray-700'
                 }`}
-                onClick={() => onCategorySelect(category)}
+                onClick={() => onNotebookSelect(notebook)}
               >
                 <div className="flex items-center">
-                  <Folder className="mr-2 text-white" size={18} />
+                  <BookOpen className="mr-2 text-white" size={18} />
                   <div>
-                    <span className={`font-medium ${selectedCategory?.id === category.id ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-gray-800 dark:text-gray-200'}`}>{category.name}</span>
+                    <span className={`font-medium ${selectedNotebook?.id === notebook.id ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-gray-800 dark:text-gray-200'}`}>{notebook.name}</span>
                     <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                      ({category.notes_count} notes)
+                      ({notebook.notes_count} notes)
                     </span>
                   </div>
                 </div>
@@ -149,7 +149,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      onStartEditingCategory(category);
+                      onStartEditingNotebook(notebook);
                     }}
                     className="p-1 text-gray-500 hover:text-indigo-600 mr-1"
                   >
@@ -158,7 +158,7 @@ const CategoryList: React.FC<CategoryListProps> = ({
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
-                      setCategoryToDelete(category);
+                      setNotebookToDelete(notebook);
                     }}
                     className="p-1 text-gray-500 hover:text-red-600"
                   >
@@ -172,19 +172,19 @@ const CategoryList: React.FC<CategoryListProps> = ({
       </div>
 
       <DeleteConfirmationModal
-        isOpen={!!categoryToDelete}
-        onClose={() => setCategoryToDelete(null)}
+        isOpen={!!notebookToDelete}
+        onClose={() => setNotebookToDelete(null)}
         onConfirm={() => {
-          if (categoryToDelete) {
-            onDeleteCategory(categoryToDelete.id);
-            setCategoryToDelete(null);
+          if (notebookToDelete) {
+            onDeleteNotebook(notebookToDelete.id);
+            setNotebookToDelete(null);
           }
         }}
-        title="Delete Category"
-        message={`Are you sure you want to delete "${categoryToDelete?.name}"? This will also delete all notes in this category.`}
+        title="Delete Notebook"
+        message={`Are you sure you want to delete "${notebookToDelete?.name}"? This will also delete all notes in this notebook.`}
       />
     </div>
   );
 };
 
-export default CategoryList;
+export default NotebookList;

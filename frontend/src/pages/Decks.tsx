@@ -91,24 +91,27 @@ const Decks = () => {
         });
         if (!res.ok) throw new Error('Failed to fetch decks');
         const data = await res.json();
-        setDecks(data.map((deck: any) => ({
-          id: deck.id.toString(),
-          title: deck.title,
-          flashcardCount: deck.flashcard_count || 0,
-          progress: 0,
-          created_at: deck.created_at,
-          updated_at: deck.updated_at,
-          createdAt: deck.created_at,
-          flashcards: (deck.flashcards || []).map((fc: any) => ({
-            id: fc.id.toString(),
-            question: fc.front,
-            answer: fc.back,
-            front: fc.front,
-            back: fc.back,
-            difficulty: undefined
-          })),
-          is_deleted: false,
-        })));
+        setDecks(data.map((deck: any) => {
+          console.log('Deck from backend:', deck); // Debug log
+          return {
+            id: deck.id.toString(),
+            title: deck.title,
+            flashcardCount: deck.flashcard_count || 0,
+            progress: deck.progress || 0,
+            created_at: deck.created_at,
+            updated_at: deck.updated_at,
+            createdAt: deck.created_at,
+            flashcards: (deck.flashcards || []).map((fc: any) => ({
+              id: fc.id.toString(),
+              question: fc.front,
+              answer: fc.back,
+              front: fc.front,
+              back: fc.back,
+              difficulty: undefined
+            })),
+            is_deleted: false,
+          };
+        }));
       } catch (error) {
         setDecks([]);
       }
@@ -157,8 +160,20 @@ const Decks = () => {
     ));
   };
 
-  const handleDeleteDeck = (deck: Deck) => {
-    setDecks(decks.filter(d => d.id !== deck.id));
+  const handleDeleteDeck = async (deck: Deck) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`http://localhost:8000/api/decks/decks/${deck.id}/`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+      });
+      if (!res.ok) throw new Error('Failed to delete deck');
+      setDecks(decks.filter(d => d.id !== deck.id));
+    } catch (error) {
+      alert('Error deleting deck.');
+    }
   };
 
   const handleStudy = (deckId: string) => {
@@ -372,15 +387,42 @@ const Decks = () => {
             setSelectedDeck(null);
           }}
           onComplete={(results) => {
+            const newProgress = Math.round(Math.min(100, (selectedDeck?.progress || 0) + 10));
             setDecks(decks.map(d => 
               d.id === selectedDeck.id 
                 ? { 
                     ...d, 
-                    progress: Math.min(100, d.progress + 10),
+                    progress: newProgress,
                     lastStudied: new Date().toISOString()
                   }
                 : d
             ));
+            // Persist progress to backend
+            const token = localStorage.getItem('accessToken');
+            fetch(`http://localhost:8000/api/decks/decks/${selectedDeck.id}/`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : '',
+              },
+              body: JSON.stringify({ progress: newProgress })
+            })
+            .then(res => {
+              if (!res.ok) {
+                res.json().then(data => {
+                  console.error('Failed to save progress! Backend error:', data);
+                  alert('Failed to save progress! Check console for backend error.');
+                }).catch(() => {
+                  alert('Failed to save progress!');
+                });
+              }
+              return res.json().catch(() => ({}));
+            })
+            .then(data => {
+              if (data && data.progress !== undefined) {
+                console.log('Progress updated on backend:', data.progress);
+              }
+            });
             setShowStudySession(false);
             setSelectedDeck(null);
           }}
@@ -399,15 +441,42 @@ const Decks = () => {
             setSelectedDeck(null);
           }}
           onComplete={(results) => {
+            const newProgress = Math.round(Math.min(100, (selectedDeck?.progress || 0) + (results.score / 10)));
             setDecks(decks.map(d => 
               d.id === selectedDeck.id 
                 ? { 
                     ...d, 
-                    progress: Math.min(100, d.progress + (results.score / 10)),
+                    progress: newProgress,
                     lastStudied: new Date().toISOString()
                   }
                 : d
             ));
+            // Persist progress to backend
+            const token = localStorage.getItem('accessToken');
+            fetch(`http://localhost:8000/api/decks/decks/${selectedDeck.id}/`, {
+              method: 'PATCH',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': token ? `Bearer ${token}` : '',
+              },
+              body: JSON.stringify({ progress: newProgress })
+            })
+            .then(res => {
+              if (!res.ok) {
+                res.json().then(data => {
+                  console.error('Failed to save progress! Backend error:', data);
+                  alert('Failed to save progress! Check console for backend error.');
+                }).catch(() => {
+                  alert('Failed to save progress!');
+                });
+              }
+              return res.json().catch(() => ({}));
+            })
+            .then(data => {
+              if (data && data.progress !== undefined) {
+                console.log('Progress updated on backend:', data.progress);
+              }
+            });
             setShowQuizSession(false);
             setSelectedDeck(null);
           }}
@@ -627,7 +696,11 @@ const Decks = () => {
                   setShowDeleteModal(false);
                   setSelectedDeck(null);
                 }}
-                onConfirm={() => handleDeleteDeck(selectedDeck)}
+                onConfirm={() => {
+                  handleDeleteDeck(selectedDeck);
+                  setShowDeleteModal(false);
+                  setSelectedDeck(null);
+                }}
               />
             )}
 

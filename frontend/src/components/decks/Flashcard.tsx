@@ -25,6 +25,10 @@ const Flashcard: React.FC<FlashcardProps> = ({
 }) => {
   const [isFlipped, setIsFlipped] = useState(showAnswer);
 
+  React.useEffect(() => {
+    setIsFlipped(showAnswer);
+  }, [showAnswer]);
+
   const handleFlip = () => {
     if (onFlip) {
       onFlip();

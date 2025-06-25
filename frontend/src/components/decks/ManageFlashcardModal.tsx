@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Pencil, Trash2 } from 'lucide-react';
+import PageLayout from '../PageLayout';
 
 interface FlashcardData {
   id: string;
@@ -46,6 +47,7 @@ const ManageFlashcards: React.FC<ManageFlashcardsProps> = ({
   };
 
   return (
+    <PageLayout>
     <div className="min-h-screen bg-white dark:bg-gray-900">
       {/* Header */}
       <div className="border-b border-gray-200 dark:border-gray-700">
@@ -73,8 +75,8 @@ const ManageFlashcards: React.FC<ManageFlashcardsProps> = ({
       </div>
 
       {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="space-y-6">
+      <div className="py-8 flex flex-col gap-8 min-h-[calc(100vh-64px)] transition-all duration-300">
+        <div className="flex flex-col gap-8 w-full">
           {/* Add New Card Button */}
           <div className="mb-8">
             {!isAdding ? (
@@ -135,7 +137,7 @@ const ManageFlashcards: React.FC<ManageFlashcardsProps> = ({
           </div>
 
           {/* Flashcards List */}
-          <div className="space-y-4">
+          <div className="flex flex-col gap-4 w-full">
             {flashcards.map((flashcard) => (
               <div
                 key={flashcard.id}
@@ -186,34 +188,49 @@ const ManageFlashcards: React.FC<ManageFlashcardsProps> = ({
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white">Question</h3>
-                      <p className="mt-2 text-gray-600 dark:text-gray-400">{flashcard.question}</p>
+                  <div className="relative group flex flex-col gap-2">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-base font-semibold text-gray-900 dark:text-white">Question</h3>
+                        <p className="mt-1 text-gray-800 dark:text-gray-200 text-sm break-words">{flashcard.question}</p>
+                      </div>
+                      {/* Triple Dots Menu */}
+                      <div className="relative">
+                        <button
+                          className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingId(editingId === flashcard.id ? null : flashcard.id + '-menu');
+                          }}
+                          aria-label="More options"
+                        >
+                          <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+                        </button>
+                        {/* Dropdown Menu */}
+                        {editingId === flashcard.id + '-menu' && (
+                          <div className="absolute right-0 mt-2 w-28 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-50">
+                            <button
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-t-lg"
+                              onClick={() => {
+                                setEditingId(flashcard.id);
+                                setEditingCard({ question: flashcard.question, answer: flashcard.answer });
+                              }}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-b-lg"
+                              onClick={() => onDeleteFlashcard(flashcard.id)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div>
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white">Answer</h3>
-                      <p className="mt-2 text-gray-600 dark:text-gray-400">{flashcard.answer}</p>
-                    </div>
-                    <div className="flex justify-end space-x-3">
-                      <button
-                        onClick={() => {
-                          setEditingId(flashcard.id);
-                          setEditingCard({
-                            question: flashcard.question,
-                            answer: flashcard.answer,
-                          });
-                        }}
-                        className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                      >
-                        <Pencil size={20} />
-                      </button>
-                      <button
-                        onClick={() => onDeleteFlashcard(flashcard.id)}
-                        className="p-2 text-red-500 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
-                      >
-                        <Trash2 size={20} />
-                      </button>
+                      <h3 className="text-base font-semibold text-gray-900 dark:text-white mt-2">Answer</h3>
+                      <p className="mt-1 text-gray-800 dark:text-gray-200 text-sm break-words">{flashcard.answer}</p>
                     </div>
                   </div>
                 )}
@@ -223,6 +240,7 @@ const ManageFlashcards: React.FC<ManageFlashcardsProps> = ({
         </div>
       </div>
     </div>
+    </PageLayout>
   );
 };
 

@@ -13,8 +13,8 @@ interface Deck {
   id: number;
   title: string;
   description: string;
-  category: number;
-  category_name: string;
+  notebook: number;
+  notebook_name: string;
   created_at: string;
   updated_at: string;
   flashcards: FlashcardData[];

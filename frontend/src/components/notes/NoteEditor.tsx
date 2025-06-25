@@ -37,8 +37,8 @@ interface Note {
   id: number;
   title: string;
   content: string;
-  category: number;
-  category_name: string;
+  notebook: number;
+  notebook_name: string;
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
