@@ -268,6 +268,14 @@ function App() {
                 </PrivateRoute>
               }
             />
+            <Route
+              path="/reviewer/:id"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Reviewer />
+                </PrivateRoute>
+              }
+            />
           </Routes>
         </Router>
       </NavbarProvider>

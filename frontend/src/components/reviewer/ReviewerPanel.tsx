@@ -22,6 +22,7 @@ import axios from 'axios';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import ReviewerDocument from './ReviewerDocument';
+import { useNavigate } from 'react-router-dom';
 
 interface Reviewer {
   id: number;
@@ -52,7 +53,6 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [quizLoadingId, setQuizLoadingId] = useState<number | null>(null);
-  const [selectedReviewer, setSelectedReviewer] = useState<Reviewer | null>(null);
   const [activeTab, setActiveTab] = useState<'reviewer' | 'quiz'>('reviewer');
   const [filterType, setFilterType] = useState('all');
 
@@ -66,6 +66,8 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks }) => {
       'Content-Type': 'application/json'
     };
   };
+
+  const navigate = useNavigate();
 
   // Fetch existing reviewers
   const fetchReviewers = async () => {
@@ -146,7 +148,7 @@ Content:
 ${sourceContent}`;
 
       // Only one POST to /notes/ai-reviewer/
-      const response = await axios.post(`${API_URL}/notes/ai-reviewer/`, {
+      const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
         text: detailedPrompt,
         title: reviewerTitle || `${sourceTitle} - Study Summary`,
         source_note: selectedSource === 'note' ? selectedNote : null,
@@ -219,7 +221,7 @@ ${sourceContent}`;
     setQuizLoadingId(reviewer.id);
     setError(null);
     try {
-      const response = await axios.post(`${API_URL}/notes/ai-reviewer/`, {
+      const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
         text: reviewer.content,
         title: `Quiz: ${reviewer.title}`
       }, {
@@ -433,14 +435,6 @@ ${sourceContent}`;
               document.body
             )}
 
-            {/* Reviewer Document Modal */}
-            {selectedReviewer && (
-              <ReviewerDocument
-                reviewer={selectedReviewer}
-                onClose={() => setSelectedReviewer(null)}
-              />
-            )}
-
             {/* Reviewers List */}
             {loading ? (
               <div className="text-center py-8">
@@ -462,7 +456,7 @@ ${sourceContent}`;
                   <div
                     key={reviewer.id}
                     className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow cursor-pointer"
-                    onClick={() => setSelectedReviewer(reviewer)}
+                    onClick={() => navigate(`/reviewer/${reviewer.id}`)}
                   >
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
@@ -470,19 +464,6 @@ ${sourceContent}`;
                           <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                             {reviewer.title}
                           </h3>
-                        </div>
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs text-gray-400 dark:text-gray-500 select-all">ID: {reviewer.id}</span>
-                          <button
-                            className="ml-2 px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 rounded hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300"
-                            onClick={e => {
-                              e.stopPropagation();
-                              navigator.clipboard.writeText(`${window.location.origin}/reviewer?id=${reviewer.id}`);
-                            }}
-                            title="Copy reviewer link"
-                          >
-                            Copy Link
-                          </button>
                         </div>
                         {reviewer.source_note_title && (
                           <p className="text-sm text-gray-600 dark:text-gray-400">

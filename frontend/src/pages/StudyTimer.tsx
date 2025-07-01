@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Pause, RotateCcw, Settings, Clock, Target, TrendingUp } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
+import PomodoroModeToggle from '../components/studytimer/PomodoroModeToggle';
 
 interface TimerSettings {
   studyDuration: number;
@@ -48,16 +49,42 @@ const StudyTimer: React.FC = () => {
   const [isBreak, setIsBreak] = useState(false);
   const [sessionsCompleted, setSessionsCompleted] = useState(0);
   const [showSettings, setShowSettings] = useState(false);
-  const [settings, setSettings] = useState<TimerSettings>({
-    studyDuration: 25 * 60, // 25 minutes in seconds
-    breakDuration: 5 * 60,  // 5 minutes in seconds
-    longBreakDuration: 15 * 60, // 15 minutes in seconds
-    sessionsUntilLongBreak: 4
+  const [settings, setSettings] = useState<TimerSettings>(() => {
+    const saved = localStorage.getItem('studyTimerSettings');
+    if (saved) {
+      try {
+        return JSON.parse(saved);
+      } catch {
+        return {
+          studyDuration: 25 * 60,
+          breakDuration: 5 * 60,
+          longBreakDuration: 15 * 60,
+          sessionsUntilLongBreak: 4
+        };
+      }
+    }
+    return {
+      studyDuration: 25 * 60,
+      breakDuration: 5 * 60,
+      longBreakDuration: 15 * 60,
+      sessionsUntilLongBreak: 4
+    };
   });
+  const [tempSettings, setTempSettings] = useState<TimerSettings>(settings);
   const [sessionLogs, setSessionLogs] = useState<SessionLogEntry[]>([]);
   const [sessionStart, setSessionStart] = useState<Date | null>(null);
   const [activeTab, setActiveTab] = useState<'timer' | 'sessions'>('timer');
+  const [pomodoroMode, setPomodoroMode] = useState(false);
 
+  // Pomodoro preset values
+  const pomodoroPreset: TimerSettings = {
+    studyDuration: 25 * 60,
+    breakDuration: 5 * 60,
+    longBreakDuration: 15 * 60,
+    sessionsUntilLongBreak: 4,
+  };
+
+  // On initial mount, always reset to Study Time
   useEffect(() => {
     // Get user data from localStorage
     const userData = localStorage.getItem('user');
@@ -83,10 +110,21 @@ const StudyTimer: React.FC = () => {
     else if (hour < 18) setGreeting('Good afternoon');
     else setGreeting('Good evening');
 
-    // Initialize timer
+    setIsBreak(false);
     setTimeLeft(settings.studyDuration);
     setSessionStart(new Date());
+    setSessionsCompleted(0);
+    console.log('[Mount] isBreak:', false, 'timeLeft:', settings.studyDuration);
   }, []);
+
+  // On settings change, also reset to Study Time
+  useEffect(() => {
+    setIsBreak(false);
+    setTimeLeft(settings.studyDuration);
+    setSessionStart(new Date());
+    setSessionsCompleted(0);
+    console.log('[SettingsChangeEffect] isBreak:', false, 'timeLeft:', settings.studyDuration);
+  }, [settings]);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -147,8 +185,10 @@ const StudyTimer: React.FC = () => {
 
   const resetTimer = () => {
     setIsRunning(false);
-    setTimeLeft(isBreak ? settings.breakDuration : settings.studyDuration);
+    setIsBreak(false); // Always reset to Study Time
+    setTimeLeft(settings.studyDuration);
     setSessionStart(new Date());
+    console.log('[Reset] isBreak:', false, 'timeLeft:', settings.studyDuration);
   };
 
   const formatTime = (seconds: number): string => {
@@ -157,11 +197,42 @@ const StudyTimer: React.FC = () => {
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const handleSettingsChange = (newSettings: TimerSettings) => {
-    setSettings(newSettings);
-    setTimeLeft(isBreak ? newSettings.breakDuration : newSettings.studyDuration);
-    setShowSettings(false);
+  const openSettings = () => {
+    setTempSettings(settings);
+    setShowSettings(true);
   };
+
+  const handleSettingsChange = () => {
+    setSettings(tempSettings);
+    setIsBreak(false);
+    setTimeLeft(tempSettings.studyDuration);
+    setShowSettings(false);
+    console.log('[SettingsChange] isBreak:', false, 'timeLeft:', tempSettings.studyDuration);
+  };
+
+  const handlePomodoroToggle = (enabled: boolean) => {
+    setPomodoroMode(enabled);
+    if (enabled) {
+      setSettings(pomodoroPreset);
+      setTimeLeft(pomodoroPreset.studyDuration);
+      setIsBreak(false);
+    }
+  };
+
+  // Save settings to localStorage when they change (and Pomodoro Mode is off)
+  useEffect(() => {
+    if (!pomodoroMode) {
+      localStorage.setItem('studyTimerSettings', JSON.stringify(settings));
+    }
+  }, [settings, pomodoroMode]);
+
+  // Ensure Study Time is always shown when timer is not running
+  useEffect(() => {
+    if (!isRunning) {
+      setIsBreak(false);
+      setTimeLeft(settings.studyDuration);
+    }
+  }, [isRunning, settings.studyDuration]);
 
   // Show loading state while waiting for user data
   if (!user) {
@@ -283,7 +354,7 @@ const StudyTimer: React.FC = () => {
                         Reset
                       </button>
                       <button
-                        onClick={() => setShowSettings(true)}
+                        onClick={openSettings}
                         className="px-6 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium flex items-center transition-colors"
                       >
                         <Settings size={20} className="mr-2" />
@@ -300,7 +371,9 @@ const StudyTimer: React.FC = () => {
                       <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
                         Timer Settings
                       </h2>
-                      
+                      {/* Pomodoro Mode Toggle inside settings */}
+                      <PomodoroModeToggle enabled={pomodoroMode} onToggle={handlePomodoroToggle} />
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">Classic Pomodoro: 25 min study, 5 min break, 15 min long break, 4 sessions per long break.</p>
                       <div className="space-y-4">
                         <div>
                           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -308,12 +381,13 @@ const StudyTimer: React.FC = () => {
                           </label>
                           <input
                             type="number"
-                            value={settings.studyDuration / 60}
-                            onChange={(e) => setSettings({
-                              ...settings,
+                            value={pomodoroMode ? settings.studyDuration / 60 : tempSettings.studyDuration / 60}
+                            onChange={(e) => setTempSettings({
+                              ...tempSettings,
                               studyDuration: parseInt(e.target.value) * 60
                             })}
                             className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            disabled={pomodoroMode}
                           />
                         </div>
                         
@@ -323,12 +397,13 @@ const StudyTimer: React.FC = () => {
                           </label>
                           <input
                             type="number"
-                            value={settings.breakDuration / 60}
-                            onChange={(e) => setSettings({
-                              ...settings,
+                            value={pomodoroMode ? settings.breakDuration / 60 : tempSettings.breakDuration / 60}
+                            onChange={(e) => setTempSettings({
+                              ...tempSettings,
                               breakDuration: parseInt(e.target.value) * 60
                             })}
                             className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            disabled={pomodoroMode}
                           />
                         </div>
                         
@@ -338,12 +413,13 @@ const StudyTimer: React.FC = () => {
                           </label>
                           <input
                             type="number"
-                            value={settings.longBreakDuration / 60}
-                            onChange={(e) => setSettings({
-                              ...settings,
+                            value={pomodoroMode ? settings.longBreakDuration / 60 : tempSettings.longBreakDuration / 60}
+                            onChange={(e) => setTempSettings({
+                              ...tempSettings,
                               longBreakDuration: parseInt(e.target.value) * 60
                             })}
                             className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            disabled={pomodoroMode}
                           />
                         </div>
                         
@@ -353,12 +429,13 @@ const StudyTimer: React.FC = () => {
                           </label>
                           <input
                             type="number"
-                            value={settings.sessionsUntilLongBreak}
-                            onChange={(e) => setSettings({
-                              ...settings,
+                            value={pomodoroMode ? settings.sessionsUntilLongBreak : tempSettings.sessionsUntilLongBreak}
+                            onChange={(e) => setTempSettings({
+                              ...tempSettings,
                               sessionsUntilLongBreak: parseInt(e.target.value)
                             })}
                             className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            disabled={pomodoroMode}
                           />
                         </div>
                       </div>
@@ -371,8 +448,9 @@ const StudyTimer: React.FC = () => {
                           Cancel
                         </button>
                         <button
-                          onClick={() => handleSettingsChange(settings)}
+                          onClick={handleSettingsChange}
                           className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                          disabled={pomodoroMode}
                         >
                           Save Changes
                         </button>

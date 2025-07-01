@@ -2,14 +2,19 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import ReviewerPanel from '../components/reviewer/ReviewerPanel';
 import PageLayout from '../components/PageLayout';
+import { useParams, useNavigate } from 'react-router-dom';
+import ReviewerDocument from '../components/reviewer/ReviewerDocument';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 
 const Reviewer = () => {
+  const { id: reviewerId } = useParams();
+  const navigate = useNavigate();
   const [notebooks, setNotebooks] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [modalReviewer, setModalReviewer] = useState<any | null>(null);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
@@ -36,6 +41,29 @@ const Reviewer = () => {
     };
     fetchData();
   }, []);
+
+  // Fetch reviewer by id if reviewerId param exists
+  useEffect(() => {
+    const fetchReviewer = async () => {
+      if (reviewerId) {
+        try {
+          const token = localStorage.getItem('accessToken');
+          const response = await axios.get(`${API_URL}/reviewers/${reviewerId}/`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          });
+          setModalReviewer(response.data);
+        } catch (err) {
+          setModalReviewer(null);
+        }
+      } else {
+        setModalReviewer(null);
+      }
+    };
+    fetchReviewer();
+  }, [reviewerId]);
 
   if (loading) {
     return (
@@ -65,6 +93,23 @@ const Reviewer = () => {
           </div>
         </div>
       </div>
+      {reviewerId && !modalReviewer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg w-full max-w-2xl p-6 relative flex flex-col max-h-[80vh]">
+            <button
+              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl font-bold focus:outline-none"
+              onClick={() => navigate('/reviewer')}
+            >
+              ×
+            </button>
+            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Reviewer Not Found</h2>
+            <div className="p-4 text-gray-700 dark:text-gray-300">Could not load the reviewer. It may not exist or you may not have access.</div>
+          </div>
+        </div>
+      )}
+      {modalReviewer && (
+        <ReviewerDocument reviewer={modalReviewer} onClose={() => navigate('/reviewer')} />
+      )}
     </PageLayout>
   );
 };
