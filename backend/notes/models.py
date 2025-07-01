@@ -23,20 +23,16 @@ class Notebook(models.Model):
 
 class Note(models.Model):
     title = models.CharField(max_length=255)
-    content = models.TextField(blank=True)
+    content = models.TextField()
     notebook = models.ForeignKey(Notebook, on_delete=models.CASCADE, related_name='notes')
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notes')
-    is_deleted = models.BooleanField(default=False)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+    is_deleted = models.BooleanField(default=False)
     last_visited = models.DateTimeField(null=True, blank=True)
     
     class Meta:
-        ordering = ['-created_at']  # Most recent first
+        ordering = ['-updated_at']
     
     def __str__(self):
-        return f"{self.title} - {self.notebook.name}"
-    
-    @property
-    def notebook_name(self):
-        return self.notebook.name
+        return f"{self.title} ({self.user.username})"

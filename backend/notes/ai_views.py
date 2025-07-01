@@ -1,5 +1,5 @@
 from django.shortcuts import render
-from django.http import JsonResponse
+from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.conf import settings
@@ -9,100 +9,101 @@ from rest_framework import status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 import json
-import os
 import logging
-import torch
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+import requests
+import os
+from reviewer.serializers import ReviewerSerializer
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Initialize model and tokenizer
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-logger.info(f"Using device: {device}")
-
-model = None
-tokenizer = None
-
-try:
-    model = AutoModelForSeq2SeqLM.from_pretrained("facebook/bart-large-cnn")
-    tokenizer = AutoTokenizer.from_pretrained("facebook/bart-large-cnn")
-    model = model.to(device)
-    logger.info("Model and tokenizer loaded successfully")
-except Exception as e:
-    logger.error(f"Error loading model: {str(e)}")
-
-# System prompt to guide the model's behavior
-SYSTEM_PROMPT = """You are a helpful AI assistant. You provide clear, concise, and accurate responses.
-You are respectful, honest, and avoid harmful or inappropriate content.
-You maintain a professional and friendly tone."""
+# Ollama API configuration
+OLLAMA_API_URL = "http://localhost:11434/api/generate"
+OLLAMA_MODEL = "llama2"  # Changed from 'llama2' to 'mistral' for lower memory usage
 
 def format_chat_prompt(messages):
-    """Format messages into a prompt for the model."""
-    formatted_prompt = ""
+    # Format for Ollama - simple conversation without role prefixes
+    turns = []
     for msg in messages:
-        role = msg.get('role', '')
-        content = msg.get('content', '')
-        if role == 'system':
-            formatted_prompt += f"System: {content}\n"
-        elif role == 'user':
-            formatted_prompt += f"Human: {content}\n"
-        elif role == 'assistant':
-            formatted_prompt += f"Assistant: {content}\n"
-    formatted_prompt += "Assistant: "
-    return formatted_prompt
+        turns.append(msg['content'])
+    return "\n".join(turns)
 
 @csrf_exempt
 @require_http_methods(["POST"])
 def chat(request):
-    if not model or not tokenizer:
-        return JsonResponse({
-            "error": "AI model is not available. Please try again later."
-        }, status=503)
-
     try:
         data = json.loads(request.body)
         messages = data.get('messages', [])
-        
         if not messages:
             return JsonResponse({
                 'error': 'No messages provided'
             }, status=400)
         
-        # Add system prompt if not present
-        if not any(msg.get('role') == 'system' for msg in messages):
-            messages.insert(0, {'role': 'system', 'content': SYSTEM_PROMPT})
+        # Only keep last 6 user/assistant messages
+        user_assistant_msgs = [msg for msg in messages if msg.get('role') in ('user', 'assistant')]
+        user_assistant_msgs = user_assistant_msgs[-6:]
+        formatted_prompt = format_chat_prompt(user_assistant_msgs)
         
-        # Format messages for the model
-        formatted_prompt = format_chat_prompt(messages)
+        # Call Ollama API with streaming
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": formatted_prompt,
+            "stream": True,
+            "options": {
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "num_predict": 500
+            }
+        }
         
-        # Tokenize input
-        inputs = tokenizer(formatted_prompt, return_tensors="pt", max_length=512, truncation=True)
-        inputs = inputs.to(device)
+        response = requests.post(OLLAMA_API_URL, json=payload, timeout=120, stream=True)
         
-        # Generate response with optimized parameters
-        with torch.no_grad():
-            outputs = model.generate(
-                **inputs,
-                max_length=256,
-                num_return_sequences=1,
-                temperature=0.7,
-                top_p=0.9,
-                do_sample=True,
-                pad_token_id=tokenizer.eos_token_id,
-                repetition_penalty=1.2,
-                no_repeat_ngram_size=3
+        if response.status_code == 200:
+            # Create a streaming response
+            def generate():
+                full_response = ""
+                for line in response.iter_lines():
+                    if line:
+                        try:
+                            data = json.loads(line.decode('utf-8'))
+                            if 'response' in data:
+                                chunk = data['response']
+                                full_response += chunk
+                                # Send each chunk to the frontend
+                                yield f"data: {json.dumps({'chunk': chunk, 'full_response': full_response})}\n\n"
+                            if data.get('done', False):
+                                break
+                        except json.JSONDecodeError:
+                            continue
+                
+                # Send completion signal
+                yield f"data: {json.dumps({'done': True, 'full_response': full_response.strip()})}\n\n"
+            
+            return StreamingHttpResponse(
+                generate(),
+                content_type='text/event-stream',
+                headers={
+                    'Cache-Control': 'no-cache',
+                    'Access-Control-Allow-Origin': '*',
+                    'Access-Control-Allow-Headers': 'Cache-Control'
+                }
             )
-        
-        # Decode and clean up the response
-        response = tokenizer.decode(outputs[0], skip_special_tokens=True)
-        response = response.replace(formatted_prompt, "").strip()
-        
+        else:
+            logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+            return JsonResponse({
+                'error': 'Failed to get response from AI service. Make sure Ollama is running.'
+            }, status=500)
+    except requests.exceptions.ConnectionError:
+        logger.error("Could not connect to Ollama. Make sure Ollama is running.")
         return JsonResponse({
-            'response': response
-        })
-        
+            'error': 'Could not connect to Ollama. Please make sure Ollama is running on your computer.'
+        }, status=503)
+    except requests.exceptions.Timeout:
+        logger.error("Ollama request timed out. The model is taking too long to respond.")
+        return JsonResponse({
+            'error': 'The AI is taking too long to respond. Please try again with a shorter question or wait a moment.'
+        }, status=408)
     except Exception as e:
         logger.error(f"Error in chat endpoint: {str(e)}")
         return JsonResponse({
@@ -113,12 +114,6 @@ class SummarizeView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if not model or not tokenizer:
-            return Response(
-                {"error": "AI model is not available. Please try again later."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
-
         try:
             text = request.data.get('text', '')
             if not text:
@@ -127,32 +122,52 @@ class SummarizeView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Tokenize input
-            inputs = tokenizer(text, max_length=1024, truncation=True, return_tensors="pt")
-            inputs = inputs.to(device)
+            # Create a summarization prompt
+            summarize_prompt = f"Please provide a concise summary of the following text:\n\n{text}\n\nSummary:"
             
-            # Generate summary with optimized parameters
-            with torch.no_grad():
-                outputs = model.generate(
-                    **inputs,
-                    max_length=130,
-                    min_length=30,
-                    num_beams=4,
-                    length_penalty=2.0,
-                    early_stopping=True
-                )
+            payload = {
+                "model": OLLAMA_MODEL,
+                "prompt": summarize_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.3,
+                    "top_p": 0.9,
+                    "num_predict": 150
+                }
+            }
             
-            # Decode and clean up the summary
-            summary = tokenizer.decode(outputs[0], skip_special_tokens=True)
+            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
             
-            if not summary:
+            if response.status_code == 200:
+                result = response.json()
+                summary = result.get('response', '').strip()
+                
+                if not summary:
+                    return Response(
+                        {"error": "Failed to generate summary. Please try again."},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+                
+                return Response({"summary": summary})
+            else:
+                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
                 return Response(
                     {"error": "Failed to generate summary. Please try again."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
             
-            return Response({"summary": summary})
-            
+        except requests.exceptions.ConnectionError:
+            logger.error("Could not connect to Ollama. Make sure Ollama is running.")
+            return Response(
+                {"error": "Could not connect to Ollama. Please make sure Ollama is running on your computer."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except requests.exceptions.Timeout:
+            logger.error("Ollama request timed out. The model is taking too long to respond.")
+            return Response(
+                {"error": "The AI is taking too long to respond. Please try again with a shorter text or wait a moment."},
+                status=status.HTTP_408_REQUEST_TIMEOUT
+            )
         except Exception as e:
             logger.error(f"Error in summarization: {str(e)}")
             return Response(
@@ -164,11 +179,6 @@ class ReviewView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if not model or not tokenizer:
-            return Response(
-                {"error": "AI model is not available. Please try again later."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
         try:
             text = request.data.get('text', '')
             if not text:
@@ -176,32 +186,153 @@ class ReviewView(APIView):
                     {"error": "No text provided"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            # Compose a review prompt
-            review_prompt = (
-                "You are an expert reviewer. Read the following note and provide constructive feedback, suggestions for improvement, and highlight any strengths or weaknesses.\n\nNote Content:\n" + text + "\n\nReview:" 
-            )
-            inputs = tokenizer(review_prompt, max_length=1024, truncation=True, return_tensors="pt")
-            inputs = inputs.to(device)
-            with torch.no_grad():
-                outputs = model.generate(
-                    **inputs,
-                    max_length=256,
-                    min_length=50,
-                    num_beams=4,
-                    length_penalty=2.0,
-                    early_stopping=True
-                )
-            review = tokenizer.decode(outputs[0], skip_special_tokens=True)
-            if not review:
+            
+            # Create a review prompt
+            review_prompt = f"Please review the following text and provide constructive feedback, suggestions for improvement, and highlight any strengths or weaknesses:\n\n{text}\n\nReview:"
+            
+            payload = {
+                "model": OLLAMA_MODEL,
+                "prompt": review_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "num_predict": 200
+                }
+            }
+            
+            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
+            
+            if response.status_code == 200:
+                result = response.json()
+                review = result.get('response', '').strip()
+                
+                if not review:
+                    return Response(
+                        {"error": "Failed to generate review. Please try again."},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+                
+                return Response({"review": review})
+            else:
+                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
                 return Response(
                     {"error": "Failed to generate review. Please try again."},
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-            return Response({"review": review})
+                
+        except requests.exceptions.ConnectionError:
+            logger.error("Could not connect to Ollama. Make sure Ollama is running.")
+            return Response(
+                {"error": "Could not connect to Ollama. Please make sure Ollama is running on your computer."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except requests.exceptions.Timeout:
+            logger.error("Ollama request timed out. The model is taking too long to respond.")
+            return Response(
+                {"error": "The AI is taking too long to respond. Please try again with a shorter text or wait a moment."},
+                status=status.HTTP_408_REQUEST_TIMEOUT
+            )
         except Exception as e:
             logger.error(f"Error in review: {str(e)}")
             return Response(
                 {"error": "Failed to generate review. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class AIAutomaticReviewerView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            text = request.data.get('text', '')
+            title = request.data.get('title', 'AI Generated Reviewer')
+            source_note = request.data.get('source_note')
+            source_notebook = request.data.get('source_notebook')
+            tags = request.data.get('tags', [])
+
+            logger.info(f"AIAutomaticReviewerView POST: text length={len(text)}, title={title}")
+
+            if not text or not text.strip():
+                logger.warning("AIAutomaticReviewerView: No text provided.")
+                return Response({'error': 'No text provided.'}, status=400)
+
+            # Determine prompt type
+            if title.lower().startswith('quiz:'):
+                prompt = (
+                    "Generate a multiple choice quiz based on the following study material. "
+                    "For each question, provide 4 options (A, B, C, D) and indicate the correct answer. "
+                    "Format as markdown.\n\n"
+                    f"Study Material:\n{text}\n\nQuiz:"
+                )
+            else:
+                prompt = f"Please provide a concise summary of the following text:\n\n{text}\n\nSummary:"
+
+            payload = {
+                "model": OLLAMA_MODEL,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.7,
+                    "top_p": 0.9,
+                    "num_predict": 1000
+                }
+            }
+
+            try:
+                response = requests.post(OLLAMA_API_URL, json=payload, timeout=300)
+            except requests.exceptions.ConnectionError:
+                logger.error("Could not connect to Ollama. Make sure Ollama is running.")
+                return Response(
+                    {"error": "Could not connect to Ollama. Please make sure Ollama is running on your computer."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
+                )
+            except requests.exceptions.Timeout:
+                logger.error("Ollama request timed out. The model is taking too long to respond.")
+                return Response(
+                    {"error": "The AI is taking too long to respond. Please try again with a shorter text or wait a moment."},
+                    status=status.HTTP_408_REQUEST_TIMEOUT
+                )
+
+            if response.status_code == 200:
+                result = response.json()
+                reviewer_content = result.get('response', '').strip()
+
+                if not reviewer_content:
+                    logger.warning("Ollama returned empty reviewer content.")
+                    return Response(
+                        {"error": "Failed to generate reviewer content. Please try again."},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+
+                # Save the reviewer
+                reviewer_data = {
+                    'title': title,
+                    'content': reviewer_content,
+                    'tags': tags,
+                }
+                if source_note:
+                    reviewer_data['source_note'] = source_note
+                if source_notebook:
+                    reviewer_data['source_notebook'] = source_notebook
+
+                serializer = ReviewerSerializer(data=reviewer_data, context={'request': request})
+                if serializer.is_valid():
+                    reviewer = serializer.save()
+                    return Response(serializer.data, status=201)
+                else:
+                    logger.error(f"ReviewerSerializer error: {serializer.errors}")
+                    return Response({'error': serializer.errors}, status=400)
+            else:
+                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+                return Response(
+                    {"error": f"Failed to generate reviewer content. Ollama error: {response.text}"},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+        except Exception as e:
+            logger.error(f"Error in AI automatic reviewer: {str(e)}")
+            return Response(
+                {"error": f"Failed to generate reviewer content. Internal error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 

@@ -4,7 +4,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { 
   Menu, X, Home, BarChart2, FileText, BookOpen, 
   CheckSquare, Calendar, Clock, Trash2, Bell, 
-  Settings, LogOut, ChevronLeft, ChevronRight 
+  Settings, LogOut, ChevronLeft, ChevronRight, Brain 
 } from "lucide-react";
 import { useNavbar } from "../context/NavbarContext";
 
@@ -40,6 +40,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     { path: "/", name: "Home", icon: <Home size={20} /> },
     { path: "/progress", name: "Progress", icon: <BarChart2 size={20} /> },
     { path: "/notes", name: "Notes", icon: <FileText size={20} /> },
+    { path: "/reviewer", name: "Reviewer", icon: <Brain size={20} /> },
     { path: "/decks", name: "Decks", icon: <BookOpen size={20} /> },
     { path: "/tasks", name: "Tasks", icon: <CheckSquare size={20} /> },
     { path: "/schedule", name: "Schedule", icon: <Calendar size={20} /> },

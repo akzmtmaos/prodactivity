@@ -4,6 +4,9 @@ import { Clock, Calendar, BookOpen, CheckSquare } from 'lucide-react';
 import { useNavbar } from '../context/NavbarContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import { Task } from '../types/task';
+import { ScheduleEvent } from '../types/schedule';
+import { format } from 'date-fns';
 
 interface User {
   username: string;
@@ -33,6 +36,10 @@ const Home = () => {
   const [recentNotes, setRecentNotes] = useState<Note[]>([]);
   const { isCollapsed } = useNavbar();
   const navigate = useNavigate();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasksLoading, setTasksLoading] = useState(true);
+  const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  const [notesCount, setNotesCount] = useState<number>(0);
 
   // Get auth headers for API calls
   const getAuthHeaders = () => {
@@ -80,6 +87,81 @@ const Home = () => {
           headers: error.response?.headers
         });
       }
+    }
+  };
+
+  // Fetch current tasks (incomplete, soonest due)
+  const fetchTasks = async () => {
+    setTasksLoading(true);
+    try {
+      const API_BASE_URL = 'http://localhost:8000/api';
+      const params = new URLSearchParams();
+      params.append('completed', 'false');
+      params.append('ordering', 'dueDate');
+      const response = await axios.get(`${API_BASE_URL}/tasks/?${params.toString()}`, { headers: getAuthHeaders() });
+      // Map due_date to dueDate for each task
+      const mappedTasks = response.data.map((task: any) => ({
+        ...task,
+        dueDate: task.due_date,
+      }));
+      // Sort by dueDate ascending, take top 5
+      const sorted = mappedTasks
+        .filter((t: Task) => !t.completed)
+        .sort((a: Task, b: Task) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
+        .slice(0, 5);
+      setTasks(sorted);
+    } catch (err) {
+      setTasks([]);
+    } finally {
+      setTasksLoading(false);
+    }
+  };
+
+  // Load upcoming events from localStorage
+  const loadEvents = () => {
+    try {
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        setEvents([]);
+        return;
+      }
+      const { username } = JSON.parse(userData);
+      const savedEvents = localStorage.getItem(`scheduleEvents_${username}`);
+      if (savedEvents) {
+        const parsedEvents = JSON.parse(savedEvents).map((event: any) => ({
+          ...event,
+          date: new Date(event.date)
+        }));
+        // Only future events, sorted by date, top 5
+        const now = new Date();
+        const upcoming = parsedEvents
+          .filter((e: ScheduleEvent) => new Date(e.date) >= now)
+          .sort((a: ScheduleEvent, b: ScheduleEvent) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .slice(0, 5);
+        setEvents(upcoming);
+      } else {
+        setEvents([]);
+      }
+    } catch (e) {
+      setEvents([]);
+    }
+  };
+
+  // Fetch total notes count for the user
+  const fetchNotesCount = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/notes/`, {
+        headers: getAuthHeaders()
+      });
+      if (Array.isArray(response.data)) {
+        setNotesCount(response.data.length);
+      } else if (response.data && typeof response.data.count === 'number') {
+        setNotesCount(response.data.count);
+      } else {
+        setNotesCount(0);
+      }
+    } catch (error) {
+      setNotesCount(0);
     }
   };
 
@@ -146,9 +228,17 @@ const Home = () => {
 
     // Initial fetch of recent notes
     fetchRecentNotes();
+    fetchTasks();
+    loadEvents();
+    fetchNotesCount();
 
     // Set up periodic refresh of recent notes
-    const refreshInterval = setInterval(fetchRecentNotes, 30000); // Refresh every 30 seconds
+    const refreshInterval = setInterval(() => {
+      fetchRecentNotes();
+      fetchTasks();
+      loadEvents();
+      fetchNotesCount();
+    }, 30000); // Refresh every 30 seconds
 
     // Set up event listener for note updates
     const handleNoteUpdate = () => {
@@ -201,13 +291,28 @@ const Home = () => {
     }
   };
 
-  // Mock data for dashboard
-  const stats = [
-    { id: 1, name: 'Study Hours', value: '12.5', icon: <Clock size={20} className="text-indigo-600 dark:text-indigo-400" /> },
-    { id: 2, name: 'Tasks Completed', value: '24', icon: <CheckSquare size={20} className="text-green-600 dark:text-green-400" /> },
-    { id: 3, name: 'Notes Created', value: '15', icon: <BookOpen size={20} className="text-blue-600 dark:text-blue-400" /> },
-    { id: 4, name: 'Upcoming Events', value: '3', icon: <Calendar size={20} className="text-purple-600 dark:text-purple-400" /> },
-  ];
+  // Compute dynamic stats
+  const studyHours = events
+    .filter(e => e.category === 'study')
+    .reduce((sum, e) => {
+      // If startTime and endTime are available, sum durations in hours
+      if (e.startTime && e.endTime) {
+        const [sh, sm] = e.startTime.split(':').map(Number);
+        const [eh, em] = e.endTime.split(':').map(Number);
+        let diff = (eh + em / 60) - (sh + sm / 60);
+        if (diff < 0) diff = 0; // Prevent negative
+        return sum + diff;
+      }
+      return sum;
+    }, 0);
+
+  const tasksCompleted = tasks.length > 0
+    ? tasks.filter(t => t.completed).length
+    : 0;
+
+  // If we want all completed tasks, not just the top 5, we need to fetch all tasks. For now, use the available tasks array.
+
+  const upcomingEventsCount = events.length;
 
   // Show loading state while waiting for user data
   if (loading) {
@@ -243,34 +348,64 @@ const Home = () => {
             </p>
           </div>
 
-          {/* Stats grid */}
+          {/* Dynamic Stats grid */}
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {stats.map((stat) => (
-              <div
-                key={stat.id}
-                className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md"
-              >
-                <div className="px-4 py-5 sm:p-6">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 rounded-md p-3 bg-gray-100 dark:bg-gray-700">
-                      {stat.icon}
-                    </div>
-                    <div className="ml-5">
-                      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                        {stat.name}
-                      </p>
-                      <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">
-                        {stat.value}
-                      </p>
-                    </div>
+            <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
+              <div className="px-4 py-5 sm:p-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 rounded-md p-3 bg-gray-100 dark:bg-gray-700">
+                    <Clock size={20} className="text-indigo-600 dark:text-indigo-400" />
+                  </div>
+                  <div className="ml-5">
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Study Hours</p>
+                    <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{studyHours.toFixed(1)}</p>
                   </div>
                 </div>
               </div>
-            ))}
+            </div>
+            <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
+              <div className="px-4 py-5 sm:p-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 rounded-md p-3 bg-gray-100 dark:bg-gray-700">
+                    <CheckSquare size={20} className="text-green-600 dark:text-green-400" />
+                  </div>
+                  <div className="ml-5">
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Tasks Completed</p>
+                    <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{tasksCompleted}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
+              <div className="px-4 py-5 sm:p-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 rounded-md p-3 bg-gray-100 dark:bg-gray-700">
+                    <BookOpen size={20} className="text-blue-600 dark:text-blue-400" />
+                  </div>
+                  <div className="ml-5">
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Notes Created</p>
+                    <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{notesCount}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
+              <div className="px-4 py-5 sm:p-6">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0 rounded-md p-3 bg-gray-100 dark:bg-gray-700">
+                    <Calendar size={20} className="text-purple-600 dark:text-purple-400" />
+                  </div>
+                  <div className="ml-5">
+                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Upcoming Events</p>
+                    <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{upcomingEventsCount}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* Quick Notes History section */}
-          <div className="mt-8 mb-16">
+          {/* Quick Notes History section - move this up */}
+          <div className="mt-8 mb-8">
             <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
               Quick Notes History
             </h2>
@@ -305,6 +440,107 @@ const Home = () => {
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Two-column layout for Tasks and Schedule */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+            {/* Tasks section (left) */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Current Tasks</h2>
+                <a href="/tasks" className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium">View Tasks</a>
+              </div>
+              <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg shadow flex flex-col p-4">
+                <div className="flex-1 overflow-y-auto">
+                  {tasksLoading ? (
+                    <div className="text-gray-500 dark:text-gray-400">Loading tasks...</div>
+                  ) : tasks.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-2">
+                      {tasks.map((task) => (
+                        <div key={task.id} className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px]">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              task.priority === 'high'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                                : task.priority === 'medium'
+                                ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400'
+                                : 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                            }`}>
+                              {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                              {format(new Date(task.dueDate), 'MMM d')}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                            {task.title}
+                          </div>
+                          {task.category && (
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                              {task.category.charAt(0).toUpperCase() + task.category.slice(1)}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400">
+                      No current tasks found
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Schedule section (right) */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Upcoming Events</h2>
+                <a href="/schedule" className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium">View Schedule</a>
+              </div>
+              <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg shadow flex flex-col p-4">
+                <div className="flex-1 overflow-y-auto">
+                  {events.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-2">
+                      {events.map((event) => (
+                        <div key={event.id} className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px]">
+                          <div className="flex items-center justify-between">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              event.category === 'study'
+                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200'
+                                : event.category === 'assignment'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                : event.category === 'exam'
+                                ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200'
+                                : event.category === 'meeting'
+                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200'
+                                : 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200'
+                            }`}>
+                              {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+                            </span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
+                              {format(new Date(event.date), 'MMM d')}, {event.startTime} - {event.endTime}
+                            </span>
+                          </div>
+                          <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
+                            {event.title}
+                          </div>
+                          {event.description && (
+                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
+                              {event.description.length > 40 ? `${event.description.substring(0, 40)}...` : event.description}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400">
+                      No upcoming events found
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

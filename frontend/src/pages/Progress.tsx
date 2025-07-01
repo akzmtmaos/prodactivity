@@ -1,45 +1,25 @@
 import React, { useEffect, useState } from 'react';
 import PageLayout from '../components/PageLayout';
-import LevelProgress from '../components/progress/LevelProgress';
 import StatsCards from '../components/progress/StatsCards';
-import WeeklyProgress from '../components/progress/WeeklyProgress';
 import Achievements from '../components/progress/Achievements';
+// New components
+import LevelProgressRing from '../components/progress/LevelProgressRing';
+import StreaksCalendar from '../components/progress/StreaksCalendar';
+import MainChart from '../components/progress/MainChart';
 
-interface DailyProgress {
-  date: string;
-  tasksCompleted: number;
-  studyTime: number;
-  productivityScore: number;
-}
-
-interface WeeklyStats {
-  totalTasksCompleted: number;
-  totalStudyTime: number;
-  averageProductivity: number;
-  streak: number;
-}
-
-interface UserLevel {
-  currentLevel: number;
-  currentXP: number;
-  xpToNextLevel: number;
-}
+const TABS = ['Daily', 'Weekly', 'Monthly', 'Yearly'];
 
 const Progress = () => {
   const [user, setUser] = useState<any | null>(null);
   const [greeting, setGreeting] = useState('');
-  const [dailyProgress, setDailyProgress] = useState<DailyProgress[]>([]);
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyStats>({
+  const [progressView, setProgressView] = useState('Weekly');
+  const [stats, setStats] = useState<any>({
     totalTasksCompleted: 0,
     totalStudyTime: 0,
     averageProductivity: 0,
     streak: 0
   });
-  const [userLevel, setUserLevel] = useState<UserLevel>({
-    currentLevel: 1,
-    currentXP: 0,
-    xpToNextLevel: 1000
-  });
+  const [userLevel, setUserLevel] = useState({ currentLevel: 1, currentXP: 0, xpToNextLevel: 1000 });
 
   useEffect(() => {
     // Get user data from localStorage
@@ -53,77 +33,19 @@ const Progress = () => {
           setUser({ username: 'User' });
         }
       } catch (e) {
-        console.error('Error parsing user data:', e);
         setUser({ username: 'User' });
       }
     } else {
       setUser({ username: 'User' });
     }
-
     // Set greeting based on time of day
     const hour = new Date().getHours();
     if (hour < 12) setGreeting('Good morning');
     else if (hour < 18) setGreeting('Good afternoon');
     else setGreeting('Good evening');
-
-    // Load sample progress data
-    loadSampleProgressData();
+    // Optionally: set sample stats and userLevel here if needed
   }, []);
 
-  const loadSampleProgressData = () => {
-    // Generate sample data for the last 7 days
-    const today = new Date();
-    const sampleData: DailyProgress[] = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
-      return {
-        date: date.toISOString().split('T')[0],
-        tasksCompleted: Math.floor(Math.random() * 10),
-        studyTime: Math.floor(Math.random() * 240), // Random study time in minutes
-        productivityScore: Math.floor(Math.random() * 100)
-      };
-    });
-
-    setDailyProgress(sampleData);
-
-    // Calculate weekly stats
-    const totalTasks = sampleData.reduce((sum, day) => sum + day.tasksCompleted, 0);
-    const totalStudyTime = sampleData.reduce((sum, day) => sum + day.studyTime, 0);
-    const avgProductivity = Math.floor(
-      sampleData.reduce((sum, day) => sum + day.productivityScore, 0) / 7
-    );
-
-    // Calculate streak (consecutive days with productivity score > 50)
-    let streak = 0;
-    for (let i = 0; i < sampleData.length; i++) {
-      if (sampleData[i].productivityScore > 50) {
-        streak++;
-      } else {
-        break;
-      }
-    }
-
-    setWeeklyStats({
-      totalTasksCompleted: totalTasks,
-      totalStudyTime,
-      averageProductivity: avgProductivity,
-      streak
-    });
-
-    // Calculate XP and level based on weekly performance
-    const xpGained = (totalTasks * 50) + (totalStudyTime * 2) + (avgProductivity * 5);
-    const currentXP = xpGained % 1000;
-    const currentLevel = Math.floor(xpGained / 1000) + 1;
-    const xpToNextLevel = 1000;
-
-    setUserLevel({
-      currentLevel,
-      currentXP,
-      xpToNextLevel
-    });
-  };
-
-  // Show loading state while waiting for user data
   if (!user) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -132,9 +54,12 @@ const Progress = () => {
     );
   }
 
+  // Progress bar for LevelProgress
+  const progressPercentage = Math.min(userLevel.currentXP / userLevel.xpToNextLevel, 1) * 100;
+
   return (
     <PageLayout>
-      <div className="space-y-6">
+      <div className="space-y-6 relative">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -145,21 +70,62 @@ const Progress = () => {
           </p>
         </div>
 
-        {/* Level Progress */}
-        <LevelProgress
-          currentLevel={userLevel.currentLevel}
-          currentXP={userLevel.currentXP}
-          xpToNextLevel={userLevel.xpToNextLevel}
-        />
+        {/* Level Progress and Streaks side by side */}
+        <div className="flex flex-col md:flex-row md:space-x-8 items-center justify-center mb-4">
+          {/* Level Progress with wide bar */}
+          <div className="flex flex-col items-center w-full md:w-2/3 mb-6 md:mb-0">
+            <div className="flex justify-center w-full mb-4">
+              <LevelProgressRing
+                currentLevel={userLevel.currentLevel}
+                currentXP={userLevel.currentXP}
+                xpToNextLevel={userLevel.xpToNextLevel}
+                size={200}
+              />
+            </div>
+            {/* Extra wide, thick Progress Bar */}
+            <div className="w-full max-w-2xl mx-auto mt-2 mb-6">
+              <div className="w-full h-6 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 transition-all duration-500"
+                  style={{ width: `${progressPercentage}%` }}
+                />
+              </div>
+              <div className="flex justify-between text-base text-gray-500 dark:text-gray-400 mt-1">
+                <span>{userLevel.currentXP} XP</span>
+                <span>{userLevel.xpToNextLevel} XP</span>
+              </div>
+            </div>
+          </div>
+          {/* Streaks Calendar - heatmap style */}
+          <div className="w-full md:w-1/3 flex justify-center">
+            <div className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 w-full max-w-md flex flex-col items-center">
+              <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Streaks</h3>
+              <StreaksCalendar streakData={[]} />
+            </div>
+          </div>
+        </div>
 
         {/* Stats Cards */}
-        <StatsCards stats={weeklyStats} />
+        <StatsCards stats={stats} />
 
-        {/* Weekly Progress */}
-        <WeeklyProgress dailyProgress={dailyProgress} />
+        {/* Tabs - below stats cards */}
+        <div className="flex space-x-2 mb-6 justify-center">
+          {TABS.map(tab => (
+            <button
+              key={tab}
+              className={`min-w-[110px] px-4 py-2 rounded-full font-semibold transition-colors ${progressView === tab ? 'bg-indigo-600 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'}`}
+              onClick={() => setProgressView(tab)}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* Main Chart Placeholder */}
+        <MainChart view={progressView} data={{}} />
 
         {/* Achievements */}
-        <Achievements stats={weeklyStats} />
+        <Achievements stats={stats} />
       </div>
     </PageLayout>
   );

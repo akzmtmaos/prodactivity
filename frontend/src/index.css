@@ -73,3 +73,24 @@ html {
 .dark * {
   scrollbar-color: #475569 #1e293b;
 }
+
+/* ContentEditable Text Wrapping */
+[contenteditable] {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+[contenteditable]:focus {
+  outline: none;
+}
+
+/* Ensure text containers don't overflow */
+.text-container {
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
+  max-width: 100%;
+}

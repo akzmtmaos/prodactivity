@@ -37,10 +37,48 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
   onAlignmentChange,
   selectedColor
 }) => {
+  const handleFormattingClick = (command: string, value?: string) => {
+    // Ensure we have a selection in a contentEditable element
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      // If no selection, try to focus the first contentEditable element
+      const contentEditable = document.querySelector('[contenteditable]') as HTMLElement;
+      if (contentEditable) {
+        contentEditable.focus();
+        const range = document.createRange();
+        range.selectNodeContents(contentEditable);
+        range.collapse(false);
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+      }
+    }
+    
+    onToggleFormatting(command, value);
+  };
+
+  const handleLinkClick = () => {
+    const url = prompt('Enter link URL:');
+    if (url) {
+      handleFormattingClick('createLink', url);
+    }
+  };
+
+  const handleImageClick = () => {
+    const url = prompt('Enter image URL:');
+    if (url) {
+      const img = document.createElement('img');
+      img.src = url;
+      img.style.maxWidth = '100%';
+      img.style.height = 'auto';
+      img.style.display = 'block';
+      document.execCommand('insertHTML', false, img.outerHTML);
+    }
+  };
+
   return (
     <div className="flex items-center space-x-1 p-2 overflow-x-auto border-t border-gray-200 dark:border-gray-700">
       <button
-        onClick={() => onToggleFormatting('bold')}
+        onClick={() => handleFormattingClick('bold')}
         className={`p-2 rounded-lg ${
           activeFormatting.bold
             ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
@@ -51,7 +89,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
         <Bold size={16} />
       </button>
       <button
-        onClick={() => onToggleFormatting('italic')}
+        onClick={() => handleFormattingClick('italic')}
         className={`p-2 rounded-lg ${
           activeFormatting.italic
             ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
@@ -62,7 +100,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
         <Italic size={16} />
       </button>
       <button
-        onClick={() => onToggleFormatting('underline')}
+        onClick={() => handleFormattingClick('underline')}
         className={`p-2 rounded-lg ${
           activeFormatting.underline
             ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
@@ -73,7 +111,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
         <Underline size={16} />
       </button>
       <button
-        onClick={() => onToggleFormatting('strikeThrough')}
+        onClick={() => handleFormattingClick('strikeThrough')}
         className={`p-2 rounded-lg ${
           activeFormatting.strikethrough
             ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
@@ -84,7 +122,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
         <Strikethrough size={16} />
       </button>
       <button
-        onClick={() => onToggleFormatting('formatBlock', 'blockquote')}
+        onClick={() => handleFormattingClick('formatBlock', 'blockquote')}
         className={`p-2 rounded-lg ${
           activeFormatting.blockquote
             ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
@@ -110,27 +148,14 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
         <ChevronDown size={14} />
       </button>
       <button
-        onClick={() => {
-          const url = prompt('Enter link URL:');
-          if (url) document.execCommand('createLink', false, url);
-        }}
+        onClick={handleLinkClick}
         className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
         title="Insert Link"
       >
         <Link size={16} />
       </button>
       <button
-        onClick={() => {
-          const url = prompt('Enter image URL:');
-          if (url) {
-            const img = document.createElement('img');
-            img.src = url;
-            img.style.maxWidth = '100%';
-            img.style.height = 'auto';
-            img.style.display = 'block';
-            document.execCommand('insertHTML', false, img.outerHTML);
-          }
-        }}
+        onClick={handleImageClick}
         className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
         title="Insert Image"
       >
@@ -164,14 +189,14 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
       
       <button
-        onClick={() => document.execCommand('insertUnorderedList')}
+        onClick={() => handleFormattingClick('insertUnorderedList')}
         className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
         title="Bullet List"
       >
         <List size={16} />
       </button>
       <button
-        onClick={() => document.execCommand('insertOrderedList')}
+        onClick={() => handleFormattingClick('insertOrderedList')}
         className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
         title="Numbered List"
       >
@@ -181,7 +206,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
       
       <select
-        onChange={(e) => document.execCommand('formatBlock', false, e.target.value)}
+        onChange={(e) => handleFormattingClick('formatBlock', e.target.value)}
         className="px-3 py-1 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300"
         defaultValue=""
       >

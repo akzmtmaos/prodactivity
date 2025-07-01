@@ -55,8 +55,6 @@ const Notes = () => {
   const [searchTerm, setSearchTerm] = useState(''); 
   
   // UI state management
-  const [isAddingNotebook, setIsAddingNotebook] = useState(false);
-  const [isAddingNote, setIsAddingNote] = useState(false);
   const [editingNotebook, setEditingNotebook] = useState<Notebook | null>(null);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
 
@@ -70,7 +68,7 @@ const Notes = () => {
   const [filterType, setFilterType] = useState<'all' | 'title' | 'content' | 'date'>('all');
 
   // Add tab state
-  const [activeTab, setActiveTab] = useState<'notes' | 'reviewer' | 'logs' | 'archived'>('notes');
+  const [activeTab, setActiveTab] = useState<'notes' | 'logs' | 'archived'>('notes');
 
   // Get auth headers for API calls
   const getAuthHeaders = () => {
@@ -205,16 +203,6 @@ const Notes = () => {
     setSearchTerm('');
   };
 
-  const handleStartAddingNotebook = () => {
-    setIsAddingNotebook(true);
-    setNewNotebookName('');
-  };
-
-  const handleCancelAddingNotebook = () => {
-    setIsAddingNotebook(false);
-    setNewNotebookName('');
-  };
-
   const handleAddNotebook = async () => {
     if (!newNotebookName.trim()) return;
     
@@ -226,7 +214,7 @@ const Notes = () => {
       });
       
       setNotebooks([...notebooks, response.data]);
-      setIsAddingNotebook(false);
+      setEditingNotebook(null);
       setNewNotebookName('');
     } catch (error) {
       handleError(error, 'Failed to create notebook');
@@ -247,7 +235,7 @@ const Notes = () => {
     if (!editingNotebook || !newNotebookName.trim()) return;
     
     try {
-      const response = await axios.put(`${API_URL}/notebooks/${editingNotebook.id}/`, {
+      const response = await axios.put(`${API_URL}/notes/notebooks/${editingNotebook.id}/`, {
         name: newNotebookName.trim()
       }, {
         headers: getAuthHeaders()
@@ -288,14 +276,12 @@ const Notes = () => {
 
   // Note management functions
   const handleStartAddingNote = () => {
-    setIsAddingNote(false); // Hide inline form
-    setNoteEditorNote(null);
     setIsNewNoteEditor(true);
     setShowNoteEditor(true);
+    setNewNote({ title: '', content: '' });
   };
 
   const handleCancelAddingNote = () => {
-    setIsAddingNote(false);
     setNewNote({ title: '', content: '' });
   };
 
@@ -310,7 +296,7 @@ const Notes = () => {
         headers: getAuthHeaders()
       });
       setNotes([response.data, ...notes]);
-      setIsAddingNote(false);
+      setIsNewNoteEditor(false);
       setNewNote({ title: '', content: '' });
       // Update notebook notes count
       const updatedNotebooks = notebooks.map(nb => 
@@ -418,6 +404,9 @@ const Notes = () => {
           headers: getAuthHeaders()
         });
         setNotes([response.data, ...notes]);
+        // Switch to edit mode after first save to prevent duplicates
+        setNoteEditorNote(response.data);
+        setIsNewNoteEditor(false);
         // Update notebook notes count
         const updatedNotebooks = notebooks.map(nb => 
           nb.id === selectedNotebook.id 
@@ -463,6 +452,9 @@ const Notes = () => {
   };
   const handleCloseNoteEditor = () => {
     setShowNoteEditor(false);
+    setNoteEditorNote(null);
+    setIsNewNoteEditor(false);
+    setNewNote({ title: '', content: '' });
     navigate('/notes');
   };
 
@@ -577,6 +569,15 @@ const Notes = () => {
     }
   }, [notebooks]); // Re-run when notebooks are loaded
 
+  // Hide NoteEditor when URL does not have a note ID
+  useEffect(() => {
+    if (!noteIdFromUrl) {
+      setShowNoteEditor(false);
+      setNoteEditorNote(null);
+      setIsNewNoteEditor(false);
+    }
+  }, [noteIdFromUrl]);
+
   const handleBulkDeleteNotes = async (noteIds: number[]) => {
     try {
       // Delete notes one by one
@@ -611,6 +612,42 @@ const Notes = () => {
   const handleRequestDeleteNote = (note: Note) => {
     setShowDeleteModal(true);
     setNoteToDelete(note);
+  };
+
+  // Add direct notebook creation handler
+  const handleCreateNotebookDirect = async (name: string) => {
+    if (!name.trim()) return;
+    try {
+      const response = await axios.post(`${API_URL}/notes/notebooks/`, {
+        name: name.trim()
+      }, {
+        headers: getAuthHeaders()
+      });
+      setNotebooks([...notebooks, response.data]);
+    } catch (error) {
+      handleError(error, 'Failed to create notebook');
+    }
+  };
+
+  // Add direct notebook update handler
+  const handleUpdateNotebookDirect = async (id: number, name: string) => {
+    if (!name.trim()) return;
+    try {
+      const response = await axios.put(`${API_URL}/notes/notebooks/${id}/`, {
+        name: name.trim()
+      }, {
+        headers: getAuthHeaders()
+      });
+      const updatedNotebooks = notebooks.map(nb => 
+        nb.id === id ? response.data : nb
+      );
+      setNotebooks(updatedNotebooks);
+      if (selectedNotebook?.id === id) {
+        setSelectedNotebook(response.data);
+      }
+    } catch (error) {
+      handleError(error, 'Failed to update notebook');
+    }
   };
 
   if (loading) {
@@ -672,12 +709,6 @@ const Notes = () => {
                 Notes
               </button>
               <button
-                onClick={() => setActiveTab('reviewer')}
-                className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'reviewer' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
-              >
-                Reviewer
-              </button>
-              <button
                 onClick={() => setActiveTab('logs')}
                 className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'logs' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
               >
@@ -713,18 +744,16 @@ const Notes = () => {
                 <NotebookList
                   notebooks={notebooks}
                   selectedNotebook={selectedNotebook}
-                  isAddingNotebook={isAddingNotebook}
                   editingNotebook={editingNotebook}
                   newNotebookName={newNotebookName}
                   onNotebookSelect={handleNotebookSelect}
                   onAddNotebook={handleAddNotebook}
                   onUpdateNotebook={handleUpdateNotebook}
                   onDeleteNotebook={handleDeleteNotebook}
-                  onStartAddingNotebook={handleStartAddingNotebook}
-                  onCancelAddingNotebook={handleCancelAddingNotebook}
                   onStartEditingNotebook={handleStartEditingNotebook}
                   onCancelEditingNotebook={handleCancelEditingNotebook}
                   onNotebookNameChange={setNewNotebookName}
+                  onCreateNotebook={handleCreateNotebookDirect}
                 />
                 {/* Notes Panel */}
                 <NotesList
@@ -757,7 +786,10 @@ const Notes = () => {
                   note={noteEditorNote}
                   isNewNote={isNewNoteEditor}
                   onSave={handleSaveNoteEditor}
-                  onDelete={handleDeleteNote}
+                  onDelete={(noteId) => {
+                    const note = notes.find(n => n.id === noteId);
+                    if (note) handleRequestDeleteNote(note);
+                  }}
                   onBack={handleCloseNoteEditor}
                   isSaving={isSavingNote}
                 />
@@ -766,14 +798,15 @@ const Notes = () => {
               <DeleteConfirmationModal
                 isOpen={showDeleteModal}
                 onClose={() => { setShowDeleteModal(false); setNoteToDelete(null); }}
-                onConfirm={() => noteToDelete && handleDeleteNote(noteToDelete.id)}
+                onConfirm={() => {
+                  if (noteToDelete) handleDeleteNote(noteToDelete.id);
+                  setShowDeleteModal(false);
+                  setNoteToDelete(null);
+                }}
                 title="Delete Note"
                 message={`Are you sure you want to delete the note "${noteToDelete?.title || ''}"? This action cannot be undone.`}
               />
             </>
-          )}
-          {activeTab === 'reviewer' && (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">Reviewer content coming soon.</div>
           )}
           {activeTab === 'logs' && (
             <div className="p-8 text-center text-gray-500 dark:text-gray-400">Logs content coming soon.</div>

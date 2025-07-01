@@ -7,6 +7,8 @@ interface DeleteConfirmationModalProps {
   onConfirm: () => void;
   title: string;
   message: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
 }
 
 const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
@@ -15,6 +17,8 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
   onConfirm,
   title,
   message,
+  confirmLabel,
+  cancelLabel,
 }) => {
   if (!isOpen) return null;
 
@@ -63,14 +67,14 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
                 onClick={onClose}
                 className="inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 sm:w-auto"
               >
-                Cancel
+                {cancelLabel || 'Cancel'}
               </button>
               <button
                 type="button"
                 onClick={onConfirm}
                 className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 sm:w-auto"
               >
-                Delete
+                {confirmLabel || 'Delete'}
               </button>
             </div>
           </div>

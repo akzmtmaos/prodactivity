@@ -66,7 +66,6 @@ const NotesList: React.FC<NotesListProps> = ({
   deletingNoteId,
 }) => {
   const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
-  const [noteToDelete, setNoteToDelete] = useState<Note | null>(null);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
   const handleNoteSelect = (noteId: number) => {
@@ -202,7 +201,7 @@ const NotesList: React.FC<NotesListProps> = ({
                       note={note}
                       onEdit={onEditNote}
                       onEditTitle={(updatedNote) => onUpdateNoteTitle(updatedNote.id, updatedNote.title)}
-                      onDelete={() => setNoteToDelete(note)}
+                      onDelete={() => onDeleteNote(note.id)}
                     />
                   </div>
                 </div>
@@ -211,20 +210,6 @@ const NotesList: React.FC<NotesListProps> = ({
           )}
         </div>
       </div>
-
-      {/* Single Note Delete Modal */}
-      <DeleteConfirmationModal
-        isOpen={!!noteToDelete}
-        onClose={() => setNoteToDelete(null)}
-        onConfirm={() => {
-          if (noteToDelete) {
-            onDeleteNote(noteToDelete.id);
-            setNoteToDelete(null);
-          }
-        }}
-        title="Delete Note"
-        message={`Are you sure you want to delete "${noteToDelete?.title}"?`}
-      />
 
       {/* Bulk Delete Modal */}
       <DeleteConfirmationModal

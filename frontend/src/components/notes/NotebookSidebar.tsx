@@ -1,8 +1,6 @@
 // frontend/src/components/notes/NotebookSidebar.tsx
 import React, { useState } from 'react';
-import { 
-  Plus, Edit, Trash2, BookOpen, ChevronLeft, ChevronRight, Save, X, FileText 
-} from 'lucide-react';
+import { Plus, Edit, Trash2, Book, ChevronLeft, ChevronRight, Save, X, FileText } from 'lucide-react';
 
 interface Notebook {
   id: number;
@@ -119,9 +117,12 @@ const NotebookSidebar: React.FC<NotebookSidebarProps> = ({
       {/* Header */}
       <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
         {!collapsed && (
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-            Notebooks
-          </h2>
+          <div className="flex items-center">
+            <Book className="inline-block mr-2" size={20} />
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
+              Notebooks
+            </h2>
+          </div>
         )}
         <button
           onClick={onToggleCollapse}
@@ -221,9 +222,9 @@ const NotebookSidebar: React.FC<NotebookSidebarProps> = ({
                     >
                       <div className="flex items-center min-w-0">
                         {selectedNotebook?.id === notebook.id ? (
-                          <BookOpen className="mr-3 flex-shrink-0" size={18} />
+                          <Book className="mr-3 flex-shrink-0" size={18} />
                         ) : (
-                          <BookOpen className="mr-3 flex-shrink-0" size={18} />
+                          <Book className="mr-3 flex-shrink-0" size={18} />
                         )}
                         <div className="min-w-0">
                           <div className="font-medium truncate">{notebook.name}</div>

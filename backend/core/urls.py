@@ -14,4 +14,5 @@ urlpatterns = [
     path('api/decks/', include('decks.urls')),
     path('api/', include('tasks.urls')),
     path('api/terms/', include('core.terms_urls')),
+    path('api/reviewers/', include('reviewer.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

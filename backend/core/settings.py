@@ -41,6 +41,7 @@ INSTALLED_APPS = [
     'decks',  # decks
     'tasks',  # tasks
     'core',   # core app for CMS and terms
+    'reviewer', # reviewer app
 ]
 
 REST_FRAMEWORK = {

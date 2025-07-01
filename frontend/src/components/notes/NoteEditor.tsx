@@ -31,6 +31,7 @@ import ImportModal from '../../components/common/ImportModal';
 import ErrorToast from '../../components/common/ErrorToast';
 import AIFeaturesPanel from './AIFeaturesPanel';
 import TextFormatting from './TextFormatting';
+import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface Note {
@@ -111,6 +112,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     blockquote: false,
     highlight: false
   });
+
+  // Add a key to force BlockEditor to re-mount only on document import
+  const [editorKey, setEditorKey] = useState(0);
+  const [forceRemountEditor, setForceRemountEditor] = useState(false);
+
+  const [showUnsavedModal, setShowUnsavedModal] = useState(false);
+  const [pendingClose, setPendingClose] = useState(false);
 
   const onBlockTypeChange = (blockId: string, type: string) => {
     setBlocks(prevBlocks => 
@@ -264,6 +272,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       } else {
         throw new Error('Unsupported file type. Please upload a PDF or DOC/DOCX file.');
       }
+      // After import, force BlockEditor to re-mount
+      setForceRemountEditor(true);
     } catch (error: any) {
       setError(error.message || 'Error processing file. Please try again.');
       throw error; // Re-throw to let the modal handle the error state
@@ -296,7 +306,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               throw new Error('No text could be extracted from the PDF. The file might be scanned or contain only images.');
             }
             
-            setContent(text);
+            // Remove extra blank lines between paragraphs
+            const cleanedText = text.replace(/\n{2,}/g, '\n');
+            setContent(cleanedText);
             setHasChanges(true);
             resolve(true);
           } catch (error) {
@@ -320,7 +332,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       const formData = new FormData();
       formData.append('file', file);
       
-      const response = await axios.post(`${API_URL}/convert-doc/`, formData, {
+      // Always use the correct endpoint regardless of API_URL
+      const endpoint = `${API_URL.replace(/\/?$/, '')}/notes/convert-doc/`;
+      const response = await axios.post(endpoint, formData, {
         headers: {
           ...getAuthHeaders(),
           'Content-Type': 'multipart/form-data',
@@ -335,7 +349,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         throw new Error('No text could be extracted from the document.');
       }
       
-      setContent(response.data.text);
+      // Remove extra blank lines between paragraphs
+      const cleanedText = response.data.text.replace(/\n{2,}/g, '\n');
+      setContent(cleanedText);
       setHasChanges(true);
     } catch (error: any) {
       console.error('Error processing document:', error);
@@ -351,7 +367,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   // Function to toggle formatting
   const toggleFormatting = (command: string, value: string = '') => {
     const selection = window.getSelection();
-    if (!selection) return;
+    if (!selection || selection.rangeCount === 0) return;
 
     // Check if the formatting is already applied
     let isActive = false;
@@ -441,6 +457,43 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     document.execCommand(`justify${alignment.charAt(0).toUpperCase() + alignment.slice(1)}`);
   };
 
+  // Handle formatting changes from BlockEditor
+  const handleFormattingChange = (formatting: any) => {
+    setActiveFormatting(formatting);
+  };
+
+  // Only force BlockEditor to re-mount after document import
+  useEffect(() => {
+    if (forceRemountEditor) {
+      setEditorKey(prev => prev + 1);
+      setForceRemountEditor(false);
+    }
+  }, [forceRemountEditor]);
+
+  // Handler for back/close button
+  const handleBack = () => {
+    if (hasChanges) {
+      setShowUnsavedModal(true);
+      setPendingClose(true);
+    } else {
+      onBack();
+    }
+  };
+
+  // Handler for confirming save changes
+  const handleConfirmSave = () => {
+    setShowUnsavedModal(false);
+    setPendingClose(false);
+    handleSave();
+    onBack();
+  };
+
+  // Handler for canceling discard
+  const handleCancelDiscard = () => {
+    setShowUnsavedModal(false);
+    setPendingClose(false);
+  };
+
   return (
     <div className="fixed inset-0 bg-white dark:bg-gray-900 z-[9999] flex flex-col" style={{ position: 'fixed', top: '-100vh', left: 0, right: 0, bottom: 0, marginTop: '100vh' }}>
       {/* Header */}
@@ -448,7 +501,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         <div className="flex items-center justify-between p-4">
           <div className="flex items-center space-x-4">
             <button
-              onClick={onBack}
+              onClick={handleBack}
               className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
             >
               <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
@@ -510,20 +563,24 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             type="button"
           >
             <FileUp size={16} className="mr-2" />
-            Import Doc/PDF
+            Import
           </button>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-full flex">
+        <div className="h-full flex min-w-0">
           {/* Editor */}
-          <div className="flex-1 overflow-y-auto p-4">
-            <BlockEditor
-              initialContent={content}
-              onChange={handleContentChange}
-            />
+          <div className="flex-1 overflow-y-auto p-4 min-w-0">
+            <div className="max-w-full break-words">
+              <BlockEditor
+                key={editorKey}
+                initialContent={content}
+                onChange={handleContentChange}
+                onFormattingChange={handleFormattingChange}
+              />
+            </div>
           </div>
 
           {/* AI Features Panel */}
@@ -586,6 +643,30 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
           message={error}
           onClose={() => setError(null)}
         />
+      )}
+
+      {/* Unsaved Changes Modal */}
+      {showUnsavedModal && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 w-full max-w-md">
+            <h2 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Save Changes?</h2>
+            <p className="mb-4 text-gray-700 dark:text-gray-300">You have unsaved changes. Would you like to save them before leaving?</p>
+            <div className="flex justify-end gap-2">
+              <button
+                className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
+                onClick={handleCancelDiscard}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+                onClick={handleConfirmSave}
+              >
+                Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

@@ -28,6 +28,7 @@ interface Block {
 interface BlockEditorProps {
   initialContent?: string;
   onChange: (content: string) => void;
+  onFormattingChange?: (formatting: any) => void;
 }
 
 interface SortableBlockProps {
@@ -40,6 +41,45 @@ interface SortableBlockProps {
   onFocusBlock: (index: number) => void;
   onBlockTypeChange: (id: string, type: Block['type']) => void;
   onBlockAlignmentChange: (id: string, alignment: Block['alignment']) => void;
+  onFormattingChange?: (formatting: any) => void;
+  splitBlock: (index: number, before: string, after: string) => string;
+}
+
+// Utility to find the last text node in a node
+function getLastTextNode(node: Node): Node | null {
+  if (node.nodeType === Node.TEXT_NODE) return node;
+  for (let i = node.childNodes.length - 1; i >= 0; i--) {
+    const textNode = getLastTextNode(node.childNodes[i]);
+    if (textNode) return textNode;
+  }
+  return null;
+}
+
+// Helper to get the total text length of a node
+function getTextLength(node: Node): number {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent?.length || 0;
+  let len = 0;
+  node.childNodes.forEach(child => { len += getTextLength(child); });
+  return len;
+}
+
+// Helper to find the text node and offset for caret placement
+function findTextNodeAtOffset(node: Node, offset: number): { node: Node, offset: number } | null {
+  if (node.nodeType === Node.TEXT_NODE) {
+    const len = node.textContent?.length || 0;
+    if (offset <= len) return { node, offset };
+    return null;
+  }
+  for (let i = 0; i < node.childNodes.length; i++) {
+    const child = node.childNodes[i];
+    const len = getTextLength(child);
+    if (offset <= len) {
+      return findTextNodeAtOffset(child, offset);
+    } else {
+      offset -= len;
+    }
+  }
+  return null;
 }
 
 const SortableBlock: React.FC<SortableBlockProps> = ({ 
@@ -51,7 +91,9 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
   onDeleteBlock,
   onFocusBlock,
   onBlockTypeChange,
-  onBlockAlignmentChange
+  onBlockAlignmentChange,
+  onFormattingChange,
+  splitBlock
 }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const {
@@ -71,8 +113,41 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
 
   const handleInput = (e: React.FormEvent) => {
     const target = e.currentTarget;
-    const content = target.textContent || '';
+    const content = target.innerHTML || '';
     onContentChange(block.id, content);
+    
+    // Update formatting state
+    if (onFormattingChange) {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const formatting = {
+          bold: document.queryCommandState('bold'),
+          italic: document.queryCommandState('italic'),
+          underline: document.queryCommandState('underline'),
+          strikethrough: document.queryCommandState('strikeThrough'),
+          blockquote: document.queryCommandValue('formatBlock') === 'blockquote',
+          highlight: document.queryCommandValue('hiliteColor') !== 'transparent' && document.queryCommandValue('hiliteColor') !== ''
+        };
+        onFormattingChange(formatting);
+      }
+    }
+  };
+
+  const handleFocus = () => {
+    // Update formatting state when block is focused
+    if (onFormattingChange) {
+      setTimeout(() => {
+        const formatting = {
+          bold: document.queryCommandState('bold'),
+          italic: document.queryCommandState('italic'),
+          underline: document.queryCommandState('underline'),
+          strikethrough: document.queryCommandState('strikeThrough'),
+          blockquote: document.queryCommandValue('formatBlock') === 'blockquote',
+          highlight: document.queryCommandValue('hiliteColor') !== 'transparent' && document.queryCommandValue('hiliteColor') !== ''
+        };
+        onFormattingChange(formatting);
+      }, 0);
+    }
   };
 
   const handlePaste = (e: React.ClipboardEvent) => {
@@ -134,139 +209,218 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
     const selection = window.getSelection();
     const range = selection?.getRangeAt(0);
     
+    // Ctrl+A (or Cmd+A) should select all blocks, not just within the current block
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
+      e.preventDefault();
+      // Select all content across all blocks
+      const blockElements = Array.from(document.querySelectorAll('[data-block-id]'));
+      if (blockElements.length > 0) {
+        const firstBlock = blockElements[0].querySelector('[contenteditable]');
+        const lastBlock = blockElements[blockElements.length - 1].querySelector('[contenteditable]');
+        if (firstBlock && lastBlock) {
+          const sel = window.getSelection();
+          if (sel) {
+            const range = document.createRange();
+            range.setStart(firstBlock, 0);
+            range.setEnd(lastBlock, lastBlock.childNodes.length);
+            sel.removeAllRanges();
+            sel.addRange(range);
+          }
+        }
+      }
+      return;
+    }
+    
     // Handle Enter key for all block types
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      
-      // Get the current content and split it at cursor position
-      const content = target.textContent || '';
-      const cursorPosition = range?.startOffset || 0;
-      const beforeCursor = content.substring(0, cursorPosition);
-      const afterCursor = content.substring(cursorPosition);
-      
-      // Update current block with content before cursor
-      target.textContent = beforeCursor;
-      onContentChange(block.id, beforeCursor);
-      
-      // Create new block with content after cursor
-      const newBlockId = onAddBlock(index, afterCursor);
-      
-      // Focus the new block
-      requestAnimationFrame(() => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      const range = selection.getRangeAt(0);
+
+      // Always split using textContent and range offsets
+      const originalText = target.textContent || '';
+      const startOffset = range.startOffset;
+        const beforeText = originalText.slice(0, startOffset);
+        const afterText = originalText.slice(startOffset);
+        const newBlockId = splitBlock(index, beforeText, afterText);
+      setTimeout(() => {
         const newBlockElement = document.querySelector(`[data-block-id="${newBlockId}"]`);
         const newBlockEditable = newBlockElement?.querySelector('[contenteditable]');
         if (newBlockEditable) {
           (newBlockEditable as HTMLElement).focus();
-          
-          // Set cursor at the start of the new block
           const newRange = document.createRange();
           newRange.setStart(newBlockEditable, 0);
           newRange.collapse(true);
-          selection?.removeAllRanges();
-          selection?.addRange(newRange);
+          const sel = window.getSelection();
+          sel?.removeAllRanges();
+          sel?.addRange(newRange);
         }
-      });
+      }, 0);
       return;
     }
     
-    // Handle markdown-style heading shortcuts
-    if (e.key === ' ' && !e.shiftKey) {
-      const content = target.textContent || '';
-      const trimmedContent = content.trim();
+    // Handle Backspace at the beginning of a block
+    if (e.key === 'Backspace') {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
       
-      if (trimmedContent === '#') {
+      const range = selection.getRangeAt(0);
+      const isAtStart = range.startOffset === 0;
+      const isCollapsed = selection.isCollapsed;
+      
+      // Only delete block if cursor is at the very beginning of an empty block
+      if (isAtStart && isCollapsed && target.textContent === '') {
         e.preventDefault();
-        target.textContent = '';
-        onBlockTypeChange(block.id, 'heading1');
-        target.classList.add('text-3xl', 'font-bold', 'mb-4');
-      } else if (trimmedContent === '##') {
+        // Don't delete if this is the only block
+        if (blocks.length > 1) {
+          onDeleteBlock(index);
+          // After deletion, focus the next block and place caret at the end
+          setTimeout(() => {
+            const nextBlock = blocks[index + 1] || blocks[index - 1];
+            if (nextBlock) {
+              const nextBlockElement = document.querySelector(`[data-block-id="${nextBlock.id}"]`);
+              const nextBlockEditable = nextBlockElement?.querySelector('[contenteditable]') as HTMLElement;
+              if (nextBlockEditable) {
+                nextBlockEditable.focus();
+                const newRange = document.createRange();
+                newRange.selectNodeContents(nextBlockEditable);
+                newRange.collapse(false); // Place caret at the end
+                const selection = window.getSelection();
+                if (selection) {
+                  selection.removeAllRanges();
+                  selection.addRange(newRange);
+                }
+              }
+            }
+          }, 0);
+        }
+        return;
+      }
+      
+      // If cursor is at the beginning of a non-empty block, merge with previous block
+      if (isAtStart && isCollapsed && index > 0) {
         e.preventDefault();
-        target.textContent = '';
-        onBlockTypeChange(block.id, 'heading2');
-        target.classList.add('text-2xl', 'font-bold', 'mb-3');
-      } else if (trimmedContent === '###') {
-        e.preventDefault();
-        target.textContent = '';
-        onBlockTypeChange(block.id, 'heading3');
-        target.classList.add('text-xl', 'font-bold', 'mb-2');
+        
+        // Get the previous block element
+        const prevBlockElement = document.querySelector(`[data-block-id="${blocks[index - 1].id}"]`);
+        const prevBlockEditable = prevBlockElement?.querySelector('[contenteditable]') as HTMLElement;
+        
+        if (prevBlockEditable) {
+          // Get current and previous content
+          const currentContent = target.innerHTML;
+          const prevContent = prevBlockEditable.innerHTML;
+          
+          // Before merging, get the length of the previous block's text content
+          let prevBlockTextLength = getTextLength(prevBlockEditable);
+
+          // Merge content into previous block
+          prevBlockEditable.innerHTML = prevContent + currentContent;
+          onContentChange(blocks[index - 1].id, prevBlockEditable.innerHTML);
+          
+          // Delete current block
+          onDeleteBlock(index);
+          
+          // Focus the previous block and place cursor at the merge point
+          setTimeout(() => {
+            prevBlockEditable.focus();
+            const newRange = document.createRange();
+            const result = findTextNodeAtOffset(prevBlockEditable, prevBlockTextLength);
+            if (result) {
+              newRange.setStart(result.node, result.offset);
+              newRange.collapse(true);
+            } else {
+              // Fallback: place at the end
+              newRange.selectNodeContents(prevBlockEditable);
+              newRange.collapse(false);
+            }
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+          }, 0);
+        }
+        return;
       }
     }
     
-    if (e.key === 'Backspace') {
-      if (range?.startOffset === 0 && index > 0) {
+    // Handle Delete key at the end of a block
+    if (e.key === 'Delete') {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) return;
+      
+      const range = selection.getRangeAt(0);
+      const isAtEnd = range.endOffset === (range.endContainer.textContent?.length || 0);
+      const isCollapsed = selection.isCollapsed;
+      
+      // If cursor is at the end of a block, merge with next block
+      if (isAtEnd && isCollapsed && index < blocks.length - 1) {
         e.preventDefault();
-        const prevBlockElement = document.querySelector(`[data-block-id="${blocks[index - 1].id}"]`);
-        const prevBlockEditable = prevBlockElement?.querySelector('[contenteditable]');
-        if (prevBlockEditable) {
-          try {
-            // Get the current block's HTML content
-            const currentHTML = target.innerHTML;
-            
-            // Get the previous block's HTML content
-            const prevHTML = prevBlockEditable.innerHTML;
-            
-            // Update the previous block with combined content
-            prevBlockEditable.innerHTML = prevHTML + currentHTML;
-            onContentChange(blocks[index - 1].id, prevBlockEditable.textContent || '');
-            
-            // Delete the current block
-            onDeleteBlock(index);
-            
-            // Focus the previous block
-            (prevBlockEditable as HTMLElement).focus();
-            
-            // Set cursor at the position where the lines were merged
-            const newRange = document.createRange();
-            const textNode = prevBlockEditable.firstChild || prevBlockEditable;
-            const prevLength = prevHTML.length;
-            newRange.setStart(textNode, prevLength);
-            newRange.collapse(true);
-            selection?.removeAllRanges();
-            selection?.addRange(newRange);
-          } catch (error) {
-            console.error('Error handling backspace:', error);
-          }
-        }
-      } else if (target.textContent === '' && blocks.length > 1) {
-        e.preventDefault();
-        onDeleteBlock(index);
-      }
-    } else if (e.key === 'ArrowUp') {
-      if (index > 0) {
-        e.preventDefault();
-        const prevBlockElement = document.querySelector(`[data-block-id="${blocks[index - 1].id}"]`);
-        const prevBlockEditable = prevBlockElement?.querySelector('[contenteditable]');
-        if (prevBlockEditable) {
-          (prevBlockEditable as HTMLElement).focus();
-          const newRange = document.createRange();
-          newRange.selectNodeContents(prevBlockEditable);
-          newRange.collapse(false);
-          selection?.removeAllRanges();
-          selection?.addRange(newRange);
-        }
-      }
-    } else if (e.key === 'ArrowDown') {
-      if (index < blocks.length - 1) {
-        e.preventDefault();
+        
+        // Get the next block element
         const nextBlockElement = document.querySelector(`[data-block-id="${blocks[index + 1].id}"]`);
-        const nextBlockEditable = nextBlockElement?.querySelector('[contenteditable]');
+        const nextBlockEditable = nextBlockElement?.querySelector('[contenteditable]') as HTMLElement;
+        
         if (nextBlockEditable) {
-          (nextBlockEditable as HTMLElement).focus();
-          const newRange = document.createRange();
-          newRange.selectNodeContents(nextBlockEditable);
-          newRange.collapse(true);
-          selection?.removeAllRanges();
-          selection?.addRange(newRange);
+          // Get current and next content
+          const currentContent = target.innerHTML;
+          const nextContent = nextBlockEditable.innerHTML;
+          
+          // Merge content into current block
+          target.innerHTML = currentContent + nextContent;
+          onContentChange(block.id, target.innerHTML);
+          
+          // Delete next block
+          onDeleteBlock(index + 1);
+          
+          // Keep focus on current block
+          setTimeout(() => {
+            (target as HTMLElement).focus();
+            const newRange = document.createRange();
+            newRange.selectNodeContents(target);
+            newRange.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+          }, 0);
+        }
+        return;
+      }
+    }
+    
+    // Handle Arrow Up/Down for navigation between blocks
+    if (e.key === 'ArrowUp' && index > 0) {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const isAtStart = range.startOffset === 0;
+        
+        if (isAtStart) {
+          e.preventDefault();
+          onFocusBlock(index - 1);
+          return;
+        }
+      }
+    }
+    
+    if (e.key === 'ArrowDown' && index < blocks.length - 1) {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const isAtEnd = range.endOffset === (range.endContainer.textContent?.length || 0);
+        
+        if (isAtEnd) {
+          e.preventDefault();
+          onFocusBlock(index + 1);
+          return;
         }
       }
     }
   };
 
+  // Update content when block changes
   useEffect(() => {
-    if (contentRef.current && contentRef.current.textContent !== block.content) {
+    if (contentRef.current && contentRef.current.innerHTML !== block.content) {
       contentRef.current.innerHTML = block.content;
     }
-  }, [block.id]);
+  }, [block.content, block.id]);
 
   return (
     <div
@@ -282,16 +436,17 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
             ⋮⋮
           </div>
         </div>
-        <div className="flex-grow">
+        <div className="flex-grow min-w-0">
           <div
             ref={contentRef}
             contentEditable
             suppressContentEditableWarning
             onInput={handleInput}
+            onFocus={handleFocus}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
             onClick={handleClick}
-            className={`outline-none min-h-[1.5em] text-gray-900 dark:text-white whitespace-pre-wrap ${
+            className={`outline-none min-h-[1.5em] text-gray-900 dark:text-white whitespace-pre-wrap break-words overflow-wrap-anywhere w-full ${
               block.type === 'heading1' ? 'text-3xl font-bold mb-4' :
               block.type === 'heading2' ? 'text-2xl font-bold mb-3' :
               block.type === 'heading3' ? 'text-xl font-bold mb-2' :
@@ -301,7 +456,12 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
             style={block.type === 'image' ? {
               textAlign: block.alignment || 'left',
               cursor: 'pointer'
-            } : undefined}
+            } : {
+              wordWrap: 'break-word',
+              overflowWrap: 'break-word',
+              whiteSpace: 'pre-wrap',
+              maxWidth: '100%'
+            }}
           />
         </div>
       </div>
@@ -309,7 +469,7 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
   );
 };
 
-const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange }) => {
+const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange, onFormattingChange }) => {
   const [blocks, setBlocks] = useState<Block[]>(() => {
     if (!initialContent) {
       return [{ id: '1', type: 'text', content: '' }];
@@ -330,12 +490,10 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    
     if (over && active.id !== over.id) {
       setBlocks((items) => {
         const oldIndex = items.findIndex((item) => item.id === active.id);
         const newIndex = items.findIndex((item) => item.id === over.id);
-        
         const newBlocks = arrayMove(items, oldIndex, newIndex);
         onChange(blocksToContent(newBlocks));
         return newBlocks;
@@ -349,7 +507,6 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
       type: 'text',
       content
     };
-    
     const newBlocks = [...blocks];
     newBlocks.splice(index + 1, 0, newBlock);
     setBlocks(newBlocks);
@@ -383,12 +540,10 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
 
   const deleteBlock = (index: number) => {
     if (blocks.length <= 1) return;
-    
     const newBlocks = [...blocks];
     newBlocks.splice(index, 1);
     setBlocks(newBlocks);
     onChange(blocksToContent(newBlocks));
-
     setTimeout(() => {
       const prevBlockIndex = Math.max(0, index - 1);
       const prevBlock = newBlocks[prevBlockIndex];
@@ -406,25 +561,35 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
 
   const focusBlock = (index: number) => {
     if (index < 0 || index >= blocks.length) return;
-    
     setTimeout(() => {
       const blockElement = document.querySelector(`[data-block-id="${blocks[index].id}"]`);
       if (blockElement) {
         const contentEditable = blockElement.querySelector('[contenteditable]');
         if (contentEditable) {
           (contentEditable as HTMLElement).focus();
-          
           const range = document.createRange();
           const selection = window.getSelection();
-          
           range.selectNodeContents(contentEditable);
           range.collapse(false);
-          
           selection?.removeAllRanges();
           selection?.addRange(range);
         }
       }
     }, 50);
+  };
+
+  const splitBlock = (index: number, before: string, after: string): string => {
+    const newBlock: Block = {
+      id: `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      type: 'text',
+      content: after
+    };
+    const newBlocks = [...blocks];
+    newBlocks[index] = { ...newBlocks[index], content: before };
+    newBlocks.splice(index + 1, 0, newBlock);
+    setBlocks(newBlocks);
+    onChange(blocksToContent(newBlocks));
+    return newBlock.id;
   };
 
   const blocksToContent = (blocks: Block[]) => {
@@ -441,7 +606,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
         items={blocks.map(block => block.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           {blocks.map((block, index) => (
             <SortableBlock
               key={block.id}
@@ -454,6 +619,8 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
               onFocusBlock={focusBlock}
               onBlockTypeChange={updateBlockType}
               onBlockAlignmentChange={updateBlockAlignment}
+              onFormattingChange={onFormattingChange}
+              splitBlock={splitBlock}
             />
           ))}
         </div>

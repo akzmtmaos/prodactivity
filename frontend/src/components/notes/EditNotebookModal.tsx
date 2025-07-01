@@ -1,37 +1,41 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import ReactDOM from 'react-dom';
 
-interface CreateDeckModalProps {
+interface EditNotebookModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreateDeck: (deckData: { title: string }) => void;
+  notebook: { id: number; name: string } | null;
+  onUpdateNotebook: (notebookId: number, name: string) => void;
 }
 
-const CreateDeckModal: React.FC<CreateDeckModalProps> = ({
+const EditNotebookModal: React.FC<EditNotebookModalProps> = ({
   isOpen,
   onClose,
-  onCreateDeck
+  notebook,
+  onUpdateNotebook
 }) => {
-  const [title, setTitle] = useState('');
+  const [name, setName] = useState('');
+
+  useEffect(() => {
+    if (notebook) setName(notebook.name);
+  }, [notebook]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (title.trim()) {
-      onCreateDeck({ title: title.trim() });
-      setTitle('');
+    if (notebook && name.trim()) {
+      onUpdateNotebook(notebook.id, name.trim());
       onClose();
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !notebook) return null;
 
-  return ReactDOM.createPortal(
+  return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-md mx-4">
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Create New Deck
+            Edit Notebook
           </h2>
           <button
             onClick={onClose}
@@ -44,22 +48,22 @@ const CreateDeckModal: React.FC<CreateDeckModalProps> = ({
         <form onSubmit={handleSubmit} className="p-6">
           <div className="mb-6">
             <label
-              htmlFor="title"
+              htmlFor="name"
               className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
             >
-              Deck Title
+              Notebook Name
             </label>
             <input
               type="text"
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Enter deck title"
+              id="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Enter notebook name"
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
               required
               maxLength={30}
             />
-            {title.length === 30 && (
+            {name.length === 30 && (
               <p className="text-xs text-red-500 mt-1">Maximum 30 characters reached</p>
             )}
           </div>
@@ -76,14 +80,13 @@ const CreateDeckModal: React.FC<CreateDeckModalProps> = ({
               type="submit"
               className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
             >
-              Create Deck
+              Save Changes
             </button>
           </div>
         </form>
       </div>
-    </div>,
-    document.body
+    </div>
   );
 };
 
-export default CreateDeckModal;
+export default EditNotebookModal; 
