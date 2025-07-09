@@ -77,7 +77,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
       <div className="w-full max-w-md px-8 py-10 bg-white rounded-2xl shadow-xl">
         <div className="mb-10 text-center">
           <h1 className="text-3xl font-bold text-indigo-600 mb-2">Welcome Back</h1>
-          <p className="text-gray-600">Sign in to continue with Prodactivity</p>
+          <p className="text-gray-600">Sign in to continue with ProdActivity</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">

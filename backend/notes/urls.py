@@ -26,4 +26,7 @@ urlpatterns = [
 
     # Chat endpoint
     path('chat/', chat, name='chat'),
+
+    # Deleted notes endpoint
+    # path('trash/notes/', deleted_notes, name='deleted-notes'),
 ]

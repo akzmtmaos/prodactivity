@@ -13,6 +13,8 @@ class Reviewer(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_favorite = models.BooleanField(default=False)
     tags = models.JSONField(default=list, blank=True)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']

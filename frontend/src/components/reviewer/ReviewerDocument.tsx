@@ -1,6 +1,7 @@
 import React from 'react';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 interface Reviewer {
   id: number;
@@ -19,6 +20,41 @@ interface ReviewerDocumentProps {
   onClose: () => void;
 }
 
+const preprocessContentWithBullets = (content: string) => {
+  const sectionTitles = [
+    'Summary:',
+    'Terminology:',
+    'Key Points:',
+    'Main Idea:'
+  ];
+  const lines = content.split(/\r?\n/);
+  let processed: string[] = [];
+  let inSection = false;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (sectionTitles.includes(line)) {
+      processed.push(line);
+      // Always insert a blank line after section title
+      processed.push('');
+      inSection = true;
+      continue;
+    }
+    // If next line is a section title, stop section
+    if (sectionTitles.includes(line) || line === '') {
+      processed.push(line);
+      inSection = false;
+      continue;
+    }
+    // If in a section and line is not a bullet or section title, add bullet
+    if (inSection && !line.startsWith('- ') && !line.startsWith('* ') && !sectionTitles.includes(line)) {
+      processed.push('- ' + line);
+    } else {
+      processed.push(line);
+    }
+  }
+  return processed.join('\n');
+};
+
 const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }) => {
   const modal = (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
@@ -32,7 +68,7 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
         <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">{reviewer.title}</h2>
         <div className="overflow-y-auto flex-1 p-2 text-base text-gray-900 dark:text-white">
           <div className="prose prose-lg dark:prose-invert max-w-none">
-            <ReactMarkdown>{reviewer.content}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{preprocessContentWithBullets(reviewer.content)}</ReactMarkdown>
           </div>
         </div>
       </div>

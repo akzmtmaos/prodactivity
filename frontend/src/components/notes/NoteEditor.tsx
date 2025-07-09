@@ -28,7 +28,7 @@ import BlockEditor from './BlockEditor';
 import axios from 'axios';
 import * as pdfjsLib from 'pdfjs-dist';
 import ImportModal from '../../components/common/ImportModal';
-import ErrorToast from '../../components/common/ErrorToast';
+import Toast from '../../components/common/Toast';
 import AIFeaturesPanel from './AIFeaturesPanel';
 import TextFormatting from './TextFormatting';
 import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
@@ -639,7 +639,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       />
 
       {error && (
-        <ErrorToast
+        <Toast
           message={error}
           onClose={() => setError(null)}
         />

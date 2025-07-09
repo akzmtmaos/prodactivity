@@ -343,7 +343,7 @@ const Home = () => {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               {greeting}, <span className="text-indigo-600 dark:text-indigo-400">{user?.username}</span>
             </h1>
-            <p className="mt-2 text-lg text-gray-600 dark:text-gray-300">
+            <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">
               Here's your productivity overview for today
             </p>
           </div>

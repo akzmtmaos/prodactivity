@@ -212,11 +212,20 @@ const Tasks = () => {
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
                 Tasks
               </h1>
-              <p className="text-lg text-gray-600 dark:text-gray-300">
-                {greeting}, {user.username}!
+              <p className="text-lg text-gray-600 dark:text-gray-400">
+                Manage and track your tasks
               </p>
             </div>
-            <div>
+            {/* Right side: TaskFilters and Add Task button horizontally aligned */}
+            <div className="flex items-center gap-4">
+              <TaskFilters
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                filterCompleted={filterCompleted}
+                onFilterCompletedChange={setFilterCompleted}
+                filterPriority={filterPriority}
+                onFilterPriorityChange={setFilterPriority}
+              />
               <button
                 className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 onClick={() => {
@@ -250,16 +259,6 @@ const Tasks = () => {
               </div>
             </div>
           )}
-          
-          {/* Filters */}
-          <TaskFilters
-            searchTerm={searchTerm}
-            onSearchChange={setSearchTerm}
-            filterCompleted={filterCompleted}
-            onFilterCompletedChange={setFilterCompleted}
-            filterPriority={filterPriority}
-            onFilterPriorityChange={setFilterPriority}
-          />
           
           {/* Task form modal */}
           {isFormOpen && (

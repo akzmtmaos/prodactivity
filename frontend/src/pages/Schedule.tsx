@@ -139,8 +139,8 @@ const Schedule = () => {
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                 Schedule
               </h1>
-              <p className="mt-1 text-gray-600 dark:text-gray-300">
-                {greeting}, {user.username}. Here's your upcoming schedule.
+              <p className="mt-1 text-lg text-gray-600 dark:text-gray-400">
+                Here's your upcoming schedule.
               </p>
             </div>
             <button

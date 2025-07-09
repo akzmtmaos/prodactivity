@@ -12,6 +12,7 @@ from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 import docx
 import tempfile
+from django.utils import timezone
 
 class NotebookListCreateView(generics.ListCreateAPIView):
     serializer_class = NotebookSerializer
@@ -29,10 +30,8 @@ class NotebookRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     
     def destroy(self, request, *args, **kwargs):
         notebook = self.get_object()
-        # Check if notebook has notes
-        if notebook.notes.filter(is_deleted=False).exists():
-            # Soft delete all notes in this notebook
-            notebook.notes.update(is_deleted=True)
+        # Soft delete all notes in this notebook
+        notebook.notes.update(is_deleted=True, deleted_at=timezone.now())
         notebook.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -62,13 +61,29 @@ class NoteRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return Note.objects.filter(user=self.request.user, is_deleted=False)
+        return Note.objects.filter(user=self.request.user)
     
     def destroy(self, request, *args, **kwargs):
         note = self.get_object()
+        if note.is_deleted:
+            note.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
         note.is_deleted = True
+        note.deleted_at = timezone.now()
         note.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    def partial_update(self, request, *args, **kwargs):
+        note = self.get_object()
+        print(f"[DEBUG] PATCH /api/notes/{note.id}/ - data: {request.data}")
+        is_deleted = request.data.get('is_deleted', None)
+        if is_deleted is not None:
+            note.is_deleted = is_deleted
+            note.deleted_at = None if not is_deleted else timezone.now()
+            note.save()
+            print(f"[DEBUG] Note {note.id} updated: is_deleted={note.is_deleted}, deleted_at={note.deleted_at}")
+        serializer = self.get_serializer(note)
+        return Response(serializer.data)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -100,4 +115,12 @@ def convert_doc(request):
         # Clean up in case of error
         if 'temp_path' in locals():
             default_storage.delete(temp_path)
-        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+        return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def deleted_notes(request):
+    notes = Note.objects.filter(user=request.user, is_deleted=True)
+    print(f"[DEBUG] Trash API - User: {request.user}, Deleted Notes: {list(notes.values('id', 'title', 'is_deleted', 'deleted_at'))}")
+    serializer = NoteSerializer(notes, many=True)
+    return Response(serializer.data) 

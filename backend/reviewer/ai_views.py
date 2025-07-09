@@ -5,6 +5,8 @@ from rest_framework.permissions import IsAuthenticated
 import requests
 import logging
 from .serializers import ReviewerSerializer
+from rest_framework.decorators import api_view, permission_classes
+from .models import Reviewer
 
 logger = logging.getLogger(__name__)
 
@@ -113,4 +115,12 @@ class AIAutomaticReviewerView(APIView):
             return Response(
                 {"error": f"Failed to generate reviewer content. Internal error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            ) 
+            )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def deleted_reviewers(request):
+    reviewers = Reviewer.objects.filter(user=request.user, is_deleted=True)
+    print(f"[DEBUG] Trash API - User: {request.user}, Deleted Reviewers: {list(reviewers.values('id', 'title', 'is_deleted', 'deleted_at'))}")
+    serializer = ReviewerSerializer(reviewers, many=True)
+    return Response(serializer.data) 

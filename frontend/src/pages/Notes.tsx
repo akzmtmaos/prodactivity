@@ -8,6 +8,7 @@ import SearchBar from '../components/notes/SearchBar';
 import NoteEditor from '../components/notes/NoteEditor';
 import PageLayout from '../components/PageLayout';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
+import Toast from '../components/common/Toast';
 
 interface Notebook {
   id: number;
@@ -69,6 +70,9 @@ const Notes = () => {
 
   // Add tab state
   const [activeTab, setActiveTab] = useState<'notes' | 'logs' | 'archived'>('notes');
+
+  // Add toast state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   // Get auth headers for API calls
   const getAuthHeaders = () => {
@@ -368,12 +372,12 @@ const Notes = () => {
     }
   };
 
+  // This DELETE request performs a soft delete (moves note to Trash)
   const handleDeleteNote = async (noteId: number) => {
     try {
       await axios.delete(`${API_URL}/notes/${noteId}/`, {
         headers: getAuthHeaders()
       });
-      
       setNotes(notes.filter(note => note.id !== noteId));
       
       // Update notebook notes count
@@ -386,8 +390,10 @@ const Notes = () => {
         setNotebooks(updatedNotebooks);
         setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count - 1 });
       }
+      setToast({ message: 'Note moved to Trash.', type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to delete note');
+      setToast({ message: 'Failed to delete note.', type: 'error' });
     }
   };
 
@@ -671,7 +677,7 @@ const Notes = () => {
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                 Notes
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
+              <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
                 Create and manage your notes
               </p>
             </div>
@@ -803,8 +809,10 @@ const Notes = () => {
                   setShowDeleteModal(false);
                   setNoteToDelete(null);
                 }}
-                title="Delete Note"
-                message={`Are you sure you want to delete the note "${noteToDelete?.title || ''}"? This action cannot be undone.`}
+                title="Move to Trash?"
+                message={`Are you sure you want to move the note "${noteToDelete?.title || ''}" to Trash? You can restore it later from Trash.`}
+                confirmLabel="Move to Trash"
+                cancelLabel="Cancel"
               />
             </>
           )}
@@ -816,6 +824,13 @@ const Notes = () => {
           )}
         </div>
       </div>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </PageLayout>
   );
 };

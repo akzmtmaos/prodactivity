@@ -7,7 +7,8 @@ class ReviewerSerializer(serializers.ModelSerializer):
         fields = [
             'id', 'title', 'content',
             'source_note', 'source_notebook',
-            'created_at', 'updated_at', 'is_favorite', 'tags'
+            'created_at', 'updated_at', 'is_favorite', 'tags',
+            'is_deleted', 'deleted_at'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
     

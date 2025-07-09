@@ -237,7 +237,7 @@ function App() {
               }
             />
             <Route
-              path="/trash"
+              path="/trash/:tab?"
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
                   <Trash />

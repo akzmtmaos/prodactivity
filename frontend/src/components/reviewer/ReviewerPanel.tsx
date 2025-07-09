@@ -23,12 +23,16 @@ import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import ReviewerDocument from './ReviewerDocument';
 import { useNavigate } from 'react-router-dom';
+import ReviewerCard from './ReviewerCard';
+import Toast from '../../components/common/Toast';
 
 interface Reviewer {
   id: number;
   title: string;
   content: string;
+  source_note?: number | null;
   source_note_title?: string;
+  source_notebook?: number | null;
   source_notebook_name?: string;
   created_at: string;
   updated_at: string;
@@ -55,6 +59,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks }) => {
   const [quizLoadingId, setQuizLoadingId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'reviewer' | 'quiz'>('reviewer');
   const [filterType, setFilterType] = useState('all');
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
   const REVIEWERS_URL = `${API_URL}/reviewers/`;
@@ -192,19 +197,19 @@ ${sourceContent}`;
     }
   };
 
-  // Delete reviewer
+  // This DELETE request performs a soft delete (moves reviewer to Trash)
   const deleteReviewer = async (reviewerId: number) => {
     if (!window.confirm('Are you sure you want to delete this reviewer?')) return;
-
     try {
       await axios.delete(`${REVIEWERS_URL}${reviewerId}/`, {
         headers: getAuthHeaders()
       });
-
       setReviewers(prev => prev.filter(r => r.id !== reviewerId));
+      setToast({ message: 'Reviewer moved to Trash.', type: 'success' });
     } catch (error: any) {
       console.error('Failed to delete reviewer:', error);
       setError('Failed to delete reviewer');
+      setToast({ message: 'Failed to delete reviewer.', type: 'error' });
     }
   };
 
@@ -212,8 +217,16 @@ ${sourceContent}`;
   const filteredReviewers = reviewers.filter(reviewer => {
     const matchesSearch = reviewer.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          reviewer.content.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    return matchesSearch;
+    const isQuiz = reviewer.tags && reviewer.tags.includes('quiz');
+    return matchesSearch && !isQuiz;
+  });
+
+  // Filter quizzes
+  const filteredQuizzes = reviewers.filter(reviewer => {
+    const matchesSearch = reviewer.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         reviewer.content.toLowerCase().includes(searchTerm.toLowerCase());
+    const isQuiz = reviewer.tags && reviewer.tags.includes('quiz');
+    return matchesSearch && isQuiz;
   });
 
   // Add per-reviewer quiz generation state
@@ -229,9 +242,9 @@ ${sourceContent}`;
       });
       const saveResponse = await axios.post(REVIEWERS_URL, {
         title: response.data.title,
-        content: response.data.reviewer_content,
-        source_note: reviewer.source_note_title ? reviewer.source_note_title : null,
-        source_notebook: reviewer.source_notebook_name ? reviewer.source_notebook_name : null,
+        content: response.data.content,
+        source_note: reviewer.source_note ?? null,
+        source_notebook: reviewer.source_notebook ?? null,
         tags: ['quiz']
       }, {
         headers: getAuthHeaders()
@@ -453,103 +466,59 @@ ${sourceContent}`;
             ) : (
               <div className="grid gap-4">
                 {filteredReviewers.map(reviewer => (
-                  <div
+                  <ReviewerCard
                     key={reviewer.id}
-                    className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow cursor-pointer"
+                    reviewer={reviewer}
+                    onFavorite={toggleFavorite}
+                    onDelete={deleteReviewer}
+                    onGenerateQuiz={generateQuizForReviewer}
                     onClick={() => navigate(`/reviewer/${reviewer.id}`)}
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
-                            {reviewer.title}
-                          </h3>
-                        </div>
-                        {reviewer.source_note_title && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            From: {reviewer.source_note_title}
-                          </p>
-                        )}
-                        {reviewer.source_notebook_name && (
-                          <p className="text-sm text-gray-600 dark:text-gray-400">
-                            From: {reviewer.source_notebook_name}
-                          </p>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleFavorite(reviewer.id);
-                          }}
-                          className="p-2 text-gray-400 hover:text-yellow-500 transition-colors"
-                        >
-                          {reviewer.is_favorite ? <Star size={16} className="text-yellow-500 fill-current" /> : <StarOff size={16} />}
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteReviewer(reviewer.id);
-                          }}
-                          className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            generateQuizForReviewer(reviewer);
-                          }}
-                          className={`flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
-                          disabled={quizLoadingId === reviewer.id}
-                        >
-                          {quizLoadingId === reviewer.id ? (
-                            <>
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                              Generating Quiz...
-                            </>
-                          ) : (
-                            <>
-                              Generate Quiz
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                    
-                    <div className="prose prose-sm max-w-none dark:prose-invert">
-                      <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap" style={{ maxHeight: '200px', overflow: 'hidden' }}>
-                        {reviewer.content.length > 300 ? reviewer.content.slice(0, 300) + '...' : reviewer.content}
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-                        <span>Created: {new Date(reviewer.created_at).toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                          <Download size={16} />
-                        </button>
-                        <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
-                          <Share2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  </div>
+                    quizLoadingId={quizLoadingId}
+                    showFavorite={true}
+                    showGenerateQuiz={true}
+                  />
                 ))}
               </div>
             )}
           </>
         ) : (
-          <div className="text-center py-8">
-            <FileText size={48} className="mx-auto text-gray-400 mb-4" />
-            <p className="text-gray-600 dark:text-gray-400">
-              No quizzes yet. This tab will show your generated quizzes.
-            </p>
-          </div>
+          loading ? (
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
+              <p className="mt-2 text-gray-600 dark:text-gray-400">Loading quizzes...</p>
+            </div>
+          ) : filteredQuizzes.length === 0 ? (
+            <div className="text-center py-8">
+              <FileText size={48} className="mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600 dark:text-gray-400">
+                {searchTerm 
+                  ? 'No quizzes match your search'
+                  : 'No quizzes yet. Generate a quiz from a reviewer!'}
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {filteredQuizzes.map(quiz => (
+                <ReviewerCard
+                  key={quiz.id}
+                  reviewer={quiz}
+                  onDelete={deleteReviewer}
+                  onClick={() => navigate(`/reviewer/${quiz.id}`)}
+                  showFavorite={false}
+                  showGenerateQuiz={false}
+                />
+              ))}
+            </div>
+          )
         )}
       </div>
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 };

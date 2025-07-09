@@ -11,6 +11,7 @@ import ManageFlashcards from '../components/decks/ManageFlashcardModal';
 import StudySession from '../components/decks/StudySession';
 import SubDeckModal from '../components/decks/SubDeckModal';
 import QuizSession from '../components/decks/QuizSession';
+import Toast from '../components/common/Toast';
 
 interface FlashcardData {
   id: string;
@@ -79,6 +80,8 @@ const Decks = () => {
   const [showStudySession, setShowStudySession] = useState(false);
   const [showSubDeckModal, setShowSubDeckModal] = useState(false);
   const [showQuizSession, setShowQuizSession] = useState(false);
+
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
     const fetchDecks = async () => {
@@ -160,6 +163,7 @@ const Decks = () => {
     ));
   };
 
+  // This DELETE request performs a soft delete (moves deck to Trash)
   const handleDeleteDeck = async (deck: Deck) => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -171,8 +175,10 @@ const Decks = () => {
       });
       if (!res.ok) throw new Error('Failed to delete deck');
       setDecks(decks.filter(d => d.id !== deck.id));
+      setToast({ message: 'Deck moved to Trash.', type: 'success' });
     } catch (error) {
       alert('Error deleting deck.');
+      setToast({ message: 'Failed to delete deck.', type: 'error' });
     }
   };
 
@@ -733,6 +739,13 @@ const Decks = () => {
             )}
           </div>
         </PageLayout>
+      )}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </>
   );

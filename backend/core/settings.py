@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'tasks',  # tasks
     'core',   # core app for CMS and terms
     'reviewer', # reviewer app
+    'schedule', # schedule app
 ]
 
 REST_FRAMEWORK = {

@@ -29,6 +29,7 @@ class Note(models.Model):
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
     last_visited = models.DateTimeField(null=True, blank=True)
     
     class Meta:

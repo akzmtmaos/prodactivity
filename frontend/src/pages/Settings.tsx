@@ -139,7 +139,7 @@ const Settings: React.FC = () => {
                   <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                     Theme
                   </label>
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-2 gap-4">
                     <button
                       onClick={() => handleSettingChange('theme', 'light')}
                       className={`p-4 rounded-lg border transition-colors ${
@@ -161,21 +161,6 @@ const Settings: React.FC = () => {
                     >
                       <Moon size={24} className="mx-auto mb-2 text-gray-600 dark:text-gray-400" />
                       <span className="block text-sm text-gray-700 dark:text-gray-300">Dark</span>
-                    </button>
-                    <button
-                      onClick={() => handleSettingChange('theme', 'system')}
-                      className={`p-4 rounded-lg border transition-colors ${
-                        settings.theme === 'system'
-                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                          : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                      }`}
-                    >
-                      <div className="mx-auto mb-2 flex items-center justify-center">
-                        <Sun size={16} className="text-gray-600 dark:text-gray-400" />
-                        <span className="mx-1 text-gray-400">/</span>
-                        <Moon size={16} className="text-gray-600 dark:text-gray-400" />
-                      </div>
-                      <span className="block text-sm text-gray-700 dark:text-gray-300">System</span>
                     </button>
                   </div>
                 </div>
