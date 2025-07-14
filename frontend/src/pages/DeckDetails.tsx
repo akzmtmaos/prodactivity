@@ -1,16 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Plus, Edit2, Trash2, ChevronRight } from 'lucide-react';
+import { ArrowLeft, BookOpen, Plus, Edit2, Trash2, ChevronRight, Play, HelpCircle } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import CreateDeckModal from '../components/decks/CreateDeckModal';
 import ManageFlashcards from '../components/decks/ManageFlashcardModal';
 import DeleteConfirmationModal from '../components/decks/DeleteConfirmationModal';
+import StudySession from '../components/decks/StudySession';
+import QuizSession from '../components/decks/QuizSession';
 
 interface Flashcard {
   id: string;
   question: string;
   answer: string;
   difficulty?: 'easy' | 'medium' | 'hard';
+  front?: string;
+  back?: string;
 }
 
 interface Subdeck {
@@ -24,56 +28,68 @@ interface Deck {
   title: string;
   subdecks: Subdeck[];
   flashcards: Flashcard[];
+  flashcardCount: number;
+  progress: number;
+  created_at: string;
+  updated_at: string;
 }
 
-// Mock data for demonstration
-const mockDecks: Deck[] = [
-  {
-    id: '1',
-    title: 'Spanish Vocabulary',
-    subdecks: [
-      { id: '1-1', title: 'Greetings', flashcards: [] },
-      { id: '1-2', title: 'Food', flashcards: [] }
-    ],
-    flashcards: [
-      { id: 'f1', question: 'Hello', answer: 'Hola', difficulty: 'easy' },
-      { id: 'f2', question: 'Goodbye', answer: 'Adiós', difficulty: 'medium' }
-    ]
-  },
-  {
-    id: '2',
-    title: 'JavaScript Concepts',
-    subdecks: [],
-    flashcards: [
-      { id: 'f3', question: 'What is a closure?', answer: 'A closure is a function that has access to variables in its outer (enclosing) scope even after the outer function has returned.', difficulty: 'hard' }
-    ]
-  }
-];
-
 const DeckDetails: React.FC = () => {
-  const { deckId } = useParams<{ deckId: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [deck, setDeck] = useState<Deck | null>(null);
+  const [loading, setLoading] = useState(true);
   const [showCreateSubdeck, setShowCreateSubdeck] = useState(false);
   const [showAddFlashcard, setShowAddFlashcard] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showStudySession, setShowStudySession] = useState(false);
+  const [showQuizSession, setShowQuizSession] = useState(false);
   const [selectedSubdeck, setSelectedSubdeck] = useState<Subdeck | null>(null);
   const [selectedFlashcard, setSelectedFlashcard] = useState<Flashcard | null>(null);
 
-  // Find the deck by ID (mock)
-  const deck = mockDecks.find(d => d.id === deckId);
+  // Fetch deck data
+  useEffect(() => {
+    const fetchDeck = async () => {
+      if (!id) return;
+      
+      try {
+        setLoading(true);
+        const token = localStorage.getItem('accessToken');
+        const res = await fetch(`http://localhost:8000/api/decks/decks/${id}/`, {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+        });
+        
+        if (!res.ok) throw new Error('Failed to fetch deck');
+        
+        const data = await res.json();
+        setDeck({
+          id: data.id.toString(),
+          title: data.title,
+          flashcardCount: data.flashcard_count || 0,
+          progress: data.progress || 0,
+          created_at: data.created_at,
+          updated_at: data.updated_at,
+          subdecks: data.subdecks || [],
+          flashcards: (data.flashcards || []).map((fc: any) => ({
+            id: fc.id.toString(),
+            question: fc.front,
+            answer: fc.back,
+            front: fc.front,
+            back: fc.back,
+            difficulty: fc.difficulty
+          }))
+        });
+      } catch (error) {
+        console.error('Error fetching deck:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-  if (!deck) {
-    return (
-      <PageLayout>
-        <div className="p-8">
-          <button onClick={() => navigate('/decks')} className="mb-4 flex items-center text-indigo-600 hover:underline">
-            <ArrowLeft className="mr-2" /> Back to Decks
-          </button>
-          <div className="text-center text-gray-500">Deck not found.</div>
-        </div>
-      </PageLayout>
-    );
-  }
+    fetchDeck();
+  }, [id]);
 
   const handleCreateSubdeck = (deckData: { title: string }) => {
     // Mock implementation - in real app, this would make an API call
@@ -98,6 +114,41 @@ const DeckDetails: React.FC = () => {
     setSelectedSubdeck(null);
   };
 
+  const handlePractice = () => {
+    if (deck) {
+      setShowStudySession(true);
+    }
+  };
+
+  const handleQuiz = () => {
+    if (deck) {
+      setShowQuizSession(true);
+    }
+  };
+
+  if (loading) {
+    return (
+      <PageLayout>
+        <div className="p-8 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
+        </div>
+      </PageLayout>
+    );
+  }
+
+  if (!deck) {
+    return (
+      <PageLayout>
+        <div className="p-8">
+          <button onClick={() => navigate('/decks')} className="mb-4 flex items-center text-indigo-600 hover:underline">
+            <ArrowLeft className="mr-2" /> Back to Decks
+          </button>
+          <div className="text-center text-gray-500">Deck not found.</div>
+        </div>
+      </PageLayout>
+    );
+  }
+
   return (
     <PageLayout>
       <div className="px-4 py-6 sm:px-6 lg:px-8">
@@ -109,6 +160,34 @@ const DeckDetails: React.FC = () => {
             </button>
             <span className="mx-2 text-gray-400">&gt;</span>
             <span className="text-gray-900 dark:text-white font-semibold">{deck.title}</span>
+          </div>
+
+          {/* Deck Actions */}
+          <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center space-x-4">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{deck.title}</h1>
+              <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+                <span>{deck.flashcardCount} cards</span>
+                <span>•</span>
+                <span>{deck.progress}% complete</span>
+              </div>
+            </div>
+            <div className="flex space-x-3">
+              <button
+                onClick={handlePractice}
+                className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <Play size={16} className="mr-2" />
+                Practice
+              </button>
+              <button
+                onClick={handleQuiz}
+                className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+              >
+                <HelpCircle size={16} className="mr-2" />
+                Quiz
+              </button>
+            </div>
           </div>
 
           {/* Subdecks Section */}
@@ -275,6 +354,40 @@ const DeckDetails: React.FC = () => {
               // Handle flashcard deletion
               console.log('Deleting flashcard:', selectedFlashcard.id);
             }
+          }}
+        />
+      )}
+
+      {showStudySession && (
+        <StudySession
+          deckTitle={deck.title}
+          flashcards={deck.flashcards.map(fc => ({
+            id: fc.id,
+            front: fc.front || fc.question,
+            back: fc.back || fc.answer,
+            difficulty: fc.difficulty
+          }))}
+          onClose={() => setShowStudySession(false)}
+          onComplete={(results) => {
+            console.log('Study session completed:', results);
+            setShowStudySession(false);
+          }}
+        />
+      )}
+
+      {showQuizSession && (
+        <QuizSession
+          deckTitle={deck.title}
+          flashcards={deck.flashcards.map(fc => ({
+            id: fc.id,
+            front: fc.front || fc.question,
+            back: fc.back || fc.answer,
+            difficulty: fc.difficulty
+          }))}
+          onClose={() => setShowQuizSession(false)}
+          onComplete={(results) => {
+            console.log('Quiz session completed:', results);
+            setShowQuizSession(false);
           }}
         />
       )}

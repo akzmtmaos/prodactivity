@@ -100,7 +100,7 @@ const NotesList: React.FC<NotesListProps> = ({
 
   if (!selectedNotebook) {
     return (
-      <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)]">
+      <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)] lg:h-[calc(100vh-12rem)]">
         <div className="p-5 text-center">
           <BookOpen className="mx-auto h-12 w-12 text-gray-400 dark:text-white" />
           <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
@@ -115,9 +115,9 @@ const NotesList: React.FC<NotesListProps> = ({
   }
 
   return (
-    <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)] flex flex-col">
-      {/* Header */}
-      <div className="p-5 border-b border-gray-200 dark:border-gray-700">
+    <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)] lg:h-[calc(100vh-12rem)] flex flex-col">
+      {/* Header - Only show on desktop */}
+      <div className="hidden lg:block p-5 border-b border-gray-200 dark:border-gray-700">
         <div className="flex justify-between items-center">
           <div className="flex items-center">
             <ChevronRight className="mr-2 text-gray-400 dark:text-white" size={20} />

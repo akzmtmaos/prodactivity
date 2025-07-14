@@ -10,7 +10,9 @@ const PageLayout: React.FC<PageLayoutProps> = ({ children }) => {
 
   return (
     <div className="relative w-full">
-      <div className={`px-4 py-6 sm:px-6 lg:px-8 transition-all duration-300 ease-in-out ${isCollapsed ? 'lg:ml-20' : 'lg:ml-64'}`}>
+      <div className={`px-4 py-6 sm:px-6 lg:px-8 transition-all duration-300 ease-in-out 
+        ${isCollapsed ? 'lg:ml-20' : 'lg:ml-64'}
+        md:pt-6 pt-20 pb-24`}>
         <div className="max-w-7xl mx-auto">
           {children}
         </div>

@@ -59,6 +59,7 @@
     "postcss-flexbugs-fixes": "^5.0.2",
     "postcss-loader": "^7.3.4",
     "postcss-normalize": "^9.0.0",
-    "postcss-preset-env": "^9.6.0"
+    "postcss-preset-env": "^9.6.0",
+    "tailwindcss": "^4.1.11"
   }
 }

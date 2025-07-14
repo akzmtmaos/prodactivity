@@ -27,6 +27,8 @@ if not HUGGINGFACE_API_KEY:
 # Application definition
 
 INSTALLED_APPS = [
+    'jazzmin',  # Modern admin theme
+    'core',   # core app for CMS and terms
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -40,10 +42,70 @@ INSTALLED_APPS = [
     'notes',  # notes
     'decks',  # decks
     'tasks',  # tasks
-    'core',   # core app for CMS and terms
     'reviewer', # reviewer app
     'schedule', # schedule app
 ]
+
+JAZZMIN_SETTINGS = {
+    "site_title": "Prodactivity Admin",
+    "site_header": "Prodactivity Admin",
+    "site_brand": "Prodactivity",
+    "welcome_sign": "Welcome to the Prodactivity Admin Portal",
+    "copyright": "Prodactivity",
+    # Custom icons for apps and models
+    "icons": {
+        "auth": "fas fa-users-cog",
+        "auth.user": "fas fa-user",
+        "auth.group": "fas fa-users",
+        "accounts": "fas fa-user-circle",
+        "notes": "fas fa-sticky-note",
+        "notes.notebook": "fas fa-book",
+        "notes.note": "fas fa-sticky-note",
+        "decks": "fas fa-layer-group",
+        "decks.deck": "fas fa-layer-group",
+        "decks.flashcard": "fas fa-clone",
+        "tasks": "fas fa-tasks",
+        "tasks.task": "fas fa-tasks",
+        "reviewer": "fas fa-user-check",
+        "reviewer.reviewer": "fas fa-user-check",
+        "schedule": "fas fa-calendar-alt",
+        "schedule.event": "fas fa-calendar-alt",
+        "core": "fas fa-cogs",
+        "core.termsandconditions": "fas fa-file-contract",
+    },
+}
+
+JAZZMIN_UI_TWEAKS = {
+    "navbar_small_text": False,
+    "footer_small_text": False,
+    "body_small_text": False,
+    "brand_small_text": False,
+    "brand_colour": "navbar-success",
+    "accent": "accent-teal",
+    "navbar": "navbar-dark",
+    "no_navbar_border": False,
+    "navbar_fixed": False,
+    "layout_boxed": False,
+    "footer_fixed": False,
+    "sidebar_fixed": False,
+    "sidebar": "sidebar-dark-info",
+    "sidebar_nav_small_text": False,
+    "sidebar_disable_expand": False,
+    "sidebar_nav_child_indent": False,
+    "sidebar_nav_compact_style": False,
+    "sidebar_nav_legacy_style": False,
+    "sidebar_nav_flat_style": False,
+    "theme": "cyborg",  # Beautiful dark mode
+    "dark_mode_theme": None,
+    "button_classes": {
+        "primary": "btn-primary",
+        "secondary": "btn-secondary",
+        "info": "btn-info",
+        "warning": "btn-warning",
+        "danger": "btn-danger",
+        "success": "btn-success",
+    },
+}
 
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (

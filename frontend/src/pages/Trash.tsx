@@ -5,6 +5,7 @@ import TrashList from '../components/trash/TrashList';
 import Toast from '../components/common/Toast';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import { Trash2 } from 'lucide-react';
+import { useRef } from 'react';
 import Pagination from '../components/common/Pagination';
 
 // Define TrashItem type here for use in state
@@ -37,6 +38,10 @@ const Trash = () => {
   const [restoreTarget, setRestoreTarget] = useState<{ id: string; type: 'note' | 'deck' | 'reviewer'; title: string } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'note' | 'deck' | 'reviewer'; title: string } | null>(null);
+
+  // Search state
+  const [searchTerm, setSearchTerm] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
@@ -235,15 +240,15 @@ const Trash = () => {
 
   let filteredItems: TrashItem[] = [];
   if (activeTab === 'all') {
-    filteredItems = [...notes, ...decks, ...reviewers].sort(
-      (a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime()
-    );
+    filteredItems = [...notes, ...decks, ...reviewers]
+      .filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()))
+      .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
   } else if (activeTab === 'notes') {
-    filteredItems = notes;
+    filteredItems = notes.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   } else if (activeTab === 'decks') {
-    filteredItems = decks;
+    filteredItems = decks.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   } else if (activeTab === 'reviewer') {
-    filteredItems = reviewers;
+    filteredItems = reviewers.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   }
 
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
@@ -262,7 +267,7 @@ const Trash = () => {
     <PageLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="mb-8 flex justify-between items-center">
+        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               Trash
@@ -271,45 +276,79 @@ const Trash = () => {
               View and restore deleted items
             </p>
           </div>
-          <button
-            className={`bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center ${filteredItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-            onClick={() => filteredItems.length > 0 && setShowDeleteAllModal(true)}
-            disabled={filteredItems.length === 0}
-          >
-            <Trash2 className="mr-2" size={18} />
-            Delete All
-          </button>
+          <div className="flex flex-col sm:flex-row gap-2 items-center w-full md:w-auto">
+            <div className="w-full sm:w-64">
+              <div className="relative rounded-md shadow-sm">
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  className="block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white pl-10 pr-3 py-2 text-sm"
+                  placeholder="Search trash..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <button
+              className={`bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center ${filteredItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              onClick={() => filteredItems.length > 0 && setShowDeleteAllModal(true)}
+              disabled={filteredItems.length === 0}
+            >
+              <Trash2 className="mr-2" size={18} />
+              Delete All
+            </button>
+          </div>
         </div>
 
-        {/* Tabs */}
+        {/* Tabs styled like Settings */}
         <div>
-          <div className="flex space-x-2 mt-4">
+          <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
             <button
               onClick={() => handleTabClick('all')}
-              className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'all' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'all'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
             >
               All
             </button>
             <button
               onClick={() => handleTabClick('notes')}
-              className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'notes' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'notes'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
             >
               Notes
             </button>
             <button
               onClick={() => handleTabClick('decks')}
-              className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'decks' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'decks'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
             >
               Decks
             </button>
             <button
               onClick={() => handleTabClick('reviewer')}
-              className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'reviewer' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'reviewer'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
             >
               Reviewer
             </button>
           </div>
-          <hr className="border-t border-gray-300 dark:border-gray-700 mb-6" />
           <div className="mt-4">
             <TrashList
               items={paginatedItems}

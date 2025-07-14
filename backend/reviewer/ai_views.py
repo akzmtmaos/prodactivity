@@ -34,18 +34,25 @@ class AIAutomaticReviewerView(APIView):
             if title.lower().startswith('quiz:'):
                 prompt = (
                     "Generate a multiple choice quiz with 10 questions based on the following study material. "
-                    "For each question, provide 4 options (A, B, C, D) and indicate the correct answer. "
-                    "Format as markdown.\n\n"
+                    "For each question: Start with the question number and question text on its own line. "
+                    "Put each answer option (A, B, C, D) on a separate line, like this:\n"
+                    "1. What is the capital of France?\n"
+                    "A. Berlin\n"
+                    "B. Madrid\n"
+                    "C. Paris\n"
+                    "D. Rome\n"
+                    "**Answer:** C\n\n"
+                    "Do not put options on the same line as the question. Indicate the correct answer. Format as markdown.\n\n"
                     f"Study Material:\n{text}\n\nQuiz:"
                 )
             else:
                 prompt = (
-                    "Please review the following content and provide your response in this format:\n\n"
-                    "Summary:\n\n[Write a concise summary here]\n\n"
-                    "Terminology:\n\n- List important terminologies with brief explanations as bullet points.\n- Each item must start with a dash '-' and be on its own line.\n\n"
-                    "Key Points:\n\n- List key points and main ideas as bullet points.\n- Each item must start with a dash '-' and be on its own line.\n\n"
-                    "Main Idea:\n\n- State the main idea(s) as bullet points.\n- Each item must start with a dash '-' and be on its own line.\n\n"
-                    "Leave one blank line between each section. Use bullet points for all lists.\n\n"
+                    "Review the following content and provide:\n"
+                    "- A concise summary.\n"
+                    "- A list of important terms with brief explanations.\n"
+                    "- Key points and main ideas.\n"
+                    "- The main idea(s).\n"
+                    "Do not include section headers or labels. Use bullet points or short paragraphs for clarity.\n\n"
                     f"Content:\n{text}"
                 )
 

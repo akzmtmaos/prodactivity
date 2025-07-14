@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Search, Filter, BookOpen, TrendingUp, Clock, Target } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import DeckCard from '../components/decks/DeckCard';
@@ -64,6 +64,7 @@ interface CreateDeckModalProps {
 
 const Decks = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [decks, setDecks] = useState<Deck[]>([]);
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [selectedDeckStats, setSelectedDeckStats] = useState<DeckStats | null>(null);
@@ -82,6 +83,7 @@ const Decks = () => {
   const [showQuizSession, setShowQuizSession] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [activeTab, setActiveTab] = useState<'decks' | 'stats' | 'archived'>('decks');
 
   useEffect(() => {
     const fetchDecks = async () => {
@@ -198,6 +200,26 @@ const Decks = () => {
     }
   };
 
+  const handleOpenDeck = (deckId: string) => {
+    navigate(`/decks/${deckId}`);
+  };
+
+  const handlePractice = (deckId: string) => {
+    const deck = decks.find(d => d.id === deckId);
+    if (deck) {
+      setSelectedDeck(deck);
+      setShowStudySession(true);
+    }
+  };
+
+  const handleQuizMode = (deckId: string) => {
+    const deck = decks.find(d => d.id === deckId);
+    if (deck) {
+      setSelectedDeck(deck);
+      setShowQuizSession(true);
+    }
+  };
+
   const handleEdit = (deckId: string) => {
     const deck = decks.find(d => d.id === deckId);
     if (deck) {
@@ -220,14 +242,6 @@ const Decks = () => {
       setSelectedDeck(deck);
       setSelectedDeckStats(generateDeckStats(deck));
       setShowStatsModal(true);
-    }
-  };
-
-  const handleOpenDeck = (deckId: string) => {
-    const deck = decks.find(d => d.id === deckId);
-    if (deck) {
-      setSelectedDeck(deck);
-      setShowManageModal(true);
     }
   };
 
@@ -379,7 +393,8 @@ const Decks = () => {
 
   return (
     <>
-      {showStudySession && selectedDeck ? (
+      {/* Modals and overlays */}
+      {showStudySession && selectedDeck && (
         <StudySession
           deckTitle={selectedDeck.title}
           flashcards={selectedDeck.flashcards.map(f => ({
@@ -394,10 +409,10 @@ const Decks = () => {
           }}
           onComplete={(results) => {
             const newProgress = Math.round(Math.min(100, (selectedDeck?.progress || 0) + 10));
-            setDecks(decks.map(d => 
-              d.id === selectedDeck.id 
-                ? { 
-                    ...d, 
+            setDecks(decks.map(d =>
+              d.id === selectedDeck.id
+                ? {
+                    ...d,
                     progress: newProgress,
                     lastStudied: new Date().toISOString()
                   }
@@ -412,28 +427,13 @@ const Decks = () => {
                 'Authorization': token ? `Bearer ${token}` : '',
               },
               body: JSON.stringify({ progress: newProgress })
-            })
-            .then(res => {
-              if (!res.ok) {
-                res.json().then(data => {
-                  console.error('Failed to save progress! Backend error:', data);
-                  alert('Failed to save progress! Check console for backend error.');
-                }).catch(() => {
-                  alert('Failed to save progress!');
-                });
-              }
-              return res.json().catch(() => ({}));
-            })
-            .then(data => {
-              if (data && data.progress !== undefined) {
-                console.log('Progress updated on backend:', data.progress);
-              }
             });
             setShowStudySession(false);
             setSelectedDeck(null);
           }}
         />
-      ) : showQuizSession && selectedDeck ? (
+      )}
+      {showQuizSession && selectedDeck && (
         <QuizSession
           deckTitle={selectedDeck.title}
           flashcards={selectedDeck.flashcards.map(f => ({
@@ -448,10 +448,10 @@ const Decks = () => {
           }}
           onComplete={(results) => {
             const newProgress = Math.round(Math.min(100, (selectedDeck?.progress || 0) + (results.score / 10)));
-            setDecks(decks.map(d => 
-              d.id === selectedDeck.id 
-                ? { 
-                    ...d, 
+            setDecks(decks.map(d =>
+              d.id === selectedDeck.id
+                ? {
+                    ...d,
                     progress: newProgress,
                     lastStudied: new Date().toISOString()
                   }
@@ -466,28 +466,13 @@ const Decks = () => {
                 'Authorization': token ? `Bearer ${token}` : '',
               },
               body: JSON.stringify({ progress: newProgress })
-            })
-            .then(res => {
-              if (!res.ok) {
-                res.json().then(data => {
-                  console.error('Failed to save progress! Backend error:', data);
-                  alert('Failed to save progress! Check console for backend error.');
-                }).catch(() => {
-                  alert('Failed to save progress!');
-                });
-              }
-              return res.json().catch(() => ({}));
-            })
-            .then(data => {
-              if (data && data.progress !== undefined) {
-                console.log('Progress updated on backend:', data.progress);
-              }
             });
             setShowQuizSession(false);
             setSelectedDeck(null);
           }}
         />
-      ) : showManageModal && selectedDeck ? (
+      )}
+      {showManageModal && selectedDeck && (
         <ManageFlashcards
           deckTitle={selectedDeck.title}
           flashcards={selectedDeck.flashcards}
@@ -497,12 +482,12 @@ const Decks = () => {
           }}
           onAddFlashcard={handleAddFlashcard}
           onUpdateFlashcard={(id, flashcard) => {
-            setDecks(decks.map(deck => 
-              deck.id === selectedDeck.id 
-                ? { 
-                    ...deck, 
-                    flashcards: deck.flashcards.map(f => 
-                      f.id === id 
+            setDecks(decks.map(deck =>
+              deck.id === selectedDeck.id
+                ? {
+                    ...deck,
+                    flashcards: deck.flashcards.map(f =>
+                      f.id === id
                         ? { ...f, ...flashcard }
                         : f
                     ),
@@ -512,10 +497,10 @@ const Decks = () => {
             ));
           }}
           onDeleteFlashcard={(id) => {
-            setDecks(decks.map(deck => 
-              deck.id === selectedDeck.id 
-                ? { 
-                    ...deck, 
+            setDecks(decks.map(deck =>
+              deck.id === selectedDeck.id
+                ? {
+                    ...deck,
                     flashcards: deck.flashcards.filter(f => f.id !== id),
                     flashcardCount: deck.flashcardCount - 1,
                     updated_at: new Date().toISOString()
@@ -524,222 +509,258 @@ const Decks = () => {
             ));
           }}
         />
-      ) : (
-        <PageLayout>
-          <div className="space-y-6">
-            {/* Header */}
-            <div className="mb-8 flex justify-between items-center">
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                  Decks
-                </h1>
-                <p className="text-gray-600 dark:text-gray-400 mt-2">
-                  Ready to learn something new today?
-                </p>
+      )}
+      <PageLayout>
+        <div className="max-w-7xl mx-auto">
+          {/* Header */}
+          <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+                Decks
+              </h1>
+              <p className="text-gray-600 dark:text-gray-400 mt-2">
+                Ready to learn something new today?
+              </p>
+            </div>
+            {/* Controls and Add Deck button */}
+            <div className="flex flex-col sm:flex-row items-stretch gap-2 md:gap-4 w-full md:w-auto">
+              {/* Search */}
+              <div className="relative w-full sm:w-56">
+                <Search size={20} className="absolute left-3 top-3 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search decks..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
               </div>
+              {/* Sort */}
+              <div className="flex items-center gap-2">
+                <Clock size={20} className="text-gray-400" />
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress')}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="recent">Recent</option>
+                  <option value="name">Name</option>
+                  <option value="progress">Progress</option>
+                </select>
+              </div>
+              {/* Filter */}
+              <div className="flex items-center gap-2">
+                <Filter size={20} className="text-gray-400" />
+                <select
+                  value={filterBy}
+                  onChange={(e) => setFilterBy(e.target.value as 'all' | 'studied' | 'new')}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="all">All Decks</option>
+                  <option value="studied">Studied</option>
+                  <option value="new">New</option>
+                </select>
+              </div>
+              {/* Add Deck button */}
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors flex items-center"
+                className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 <Plus size={20} className="mr-2" />
                 Add Deck
               </button>
             </div>
-
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center">
-                  <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                    <BookOpen size={24} className="text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalDecks}</h3>
-                    <p className="text-gray-600 dark:text-gray-400">Total Decks</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center">
-                  <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                    <Target size={24} className="text-green-600 dark:text-green-400" />
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalCards}</h3>
-                    <p className="text-gray-600 dark:text-gray-400">Total Cards</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
-                <div className="flex items-center">
-                  <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                    <TrendingUp size={24} className="text-purple-600 dark:text-purple-400" />
-                  </div>
-                  <div className="ml-4">
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{averageProgress}%</h3>
-                    <p className="text-gray-600 dark:text-gray-400">Average Progress</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Search and Filter Section */}
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700 mb-8">
-              <div className="flex flex-col lg:flex-row gap-4">
-                {/* Search */}
-                <div className="flex-1 relative">
-                  <Search size={20} className="absolute left-3 top-3 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Search decks..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-
-                {/* Sort */}
-                <div className="flex items-center gap-2">
-                  <Clock size={20} className="text-gray-400" />
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress')}
-                    className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="recent">Recent</option>
-                    <option value="name">Name</option>
-                    <option value="progress">Progress</option>
-                  </select>
-                </div>
-
-                {/* Filter */}
-                <div className="flex items-center gap-2">
-                  <Filter size={20} className="text-gray-400" />
-                  <select
-                    value={filterBy}
-                    onChange={(e) => setFilterBy(e.target.value as 'all' | 'studied' | 'new')}
-                    className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="all">All Decks</option>
-                    <option value="studied">Studied</option>
-                    <option value="new">New</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* Decks Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              {filteredDecks.map((deck) => (
-                <DeckCard
-                  key={deck.id}
-                  deck={deck}
-                  onStudy={handleStudy}
-                  onQuiz={handleQuiz}
-                  onEdit={handleEdit}
-                  onDelete={handleDelete}
-                  onViewStats={handleViewStats}
-                  onOpen={handleOpenDeck}
-                />
-              ))}
-            </div>
-
-            {/* Empty State */}
-            {filteredDecks.length === 0 && (
-              <div className="text-center py-12">
-                <BookOpen size={48} className="mx-auto text-gray-400 mb-4" />
-                <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
-                  {decks.length === 0 ? 'No decks yet' : 'No decks found'}
-                </h3>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
-                  {decks.length === 0 
-                    ? 'Create your first deck to start learning!'
-                    : 'Try adjusting your search or filter criteria.'
-                  }
-                </p>
-                {decks.length === 0 && (
-                  <button
-                    onClick={() => setShowCreateModal(true)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
-                  >
-                    Create Your First Deck
-                  </button>
-                )}
-              </div>
-            )}
-
-            {/* Modals */}
-            {showCreateModal && (
-              <CreateDeckModal
-                isOpen={showCreateModal}
-                onClose={() => setShowCreateModal(false)}
-                onCreateDeck={handleCreateDeck}
-              />
-            )}
-
-            {showEditModal && selectedDeck && (
-              <EditDeckModal
-                isOpen={showEditModal}
-                deck={{
-                  id: selectedDeck.id,
-                  title: selectedDeck.title
-                }}
-                onClose={() => {
-                  setShowEditModal(false);
-                  setSelectedDeck(null);
-                }}
-                onUpdateDeck={handleUpdateDeck}
-              />
-            )}
-
-            {showDeleteModal && selectedDeck && (
-              <DeleteConfirmationModal
-                isOpen={showDeleteModal}
-                deckTitle={selectedDeck.title}
-                onClose={() => {
-                  setShowDeleteModal(false);
-                  setSelectedDeck(null);
-                }}
-                onConfirm={() => {
-                  handleDeleteDeck(selectedDeck);
-                  setShowDeleteModal(false);
-                  setSelectedDeck(null);
-                }}
-              />
-            )}
-
-            {showStatsModal && selectedDeck && selectedDeckStats && (
-              <DeckStatsModal
-                isOpen={showStatsModal}
-                deckTitle={selectedDeck.title}
-                stats={selectedDeckStats}
-                onClose={() => {
-                  setShowStatsModal(false);
-                  setSelectedDeck(null);
-                  setSelectedDeckStats(null);
-                }}
-              />
-            )}
-
-            {showSubDeckModal && selectedDeck && (
-              <SubDeckModal
-                isOpen={showSubDeckModal}
-                deckTitle={selectedDeck.title}
-                subDecks={[]}
-                onClose={() => {
-                  setShowSubDeckModal(false);
-                  setSelectedDeck(null);
-                }}
-                onAddSubDeck={(subDeckData) => handleAddSubDeck(selectedDeck.id, subDeckData)}
-                onUpdateSubDeck={(id, subDeckData) => handleUpdateSubDeck(selectedDeck.id, id, subDeckData)}
-                onDeleteSubDeck={(id) => handleDeleteSubDeck(selectedDeck.id, id)}
-              />
-            )}
           </div>
-        </PageLayout>
-      )}
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center">
+                <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                  <BookOpen size={24} className="text-blue-600 dark:text-blue-400" />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalDecks}</h3>
+                  <p className="text-gray-600 dark:text-gray-400">Total Decks</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center">
+                <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                  <Target size={24} className="text-green-600 dark:text-green-400" />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalCards}</h3>
+                  <p className="text-gray-600 dark:text-gray-400">Total Cards</p>
+                </div>
+              </div>
+            </div>
+            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+              <div className="flex items-center">
+                <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                  <TrendingUp size={24} className="text-purple-600 dark:text-purple-400" />
+                </div>
+                <div className="ml-4">
+                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{averageProgress}%</h3>
+                  <p className="text-gray-600 dark:text-gray-400">Average Progress</p>
+                </div>
+              </div>
+            </div>
+          </div>
+          {/* Tab Bar styled like Settings */}
+          <div>
+            <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
+              <button
+                onClick={() => setActiveTab('decks')}
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'decks'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                Decks
+              </button>
+              <button
+                onClick={() => setActiveTab('stats')}
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'stats'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                Statistics
+              </button>
+              <button
+                onClick={() => setActiveTab('archived')}
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'archived'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                Archived
+              </button>
+            </div>
+            <hr className="border-t border-gray-300 dark:border-gray-700 mb-6" />
+          </div>
+          {/* Tab Content */}
+          {activeTab === 'decks' && (
+            <div className="space-y-6">
+              {/* Decks Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {filteredDecks.map((deck) => (
+                  <DeckCard
+                    key={deck.id}
+                    deck={deck}
+                    onStudy={handleStudy}
+                    onQuiz={handleQuiz}
+                    onEdit={handleEdit}
+                    onDelete={handleDelete}
+                    onViewStats={handleViewStats}
+                    onOpen={handleOpenDeck}
+                  />
+                ))}
+              </div>
+              {/* Empty State */}
+              {filteredDecks.length === 0 && (
+                <div className="text-center py-12">
+                  <BookOpen size={48} className="mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
+                    {decks.length === 0 ? 'No decks yet' : 'No decks found'}
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400 mb-6">
+                    {decks.length === 0
+                      ? 'Create your first deck to start learning!'
+                      : 'Try adjusting your search or filter criteria.'
+                    }
+                  </p>
+                  {decks.length === 0 && (
+                    <button
+                      onClick={() => setShowCreateModal(true)}
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg font-medium transition-colors"
+                    >
+                      Create Your First Deck
+                    </button>
+                  )}
+                </div>
+              )}
+              {/* Modals */}
+              {showCreateModal && (
+                <CreateDeckModal
+                  isOpen={showCreateModal}
+                  onClose={() => setShowCreateModal(false)}
+                  onCreateDeck={handleCreateDeck}
+                />
+              )}
+              {showEditModal && selectedDeck && (
+                <EditDeckModal
+                  isOpen={showEditModal}
+                  deck={{
+                    id: selectedDeck.id,
+                    title: selectedDeck.title
+                  }}
+                  onClose={() => {
+                    setShowEditModal(false);
+                    setSelectedDeck(null);
+                  }}
+                  onUpdateDeck={handleUpdateDeck}
+                />
+              )}
+              {showDeleteModal && selectedDeck && (
+                <DeleteConfirmationModal
+                  isOpen={showDeleteModal}
+                  deckTitle={selectedDeck.title}
+                  onClose={() => {
+                    setShowDeleteModal(false);
+                    setSelectedDeck(null);
+                  }}
+                  onConfirm={() => {
+                    handleDeleteDeck(selectedDeck);
+                    setShowDeleteModal(false);
+                    setSelectedDeck(null);
+                  }}
+                />
+              )}
+              {showStatsModal && selectedDeck && selectedDeckStats && (
+                <DeckStatsModal
+                  isOpen={showStatsModal}
+                  deckTitle={selectedDeck.title}
+                  stats={selectedDeckStats}
+                  onClose={() => {
+                    setShowStatsModal(false);
+                    setSelectedDeck(null);
+                    setSelectedDeckStats(null);
+                  }}
+                />
+              )}
+              {showSubDeckModal && selectedDeck && (
+                <SubDeckModal
+                  isOpen={showSubDeckModal}
+                  deckTitle={selectedDeck.title}
+                  subDecks={[]}
+                  onClose={() => {
+                    setShowSubDeckModal(false);
+                    setSelectedDeck(null);
+                  }}
+                  onAddSubDeck={(subDeckData) => handleAddSubDeck(selectedDeck.id, subDeckData)}
+                  onUpdateSubDeck={(id, subDeckData) => handleUpdateSubDeck(selectedDeck.id, id, subDeckData)}
+                  onDeleteSubDeck={(id) => handleDeleteSubDeck(selectedDeck.id, id)}
+                />
+              )}
+            </div>
+          )}
+          {activeTab === 'stats' && (
+            <div className="p-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 min-h-[300px] flex items-center justify-center">
+              <span className="text-gray-500 dark:text-gray-400 text-lg">Statistics coming soon...</span>
+            </div>
+          )}
+          {activeTab === 'archived' && (
+            <div className="p-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 min-h-[300px] flex items-center justify-center">
+              <span className="text-gray-500 dark:text-gray-400 text-lg">Archived decks will appear here.</span>
+            </div>
+          )}
+        </div>
+      </PageLayout>
       {toast && (
         <Toast
           message={toast.message}

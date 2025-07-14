@@ -9,6 +9,7 @@ import NoteEditor from '../components/notes/NoteEditor';
 import PageLayout from '../components/PageLayout';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
+import { ChevronLeft, Plus } from 'lucide-react';
 
 interface Notebook {
   id: number;
@@ -73,6 +74,9 @@ const Notes = () => {
 
   // Add toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Mobile view state
+  const [mobileView, setMobileView] = useState<'notebooks' | 'notes'>('notebooks');
 
   // Get auth headers for API calls
   const getAuthHeaders = () => {
@@ -205,6 +209,15 @@ const Notes = () => {
     setSelectedNotebook(notebook);
     fetchNotes(notebook.id);
     setSearchTerm('');
+    // On mobile, switch to notes view
+    setMobileView('notes');
+  };
+
+  // Mobile back button handler
+  const handleMobileBack = () => {
+    setMobileView('notebooks');
+    setSelectedNotebook(null);
+    setNotes([]);
   };
 
   const handleAddNotebook = async () => {
@@ -681,8 +694,8 @@ const Notes = () => {
                 Create and manage your notes
               </p>
             </div>
-            {/* Search and Filter Bar */}
-            <div className="flex items-center gap-2 mt-4 sm:mt-0 justify-end w-full sm:w-auto">
+            {/* Search and Filter Bar - Desktop */}
+            <div className="hidden sm:flex items-center gap-2 mt-4 sm:mt-0 justify-end w-full sm:w-auto">
               <select
                 value={filterType}
                 onChange={e => setFilterType(e.target.value as any)}
@@ -705,29 +718,67 @@ const Notes = () => {
               </div>
             </div>
           </div>
-          {/* Tabs */}
+          
+          {/* Search and Filter Bar - Mobile */}
+          <div className="sm:hidden mb-6">
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <SearchBar
+                  searchTerm={searchTerm}
+                  onSearchChange={setSearchTerm}
+                  placeholder="Search notes..."
+                  inputClassName="h-12 text-base"
+                  noMargin
+                />
+              </div>
+              <div className="w-32">
+                <select
+                  value={filterType}
+                  onChange={e => setFilterType(e.target.value as any)}
+                  className="w-full h-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="all">All</option>
+                  <option value="title">Title</option>
+                  <option value="content">Content</option>
+                  <option value="date">Date</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          {/* Tabs styled like Settings */}
           <div>
-            <div className="flex space-x-2 mt-4">
+            <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
               <button
                 onClick={() => setActiveTab('notes')}
-                className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'notes' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'notes'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
               >
                 Notes
               </button>
               <button
                 onClick={() => setActiveTab('logs')}
-                className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'logs' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'logs'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
               >
                 Logs
               </button>
               <button
                 onClick={() => setActiveTab('archived')}
-                className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'archived' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'archived'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
               >
                 Archived
               </button>
             </div>
-            <hr className="border-t border-gray-300 dark:border-gray-700 mb-6" />
           </div>
           {/* Tab Content */}
           {activeTab === 'notes' && (
@@ -746,45 +797,126 @@ const Notes = () => {
               )}
               {/* Main Content */}
               <div className="flex flex-col lg:flex-row gap-6">
-                {/* Notebooks Panel */}
-                <NotebookList
-                  notebooks={notebooks}
-                  selectedNotebook={selectedNotebook}
-                  editingNotebook={editingNotebook}
-                  newNotebookName={newNotebookName}
-                  onNotebookSelect={handleNotebookSelect}
-                  onAddNotebook={handleAddNotebook}
-                  onUpdateNotebook={handleUpdateNotebook}
-                  onDeleteNotebook={handleDeleteNotebook}
-                  onStartEditingNotebook={handleStartEditingNotebook}
-                  onCancelEditingNotebook={handleCancelEditingNotebook}
-                  onNotebookNameChange={setNewNotebookName}
-                  onCreateNotebook={handleCreateNotebookDirect}
-                />
-                {/* Notes Panel */}
-                <NotesList
-                  selectedNotebook={selectedNotebook}
-                  notes={filteredNotes}
-                  isAddingNote={false}
-                  editingNote={null}
-                  noteTitle={newNote.title}
-                  noteContent={newNote.content}
-                  onStartAddingNote={handleStartAddingNote}
-                  onCancelAddingNote={handleCancelAddingNote}
-                  onAddNote={handleAddNote}
-                  onEditNote={handleEditNote}
-                  onCancelEditingNote={handleCancelEditingNote}
-                  onUpdateNote={handleUpdateNote}
-                  onDeleteNote={(noteId) => {
-                    const note = notes.find(n => n.id === noteId);
-                    if (note) handleRequestDeleteNote(note);
-                  }}
-                  onNoteTitleChange={(title) => setNewNote({ ...newNote, title })}
-                  onNoteContentChange={(content) => setNewNote({ ...newNote, content })}
-                  onUpdateNoteTitle={handleUpdateNoteTitle}
-                  onBulkDelete={handleBulkDeleteNotes}
-                  deletingNoteId={noteToDelete?.id || null}
-                />
+                {/* Mobile: Single container view */}
+                <div className="lg:hidden w-full bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)] flex flex-col">
+                  {/* Mobile Header with back button */}
+                  {mobileView === 'notes' && selectedNotebook && (
+                    <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center">
+                          <button
+                            onClick={handleMobileBack}
+                            className="p-2 mr-3 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                          >
+                            <ChevronLeft size={20} />
+                          </button>
+                          <div>
+                            <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
+                              {selectedNotebook.name}
+                            </h2>
+                            <span className="text-sm text-gray-500 dark:text-gray-400">
+                              {notes.length} notes
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={handleStartAddingNote}
+                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center"
+                        >
+                          <Plus size={16} className="mr-1 text-white" />
+                          Add Note
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mobile Content */}
+                  <div className="flex-1 overflow-hidden">
+                    {mobileView === 'notebooks' ? (
+                      <NotebookList
+                        notebooks={notebooks}
+                        selectedNotebook={selectedNotebook}
+                        editingNotebook={editingNotebook}
+                        newNotebookName={newNotebookName}
+                        onNotebookSelect={handleNotebookSelect}
+                        onAddNotebook={handleAddNotebook}
+                        onUpdateNotebook={handleUpdateNotebook}
+                        onDeleteNotebook={handleDeleteNotebook}
+                        onStartEditingNotebook={handleStartEditingNotebook}
+                        onCancelEditingNotebook={handleCancelEditingNotebook}
+                        onNotebookNameChange={setNewNotebookName}
+                        onCreateNotebook={handleCreateNotebookDirect}
+                      />
+                    ) : (
+                      <NotesList
+                        selectedNotebook={selectedNotebook}
+                        notes={filteredNotes}
+                        isAddingNote={false}
+                        editingNote={null}
+                        noteTitle={newNote.title}
+                        noteContent={newNote.content}
+                        onStartAddingNote={handleStartAddingNote}
+                        onCancelAddingNote={handleCancelAddingNote}
+                        onAddNote={handleAddNote}
+                        onEditNote={handleEditNote}
+                        onCancelEditingNote={handleCancelEditingNote}
+                        onUpdateNote={handleUpdateNote}
+                        onDeleteNote={(noteId) => {
+                          const note = notes.find(n => n.id === noteId);
+                          if (note) handleRequestDeleteNote(note);
+                        }}
+                        onNoteTitleChange={(title) => setNewNote({ ...newNote, title })}
+                        onNoteContentChange={(content) => setNewNote({ ...newNote, content })}
+                        onUpdateNoteTitle={handleUpdateNoteTitle}
+                        onBulkDelete={handleBulkDeleteNotes}
+                        deletingNoteId={noteToDelete?.id || null}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Desktop: Side-by-side layout */}
+                <div className="hidden lg:flex w-full gap-6">
+                  {/* Notebooks Panel */}
+                  <NotebookList
+                    notebooks={notebooks}
+                    selectedNotebook={selectedNotebook}
+                    editingNotebook={editingNotebook}
+                    newNotebookName={newNotebookName}
+                    onNotebookSelect={handleNotebookSelect}
+                    onAddNotebook={handleAddNotebook}
+                    onUpdateNotebook={handleUpdateNotebook}
+                    onDeleteNotebook={handleDeleteNotebook}
+                    onStartEditingNotebook={handleStartEditingNotebook}
+                    onCancelEditingNotebook={handleCancelEditingNotebook}
+                    onNotebookNameChange={setNewNotebookName}
+                    onCreateNotebook={handleCreateNotebookDirect}
+                  />
+                  {/* Notes Panel */}
+                  <NotesList
+                    selectedNotebook={selectedNotebook}
+                    notes={filteredNotes}
+                    isAddingNote={false}
+                    editingNote={null}
+                    noteTitle={newNote.title}
+                    noteContent={newNote.content}
+                    onStartAddingNote={handleStartAddingNote}
+                    onCancelAddingNote={handleCancelAddingNote}
+                    onAddNote={handleAddNote}
+                    onEditNote={handleEditNote}
+                    onCancelEditingNote={handleCancelEditingNote}
+                    onUpdateNote={handleUpdateNote}
+                    onDeleteNote={(noteId) => {
+                      const note = notes.find(n => n.id === noteId);
+                      if (note) handleRequestDeleteNote(note);
+                    }}
+                    onNoteTitleChange={(title) => setNewNote({ ...newNote, title })}
+                    onNoteContentChange={(content) => setNewNote({ ...newNote, content })}
+                    onUpdateNoteTitle={handleUpdateNoteTitle}
+                    onBulkDelete={handleBulkDeleteNotes}
+                    deletingNoteId={noteToDelete?.id || null}
+                  />
+                </div>
               </div>
               {/* NoteEditor Modal */}
               {showNoteEditor && (

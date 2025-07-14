@@ -256,23 +256,30 @@ const StudyTimer: React.FC = () => {
           </p>
         </div>
 
-        {/* Tabs styled like Schedule (pill buttons) */}
+        {/* Tabs styled like Settings */}
         <div>
-          <div className="flex space-x-2 mt-4">
+          <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
             <button
               onClick={() => setActiveTab('timer')}
-              className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'timer' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'timer'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
             >
               Timer
             </button>
             <button
               onClick={() => setActiveTab('sessions')}
-              className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'sessions' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'sessions'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
             >
               Sessions
             </button>
           </div>
-          <hr className="border-t border-gray-300 dark:border-gray-700 mb-6" />
           <div className="mt-4">
             {activeTab === 'timer' && (
               <>

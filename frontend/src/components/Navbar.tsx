@@ -16,7 +16,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { isCollapsed, setIsCollapsed } = useNavbar();
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   // Modified logout handler with proper TypeScript type
@@ -30,25 +30,33 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     console.log("Navbar: User logging out");
     localStorage.removeItem("user");
     setShowLogoutModal(false);
+    setMobileMenuOpen(false);
     // Update the auth state in parent component
     setIsAuthenticated && setIsAuthenticated(false);
     console.log("Navbar: Auth state set to false, redirecting to login");
     navigate("/login");
   };
 
-  const navItems = [
+  // Primary navigation items (most important)
+  const primaryNavItems = [
     { path: "/", name: "Home", icon: <Home size={20} /> },
     { path: "/progress", name: "Progress", icon: <BarChart2 size={20} /> },
     { path: "/notes", name: "Notes", icon: <FileText size={20} /> },
-    { path: "/reviewer", name: "Reviewer", icon: <Brain size={20} /> },
     { path: "/decks", name: "Decks", icon: <Layers size={20} /> },
     { path: "/tasks", name: "Tasks", icon: <CheckSquare size={20} /> },
+  ];
+
+  // Secondary navigation items (less frequently used)
+  const secondaryNavItems = [
+    { path: "/reviewer", name: "Reviewer", icon: <Brain size={20} /> },
     { path: "/schedule", name: "Schedule", icon: <Calendar size={20} /> },
     { path: "/study-timer", name: "Study Timer", icon: <Clock size={20} /> },
-    { path: "/trash", name: "Trash", icon: <Trash2 size={20} /> },
     { path: "/notifications", name: "Notifications", icon: <Bell size={20} /> },
+    { path: "/trash", name: "Trash", icon: <Trash2 size={20} /> },
     { path: "/settings", name: "Settings", icon: <Settings size={20} /> },
   ];
+
+  const allNavItems = [...primaryNavItems, ...secondaryNavItems];
 
   return (
     <>
@@ -72,7 +80,6 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         <div 
           className="flex items-center justify-center p-4 border-b border-gray-200 dark:border-gray-700 cursor-pointer"
           onClick={() => {
-            setMobileOpen(false);
             if (isCollapsed) {
               setIsCollapsed(false);
             }
@@ -87,7 +94,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         {/* Navigation links */}
         <nav className="flex-1 px-4 py-4 overflow-y-auto">
           <ul className="space-y-2">
-            {navItems.map((item) => (
+            {allNavItems.map((item) => (
               <li key={item.path}>
                 <Link
                   to={item.path}
@@ -119,28 +126,152 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         </div>
       </aside>
 
-      {/* Bottom Navigation for Mobile */}
+      {/* Mobile Header */}
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center">
+            <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+              ProdActivity
+            </span>
+          </div>
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
+          >
+            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Menu Overlay */}
+      <div className={`md:hidden fixed inset-0 z-50 transition-opacity duration-300 ease-in-out ${
+        mobileMenuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+      }`}>
+        {/* Backdrop */}
+        <div 
+          className={`fixed inset-0 bg-black transition-opacity duration-300 ease-in-out ${
+            mobileMenuOpen ? 'bg-opacity-50' : 'bg-opacity-0'
+          }`}
+          onClick={() => setMobileMenuOpen(false)}
+        />
+        
+        {/* Menu Panel */}
+        <div className={`fixed top-0 right-0 w-80 h-full bg-white dark:bg-gray-800 shadow-xl transform transition-transform duration-300 ease-in-out ${
+          mobileMenuOpen ? 'translate-x-0' : 'translate-x-full'
+        }`}>
+          <div className="flex flex-col h-full">
+            {/* Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+              <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
+                Menu
+              </span>
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Navigation */}
+            <nav className="flex-1 overflow-y-auto">
+              {/* Primary Navigation */}
+              <div className="p-4">
+                <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                  Main
+                </h3>
+                <ul className="space-y-1">
+                  {primaryNavItems.map((item, index) => (
+                    <li key={item.path}>
+                      <Link
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center px-3 py-3 text-base font-medium rounded-lg transition-all duration-200 ease-in-out transform hover:scale-105
+                          ${location.pathname === item.path 
+                            ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200" 
+                            : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+                        style={{
+                          animationDelay: `${index * 50}ms`,
+                          animation: mobileMenuOpen ? 'slideInFromRight 0.3s ease-out forwards' : 'none'
+                        }}
+                      >
+                        <span className="mr-3">{item.icon}</span>
+                        {item.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {/* Secondary Navigation */}
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
+                  More
+                </h3>
+                <ul className="space-y-1">
+                  {secondaryNavItems.map((item, index) => (
+                    <li key={item.path}>
+                      <Link
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center px-3 py-3 text-base font-medium rounded-lg transition-all duration-200 ease-in-out transform hover:scale-105
+                          ${location.pathname === item.path 
+                            ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200" 
+                            : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+                        style={{
+                          animationDelay: `${(index + primaryNavItems.length) * 50}ms`,
+                          animation: mobileMenuOpen ? 'slideInFromRight 0.3s ease-out forwards' : 'none'
+                        }}
+                      >
+                        <span className="mr-3">{item.icon}</span>
+                        {item.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </nav>
+
+            {/* Logout Button */}
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+              <button
+                onClick={openLogoutModal}
+                className="flex items-center justify-center w-full px-4 py-3 text-base font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all duration-200 ease-in-out transform hover:scale-105"
+                style={{
+                  animationDelay: `${(primaryNavItems.length + secondaryNavItems.length) * 50}ms`,
+                  animation: mobileMenuOpen ? 'slideInFromRight 0.3s ease-out forwards' : 'none'
+                }}
+              >
+                <LogOut size={18} className="mr-2" />
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Bottom Navigation for Mobile (Primary items only) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-gray-800 shadow-lg border-t border-gray-200 dark:border-gray-700">
-        <nav className="flex flex-wrap justify-around items-center min-h-[5rem] py-2 px-1">
-          {navItems.map((item) => (
+        <nav className="flex justify-around items-center h-16 px-2">
+          {primaryNavItems.map((item) => (
             <Link
               key={item.path}
               to={item.path}
-              className={`flex flex-col items-center justify-center w-1/4 h-16 text-[10px]
+              className={`flex flex-col items-center justify-center flex-1 h-full min-w-0 px-2
                 ${location.pathname === item.path 
                   ? "text-indigo-600 dark:text-indigo-400" 
-                  : "text-gray-600 dark:text-gray-400"}`}
+                  : "text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"}`}
             >
-              <span className="mb-0.5">{item.icon}</span>
-              <span className="text-center px-1 line-clamp-1">{item.name}</span>
+              <span className="mb-1">{item.icon}</span>
+              <span className="text-xs font-medium text-center truncate">{item.name}</span>
             </Link>
           ))}
           <button
-            onClick={openLogoutModal}
-            className="flex flex-col items-center justify-center w-1/4 h-16 text-[10px] text-red-600 dark:text-red-400"
+            onClick={() => setMobileMenuOpen(true)}
+            className="flex flex-col items-center justify-center flex-1 h-full min-w-0 px-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
           >
-            <LogOut size={16} className="mb-0.5" />
-            <span className="line-clamp-1">Logout</span>
+            <Menu size={20} className="mb-1" />
+            <span className="text-xs font-medium text-center truncate">More</span>
           </button>
         </nav>
       </div>

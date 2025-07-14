@@ -17,6 +17,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import DeckDetails from "./pages/DeckDetails";
 import Reviewer from "./pages/Reviewer";
+import LandingPage from "./pages/LandingPage";
 
 // Modified PrivateRoute component that adds layout for pages with navbar
 interface PrivateRouteProps {
@@ -167,9 +168,13 @@ function App() {
             <Route
               path="/"
               element={
-                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
-                  <Home />
-                </PrivateRoute>
+                authState.isAuthenticated ? (
+                  <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                    <Home />
+                  </PrivateRoute>
+                ) : (
+                  <LandingPage />
+                )
               }
             />
             <Route
@@ -209,6 +214,22 @@ function App() {
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
                   <DeckDetails />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/decks/practice"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Decks />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/decks/quiz"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Decks />
                 </PrivateRoute>
               }
             />

@@ -1,6 +1,6 @@
 // Home.tsx - Modified version
 import React, { useEffect, useState } from 'react';
-import { Clock, Calendar, BookOpen, CheckSquare } from 'lucide-react';
+import { Clock, Calendar, BookOpen, CheckSquare, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavbar } from '../context/NavbarContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -40,6 +40,7 @@ const Home = () => {
   const [tasksLoading, setTasksLoading] = useState(true);
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [notesCount, setNotesCount] = useState<number>(0);
+  const [currentSlide, setCurrentSlide] = useState(0);
 
   // Get auth headers for API calls
   const getAuthHeaders = () => {
@@ -163,6 +164,17 @@ const Home = () => {
     } catch (error) {
       setNotesCount(0);
     }
+  };
+
+  // Slider navigation functions
+  const nextSlide = () => {
+    const maxSlides = Math.ceil(recentNotes.length / 4) - 1;
+    setCurrentSlide(prev => prev < maxSlides ? prev + 1 : 0);
+  };
+
+  const prevSlide = () => {
+    const maxSlides = Math.ceil(recentNotes.length / 4) - 1;
+    setCurrentSlide(prev => prev > 0 ? prev - 1 : maxSlides);
   };
 
   useEffect(() => {
@@ -336,7 +348,7 @@ const Home = () => {
 
   return (
     <div className="relative w-full min-h-screen">
-      <div className={`px-4 py-6 sm:px-6 lg:px-8 transition-[margin] duration-300 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-64'} pb-32 md:pb-6 md:pt-6`}>
+      <div className={`px-4 py-6 sm:px-6 lg:px-8 transition-[margin] duration-300 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-64'} pb-32 md:pb-6 pt-20 md:pt-6`}>
         <div className="max-w-7xl mx-auto">
           {/* Greeting section */}
           <div className="mb-8">
@@ -348,96 +360,180 @@ const Home = () => {
             </p>
           </div>
 
-          {/* Dynamic Stats grid */}
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Dynamic Stats grid - 2x2 on mobile, 4 columns on desktop */}
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-5">
             <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
-              <div className="px-4 py-5 sm:p-6">
+              <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0 rounded-md p-3 bg-gray-100 dark:bg-gray-700">
-                    <Clock size={20} className="text-indigo-600 dark:text-indigo-400" />
+                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700">
+                    <Clock size={16} className="sm:w-5 sm:h-5 text-indigo-600 dark:text-indigo-400" />
                   </div>
-                  <div className="ml-5">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Study Hours</p>
-                    <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{studyHours.toFixed(1)}</p>
+                  <div className="ml-3 sm:ml-5">
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Study Hours</p>
+                    <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{studyHours.toFixed(1)}</p>
                   </div>
                 </div>
               </div>
             </div>
             <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
-              <div className="px-4 py-5 sm:p-6">
+              <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0 rounded-md p-3 bg-gray-100 dark:bg-gray-700">
-                    <CheckSquare size={20} className="text-green-600 dark:text-green-400" />
+                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700">
+                    <CheckSquare size={16} className="sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
                   </div>
-                  <div className="ml-5">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Tasks Completed</p>
-                    <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{tasksCompleted}</p>
+                  <div className="ml-3 sm:ml-5">
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Tasks Completed</p>
+                    <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{tasksCompleted}</p>
                   </div>
                 </div>
               </div>
             </div>
             <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
-              <div className="px-4 py-5 sm:p-6">
+              <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0 rounded-md p-3 bg-gray-100 dark:bg-gray-700">
-                    <BookOpen size={20} className="text-blue-600 dark:text-blue-400" />
+                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700">
+                    <BookOpen size={16} className="sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <div className="ml-5">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Notes Created</p>
-                    <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{notesCount}</p>
+                  <div className="ml-3 sm:ml-5">
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Notes Created</p>
+                    <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{notesCount}</p>
                   </div>
                 </div>
               </div>
             </div>
             <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
-              <div className="px-4 py-5 sm:p-6">
+              <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0 rounded-md p-3 bg-gray-100 dark:bg-gray-700">
-                    <Calendar size={20} className="text-purple-600 dark:text-purple-400" />
+                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700">
+                    <Calendar size={16} className="sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
                   </div>
-                  <div className="ml-5">
-                    <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Upcoming Events</p>
-                    <p className="mt-1 text-3xl font-semibold text-gray-900 dark:text-white">{upcomingEventsCount}</p>
+                  <div className="ml-3 sm:ml-5">
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Upcoming Events</p>
+                    <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{upcomingEventsCount}</p>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Quick Notes History section - move this up */}
+          {/* Quick Notes History section with horizontal slider */}
           <div className="mt-8 mb-8">
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4">
-              Quick Notes History
-            </h2>
-            <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2">
-              {recentNotes.length > 0 ? (
-                recentNotes.map((note) => (
-                  <div 
-                    key={note.id} 
-                    className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px]"
-                    onClick={() => handleOpenNote(note.id)}
-                  >
-                    <div className="p-2 flex-1 flex flex-col items-center justify-center text-center">
-                      <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
-                        <BookOpen size={14} className="text-indigo-600 dark:text-indigo-400" />
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                Quick Notes History
+              </h2>
+              {/* Show navigation only on mobile when there are more than 4 notes */}
+              <div className="md:hidden">
+                {recentNotes.length > 4 && (
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={prevSlide}
+                      className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <button
+                      onClick={nextSlide}
+                      className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Mobile: Horizontal slider (4 notes) */}
+            <div className="md:hidden relative overflow-hidden">
+              <div className="flex transition-transform duration-300 ease-in-out" style={{ transform: `translateX(-${currentSlide * 100}%)` }}>
+                {recentNotes.length > 0 ? (
+                  recentNotes.map((note) => (
+                    <div 
+                      key={note.id} 
+                      className="flex-shrink-0 w-1/4 px-1"
+                    >
+                      <div 
+                        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px]"
+                        onClick={() => handleOpenNote(note.id)}
+                      >
+                        <div className="p-2 flex-1 flex flex-col items-center justify-center text-center">
+                          <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                            <BookOpen size={14} className="text-indigo-600 dark:text-indigo-400" />
+                          </div>
+                          <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 px-1">
+                            {note.title || 'Untitled Note'}
+                          </h3>
+                          {note.notebook_name && (
+                            <span className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 px-1">
+                              {note.notebook_name}
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 px-1">
-                        {note.title || 'Untitled Note'}
-                      </h3>
-                      {note.notebook_name && (
-                        <span className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 px-1">
-                          {note.notebook_name}
-                        </span>
-                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-1">
+                      <BookOpen size={16} className="text-gray-400 dark:text-gray-500" />
+                      <p className="text-xs text-gray-500 dark:text-gray-400">No recent notes found</p>
                     </div>
                   </div>
-                ))
-              ) : (
-                <div className="col-span-full bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 text-center">
-                  <div className="flex flex-col items-center justify-center space-y-1">
-                    <BookOpen size={16} className="text-gray-400 dark:text-gray-500" />
-                    <p className="text-xs text-gray-500 dark:text-gray-400">No recent notes found</p>
+                )}
+              </div>
+            </div>
+            
+            {/* Desktop: Original grid layout (8 notes) */}
+            <div className="hidden md:block">
+              <div className="grid grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2">
+                {recentNotes.length > 0 ? (
+                  recentNotes.slice(0, 8).map((note) => (
+                    <div 
+                      key={note.id} 
+                      className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px]"
+                      onClick={() => handleOpenNote(note.id)}
+                    >
+                      <div className="p-2 flex-1 flex flex-col items-center justify-center text-center">
+                        <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                          <BookOpen size={14} className="text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 px-1">
+                          {note.title || 'Untitled Note'}
+                        </h3>
+                        {note.notebook_name && (
+                          <span className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 px-1">
+                            {note.notebook_name}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="col-span-full bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-1">
+                      <BookOpen size={16} className="text-gray-400 dark:text-gray-500" />
+                      <p className="text-xs text-gray-500 dark:text-gray-400">No recent notes found</p>
+                    </div>
                   </div>
+                )}
+              </div>
+            </div>
+            
+            {/* Slider indicators - only on mobile */}
+            <div className="md:hidden">
+              {recentNotes.length > 4 && (
+                <div className="flex justify-center mt-4 space-x-2">
+                  {Array.from({ length: Math.ceil(recentNotes.length / 4) }).map((_, index) => (
+                    <button
+                      key={index}
+                      onClick={() => setCurrentSlide(index)}
+                      className={`w-2 h-2 rounded-full transition-colors ${
+                        currentSlide === index 
+                          ? 'bg-indigo-600 dark:bg-indigo-400' 
+                          : 'bg-gray-300 dark:bg-gray-600'
+                      }`}
+                    />
+                  ))}
                 </div>
               )}
             </div>

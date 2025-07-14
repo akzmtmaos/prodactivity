@@ -101,6 +101,10 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks }) => {
       return;
     }
 
+    // Close the modal and show generating toast immediately
+    setShowCreateForm(false);
+    setToast({ message: 'Generating reviewer...', type: 'success' });
+
     try {
       setGenerating(true);
       setError(null);
@@ -124,6 +128,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks }) => {
       }
 
       if (!sourceContent) {
+        setToast({ message: 'No content found in selected source', type: 'error' });
         setError('No content found in selected source');
         return;
       }
@@ -164,13 +169,14 @@ ${sourceContent}`;
       });
 
       setReviewers(prev => [response.data, ...prev]);
-      setShowCreateForm(false);
       setSelectedNote(null);
       setSelectedNotebook(null);
       setReviewerTitle('');
+      setToast({ message: 'Reviewer generated successfully!', type: 'success' });
     } catch (error: any) {
       console.error('Failed to generate reviewer:', error);
       setError(error.response?.data?.error || 'Failed to generate reviewer');
+      setToast({ message: error.response?.data?.error || 'Failed to generate reviewer', type: 'error' });
     } finally {
       setGenerating(false);
     }
@@ -217,7 +223,7 @@ ${sourceContent}`;
   const filteredReviewers = reviewers.filter(reviewer => {
     const matchesSearch = reviewer.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          reviewer.content.toLowerCase().includes(searchTerm.toLowerCase());
-    const isQuiz = reviewer.tags && reviewer.tags.includes('quiz');
+    const isQuiz = (reviewer.tags && reviewer.tags.includes('quiz')) || (reviewer.title && reviewer.title.toLowerCase().startsWith('quiz:'));
     return matchesSearch && !isQuiz;
   });
 
@@ -225,7 +231,7 @@ ${sourceContent}`;
   const filteredQuizzes = reviewers.filter(reviewer => {
     const matchesSearch = reviewer.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          reviewer.content.toLowerCase().includes(searchTerm.toLowerCase());
-    const isQuiz = reviewer.tags && reviewer.tags.includes('quiz');
+    const isQuiz = (reviewer.tags && reviewer.tags.includes('quiz')) || (reviewer.title && reviewer.title.toLowerCase().startsWith('quiz:'));
     return matchesSearch && isQuiz;
   });
 

@@ -71,7 +71,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
   }, [openMenuId]);
 
   return (
-    <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 rounded-lg shadow p-5 h-[calc(100vh-12rem)] flex flex-col">
+    <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 rounded-lg shadow p-5 h-[calc(100vh-12rem)] lg:h-[calc(100vh-12rem)] flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
           <Book className="inline-block mr-2" size={20} />
