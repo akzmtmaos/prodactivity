@@ -18,6 +18,8 @@ import Register from "./pages/Register";
 import DeckDetails from "./pages/DeckDetails";
 import Reviewer from "./pages/Reviewer";
 import LandingPage from "./pages/LandingPage";
+import QuizSessionPage from './pages/QuizSessionPage';
+import StudySessionPage from './pages/StudySessionPage';
 
 // Modified PrivateRoute component that adds layout for pages with navbar
 interface PrivateRouteProps {
@@ -226,12 +228,12 @@ function App() {
               }
             />
             <Route
-              path="/decks/quiz"
-              element={
-                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
-                  <Decks />
-                </PrivateRoute>
-              }
+              path="/decks/:id/quiz"
+              element={<QuizSessionPage />}
+            />
+            <Route
+              path="/decks/:id/practice"
+              element={<StudySessionPage />}
             />
             <Route
               path="/study-timer"
@@ -269,7 +271,7 @@ function App() {
               path="/notifications"
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
-                  <Notifications />
+                  <Notifications decrementUnreadCount={() => {}} />
                 </PrivateRoute>
               }
             />
@@ -282,7 +284,7 @@ function App() {
               }
             />
             <Route
-              path="/reviewer"
+              path="/reviewer/r"
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
                   <Reviewer />
@@ -291,6 +293,22 @@ function App() {
             />
             <Route
               path="/reviewer/:id"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Reviewer />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/reviewer/r/:id"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Reviewer />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/reviewer/q/:id"
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
                   <Reviewer />

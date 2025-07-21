@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Plus, Pencil, Trash2 } from 'lucide-react';
+import ReactDOM from 'react-dom';
 import PageLayout from '../PageLayout';
 
 interface FlashcardData {
@@ -9,6 +10,7 @@ interface FlashcardData {
 }
 
 interface ManageFlashcardsProps {
+  isOpen: boolean;
   deckTitle: string;
   flashcards: FlashcardData[];
   onClose: () => void;
@@ -18,6 +20,7 @@ interface ManageFlashcardsProps {
 }
 
 const ManageFlashcards: React.FC<ManageFlashcardsProps> = ({
+  isOpen,
   deckTitle,
   flashcards,
   onClose,
@@ -46,37 +49,23 @@ const ManageFlashcards: React.FC<ManageFlashcardsProps> = ({
     }
   };
 
-  return (
-    <PageLayout>
-    <div className="min-h-screen bg-white dark:bg-gray-900">
-      {/* Header */}
-      <div className="border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={onClose}
-                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-              >
-                <svg className="w-6 h-6 text-gray-600 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <div className="flex items-center space-x-2">
-                <span className="text-gray-600 dark:text-gray-400">Decks</span>
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-                <span className="text-gray-900 dark:text-white font-medium">{deckTitle}</span>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+  if (!isOpen) return null;
 
-      {/* Content */}
-      <div className="py-8 flex flex-col gap-8 min-h-[calc(100vh-64px)] transition-all duration-300">
-        <div className="flex flex-col gap-8 w-full">
+  return ReactDOM.createPortal(
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+            Manage Flashcards - {deckTitle}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+          >
+            <X size={24} />
+          </button>
+        </div>
+        <div className="p-6">
           {/* Add New Card Button */}
           <div className="mb-8">
             {!isAdding ? (
@@ -135,7 +124,6 @@ const ManageFlashcards: React.FC<ManageFlashcardsProps> = ({
               </div>
             )}
           </div>
-
           {/* Flashcards List */}
           <div className="flex flex-col gap-4 w-full">
             {flashcards.map((flashcard) => (
@@ -239,8 +227,8 @@ const ManageFlashcards: React.FC<ManageFlashcardsProps> = ({
           </div>
         </div>
       </div>
-    </div>
-    </PageLayout>
+    </div>,
+    document.body
   );
 };
 

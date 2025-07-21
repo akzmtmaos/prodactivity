@@ -38,3 +38,16 @@ class Flashcard(models.Model):
 
     def __str__(self):
         return f"{self.front[:30]}... ({self.deck.title})"
+
+class QuizSession(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='quiz_sessions')
+    deck = models.ForeignKey(Deck, on_delete=models.CASCADE, related_name='quiz_sessions')
+    score = models.PositiveIntegerField(default=0)
+    completed_at = models.DateTimeField(default=timezone.now)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-completed_at']
+
+    def __str__(self):
+        return f"QuizSession: {self.user.username} - {self.deck.title} ({self.completed_at})"

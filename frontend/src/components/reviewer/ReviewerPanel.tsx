@@ -43,9 +43,11 @@ interface Reviewer {
 interface ReviewerPanelProps {
   notes: Array<{ id: number; title: string; content: string; notebook_name: string }>;
   notebooks: Array<{ id: number; name: string }>;
+  activeTab: 'reviewer' | 'quiz';
+  setActiveTab: (tab: 'reviewer' | 'quiz') => void;
 }
 
-const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks }) => {
+const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeTab, setActiveTab }) => {
   const [reviewers, setReviewers] = useState<Reviewer[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -57,7 +59,6 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks }) => {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [quizLoadingId, setQuizLoadingId] = useState<number | null>(null);
-  const [activeTab, setActiveTab] = useState<'reviewer' | 'quiz'>('reviewer');
   const [filterType, setFilterType] = useState('all');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
@@ -306,21 +307,28 @@ ${sourceContent}`;
           </div>
         </div>
         {/* Tabs styled like Schedule */}
-        <div className="flex space-x-2">
+        <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-2">
           <button
-            onClick={() => setActiveTab('reviewer')}
-            className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'reviewer' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+            onClick={() => { setActiveTab('reviewer'); navigate('/reviewer/r'); }}
+            className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+              activeTab === 'reviewer'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+            }`}
           >
             Reviewer
           </button>
           <button
-            onClick={() => setActiveTab('quiz')}
-            className={`px-4 py-2 font-medium focus:outline-none transition-colors rounded-t-md ${activeTab === 'quiz' ? 'bg-indigo-600 text-white' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300'}`}
+            onClick={() => { setActiveTab('quiz'); navigate('/reviewer/q'); }}
+            className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+              activeTab === 'quiz'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+            }`}
           >
             Quiz
           </button>
         </div>
-        <hr className="border-t border-gray-300 dark:border-gray-700 mb-0" />
       </div>
 
       {/* Scrollable Tab Content */}
@@ -478,7 +486,7 @@ ${sourceContent}`;
                     onFavorite={toggleFavorite}
                     onDelete={deleteReviewer}
                     onGenerateQuiz={generateQuizForReviewer}
-                    onClick={() => navigate(`/reviewer/${reviewer.id}`)}
+                    onClick={() => navigate(`/reviewer/r/${reviewer.id}`)}
                     quizLoadingId={quizLoadingId}
                     showFavorite={true}
                     showGenerateQuiz={true}
@@ -509,7 +517,7 @@ ${sourceContent}`;
                   key={quiz.id}
                   reviewer={quiz}
                   onDelete={deleteReviewer}
-                  onClick={() => navigate(`/reviewer/${quiz.id}`)}
+                  onClick={() => navigate(`/reviewer/q/${quiz.id}`)}
                   showFavorite={false}
                   showGenerateQuiz={false}
                 />

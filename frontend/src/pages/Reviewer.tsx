@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import ReviewerPanel from '../components/reviewer/ReviewerPanel';
 import PageLayout from '../components/PageLayout';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import ReviewerDocument from '../components/reviewer/ReviewerDocument';
 
 const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
@@ -10,11 +10,25 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 const Reviewer = () => {
   const { id: reviewerId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [notebooks, setNotebooks] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalReviewer, setModalReviewer] = useState<any | null>(null);
+  // Track active tab based on URL
+  const [activeTab, setActiveTab] = useState<'reviewer' | 'quiz'>(location.pathname.includes('/q') ? 'quiz' : 'reviewer');
+
+  // Update URL when tab changes
+  useEffect(() => {
+    if (!reviewerId) {
+      if (activeTab === 'reviewer' && !location.pathname.endsWith('/r')) {
+        navigate('/reviewer/r', { replace: true });
+      } else if (activeTab === 'quiz' && !location.pathname.endsWith('/q')) {
+        navigate('/reviewer/q', { replace: true });
+      }
+    }
+  }, [activeTab, reviewerId, location.pathname, navigate]);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
@@ -89,16 +103,16 @@ const Reviewer = () => {
       <div className="flex h-full">
         <div className="flex-1 space-y-6">
           <div className="max-w-7xl mx-auto">
-            <ReviewerPanel notes={notes} notebooks={notebooks} />
+            <ReviewerPanel notes={notes} notebooks={notebooks} activeTab={activeTab} setActiveTab={setActiveTab} />
           </div>
         </div>
       </div>
-      {reviewerId && !modalReviewer && (
+      {reviewerId && reviewerId !== 'q' && reviewerId !== 'r' && !modalReviewer && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
           <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg w-full max-w-2xl p-6 relative flex flex-col max-h-[80vh]">
             <button
               className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl font-bold focus:outline-none"
-              onClick={() => navigate('/reviewer')}
+              onClick={() => navigate('/reviewer/r')}
             >
               ×
             </button>
@@ -107,8 +121,8 @@ const Reviewer = () => {
           </div>
         </div>
       )}
-      {modalReviewer && (
-        <ReviewerDocument reviewer={modalReviewer} onClose={() => navigate('/reviewer')} />
+      {reviewerId && reviewerId !== 'q' && reviewerId !== 'r' && modalReviewer && (
+        <ReviewerDocument reviewer={modalReviewer} onClose={() => navigate('/reviewer/r')} />
       )}
     </PageLayout>
   );

@@ -3,9 +3,11 @@ from rest_framework import generics, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from .models import Deck, Flashcard
+from .models import Deck, Flashcard, QuizSession
 from .serializers import DeckSerializer, FlashcardSerializer
 from django.utils import timezone
+from rest_framework.views import APIView
+from rest_framework import status
 
 # Create your views here.
 
@@ -74,3 +76,32 @@ def deleted_decks(request):
     print(f"[DEBUG] Trash API - User: {request.user}, Deleted Decks: {list(decks.values('id', 'title', 'is_deleted', 'deleted_at'))}")
     serializer = DeckSerializer(decks, many=True)
     return Response(serializer.data)
+
+class QuizSessionCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        deck_id = request.data.get('deck')
+        score = request.data.get('score', 0)
+        completed_at = request.data.get('completed_at', timezone.now())
+        if not deck_id:
+            return Response({'error': 'deck is required'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            deck = Deck.objects.get(id=deck_id, user=user)
+        except Deck.DoesNotExist:
+            return Response({'error': 'Deck not found'}, status=status.HTTP_404_NOT_FOUND)
+        quiz_session = QuizSession.objects.create(user=user, deck=deck, score=score, completed_at=completed_at)
+        # Auto-increment deck progress (by score/10, max 100)
+        increment = int(score) // 10 if score else 10
+        deck.progress = min(100, deck.progress + increment)
+        deck.save()
+        return Response({
+            'id': quiz_session.id,
+            'user': quiz_session.user.id,
+            'deck': quiz_session.deck.id,
+            'score': quiz_session.score,
+            'completed_at': quiz_session.completed_at,
+            'created_at': quiz_session.created_at,
+            'deck_progress': deck.progress
+        }, status=status.HTTP_201_CREATED)

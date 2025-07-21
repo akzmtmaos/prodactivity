@@ -8,7 +8,7 @@ from decks.models import Deck, Flashcard
 from tasks.models import Task
 from schedule.models import Event
 from reviewer.models import Reviewer
-from .models import TermsAndConditions
+from .models import TermsAndConditions, Notification
 
 class MyAdminSite(admin.AdminSite):
     site_header = "Prodactivity Admin"
@@ -41,6 +41,7 @@ admin_site = MyAdminSite()
 # Register all main models for admin management
 admin_site.register(User)
 admin_site.register(TermsAndConditions)
+admin_site.register(Notification)
 admin_site.register(Notebook)
 admin_site.register(Note)
 admin_site.register(Deck)

@@ -4,9 +4,11 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { 
   Menu, X, Home, BarChart2, FileText, BookOpen, 
   CheckSquare, Calendar, Clock, Trash2, Bell, 
-  Settings, LogOut, ChevronLeft, ChevronRight, Brain, Layers 
+  Settings, LogOut, ChevronLeft, ChevronRight, Brain, Layers, User as UserIcon 
 } from "lucide-react";
 import { useNavbar } from "../context/NavbarContext";
+import NotificationBadge from "./notifications/NotificationBadge";
+import { useEffect } from "react";
 
 interface NavbarProps {
   setIsAuthenticated?: (value: boolean | ((prevState: boolean) => boolean)) => void;
@@ -18,6 +20,9 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
   const { isCollapsed, setIsCollapsed } = useNavbar();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [user, setUser] = useState<any | null>(null);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   // Modified logout handler with proper TypeScript type
   const openLogoutModal = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -37,6 +42,64 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     navigate("/login");
   };
 
+  // Helper to get auth token (adjust if you use a different storage method)
+  const getToken = () => localStorage.getItem('accessToken');
+
+  // Add this function to allow decrementing unreadCount from outside
+  const decrementUnreadCount = () => setUnreadCount((prev) => Math.max(prev - 1, 0));
+
+  useEffect(() => {
+    // Fetch notifications from backend for unread count
+    const fetchNotifications = async () => {
+      const token = getToken();
+      if (!token) {
+        setUnreadCount(0);
+        return;
+      }
+      try {
+        const res = await fetch('/api/notifications/', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        if (!res.ok) throw new Error('Failed to fetch notifications');
+        const data = await res.json();
+        setUnreadCount(data.filter((n: any) => !n.is_read).length);
+      } catch (e) {
+        setUnreadCount(0);
+      }
+    };
+    fetchNotifications();
+    // Optionally poll every 60s
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    // Fetch user info from localStorage
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      try {
+        const parsed = JSON.parse(userData);
+        if (parsed && parsed.username) setUser(parsed);
+        else if (parsed && parsed.user && parsed.user.username) setUser(parsed.user);
+        else setUser({ username: "User" });
+      } catch {
+        setUser({ username: "User" });
+      }
+    } else {
+      setUser({ username: "User" });
+    }
+  }, []);
+
+  // Helper to get user initials
+  const getInitials = (name: string) => {
+    if (!name) return "U";
+    const parts = name.split(" ");
+    if (parts.length === 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts[1][0]).toUpperCase();
+  };
+
   // Primary navigation items (most important)
   const primaryNavItems = [
     { path: "/", name: "Home", icon: <Home size={20} /> },
@@ -48,7 +111,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
 
   // Secondary navigation items (less frequently used)
   const secondaryNavItems = [
-    { path: "/reviewer", name: "Reviewer", icon: <Brain size={20} /> },
+    { path: "/reviewer/r", name: "Reviewer", icon: <Brain size={20} /> },
     { path: "/schedule", name: "Schedule", icon: <Calendar size={20} /> },
     { path: "/study-timer", name: "Study Timer", icon: <Clock size={20} /> },
     { path: "/notifications", name: "Notifications", icon: <Bell size={20} /> },
@@ -95,7 +158,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         <nav className="flex-1 px-4 py-4 overflow-y-auto">
           <ul className="space-y-2">
             {allNavItems.map((item) => (
-              <li key={item.path}>
+              <li key={item.path} className="relative">
                 <Link
                   to={item.path}
                   className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors
@@ -105,8 +168,17 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                     ${isCollapsed ? 'justify-center' : ''}`}
                   title={isCollapsed ? item.name : undefined}
                 >
-                  <span>{item.icon}</span>
-                  <span className={`ml-3 ${isCollapsed ? 'hidden' : 'inline'}`}>{item.name}</span>
+                  {item.name === 'Notifications' ? (
+                    <span className="flex items-center">
+                      <NotificationBadge count={unreadCount} onClick={() => navigate('/notifications')} />
+                      <span className={`ml-3 ${isCollapsed ? 'hidden' : 'inline'}`}>{item.name}</span>
+                    </span>
+                  ) : (
+                    <>
+                      <span>{item.icon}</span>
+                      <span className={`ml-3 ${isCollapsed ? 'hidden' : 'inline'}`}>{item.name}</span>
+                    </>
+                  )}
                 </Link>
               </li>
             ))}
@@ -115,14 +187,53 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
 
         {/* User actions */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-          <button
-            onClick={openLogoutModal}
-            className={`flex items-center justify-center w-full px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-colors ${isCollapsed ? 'justify-center' : ''}`}
-            title={isCollapsed ? "Logout" : undefined}
-          >
-            <LogOut size={16} />
-            <span className={`ml-2 ${isCollapsed ? 'hidden' : 'inline'}`}>Logout</span>
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowProfileMenu((v) => !v)}
+              className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${isCollapsed ? 'justify-center' : ''}`}
+              title={isCollapsed ? (user?.username || "Profile") : undefined}
+            >
+              {user?.avatar ? (
+                <img
+                  src={user.avatar}
+                  alt="avatar"
+                  className="rounded-full object-cover border-2 border-indigo-400"
+                  style={{ width: 40, height: 40, minWidth: 40, minHeight: 40 }}
+                />
+              ) : (
+                <span
+                  className="rounded-full bg-indigo-500 text-white font-bold text-lg flex items-center justify-center"
+                  style={{ width: 40, height: 40, minWidth: 40, minHeight: 40 }}
+                >
+                  {getInitials(user?.displayName || user?.username || "U")}
+                </span>
+              )}
+              <span className={`ml-3 text-gray-800 dark:text-gray-200 font-medium ${isCollapsed ? 'hidden' : 'inline'}`}>{user?.displayName || user?.username || "User"}</span>
+              <ChevronRight size={16} className={`ml-2 ${isCollapsed ? 'hidden' : 'inline'}`} />
+            </button>
+            {showProfileMenu && (
+              <div className="absolute left-0 bottom-12 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                <button
+                  onClick={() => { setShowProfileMenu(false); navigate('/settings'); }}
+                  className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                >
+                  <UserIcon size={16} className="mr-2" /> Profile
+                </button>
+                <button
+                  onClick={() => { setShowProfileMenu(false); navigate('/settings'); }}
+                  className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                >
+                  <Settings size={16} className="mr-2" /> Settings
+                </button>
+                <button
+                  onClick={() => { setShowProfileMenu(false); setShowLogoutModal(true); }}
+                  className="w-full px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                >
+                  <LogOut size={16} className="mr-2" /> Logout
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
@@ -210,7 +321,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                 </h3>
                 <ul className="space-y-1">
                   {secondaryNavItems.map((item, index) => (
-                    <li key={item.path}>
+                    <li key={item.path} className="relative">
                       <Link
                         to={item.path}
                         onClick={() => setMobileMenuOpen(false)}
@@ -223,8 +334,17 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                           animation: mobileMenuOpen ? 'slideInFromRight 0.3s ease-out forwards' : 'none'
                         }}
                       >
-                        <span className="mr-3">{item.icon}</span>
-                        {item.name}
+                        {item.name === 'Notifications' ? (
+                          <span className="flex items-center">
+                            <NotificationBadge count={unreadCount} onClick={() => navigate('/notifications')} />
+                            <span className="ml-3">{item.name}</span>
+                          </span>
+                        ) : (
+                          <>
+                            <span className="mr-3">{item.icon}</span>
+                            {item.name}
+                          </>
+                        )}
                       </Link>
                     </li>
                   ))}
@@ -234,17 +354,44 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
 
             {/* Logout Button */}
             <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-              <button
-                onClick={openLogoutModal}
-                className="flex items-center justify-center w-full px-4 py-3 text-base font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 transition-all duration-200 ease-in-out transform hover:scale-105"
-                style={{
-                  animationDelay: `${(primaryNavItems.length + secondaryNavItems.length) * 50}ms`,
-                  animation: mobileMenuOpen ? 'slideInFromRight 0.3s ease-out forwards' : 'none'
-                }}
-              >
-                <LogOut size={18} className="mr-2" />
-                Logout
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfileMenu((v) => !v)}
+                  className="flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover" />
+                  ) : (
+                    <span className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-500 text-white font-bold text-lg">
+                      {getInitials(user?.displayName || user?.username || "U")}
+                    </span>
+                  )}
+                  <span className="ml-3 text-gray-800 dark:text-gray-200 font-medium">{user?.displayName || user?.username || "User"}</span>
+                  <ChevronRight size={18} className="ml-2" />
+                </button>
+                {showProfileMenu && (
+                  <div className="absolute left-0 bottom-16 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+                    <button
+                      onClick={() => { setShowProfileMenu(false); navigate('/settings'); }}
+                      className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                    >
+                      <UserIcon size={16} className="mr-2" /> Profile
+                    </button>
+                    <button
+                      onClick={() => { setShowProfileMenu(false); navigate('/settings'); }}
+                      className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                    >
+                      <Settings size={16} className="mr-2" /> Settings
+                    </button>
+                    <button
+                      onClick={() => { setShowProfileMenu(false); setShowLogoutModal(true); }}
+                      className="w-full px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                    >
+                      <LogOut size={16} className="mr-2" /> Logout
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

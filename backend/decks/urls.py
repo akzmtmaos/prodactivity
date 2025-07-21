@@ -1,5 +1,6 @@
 from django.urls import path
 from . import views
+from .views import QuizSessionCreateView
 
 urlpatterns = [
     path('decks/', views.DeckListCreateView.as_view(), name='deck-list-create'),
@@ -7,4 +8,5 @@ urlpatterns = [
     path('flashcards/', views.FlashcardListCreateView.as_view(), name='flashcard-list-create'),
     path('flashcards/<int:pk>/', views.FlashcardRetrieveUpdateDestroyView.as_view(), name='flashcard-detail'),
     # path('trash/decks/', views.deleted_decks, name='deleted-decks'),
+    path('quizzes/sessions/', QuizSessionCreateView.as_view(), name='quizsession-create'),
 ] 

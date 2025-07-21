@@ -84,7 +84,7 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
             {isQuiz ? (
               <div className="whitespace-pre-wrap">{preprocessQuizContent(reviewer.content)}</div>
             ) : (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{preprocessContentWithBullets(reviewer.content)}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{preprocessContentWithBullets(reviewer.content)}</ReactMarkdown>
             )}
           </div>
         </div>

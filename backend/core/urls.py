@@ -8,6 +8,7 @@ from notes.views import deleted_notes
 from decks.views import deleted_decks
 from reviewer.ai_views import deleted_reviewers
 from core.admin import admin_site
+from core.views import NotificationListView, NotificationMarkReadView
 
 urlpatterns = [
     path('admin/', admin_site.urls),
@@ -19,8 +20,11 @@ urlpatterns = [
     path('api/', include('tasks.urls')),
     path('api/terms/', include('core.terms_urls')),
     path('api/reviewers/', include('reviewer.urls')),
+    path('api/notifications/', NotificationListView.as_view(), name='notification-list'),
+    path('api/notifications/<int:pk>/read/', NotificationMarkReadView.as_view(), name='notification-mark-read'),
     # Trash endpoints
     path('api/trash/notes/', deleted_notes, name='deleted-notes'),
     path('api/trash/decks/', deleted_decks, name='deleted-decks'),
     path('api/trash/reviewers/', deleted_reviewers, name='deleted-reviewers'),
+    path('api/progress/', include('progress.urls')),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

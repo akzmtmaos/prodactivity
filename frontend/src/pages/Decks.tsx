@@ -12,6 +12,7 @@ import StudySession from '../components/decks/StudySession';
 import SubDeckModal from '../components/decks/SubDeckModal';
 import QuizSession from '../components/decks/QuizSession';
 import Toast from '../components/common/Toast';
+import type { SubDeck } from '../components/decks/SubDeckModal';
 
 interface FlashcardData {
   id: string;
@@ -34,14 +35,6 @@ interface Deck {
   flashcards: FlashcardData[];
   subDecks?: SubDeck[];
   is_deleted: boolean;
-}
-
-interface SubDeck {
-  id: string;
-  title: string;
-  parentDeckId: string;
-  created_at: string;
-  updated_at: string;
 }
 
 interface DeckStats {
@@ -96,8 +89,7 @@ const Decks = () => {
         });
         if (!res.ok) throw new Error('Failed to fetch decks');
         const data = await res.json();
-        setDecks(data.map((deck: any) => {
-          console.log('Deck from backend:', deck); // Debug log
+        const topLevelDecks = data.filter((deck: any) => !deck.parent).map((deck: any) => {
           return {
             id: deck.id.toString(),
             title: deck.title,
@@ -114,9 +106,18 @@ const Decks = () => {
               back: fc.back,
               difficulty: undefined
             })),
+            subDecks: (deck.sub_decks || []).map((sd: any) => ({
+              id: sd.id.toString(),
+              title: sd.title,
+              description: sd.description || '',
+              parentDeckId: sd.parent_deck_id.toString(),
+              created_at: sd.created_at,
+              updated_at: sd.updated_at
+            })),
             is_deleted: false,
           };
-        }));
+        });
+        setDecks(topLevelDecks);
       } catch (error) {
         setDecks([]);
       }
@@ -146,6 +147,7 @@ const Decks = () => {
         updated_at: data.updated_at,
         createdAt: data.created_at,
         flashcards: [],
+        subDecks: [],
         is_deleted: false,
       }]);
     } catch (error) {
@@ -185,19 +187,11 @@ const Decks = () => {
   };
 
   const handleStudy = (deckId: string) => {
-    const deck = decks.find(d => d.id === deckId);
-    if (deck) {
-      setSelectedDeck(deck);
-      setShowStudySession(true);
-    }
+    navigate(`/decks/${deckId}/practice`);
   };
 
   const handleQuiz = (deckId: string) => {
-    const deck = decks.find(d => d.id === deckId);
-    if (deck) {
-      setSelectedDeck(deck);
-      setShowQuizSession(true);
-    }
+    navigate(`/decks/${deckId}/quiz`);
   };
 
   const handleOpenDeck = (deckId: string) => {
@@ -250,6 +244,7 @@ const Decks = () => {
     const newSubDeck: SubDeck = {
       id: Date.now().toString(),
       ...subDeck,
+      description: subDeck.description || '',
       created_at: now,
       updated_at: now
     };
@@ -268,7 +263,7 @@ const Decks = () => {
             ...deck, 
             subDecks: (deck.subDecks || []).map((sd: SubDeck) => 
               sd.id === subDeckId 
-                ? { ...sd, ...subDeck, updated_at: now }
+                ? { ...sd, ...subDeck, description: subDeck.description || '', updated_at: now }
                 : sd
             )
           }
@@ -435,6 +430,7 @@ const Decks = () => {
       )}
       {showQuizSession && selectedDeck && (
         <QuizSession
+          deckId={selectedDeck.id}
           deckTitle={selectedDeck.title}
           flashcards={selectedDeck.flashcards.map(f => ({
             id: f.id,
@@ -446,27 +442,26 @@ const Decks = () => {
             setShowQuizSession(false);
             setSelectedDeck(null);
           }}
-          onComplete={(results) => {
-            const newProgress = Math.round(Math.min(100, (selectedDeck?.progress || 0) + (results.score / 10)));
-            setDecks(decks.map(d =>
-              d.id === selectedDeck.id
-                ? {
-                    ...d,
-                    progress: newProgress,
-                    lastStudied: new Date().toISOString()
-                  }
-                : d
-            ));
-            // Persist progress to backend
+          onComplete={async (results) => {
+            // Refetch deck from backend for updated progress
             const token = localStorage.getItem('accessToken');
-            fetch(`http://localhost:8000/api/decks/decks/${selectedDeck.id}/`, {
-              method: 'PATCH',
+            const res = await fetch(`http://localhost:8000/api/decks/decks/${selectedDeck.id}/`, {
               headers: {
-                'Content-Type': 'application/json',
                 'Authorization': token ? `Bearer ${token}` : '',
               },
-              body: JSON.stringify({ progress: newProgress })
             });
+            if (res.ok) {
+              const data = await res.json();
+              setDecks(decks.map(d =>
+                d.id === selectedDeck.id
+                  ? {
+                      ...d,
+                      progress: data.progress || 0,
+                      lastStudied: new Date().toISOString()
+                    }
+                  : d
+              ));
+            }
             setShowQuizSession(false);
             setSelectedDeck(null);
           }}
@@ -474,6 +469,7 @@ const Decks = () => {
       )}
       {showManageModal && selectedDeck && (
         <ManageFlashcards
+          isOpen={showManageModal}
           deckTitle={selectedDeck.title}
           flashcards={selectedDeck.flashcards}
           onClose={() => {
@@ -609,7 +605,7 @@ const Decks = () => {
           </div>
           {/* Tab Bar styled like Settings */}
           <div>
-            <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
+            <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-2">
               <button
                 onClick={() => setActiveTab('decks')}
                 className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
@@ -641,7 +637,7 @@ const Decks = () => {
                 Archived
               </button>
             </div>
-            <hr className="border-t border-gray-300 dark:border-gray-700 mb-6" />
+            {/* Removed the <hr> below the tabs for consistency */}
           </div>
           {/* Tab Content */}
           {activeTab === 'decks' && (
@@ -649,16 +645,28 @@ const Decks = () => {
               {/* Decks Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {filteredDecks.map((deck) => (
-                  <DeckCard
-                    key={deck.id}
-                    deck={deck}
-                    onStudy={handleStudy}
-                    onQuiz={handleQuiz}
-                    onEdit={handleEdit}
-                    onDelete={handleDelete}
-                    onViewStats={handleViewStats}
-                    onOpen={handleOpenDeck}
-                  />
+                  <div key={deck.id} className="relative">
+                    <DeckCard
+                      deck={deck}
+                      onStudy={handleStudy}
+                      onQuiz={handleQuiz}
+                      onEdit={handleEdit}
+                      onDelete={handleDelete}
+                      onViewStats={handleViewStats}
+                      onOpen={handleOpenDeck}
+                    />
+                    {/* Subdecks display */}
+                    {deck.subDecks && deck.subDecks.length > 0 && (
+                      <div className="mt-2 ml-2 flex flex-wrap gap-2">
+                        {deck.subDecks.map((sub) => (
+                          <span key={sub.id} className="inline-block bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-medium border border-indigo-200 dark:border-indigo-700">
+                            {sub.title}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    {/* Removed Manage Subdecks button as requested */}
+                  </div>
                 ))}
               </div>
               {/* Empty State */}
@@ -737,7 +745,7 @@ const Decks = () => {
                 <SubDeckModal
                   isOpen={showSubDeckModal}
                   deckTitle={selectedDeck.title}
-                  subDecks={[]}
+                  subDecks={selectedDeck.subDecks || []}
                   onClose={() => {
                     setShowSubDeckModal(false);
                     setSelectedDeck(null);

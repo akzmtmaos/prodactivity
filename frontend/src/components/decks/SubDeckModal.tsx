@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Plus, Edit, Trash2, Save } from 'lucide-react';
 
-interface SubDeck {
+export interface SubDeck {
   id: string;
   title: string;
   description: string;

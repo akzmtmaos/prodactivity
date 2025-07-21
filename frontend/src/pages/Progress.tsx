@@ -21,6 +21,10 @@ const Progress = () => {
   });
   const [userLevel, setUserLevel] = useState({ currentLevel: 1, currentXP: 0, xpToNextLevel: 1000 });
 
+  // Add state for streakData and chartData
+  const [streakData, setStreakData] = useState<any[]>([]);
+  const [chartData, setChartData] = useState<any>({});
+
   useEffect(() => {
     // Get user data from localStorage
     const userData = localStorage.getItem('user');
@@ -43,7 +47,18 @@ const Progress = () => {
     if (hour < 12) setGreeting('Good morning');
     else if (hour < 18) setGreeting('Good afternoon');
     else setGreeting('Good evening');
-    // Optionally: set sample stats and userLevel here if needed
+
+    // Fetch stats, level, streak, and chart data
+    (async () => {
+      const statsData = await fetchUserStats();
+      setStats(statsData);
+      const levelData = await fetchUserLevel();
+      setUserLevel(levelData);
+      const streakData = await fetchStreakData();
+      setStreakData(streakData);
+      const chartData = await fetchChartData(progressView);
+      setChartData(chartData);
+    })();
   }, []);
 
   if (!user) {
@@ -100,7 +115,7 @@ const Progress = () => {
           <div className="w-full md:w-1/3 flex justify-center">
             <div className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 w-full max-w-md flex flex-col items-center">
               <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Streaks</h3>
-              <StreaksCalendar streakData={[]} />
+              <StreaksCalendar streakData={streakData} />
             </div>
           </div>
         </div>
@@ -122,7 +137,7 @@ const Progress = () => {
         </div>
 
         {/* Main Chart Placeholder */}
-        <MainChart view={progressView} data={{}} />
+        <MainChart view={progressView} data={chartData} />
 
         {/* Achievements */}
         {/* <Achievements stats={stats} /> */}
@@ -130,5 +145,63 @@ const Progress = () => {
     </PageLayout>
   );
 };
+
+// Helper to get JWT token from localStorage
+function getAuthHeaders(): HeadersInit | undefined {
+  const token = localStorage.getItem('access');
+  return token ? { 'Authorization': `Bearer ${token}` } : undefined;
+}
+
+async function fetchUserStats() {
+  try {
+    const headers = getAuthHeaders();
+    const res = await fetch('/api/progress/stats/', {
+      ...(headers && { headers })
+    });
+    if (!res.ok) throw new Error('Failed to fetch stats');
+    return await res.json();
+  } catch (e) {
+    return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0 };
+  }
+}
+
+async function fetchUserLevel() {
+  try {
+    const headers = getAuthHeaders();
+    const res = await fetch('/api/progress/level/', {
+      ...(headers && { headers })
+    });
+    if (!res.ok) throw new Error('Failed to fetch level');
+    return await res.json();
+  } catch (e) {
+    return { currentLevel: 1, currentXP: 0, xpToNextLevel: 1000 };
+  }
+}
+
+async function fetchStreakData() {
+  try {
+    const headers = getAuthHeaders();
+    const res = await fetch('/api/progress/streaks/', {
+      ...(headers && { headers })
+    });
+    if (!res.ok) throw new Error('Failed to fetch streaks');
+    return await res.json();
+  } catch (e) {
+    return [];
+  }
+}
+
+async function fetchChartData(view: string) {
+  try {
+    const headers = getAuthHeaders();
+    const res = await fetch(`/api/progress/chart/?view=${view}`, {
+      ...(headers && { headers })
+    });
+    if (!res.ok) throw new Error('Failed to fetch chart data');
+    return await res.json();
+  } catch (e) {
+    return {};
+  }
+}
 
 export default Progress;

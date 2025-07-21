@@ -107,6 +107,23 @@ const StudySession: React.FC<StudySessionProps> = ({
     setSessionComplete(false);
   };
 
+  if (flashcards.length === 0) {
+    return (
+      <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto flex flex-col items-center justify-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-md">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">No Flashcards</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">This deck has no flashcards to practice. Please add some cards first!</p>
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+          >
+            Back to Decks
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (sessionComplete) {
     const easyCount = Object.values(cardResults).filter(r => r === 'easy').length;
     const mediumCount = Object.values(cardResults).filter(r => r === 'medium').length;
@@ -114,10 +131,10 @@ const StudySession: React.FC<StudySessionProps> = ({
     const timeSpent = Math.round((Date.now() - startTime) / 1000 / 60);
 
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-        <div className="max-w-4xl mx-auto px-4">
+      <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
+        <div className="py-8 px-4 flex flex-col items-center justify-start min-h-screen">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-8 w-full max-w-4xl">
             <button
               onClick={onClose}
               className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -128,7 +145,7 @@ const StudySession: React.FC<StudySessionProps> = ({
           </div>
 
           {/* Completion Card */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-4xl">
             <div className="mb-6">
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle size={32} className="text-green-600 dark:text-green-400" />
@@ -198,10 +215,10 @@ const StudySession: React.FC<StudySessionProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
+      <div className="py-8 px-4 flex flex-col items-center justify-start min-h-screen">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 w-full max-w-4xl">
           <button
             onClick={onClose}
             className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -209,18 +226,10 @@ const StudySession: React.FC<StudySessionProps> = ({
             <ArrowLeft size={20} className="mr-2" />
             Back to Decks
           </button>
-          <div className="text-right">
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {deckTitle}
-            </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Card {currentCardIndex + 1} of {flashcards.length}
-            </p>
-          </div>
         </div>
 
         {/* Progress Bar */}
-        <div className="mb-8">
+        <div className="mb-8 w-full max-w-4xl">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Progress
@@ -238,44 +247,54 @@ const StudySession: React.FC<StudySessionProps> = ({
         </div>
 
         {/* Flashcard */}
-        {currentCard && (
-          <div className="mb-8">
-            <Flashcard
-              flashcard={currentCard}
-              showAnswer={showAnswer}
-              onFlip={handleFlip}
-              isStudyMode={true}
-              onDifficultySelect={handleDifficultySelect}
-            />
-          </div>
-        )}
+        <div className="mb-8 w-full max-w-4xl">
+          <Flashcard
+            flashcard={currentCard}
+            showAnswer={showAnswer}
+            onFlip={handleFlip}
+          />
+        </div>
 
-        {/* Navigation Controls */}
-        <div className="flex items-center justify-center space-x-4">
-          <button
-            onClick={handlePrevious}
-            disabled={currentCardIndex === 0}
-            className={`px-4 py-2 rounded-lg font-medium flex items-center transition-colors ${
-              currentCardIndex === 0
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'bg-gray-300 hover:bg-gray-400 text-gray-700'
-            }`}
-          >
-            Previous
-          </button>
-          
-          <button
-            onClick={handleSkip}
-            disabled={currentCardIndex >= flashcards.length - 1}
-            className={`px-4 py-2 rounded-lg font-medium flex items-center transition-colors ${
-              currentCardIndex >= flashcards.length - 1
-                ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
-                : 'border border-gray-300 text-gray-700 hover:bg-gray-50'
-            }`}
-          >
-            <SkipForward size={16} className="mr-2" />
-            Skip
-          </button>
+        {/* Controls */}
+        <div className="flex flex-col items-center gap-4 w-full max-w-4xl">
+          <div className="flex flex-row gap-2 justify-center">
+            <button
+              onClick={handlePrevious}
+              disabled={currentCardIndex === 0}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              Previous
+            </button>
+            <button
+              onClick={handleSkip}
+              disabled={currentCardIndex === flashcards.length - 1}
+              className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-colors disabled:opacity-50"
+            >
+              Skip
+            </button>
+            {showAnswer && (
+              <>
+                <button
+                  onClick={() => handleDifficultySelect('easy')}
+                  className="px-4 py-2 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-lg font-medium transition-colors"
+                >
+                  Easy
+                </button>
+                <button
+                  onClick={() => handleDifficultySelect('medium')}
+                  className="px-4 py-2 bg-yellow-100 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-400 rounded-lg font-medium transition-colors"
+                >
+                  Medium
+                </button>
+                <button
+                  onClick={() => handleDifficultySelect('hard')}
+                  className="px-4 py-2 bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400 rounded-lg font-medium transition-colors"
+                >
+                  Hard
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

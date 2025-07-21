@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, Target } from 'lucide-react';
+import { useNavbar } from '../../context/NavbarContext';
 
 interface FlashcardData {
   id: string;
@@ -13,6 +14,7 @@ interface QuizSessionProps {
   flashcards: FlashcardData[];
   onClose: () => void;
   onComplete: (results: QuizResults) => void;
+  deckId?: string; // Add deckId prop
 }
 
 interface QuizResults {
@@ -26,7 +28,8 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   deckTitle,
   flashcards,
   onClose,
-  onComplete
+  onComplete,
+  deckId // Add deckId prop
 }) => {
   // Shuffle flashcards once at the start
   const [shuffledFlashcards] = useState(() => {
@@ -85,7 +88,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
     }, 1000);
   };
 
-  const completeQuiz = () => {
+  const completeQuiz = async () => {
     const timeSpent = Math.round((Date.now() - startTime) / 1000 / 60); // minutes
     const correctAnswers = Object.entries(answers).filter(
       ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
@@ -98,9 +101,29 @@ const QuizSession: React.FC<QuizSessionProps> = ({
       timeSpent
     };
 
+    // POST QuizSession to backend
+    if (deckId) {
+      const token = localStorage.getItem('accessToken') || localStorage.getItem('access');
+      await fetch('/api/decks/quizzes/sessions/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : ''
+        },
+        body: JSON.stringify({
+          deck: deckId,
+          score: quizResults.score,
+          completed_at: new Date().toISOString()
+        })
+      });
+    }
+
     setQuizComplete(true);
     onComplete(quizResults);
   };
+
+  const { isCollapsed } = useNavbar();
+  const marginClass = `md:ml-${isCollapsed ? '20' : '64'}`;
 
   if (quizComplete) {
     const correctAnswers = Object.entries(answers).filter(
@@ -109,10 +132,10 @@ const QuizSession: React.FC<QuizSessionProps> = ({
     const score = Math.round((correctAnswers / shuffledFlashcards.length) * 100);
 
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-        <div className="max-w-4xl mx-auto px-4">
+      <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
+        <div className="py-8 px-4 flex flex-col items-center justify-start min-h-screen">
           {/* Header */}
-          <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center justify-between mb-8 w-full max-w-4xl">
             <button
               onClick={onClose}
               className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -123,7 +146,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
           </div>
 
           {/* Results Card */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-4xl">
             <div className="mb-6">
               <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle size={32} className="text-green-600 dark:text-green-400" />
@@ -159,10 +182,10 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 py-8">
-      <div className="max-w-4xl mx-auto px-4">
+    <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
+      <div className="py-8 px-4 flex flex-col items-center justify-start min-h-screen">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-8 w-full max-w-4xl">
           <button
             onClick={onClose}
             className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
@@ -181,7 +204,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
         </div>
 
         {/* Progress Bar */}
-        <div className="mb-8">
+        <div className="mb-8 w-full max-w-4xl">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
               Progress
@@ -199,33 +222,31 @@ const QuizSession: React.FC<QuizSessionProps> = ({
         </div>
 
         {/* Question Card */}
-        {currentQuestion && (
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+        <div className="mb-8 w-full max-w-4xl">
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 shadow text-center">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               {currentQuestion.front}
             </h2>
-
-            {/* Answer Options */}
-            <div className="space-y-4">
-              {options.map((option, index) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {options.map((option, idx) => (
                 <button
-                  key={index}
+                  key={idx}
                   onClick={() => handleAnswerSelect(option)}
-                  disabled={selectedAnswer !== null}
-                  className={`w-full p-4 text-left rounded-lg transition-colors ${
-                    selectedAnswer === option
+                  disabled={!!selectedAnswer}
+                  className={`px-4 py-3 rounded-lg border text-base font-medium transition-colors focus:outline-none
+                    ${selectedAnswer === option
                       ? option === currentQuestion.back
-                        ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-                        : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                      : 'bg-gray-50 dark:bg-gray-700 hover:bg-gray-100 dark:hover:bg-gray-600 text-gray-900 dark:text-white'
-                  }`}
+                        ? 'bg-green-100 border-green-400 text-green-800 dark:bg-green-900/20 dark:text-green-400 dark:border-green-400'
+                        : 'bg-red-100 border-red-400 text-red-800 dark:bg-red-900/20 dark:text-red-400 dark:border-red-400'
+                      : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-indigo-50 dark:hover:bg-indigo-900/20'}
+                  `}
                 >
                   {option}
                 </button>
               ))}
             </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

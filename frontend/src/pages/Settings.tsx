@@ -13,7 +13,9 @@ interface UserSettings {
 const TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'general', label: 'General' },
+  { key: 'logs', label: 'Logs' }, // Add logs tab
   { key: 'other', label: 'Another Category' },
+  { key: 'logout', label: 'Log Out' },
 ];
 
 const Settings: React.FC = () => {
@@ -28,7 +30,7 @@ const Settings: React.FC = () => {
   });
   const [isSaving, setIsSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'other'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'logs' | 'other' | 'logout'>('profile');
 
   // Profile management state
   const [profile, setProfile] = useState({
@@ -49,6 +51,15 @@ const Settings: React.FC = () => {
   const [deleteError, setDeleteError] = useState('');
   const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isProfileSaving, setIsProfileSaving] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+
+  // Logout handler
+  const handleLogout = () => {
+    localStorage.removeItem('user');
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    window.location.href = '/login';
+  };
 
   useEffect(() => {
     // Get user data from localStorage
@@ -128,14 +139,40 @@ const Settings: React.FC = () => {
     setProfile({ ...profile, [key]: value });
   };
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfile((prev) => ({ ...prev, avatar: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
+      const formData = new FormData();
+      formData.append('avatar', file);
+      const token = localStorage.getItem('accessToken');
+      try {
+        const res = await fetch('http://localhost:8000/api/avatar/', {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          body: formData,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setProfile((prev) => {
+            const updated = { ...prev, avatar: data.avatar };
+            console.log('Avatar URL after upload:', updated.avatar);
+            return updated;
+          });
+          // Also update user in localStorage if needed
+          const userData = localStorage.getItem('user');
+          if (userData) {
+            const userObj = JSON.parse(userData);
+            userObj.avatar = data.avatar;
+            localStorage.setItem('user', JSON.stringify(userObj));
+          }
+        } else {
+          // handle error
+        }
+      } catch (err) {
+        // handle error
+      }
     }
   };
 
@@ -199,11 +236,19 @@ const Settings: React.FC = () => {
               {TABS.map((tab) => (
                 <button
                   key={tab.key}
-                  onClick={() => setActiveTab(tab.key as 'profile' | 'general' | 'other')}
+                  onClick={() => {
+                    if (tab.key === 'logout') {
+                      setShowLogoutModal(true);
+                    } else {
+                      setActiveTab(tab.key as 'profile' | 'general' | 'logs' | 'other' | 'logout');
+                    }
+                  }}
                   className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-colors mb-2 md:mb-0 md:mt-0 md:rounded-none md:border-l-4 md:border-l-transparent md:px-6 md:py-2 md:text-base focus:outline-none ${
-                    activeTab === tab.key
-                      ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 md:border-l-indigo-600 dark:md:border-l-indigo-400 font-semibold'
-                      : 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 md:hover:border-l-indigo-400'
+                    tab.key === 'logout'
+                      ? 'bg-transparent text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 md:hover:border-l-red-400'
+                      : activeTab === tab.key
+                        ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 md:border-l-indigo-600 dark:md:border-l-indigo-400 font-semibold'
+                        : 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 md:hover:border-l-indigo-400'
                   }`}
                 >
                   {tab.label}
@@ -249,34 +294,36 @@ const Settings: React.FC = () => {
                         </div>
                       </div>
                       {/* Fields */}
-                      <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex-1 grid grid-cols-1 gap-6">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><UserIcon size={14}/> Username</label>
-                          <input type="text" value={profile.username} onChange={e => handleProfileChange('username', e.target.value)} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Username:</label>
+                          <div className="relative">
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                              <UserIcon size={18} />
+                            </span>
+                            <input
+                              type="text"
+                              value={profile.username}
+                              onChange={e => handleProfileChange('username', e.target.value)}
+                              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-black dark:text-white shadow-sm focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
+                              placeholder="Username"
+                            />
+                          </div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><Mail size={14}/> Email</label>
-                          <input type="email" value={profile.email} onChange={e => handleProfileChange('email', e.target.value)} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><Info size={14}/> Display Name <span className="text-xs text-gray-400">(optional)</span></label>
-                          <input type="text" value={profile.displayName} onChange={e => handleProfileChange('displayName', e.target.value)} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><Phone size={14}/> Phone <span className="text-xs text-gray-400">(optional)</span></label>
-                          <input type="tel" value={profile.phone} onChange={e => handleProfileChange('phone', e.target.value)} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><Calendar size={14}/> Date of Birth <span className="text-xs text-gray-400">(optional)</span></label>
-                          <input type="date" value={profile.dob} onChange={e => handleProfileChange('dob', e.target.value)} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><MapPin size={14}/> Location <span className="text-xs text-gray-400">(optional)</span></label>
-                          <input type="text" value={profile.location} onChange={e => handleProfileChange('location', e.target.value)} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
-                        </div>
-                        <div className="md:col-span-2">
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1 flex items-center gap-1"><Info size={14}/> Bio <span className="text-xs text-gray-400">(optional)</span></label>
-                          <textarea value={profile.bio} onChange={e => handleProfileChange('bio', e.target.value)} rows={3} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500 resize-none" placeholder="Tell us about yourself..." />
+                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Email:</label>
+                          <div className="relative">
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+                              <Mail size={18} />
+                            </span>
+                            <input
+                              type="email"
+                              value={profile.email}
+                              onChange={e => handleProfileChange('email', e.target.value)}
+                              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-black dark:text-white shadow-sm focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
+                              placeholder="Email address"
+                            />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -292,9 +339,6 @@ const Settings: React.FC = () => {
                       </button>
                       <button onClick={() => setShowDeleteModal(true)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors">
                         <Trash2 size={16} /> Delete Account
-                      </button>
-                      <button onClick={() => {/* log out logic here */}} className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium flex items-center gap-2 transition-colors">
-                        <LogOut size={16} /> Log Out
                       </button>
                     </div>
                   </div>
@@ -312,15 +356,15 @@ const Settings: React.FC = () => {
                         <div className="space-y-4">
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Password</label>
-                            <input type="password" value={passwordFields.current} onChange={e => setPasswordFields(f => ({ ...f, current: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                            <input type="password" value={passwordFields.current} onChange={e => setPasswordFields(f => ({ ...f, current: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Password</label>
-                            <input type="password" value={passwordFields.new} onChange={e => setPasswordFields(f => ({ ...f, new: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                            <input type="password" value={passwordFields.new} onChange={e => setPasswordFields(f => ({ ...f, new: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm New Password</label>
-                            <input type="password" value={passwordFields.confirm} onChange={e => setPasswordFields(f => ({ ...f, confirm: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                            <input type="password" value={passwordFields.confirm} onChange={e => setPasswordFields(f => ({ ...f, confirm: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                           </div>
                           {passwordError && <div className="text-red-600 text-sm">{passwordError}</div>}
                         </div>
@@ -460,7 +504,7 @@ const Settings: React.FC = () => {
                           <select
                             value={settings.language}
                             onChange={(e) => handleSettingChange('language', e.target.value)}
-                            className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                           >
                             <option value="en">English</option>
                             <option value="es">Español</option>
@@ -475,7 +519,7 @@ const Settings: React.FC = () => {
                           <select
                             value={settings.timezone}
                             onChange={(e) => handleSettingChange('timezone', e.target.value)}
-                            className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                            className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
                           >
                             <option value="UTC">UTC</option>
                             <option value="America/New_York">Eastern Time</option>
@@ -507,6 +551,16 @@ const Settings: React.FC = () => {
                 </div>
               )}
 
+              {activeTab === 'logs' && (
+                <div className="space-y-6">
+                  <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 max-w-xl mx-auto text-center">
+                    <Info size={32} className="mx-auto mb-4 text-indigo-500 dark:text-indigo-400" />
+                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Logs</h2>
+                    <p className="text-gray-600 dark:text-gray-400">This section will display your recent activity logs and system events in the future.</p>
+                  </div>
+                </div>
+              )}
+
               {activeTab === 'other' && (
                 <div className="space-y-6">
                   <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 max-w-xl mx-auto text-center">
@@ -520,6 +574,29 @@ const Settings: React.FC = () => {
           </div>
         </div>
       </div>
+      {/* Log Out Confirmation Modal */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
+            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Confirm Logout</h2>
+            <p className="text-gray-600 dark:text-gray-300 mb-6">Are you sure you want to log out of your account?</p>
+            <div className="flex justify-end space-x-3">
+              <button 
+                onClick={() => setShowLogoutModal(false)}
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors focus:outline-none"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleLogout}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors focus:outline-none"
+              >
+                Log Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 };

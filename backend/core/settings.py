@@ -44,6 +44,7 @@ INSTALLED_APPS = [
     'tasks',  # tasks
     'reviewer', # reviewer app
     'schedule', # schedule app
+    'django_extensions', # for show_urls and other dev tools
 ]
 
 JAZZMIN_SETTINGS = {
