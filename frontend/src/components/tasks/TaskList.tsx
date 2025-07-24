@@ -10,6 +10,7 @@ interface TaskListProps {
   sortField: keyof Task;
   sortDirection: 'asc' | 'desc';
   onSort: (field: keyof Task) => void;
+  onAddTask?: () => void; // New prop for Add Task button
 }
 
 const TaskList: React.FC<TaskListProps> = ({
@@ -20,104 +21,51 @@ const TaskList: React.FC<TaskListProps> = ({
   sortField,
   sortDirection,
   onSort,
+  onAddTask,
 }) => {
+  if (tasks.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16">
+        {/* SVG Illustration */}
+        <svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="mb-6">
+          <rect x="20" y="30" width="80" height="60" rx="12" fill="#EEF2FF" />
+          <rect x="35" y="45" width="50" height="8" rx="4" fill="#6366F1" />
+          <rect x="35" y="60" width="30" height="8" rx="4" fill="#A5B4FC" />
+          <rect x="35" y="75" width="40" height="8" rx="4" fill="#C7D2FE" />
+          <rect x="50" y="20" width="20" height="10" rx="4" fill="#6366F1" />
+        </svg>
+        <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">You're all caught up!</h3>
+        <p className="text-gray-600 dark:text-gray-400 mb-6">No tasks for now. Enjoy your productivity streak or add a new task to get started.</p>
+        {onAddTask && (
+          <button
+            type="button"
+            className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+            onClick={onAddTask}
+          >
+            <svg className="-ml-1 mr-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+            </svg>
+            Add Task
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // Render as a card list inside a fixed, scrollable container
   return (
-    <div className="overflow-x-auto">
-      <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-        <thead className="bg-gray-50 dark:bg-gray-700">
-          <tr>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">
-              <span className="sr-only">Status</span>
-            </th>
-            <th 
-              scope="col" 
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-              onClick={() => onSort('title')}
-            >
-              <div className="flex items-center">
-                <span>Title</span>
-                {sortField === 'title' && (
-                  <svg className="ml-1 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    {sortDirection === 'asc' ? (
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    ) : (
-                      <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                    )}
-                  </svg>
-                )}
-              </div>
-            </th>
-            <th 
-              scope="col" 
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-              onClick={() => onSort('dueDate')}
-            >
-              <div className="flex items-center">
-                <span>Due Date</span>
-                {sortField === 'dueDate' && (
-                  <svg className="ml-1 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    {sortDirection === 'asc' ? (
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    ) : (
-                      <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                    )}
-                  </svg>
-                )}
-              </div>
-            </th>
-            <th 
-              scope="col" 
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-              onClick={() => onSort('priority')}
-            >
-              <div className="flex items-center">
-                <span>Priority</span>
-                {sortField === 'priority' && (
-                  <svg className="ml-1 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    {sortDirection === 'asc' ? (
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    ) : (
-                      <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                    )}
-                  </svg>
-                )}
-              </div>
-            </th>
-            <th 
-              scope="col" 
-              className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider cursor-pointer"
-              onClick={() => onSort('category')}
-            >
-              <div className="flex items-center">
-                <span>Category</span>
-                {sortField === 'category' && (
-                  <svg className="ml-1 h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    {sortDirection === 'asc' ? (
-                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                    ) : (
-                      <path fillRule="evenodd" d="M14.707 12.707a1 1 0 01-1.414 0L10 9.414l-3.293 3.293a1 1 0 01-1.414-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 010 1.414z" clipRule="evenodd" />
-                    )}
-                  </svg>
-                )}
-              </div>
-            </th>
-            <th scope="col" className="relative px-6 py-3">
-              <span className="sr-only">Actions</span>
-            </th>
-          </tr>
-        </thead>
-        <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
-          {tasks.map((task) => (
-            <TaskItem
-              key={task.id}
-              task={task}
-              onToggleComplete={onToggleComplete}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          ))}
-        </tbody>
-      </table>
+    <div className="max-h-[60vh] min-h-[120px] overflow-y-auto rounded-lg bg-gray-50 dark:bg-gray-800 p-2 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-indigo-700 scrollbar-track-gray-100 dark:scrollbar-track-gray-900 border border-gray-100 dark:border-gray-700">
+      <div className="flex flex-col gap-2">
+        {tasks.map((task) => (
+          <TaskItem
+            key={task.id}
+            task={task}
+            onToggleComplete={onToggleComplete}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        ))}
+      </div>
     </div>
   );
 };

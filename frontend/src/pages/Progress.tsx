@@ -6,13 +6,14 @@ import Achievements from '../components/progress/Achievements';
 import LevelProgressRing from '../components/progress/LevelProgressRing';
 import StreaksCalendar from '../components/progress/StreaksCalendar';
 import MainChart from '../components/progress/MainChart';
+import { format, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
 
-const TABS = ['Daily', 'Weekly', 'Monthly', 'Yearly'];
+const TABS = ['Daily', 'Weekly', 'Monthly'];
 
 const Progress = () => {
   const [user, setUser] = useState<any | null>(null);
   const [greeting, setGreeting] = useState('');
-  const [progressView, setProgressView] = useState('Weekly');
+  const [progressView, setProgressView] = useState('Daily');
   const [stats, setStats] = useState<any>({
     totalTasksCompleted: 0,
     totalStudyTime: 0,
@@ -24,6 +25,14 @@ const Progress = () => {
   // Add state for streakData and chartData
   const [streakData, setStreakData] = useState<any[]>([]);
   const [chartData, setChartData] = useState<any>({});
+  // Productivity status state
+  const [productivity, setProductivity] = useState<{ status: string; completion_rate: number; total_tasks: number; completed_tasks: number } | null>(null);
+  const [yesterdayProductivity, setYesterdayProductivity] = useState<{ status: string; completion_rate: number; total_tasks: number; completed_tasks: number } | null>(null);
+
+  // Add state for selected date/period
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  // Add state for productivity logs list
+  const [prodLogs, setProdLogs] = useState<any[]>([]);
 
   useEffect(() => {
     // Get user data from localStorage
@@ -61,6 +70,159 @@ const Progress = () => {
     })();
   }, []);
 
+  // Fetch productivity status when progressView changes
+  useEffect(() => {
+    const fetchProductivity = async () => {
+      try {
+        const headers = getAuthHeaders();
+        let url: string | undefined;
+        if (progressView === 'Daily') {
+          const todayStr = selectedDate.toISOString().split('T')[0];
+          url = `/api/progress/productivity/?view=daily&date=${todayStr}`;
+        } else if (progressView === 'Weekly') {
+          const monday = new Date(selectedDate);
+          monday.setDate(monday.getDate() - monday.getDay() + 1);
+          const weekStr = monday.toISOString().split('T')[0];
+          url = `/api/progress/productivity/?view=weekly&date=${weekStr}`;
+        } else if (progressView === 'Monthly') {
+          const firstOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
+          const monthStr = firstOfMonth.toISOString().split('T')[0];
+          url = `/api/progress/productivity/?view=monthly&date=${monthStr}`;
+        } else {
+          throw new Error('Invalid progressView');
+        }
+        const res = await fetch(url, {
+          ...(headers && { headers })
+        });
+        if (res.status === 401) {
+          handle401();
+          return;
+        }
+        if (!res.ok) throw new Error('Failed to fetch productivity');
+        setProductivity(await res.json());
+        // Fetch yesterday (only for daily view)
+        if (progressView === 'Daily') {
+          const yesterday = new Date(selectedDate);
+          yesterday.setDate(yesterday.getDate() - 1);
+          const yDate = yesterday.toISOString().split('T')[0];
+          const yRes = await fetch(`/api/progress/productivity/?view=daily&date=${yDate}`, {
+            ...(headers && { headers })
+          });
+          if (yRes.status === 401) {
+            handle401();
+            return;
+          }
+          if (!yRes.ok) throw new Error('Failed to fetch yesterday productivity');
+          setYesterdayProductivity(await yRes.json());
+        } else {
+          setYesterdayProductivity(null);
+        }
+      } catch (e) {
+        setProductivity(null);
+        setYesterdayProductivity(null);
+      }
+    };
+    fetchProductivity();
+  }, [progressView, selectedDate]);
+
+  // Fetch productivity logs for the selected period
+  useEffect(() => {
+    const fetchProdLogs = async () => {
+      try {
+        const headers = getAuthHeaders();
+        let url: string | undefined;
+        if (progressView === 'Daily') {
+          const monthStr = selectedDate.toISOString().split('T')[0];
+          url = `/api/progress/productivity_logs/?view=daily&date=${monthStr}`;
+        } else if (progressView === 'Weekly') {
+          const yearStr = selectedDate.getFullYear();
+          url = `/api/progress/productivity_logs/?view=weekly&date=${yearStr}-01-01`;
+        } else if (progressView === 'Monthly') {
+          const yearStr = selectedDate.getFullYear();
+          url = `/api/progress/productivity_logs/?view=monthly&date=${yearStr}-01-01`;
+        } else {
+          throw new Error('Invalid progressView');
+        }
+        const res = await fetch(url, { ...(headers && { headers }) });
+        if (!res.ok) throw new Error('Failed to fetch productivity logs');
+        setProdLogs(await res.json());
+      } catch (e) {
+        setProdLogs([]);
+      }
+    };
+    fetchProdLogs();
+  }, [progressView, selectedDate]);
+
+  // Navigation handlers
+  const handlePrev = () => {
+    if (progressView === 'Daily') setSelectedDate(subMonths(selectedDate, 1));
+    else if (progressView === 'Weekly') setSelectedDate(subWeeks(selectedDate, 1));
+    else if (progressView === 'Monthly') setSelectedDate(subMonths(selectedDate, 1));
+  };
+  const handleNext = () => {
+    const today = new Date();
+    let nextDate: Date;
+    if (progressView === 'Daily') {
+      nextDate = addMonths(selectedDate, 1);
+      // Only allow if nextDate is not after today
+      if (nextDate > today) return;
+      setSelectedDate(nextDate);
+    } else if (progressView === 'Weekly') {
+      nextDate = addWeeks(selectedDate, 1);
+      if (nextDate > today) return;
+      setSelectedDate(nextDate);
+    } else if (progressView === 'Monthly') {
+      nextDate = addMonths(selectedDate, 1);
+      if (nextDate > today) return;
+      setSelectedDate(nextDate);
+    }
+  };
+
+  // Determine if next button should be disabled
+  const isNextDisabled = (() => {
+    const today = new Date();
+    if (progressView === 'Daily') {
+      const nextDate = addMonths(selectedDate, 1);
+      return nextDate > today;
+    }
+    if (progressView === 'Weekly') {
+      const nextDate = addWeeks(selectedDate, 1);
+      return nextDate > today;
+    }
+    if (progressView === 'Monthly') {
+      const nextDate = addMonths(selectedDate, 1);
+      return nextDate > today;
+    }
+    return false;
+  })();
+  // Format date display
+  function getDateDisplay() {
+    if (progressView === 'Daily') {
+      // Show month and year of the selected date
+      return format(selectedDate, 'MMMM yyyy');
+    }
+    if (progressView === 'Weekly') {
+      // Show week range (e.g., 'Jul 1 - Jul 7, 2025')
+      const monday = new Date(selectedDate);
+      const day = monday.getDay();
+      // Adjust so Monday is 0 (if Sunday, set to 6)
+      const diff = (day === 0 ? -6 : 1) - day;
+      monday.setDate(monday.getDate() + diff);
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return `${format(monday, 'MMM d')} - ${format(sunday, 'MMM d, yyyy')}`;
+    }
+    if (progressView === 'Monthly') {
+      // Show month and year of the selected month
+      return format(selectedDate, 'MMMM yyyy');
+    }
+    return '';
+  }
+  // Reset selectedDate when tab changes
+  useEffect(() => {
+    setSelectedDate(new Date());
+  }, [progressView]);
+
   if (!user) {
     return (
       <div className="flex justify-center items-center min-h-screen">
@@ -71,6 +233,29 @@ const Progress = () => {
 
   // Progress bar for LevelProgress
   const progressPercentage = Math.min(userLevel.currentXP / userLevel.xpToNextLevel, 1) * 100;
+
+  // Helper to get formatted date for Daily view
+  function getFormattedDate(offset = 0) {
+    const date = new Date();
+    date.setDate(date.getDate() + offset);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  }
+
+  // Helper to get color class for productivity status
+  function getProductivityColor(status: string) {
+    switch (status) {
+      case 'Highly Productive':
+        return 'text-green-700 dark:text-green-400';
+      case 'Productive':
+        return 'text-green-600 dark:text-green-300';
+      case 'Needs Improvement':
+        return 'text-yellow-600 dark:text-yellow-400';
+      case 'Low Productivity':
+        return 'text-red-600 dark:text-red-400';
+      default:
+        return 'text-gray-600 dark:text-gray-300';
+    }
+  }
 
   return (
     <PageLayout>
@@ -136,6 +321,109 @@ const Progress = () => {
           ))}
         </div>
 
+        {/* Productivity Scale Container */}
+        <div className="w-full mb-4">
+          <div className="bg-white dark:bg-gray-800 shadow-md border border-gray-200 dark:border-gray-700 rounded-xl w-full flex flex-col" style={{ height: 440 }}>
+            <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 rounded-t-xl px-12 py-2 border-b border-gray-200 dark:border-gray-600">
+              <span className="text-base font-semibold text-gray-900 dark:text-white">Productivity Scale</span>
+              <div className="flex items-center space-x-2">
+                <button onClick={handlePrev} className="px-2 py-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600">&#60;</button>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">{getDateDisplay()}</span>
+                <button
+                  onClick={handleNext}
+                  className={`px-2 py-1 rounded ${isNextDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                  disabled={isNextDisabled}
+                >
+                  &#62;
+                </button>
+              </div>
+            </div>
+            {/* Scrollable list of productivity logs */}
+            <div className="flex-1 overflow-y-scroll px-12 py-4 space-y-3">
+              {progressView === 'Daily' && prodLogs.map((item, idx) => {
+                const dayDate = item.date ? new Date(item.date) : null;
+                if (!dayDate || isNaN(dayDate.getTime())) return null;
+                return (
+                  <div key={item.date} className="flex items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white min-w-[120px] text-left">{format(dayDate, 'MMMM d, yyyy')}</span>
+                    <div className="flex-1 flex justify-center items-center px-6">
+                      <div className="w-full max-w-md flex items-center justify-center">
+                        <div className="w-full h-4 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
+                              item.log.completion_rate >= 70 ? 'bg-green-500 dark:bg-green-300' :
+                              item.log.completion_rate >= 40 ? 'bg-yellow-500 dark:bg-yellow-400' :
+                              'bg-red-500 dark:bg-red-400'
+                            }`}
+                            style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
+                          />
+                        </div>
+                        <span className="ml-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{item.log.completion_rate}%</span>
+                      </div>
+                    </div>
+                    <span className={`text-base font-bold ${getProductivityColor(item.log.status)} min-w-[120px] text-right`}>{item.log.status}</span>
+                  </div>
+                );
+              })}
+              {progressView === 'Weekly' && prodLogs.map((item, idx) => {
+                const weekStart = item.week_start ? new Date(item.week_start) : null;
+                const weekEnd = item.week_end ? new Date(item.week_end) : null;
+                if (!weekStart || isNaN(weekStart.getTime()) || !weekEnd || isNaN(weekEnd.getTime())) return null;
+                return (
+                  <div key={item.week_start} className="flex items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white min-w-[120px] text-left">{format(weekStart, 'MMM d')} - {format(weekEnd, 'MMM d, yyyy')}</span>
+                    <div className="flex-1 flex justify-center items-center px-6">
+                      <div className="w-full max-w-md flex items-center justify-center">
+                        <div className="w-full h-4 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
+                              item.log.completion_rate >= 70 ? 'bg-green-500 dark:bg-green-300' :
+                              item.log.completion_rate >= 40 ? 'bg-yellow-500 dark:bg-yellow-400' :
+                              'bg-red-500 dark:bg-red-400'
+                            }`}
+                            style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
+                          />
+                        </div>
+                        <span className="ml-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{item.log.completion_rate}%</span>
+                      </div>
+                    </div>
+                    <span className={`text-base font-bold ${getProductivityColor(item.log.status)} min-w-[120px] text-right`}>{item.log.status}</span>
+                  </div>
+                );
+              })}
+              {progressView === 'Monthly' && prodLogs.map((item, idx) => {
+                if (!item.month || isNaN(item.month) || item.month < 1 || item.month > 12) return null;
+                const monthDate = new Date(selectedDate.getFullYear(), item.month - 1, 1);
+                if (isNaN(monthDate.getTime())) return null;
+                return (
+                  <div key={item.month} className="flex items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4">
+                    <span className="text-sm font-semibold text-gray-900 dark:text-white min-w-[120px] text-left">{format(monthDate, 'MMMM')}</span>
+                    <div className="flex-1 flex justify-center items-center px-6">
+                      <div className="w-full max-w-md flex items-center justify-center">
+                        <div className="w-full h-4 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-500 ${
+                              item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
+                              item.log.completion_rate >= 70 ? 'bg-green-500 dark:bg-green-300' :
+                              item.log.completion_rate >= 40 ? 'bg-yellow-500 dark:bg-yellow-400' :
+                              'bg-red-500 dark:bg-red-400'
+                            }`}
+                            style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
+                          />
+                        </div>
+                        <span className="ml-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{item.log.completion_rate}%</span>
+                      </div>
+                    </div>
+                    <span className={`text-base font-bold ${getProductivityColor(item.log.status)} min-w-[120px] text-right`}>{item.log.status}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
         {/* Main Chart Placeholder */}
         <MainChart view={progressView} data={chartData} />
 
@@ -148,8 +436,15 @@ const Progress = () => {
 
 // Helper to get JWT token from localStorage
 function getAuthHeaders(): HeadersInit | undefined {
-  const token = localStorage.getItem('access');
+  const token = localStorage.getItem('accessToken');
   return token ? { 'Authorization': `Bearer ${token}` } : undefined;
+}
+
+function handle401() {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  localStorage.removeItem('user');
+  window.location.href = '/login';
 }
 
 async function fetchUserStats() {
@@ -158,6 +453,10 @@ async function fetchUserStats() {
     const res = await fetch('/api/progress/stats/', {
       ...(headers && { headers })
     });
+    if (res.status === 401) {
+      handle401();
+      return;
+    }
     if (!res.ok) throw new Error('Failed to fetch stats');
     return await res.json();
   } catch (e) {
@@ -171,6 +470,10 @@ async function fetchUserLevel() {
     const res = await fetch('/api/progress/level/', {
       ...(headers && { headers })
     });
+    if (res.status === 401) {
+      handle401();
+      return;
+    }
     if (!res.ok) throw new Error('Failed to fetch level');
     return await res.json();
   } catch (e) {
@@ -184,6 +487,10 @@ async function fetchStreakData() {
     const res = await fetch('/api/progress/streaks/', {
       ...(headers && { headers })
     });
+    if (res.status === 401) {
+      handle401();
+      return;
+    }
     if (!res.ok) throw new Error('Failed to fetch streaks');
     return await res.json();
   } catch (e) {
@@ -197,6 +504,10 @@ async function fetchChartData(view: string) {
     const res = await fetch(`/api/progress/chart/?view=${view}`, {
       ...(headers && { headers })
     });
+    if (res.status === 401) {
+      handle401();
+      return;
+    }
     if (!res.ok) throw new Error('Failed to fetch chart data');
     return await res.json();
   } catch (e) {
@@ -205,3 +516,5 @@ async function fetchChartData(view: string) {
 }
 
 export default Progress;
+
+

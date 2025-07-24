@@ -759,16 +759,6 @@ const Notes = () => {
                 Notes
               </button>
               <button
-                onClick={() => setActiveTab('logs')}
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'logs'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                Logs
-              </button>
-              <button
                 onClick={() => setActiveTab('archived')}
                 className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'archived'
@@ -947,9 +937,6 @@ const Notes = () => {
                 cancelLabel="Cancel"
               />
             </>
-          )}
-          {activeTab === 'logs' && (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">Logs content coming soon.</div>
           )}
           {activeTab === 'archived' && (
             <div className="p-8 text-center text-gray-500 dark:text-gray-400">Archived notes will appear here.</div>

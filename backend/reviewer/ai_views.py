@@ -61,9 +61,11 @@ class AIAutomaticReviewerView(APIView):
                 "prompt": prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "num_predict": 1000
+                    "temperature": 0.3,
+                    "top_p": 0.7,
+                    "top_k": 40,
+                    "num_predict": 1000,
+                    "repeat_penalty": 1.1
                 }
             }
 

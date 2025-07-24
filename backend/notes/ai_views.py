@@ -20,14 +20,40 @@ logger = logging.getLogger(__name__)
 
 # Ollama API configuration
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama2"  # Changed from 'llama2' to 'mistral' for lower memory usage
+OLLAMA_MODEL = "llama2"  # Using llama2 with optimized configuration
 
 def format_chat_prompt(messages):
-    # Format for Ollama - simple conversation without role prefixes
-    turns = []
+    # Llama2-specific system instruction for better behavior
+    system_instruction = """<s>[INST] You are a helpful AI assistant. Follow these guidelines:
+- Provide clear, direct, and accurate responses
+- Do NOT use roleplay elements like *smiles*, *adjusts glasses*, *nods*, etc.
+- Be professional, friendly, and concise
+- Answer simple questions directly first, then elaborate if needed
+- Keep responses focused and relevant to the user's question
+- Use natural, conversational language without excessive formatting
+
+Remember: No roleplay elements, no asterisks, just clear helpful responses. [/INST]"""
+    
+    # Format conversation for Llama2 with proper instruction format
+    conversation = [system_instruction]
+    
     for msg in messages:
-        turns.append(msg['content'])
-    return "\n".join(turns)
+        role = msg.get('role', 'user')
+        content = msg.get('content', '').strip()
+        
+        if content:  # Only include non-empty messages
+            if role == 'user':
+                conversation.append(f"<s>[INST] {content} [/INST]")
+            elif role == 'assistant':
+                conversation.append(f"{content}")
+    
+    # Add the current user prompt if it's a user message
+    if messages and messages[-1].get('role') == 'user':
+        current_user_content = messages[-1].get('content', '').strip()
+        if current_user_content:
+            conversation.append(f"<s>[INST] {current_user_content} [/INST]")
+    
+    return "\n".join(conversation)
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -40,20 +66,35 @@ def chat(request):
                 'error': 'No messages provided'
             }, status=400)
         
-        # Only keep last 6 user/assistant messages
-        user_assistant_msgs = [msg for msg in messages if msg.get('role') in ('user', 'assistant')]
-        user_assistant_msgs = user_assistant_msgs[-6:]
+        # Only keep last 6 user/assistant messages and validate content
+        user_assistant_msgs = []
+        for msg in messages:
+            if msg.get('role') in ('user', 'assistant'):
+                content = msg.get('content', '').strip()
+                if content:  # Only include messages with actual content
+                    user_assistant_msgs.append(msg)
+        
+        user_assistant_msgs = user_assistant_msgs[-6:]  # Keep last 6 messages
+        
+        if not user_assistant_msgs:
+            return JsonResponse({
+                'error': 'No valid messages provided'
+            }, status=400)
+        
         formatted_prompt = format_chat_prompt(user_assistant_msgs)
         
-        # Call Ollama API with streaming
+        # Call Ollama API with streaming - Llama2 optimized settings
         payload = {
             "model": OLLAMA_MODEL,
             "prompt": formatted_prompt,
             "stream": True,
             "options": {
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "num_predict": 500
+                "temperature": 0.2,    # Very low temperature for consistent responses
+                "top_p": 0.7,          # Conservative sampling for predictable output
+                "top_k": 40,           # Limit vocabulary choices
+                "num_predict": 250,    # Shorter responses to avoid rambling
+                "repeat_penalty": 1.1, # Prevent repetitive responses
+                "stop": ["</s>", "[INST]", "User:", "Assistant:"]  # Stop at instruction markers
             }
         }
         
@@ -77,8 +118,35 @@ def chat(request):
                         except json.JSONDecodeError:
                             continue
                 
-                # Send completion signal
-                yield f"data: {json.dumps({'done': True, 'full_response': full_response.strip()})}\n\n"
+                # Clean up the response and send completion signal
+                cleaned_response = full_response.strip()
+                
+                # Llama2-specific response cleaning
+                # Remove any remaining instruction markers
+                cleaned_response = cleaned_response.replace("</s>", "").replace("[INST]", "").replace("[/INST]", "")
+                cleaned_response = cleaned_response.replace("User:", "").replace("Assistant:", "")
+                
+                # Remove excessive whitespace and newlines
+                cleaned_response = " ".join(cleaned_response.split())
+                
+                # Basic validation to prevent weird responses
+                if len(cleaned_response) < 2:
+                    cleaned_response = "I'm sorry, I couldn't generate a proper response. Please try asking your question again."
+                
+                # Check for roleplay elements and replace them
+                roleplay_patterns = [
+                    r'\*[^*]+\*',  # Any text in asterisks
+                    r'\([^)]*\)',   # Any text in parentheses that might be actions
+                ]
+                
+                import re
+                for pattern in roleplay_patterns:
+                    cleaned_response = re.sub(pattern, '', cleaned_response)
+                
+                # Final cleanup
+                cleaned_response = cleaned_response.strip()
+                
+                yield f"data: {json.dumps({'done': True, 'full_response': cleaned_response})}\n\n"
             
             return StreamingHttpResponse(
                 generate(),
@@ -130,9 +198,11 @@ class SummarizeView(APIView):
                 "prompt": summarize_prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.3,
-                    "top_p": 0.9,
-                    "num_predict": 150
+                    "temperature": 0.2,
+                    "top_p": 0.7,
+                    "top_k": 40,
+                    "num_predict": 150,
+                    "repeat_penalty": 1.1
                 }
             }
             
@@ -195,9 +265,11 @@ class ReviewView(APIView):
                 "prompt": review_prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "num_predict": 200
+                    "temperature": 0.3,
+                    "top_p": 0.7,
+                    "top_k": 40,
+                    "num_predict": 200,
+                    "repeat_penalty": 1.1
                 }
             }
             
@@ -335,5 +407,3 @@ class AIAutomaticReviewerView(APIView):
                 {"error": f"Failed to generate reviewer content. Internal error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-

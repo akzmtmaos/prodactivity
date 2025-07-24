@@ -106,6 +106,11 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
 
   const handleFeatureClick = (featureId: string) => {
     setActiveFeature(featureId);
+    // Reset chat when switching to chat feature
+    if (featureId === 'chat') {
+      setChatMessages([]);
+      setChatInput('');
+    }
   };
 
   const handleSummarize = async () => {
@@ -355,15 +360,31 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
                 {activeFeature === 'summarize' ? 'Smart Summarization' :
                  activeFeature === 'review' ? 'AI Reviewer' : 'AI Chat'}
               </h2>
-              <button
-                onClick={() => {
-                  setActiveFeature(null);
-                  setSummaryResult('');
-                }}
-                className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
-              >
-                <X className="h-5 w-5" />
-              </button>
+              <div className="flex items-center space-x-2">
+                {activeFeature === 'chat' && chatMessages.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setChatMessages([]);
+                      setChatInput('');
+                    }}
+                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
+                    title="Clear chat"
+                  >
+                    Clear
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setActiveFeature(null);
+                    setSummaryResult('');
+                    setChatMessages([]);
+                    setChatInput('');
+                  }}
+                  className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-hidden">
               <div className="h-full">

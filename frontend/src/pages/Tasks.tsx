@@ -6,6 +6,7 @@ import TaskForm from '../components/tasks/TaskForm';
 import TaskFilters from '../components/tasks/TaskFilters';
 import TaskSummary from '../components/tasks/TaskSummary';
 import { Task } from '../types/task';
+import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -17,7 +18,8 @@ const getAuthHeaders = () => {
 
 const Tasks = () => {
   const [user, setUser] = useState<any | null>(null);
-  const [greeting, setGreeting] = useState('');
+  // Remove greeting state
+  // const [greeting, setGreeting] = useState('');
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -32,6 +34,10 @@ const Tasks = () => {
   const [filterCompleted, setFilterCompleted] = useState<boolean | null>(null);
   const [filterPriority, setFilterPriority] = useState<Task['priority'] | 'all'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+
+  // State for delete confirmation modal
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
 
   // Initial user/greeting setup
   useEffect(() => {
@@ -51,12 +57,11 @@ const Tasks = () => {
     } else {
       setUser({ username: 'User' });
     }
-
-    // Set greeting based on time of day
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Good morning');
-    else if (hour < 18) setGreeting('Good afternoon');
-    else setGreeting('Good evening');
+    // Remove greeting logic
+    // const hour = new Date().getHours();
+    // if (hour < 12) setGreeting('Good morning');
+    // else if (hour < 18) setGreeting('Good afternoon');
+    // else setGreeting('Good evening');
   }, []);
 
   // Fetch tasks whenever filters/search change
@@ -140,16 +145,24 @@ const Tasks = () => {
     }
   };
 
-  // Delete task
-  const deleteTask = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this task?')) return;
-    
+  // Show modal and set task id to delete
+  const handleDeleteClick = (id: number) => {
+    setDeleteTaskId(id);
+    setDeleteModalOpen(true);
+  };
+
+  // Confirm deletion
+  const confirmDeleteTask = async () => {
+    if (deleteTaskId === null) return;
     try {
-      await axios.delete(`${API_BASE_URL}/tasks/${id}/`, { headers: getAuthHeaders() });
-      setTasks(tasks.filter(task => task.id !== id));
+      await axios.delete(`${API_BASE_URL}/tasks/${deleteTaskId}/`, { headers: getAuthHeaders() });
+      setTasks(tasks.filter(task => task.id !== deleteTaskId));
+      setDeleteTaskId(null);
+      setDeleteModalOpen(false);
     } catch (err) {
       console.error('Error deleting task:', err);
       setError('Failed to delete task. Please try again.');
+      setDeleteModalOpen(false);
     }
   };
 
@@ -225,6 +238,11 @@ const Tasks = () => {
                 onFilterCompletedChange={setFilterCompleted}
                 filterPriority={filterPriority}
                 onFilterPriorityChange={setFilterPriority}
+                onResetFilters={() => {
+                  setSearchTerm('');
+                  setFilterCompleted(null);
+                  setFilterPriority('all');
+                }}
               />
               <button
                 className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
@@ -313,15 +331,29 @@ const Tasks = () => {
                   setEditingTask(task);
                   setIsFormOpen(true);
                 }}
-                onDelete={deleteTask}
+                onDelete={handleDeleteClick}
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
+                onAddTask={() => {
+                  setEditingTask(undefined);
+                  setIsFormOpen(true);
+                }}
               />
             )}
           </div>
         </div>
       </div>
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModalOpen}
+        onClose={() => { setDeleteModalOpen(false); setDeleteTaskId(null); }}
+        onConfirm={confirmDeleteTask}
+        title="Delete Task"
+        message="Are you sure you want to delete this task? This action cannot be undone."
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+      />
     </PageLayout>
   );
 };

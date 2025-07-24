@@ -8,6 +8,7 @@ interface TaskFiltersProps {
   onFilterCompletedChange: (value: boolean | null) => void;
   filterPriority: Task['priority'] | 'all';
   onFilterPriorityChange: (value: Task['priority'] | 'all') => void;
+  onResetFilters?: () => void; // New prop
 }
 
 const TaskFilters: React.FC<TaskFiltersProps> = ({
@@ -17,6 +18,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
   onFilterCompletedChange,
   filterPriority,
   onFilterPriorityChange,
+  onResetFilters,
 }) => {
   return (
     <div className="p-0 sm:p-0 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -39,7 +41,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
       </div>
       
       {/* Filter controls */}
-      <div className="flex flex-wrap gap-3 w-full sm:w-auto">
+      <div className="flex flex-wrap gap-3 w-full sm:w-auto items-center">
         {/* Status filter */}
         <select
           className="rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"
@@ -66,6 +68,17 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
           <option value="medium">Medium</option>
           <option value="high">High</option>
         </select>
+        {/* Reset Filters Button */}
+        {onResetFilters && (
+          <button
+            type="button"
+            className="ml-2 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+            onClick={onResetFilters}
+            title="Reset all filters"
+          >
+            Reset Filters
+          </button>
+        )}
       </div>
     </div>
   );
