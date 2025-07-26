@@ -39,6 +39,12 @@ const Tasks = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
 
+  // State for productivity summary
+  const [productivity, setProductivity] = useState<any | null>(null);
+
+  // State for tabs
+  const [activeTab, setActiveTab] = useState<'tasks' | 'completed'>('tasks');
+
   // Initial user/greeting setup
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -69,6 +75,23 @@ const Tasks = () => {
     fetchTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, filterCompleted, filterPriority, sortField, sortDirection]);
+
+  // Fetch productivity for today
+  const fetchProductivity = async () => {
+    try {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const response = await axios.get(`${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}`, { headers: getAuthHeaders() });
+      setProductivity(response.data);
+    } catch (err) {
+      setProductivity(null);
+    }
+  };
+
+  // Fetch productivity on mount and when tasks change
+  useEffect(() => {
+    fetchProductivity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
 
   // Fetch tasks from backend
   const fetchTasks = async () => {
@@ -176,6 +199,7 @@ const Tasks = () => {
         completed: !taskToToggle.completed
       }, { headers: getAuthHeaders() });
       setTasks(tasks.map(task => task.id === id ? response.data : task));
+      // fetchProductivity(); // Not needed, handled by useEffect on tasks
     } catch (err) {
       console.error('Error toggling task completion:', err);
       setError('Failed to update task. Please try again.');
@@ -206,6 +230,11 @@ const Tasks = () => {
     }, 0);
   };
 
+  // Filtered tasks for tabs
+  const incompleteTasks = tasks.filter(task => !task.completed);
+  const completedTasks = tasks.filter(task => task.completed);
+  const displayedTasks = activeTab === 'tasks' ? incompleteTasks : completedTasks;
+
   // Show loading state while waiting for user data
   if (!user) {
     return (
@@ -228,6 +257,14 @@ const Tasks = () => {
               <p className="text-lg text-gray-600 dark:text-gray-400">
                 Manage and track your tasks
               </p>
+              {/* Productivity summary */}
+              {productivity && productivity.status !== 'No Tasks' && (
+                <div className="mt-2 flex items-center gap-4 bg-gray-100 dark:bg-gray-700 rounded px-4 py-2">
+                  <span className="font-semibold text-sm text-gray-700 dark:text-gray-200">Today's Productivity:</span>
+                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-300">{productivity.status}</span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{productivity.completion_rate}% complete</span>
+                </div>
+              )}
             </div>
             {/* Right side: TaskFilters and Add Task button horizontally aligned */}
             <div className="flex items-center gap-4">
@@ -258,10 +295,34 @@ const Tasks = () => {
               </button>
             </div>
           </div>
-          
+
           {/* Task summary */}
           <TaskSummary tasks={tasks} />
-          
+
+          {/* Tabs for Tasks and Completed (styled like Decks/Notes/Schedule) */}
+          <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-6">
+            <button
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'tasks'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+              onClick={() => setActiveTab('tasks')}
+            >
+              Tasks
+            </button>
+            <button
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'completed'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+              onClick={() => setActiveTab('completed')}
+            >
+              Completed
+            </button>
+          </div>
+
           {/* Error display */}
           {error && (
             <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 mb-6">
@@ -277,7 +338,7 @@ const Tasks = () => {
               </div>
             </div>
           )}
-          
+
           {/* Task form modal */}
           {isFormOpen && (
             <TaskForm
@@ -289,7 +350,7 @@ const Tasks = () => {
               }}
             />
           )}
-          
+
           {/* Tasks list */}
           <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
             {loading ? (
@@ -297,7 +358,7 @@ const Tasks = () => {
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
                 <p className="mt-2 text-gray-500 dark:text-gray-400">Loading tasks...</p>
               </div>
-            ) : tasks.length === 0 ? (
+            ) : displayedTasks.length === 0 ? (
               <div className="p-6 text-center">
                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
@@ -325,7 +386,7 @@ const Tasks = () => {
               </div>
             ) : (
               <TaskList
-                tasks={tasks}
+                tasks={displayedTasks}
                 onToggleComplete={toggleTaskCompletion}
                 onEdit={(task) => {
                   setEditingTask(task);
