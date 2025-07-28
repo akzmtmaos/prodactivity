@@ -77,17 +77,38 @@ const Progress = () => {
       try {
         const headers = getAuthHeaders();
         const todayStr = new Date().toISOString().split('T')[0];
-        const res = await fetch(`/api/progress/productivity/?view=daily&date=${todayStr}`, {
+        // Add cache-busting parameter to ensure fresh data
+        const res = await fetch(`/api/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
           ...(headers && { headers })
         });
         if (!res.ok) throw new Error('Failed to fetch today productivity');
-        setTodaysProductivity(await res.json());
+        const data = await res.json();
+        console.log('Today\'s productivity data:', data); // Debug log
+        setTodaysProductivity(data);
       } catch (e) {
+        console.error('Error fetching today productivity:', e);
         setTodaysProductivity(null);
       }
     };
     fetchTodaysProductivity();
   }, []);
+
+  // Manual refresh function for debugging
+  const refreshProductivity = async () => {
+    try {
+      const headers = getAuthHeaders();
+      const todayStr = new Date().toISOString().split('T')[0];
+      const res = await fetch(`/api/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
+        ...(headers && { headers })
+      });
+      if (!res.ok) throw new Error('Failed to fetch today productivity');
+      const data = await res.json();
+      console.log('Refreshed productivity data:', data);
+      setTodaysProductivity(data);
+    } catch (e) {
+      console.error('Error refreshing productivity:', e);
+    }
+  };
 
   // Fetch productivity status when progressView changes
   useEffect(() => {
@@ -343,7 +364,16 @@ const Progress = () => {
             <div className="w-full max-w-2xl mx-auto mt-2 mb-4 bg-indigo-50 dark:bg-indigo-900/30 border-2 border-indigo-400 dark:border-indigo-500 rounded-lg shadow-md p-4 flex flex-col items-start">
               <div className="flex items-center justify-between w-full mb-2">
                 <span className="text-base font-semibold text-indigo-700 dark:text-indigo-200">Today's Productivity</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400">{new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500 dark:text-gray-400">{new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                  <button 
+                    onClick={refreshProductivity}
+                    className="text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700"
+                    title="Refresh productivity data"
+                  >
+                    🔄
+                  </button>
+                </div>
               </div>
               <div className="flex items-center justify-between w-full mb-1">
                 <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Status:</span>

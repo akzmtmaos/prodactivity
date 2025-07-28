@@ -39,8 +39,7 @@ const Tasks = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
 
-  // State for productivity summary
-  const [productivity, setProductivity] = useState<any | null>(null);
+
 
   // State for tabs
   const [activeTab, setActiveTab] = useState<'tasks' | 'completed'>('tasks');
@@ -76,22 +75,7 @@ const Tasks = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, filterCompleted, filterPriority, sortField, sortDirection]);
 
-  // Fetch productivity for today
-  const fetchProductivity = async () => {
-    try {
-      const todayStr = new Date().toISOString().split('T')[0];
-      const response = await axios.get(`${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}`, { headers: getAuthHeaders() });
-      setProductivity(response.data);
-    } catch (err) {
-      setProductivity(null);
-    }
-  };
 
-  // Fetch productivity on mount and when tasks change
-  useEffect(() => {
-    fetchProductivity();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tasks]);
 
   // Fetch tasks from backend
   const fetchTasks = async () => {
@@ -199,7 +183,6 @@ const Tasks = () => {
         completed: !taskToToggle.completed
       }, { headers: getAuthHeaders() });
       setTasks(tasks.map(task => task.id === id ? response.data : task));
-      // fetchProductivity(); // Not needed, handled by useEffect on tasks
     } catch (err) {
       console.error('Error toggling task completion:', err);
       setError('Failed to update task. Please try again.');
@@ -257,14 +240,6 @@ const Tasks = () => {
               <p className="text-lg text-gray-600 dark:text-gray-400">
                 Manage and track your tasks
               </p>
-              {/* Productivity summary */}
-              {productivity && productivity.status !== 'No Tasks' && (
-                <div className="mt-2 flex items-center gap-4 bg-gray-100 dark:bg-gray-700 rounded px-4 py-2">
-                  <span className="font-semibold text-sm text-gray-700 dark:text-gray-200">Today's Productivity:</span>
-                  <span className="text-sm font-bold text-indigo-600 dark:text-indigo-300">{productivity.status}</span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400">{productivity.completion_rate}% complete</span>
-                </div>
-              )}
             </div>
             {/* Right side: TaskFilters and Add Task button horizontally aligned */}
             <div className="flex items-center gap-4">
