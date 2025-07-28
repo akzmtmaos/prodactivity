@@ -44,7 +44,8 @@ INSTALLED_APPS = [
     'tasks',  # tasks
     'reviewer', # reviewer app
     'schedule', # schedule app
-    'django_extensions', # for show_urls and other dev tools
+    'progress', # progress app
+    # 'django_extensions', # for show_urls and other dev tools
 ]
 
 JAZZMIN_SETTINGS = {
@@ -71,6 +72,8 @@ JAZZMIN_SETTINGS = {
         "reviewer.reviewer": "fas fa-user-check",
         "schedule": "fas fa-calendar-alt",
         "schedule.event": "fas fa-calendar-alt",
+        "progress": "fas fa-chart-line",
+        "progress.productivityscalehistory": "fas fa-chart-line",
         "core": "fas fa-cogs",
         "core.termsandconditions": "fas fa-file-contract",
     },

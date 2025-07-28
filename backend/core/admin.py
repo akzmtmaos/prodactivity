@@ -8,6 +8,7 @@ from decks.models import Deck, Flashcard
 from tasks.models import Task
 from schedule.models import Event
 from reviewer.models import Reviewer
+from progress.models import ProductivityScaleHistory
 from .models import TermsAndConditions, Notification
 
 class MyAdminSite(admin.AdminSite):
@@ -49,4 +50,5 @@ admin_site.register(Flashcard)
 admin_site.register(Task)
 admin_site.register(Event)
 admin_site.register(Reviewer)
+admin_site.register(ProductivityScaleHistory)
 # You can register more models as needed 

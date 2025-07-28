@@ -146,6 +146,49 @@ def user_productivity(request):
                 'completed_tasks': log.completed_tasks
             }
             return Response(data)
+        else:
+            # Create a log for past periods even if no tasks exist
+            # This ensures we have historical data for all periods
+            tasks = Task.all_objects.filter(user=user, due_date__range=(start, end))
+            non_deleted = tasks.filter(is_deleted=False)
+            deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
+            
+            total_tasks = non_deleted.count() + deleted_completed.count()
+            completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+            
+            if total_tasks == 0:
+                completion_rate = 0
+                status = 'No Tasks'
+            else:
+                completion_rate = completed_tasks / total_tasks * 100
+                if completion_rate >= 90:
+                    status = 'Highly Productive'
+                elif completion_rate >= 70:
+                    status = 'Productive'
+                elif completion_rate >= 40:
+                    status = 'Needs Improvement'
+                else:
+                    status = 'Low Productivity'
+            
+            # Create the log for this past period
+            log = ProductivityLog.objects.create(
+                user=user,
+                period_type=view,
+                period_start=start,
+                period_end=end,
+                completion_rate=completion_rate,
+                total_tasks=total_tasks,
+                completed_tasks=completed_tasks,
+                status=status
+            )
+            
+            data = {
+                'status': log.status,
+                'completion_rate': log.completion_rate,
+                'total_tasks': log.total_tasks,
+                'completed_tasks': log.completed_tasks
+            }
+            return Response(data)
 
     # Calculate live
     # For productivity, denominator should be:
@@ -157,6 +200,17 @@ def user_productivity(request):
     total_tasks = non_deleted.count() + deleted_completed.count()
     completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
 
+    # Debug logging
+    print(f"DEBUG: User {user.username}, Total tasks: {total_tasks}, Completed: {completed_tasks}")
+    print(f"DEBUG: Period - Start: {start}, End: {end}")
+    print(f"DEBUG: Non-deleted tasks: {non_deleted.count()}")
+    print(f"DEBUG: Deleted completed tasks: {deleted_completed.count()}")
+    
+    # Show all tasks for debugging
+    print(f"DEBUG: All tasks in period:")
+    for task in tasks:
+        print(f"  - {task.title} (completed: {task.completed}, deleted: {task.is_deleted}, was_completed_on_delete: {task.was_completed_on_delete})")
+
     if total_tasks == 0:
         data = {
             'status': 'No Tasks',
@@ -167,6 +221,8 @@ def user_productivity(request):
     else:
         completion_rate = completed_tasks / total_tasks
         completion_pct = completion_rate * 100
+        print(f"DEBUG: Completion rate: {completion_pct}%")
+        
         if completion_pct >= 90:
             status = 'Highly Productive'
         elif completion_pct >= 70:
@@ -225,13 +281,48 @@ def productivity_log_list(request):
         for day in range(num_days, 0, -1):
             d = datetime(year, month, day).date()
             log = ProductivityLog.objects.filter(user=user, period_type='daily', period_start=d, period_end=d).first()
+            
+            # If no log exists for this day, create one
+            if not log:
+                tasks = Task.all_objects.filter(user=user, due_date=d)
+                non_deleted = tasks.filter(is_deleted=False)
+                deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
+                
+                total_tasks = non_deleted.count() + deleted_completed.count()
+                completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+                
+                if total_tasks == 0:
+                    completion_rate = 0
+                    status = 'No Tasks'
+                else:
+                    completion_rate = completed_tasks / total_tasks * 100
+                    if completion_rate >= 90:
+                        status = 'Highly Productive'
+                    elif completion_rate >= 70:
+                        status = 'Productive'
+                    elif completion_rate >= 40:
+                        status = 'Needs Improvement'
+                    else:
+                        status = 'Low Productivity'
+                
+                log = ProductivityLog.objects.create(
+                    user=user,
+                    period_type='daily',
+                    period_start=d,
+                    period_end=d,
+                    completion_rate=completion_rate,
+                    total_tasks=total_tasks,
+                    completed_tasks=completed_tasks,
+                    status=status
+                )
+            
             data.append({
                 'date': d,
                 'log': {
-                    'status': log.status if log else 'No Data',
-                    'completion_rate': log.completion_rate if log else 0,
-                    'total_tasks': log.total_tasks if log else 0,
-                    'completed_tasks': log.completed_tasks if log else 0
+                    'status': log.status,
+                    'completion_rate': log.completion_rate,
+                    'total_tasks': log.total_tasks,
+                    'completed_tasks': log.completed_tasks
                 }
             })
     elif view == 'weekly':
@@ -246,14 +337,49 @@ def productivity_log_list(request):
             week_start = d
             week_end = week_start + timedelta(days=6)
             log = ProductivityLog.objects.filter(user=user, period_type='weekly', period_start=week_start, period_end=week_end).first()
+            
+            # If no log exists for this week, create one
+            if not log:
+                tasks = Task.all_objects.filter(user=user, due_date__range=(week_start, week_end))
+                non_deleted = tasks.filter(is_deleted=False)
+                deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
+                
+                total_tasks = non_deleted.count() + deleted_completed.count()
+                completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+                
+                if total_tasks == 0:
+                    completion_rate = 0
+                    status = 'No Tasks'
+                else:
+                    completion_rate = completed_tasks / total_tasks * 100
+                    if completion_rate >= 90:
+                        status = 'Highly Productive'
+                    elif completion_rate >= 70:
+                        status = 'Productive'
+                    elif completion_rate >= 40:
+                        status = 'Needs Improvement'
+                    else:
+                        status = 'Low Productivity'
+                
+                log = ProductivityLog.objects.create(
+                    user=user,
+                    period_type='weekly',
+                    period_start=week_start,
+                    period_end=week_end,
+                    completion_rate=completion_rate,
+                    total_tasks=total_tasks,
+                    completed_tasks=completed_tasks,
+                    status=status
+                )
+            
             data.append({
                 'week_start': week_start,
                 'week_end': week_end,
                 'log': {
-                    'status': log.status if log else 'No Data',
-                    'completion_rate': log.completion_rate if log else 0,
-                    'total_tasks': log.total_tasks if log else 0,
-                    'completed_tasks': log.completed_tasks if log else 0
+                    'status': log.status,
+                    'completion_rate': log.completion_rate,
+                    'total_tasks': log.total_tasks,
+                    'completed_tasks': log.completed_tasks
                 }
             })
             d += timedelta(days=7)
@@ -264,13 +390,48 @@ def productivity_log_list(request):
             first = datetime(year, month, 1).date()
             last = datetime(year, month, monthrange(year, month)[1]).date()
             log = ProductivityLog.objects.filter(user=user, period_type='monthly', period_start=first, period_end=last).first()
+            
+            # If no log exists for this month, create one
+            if not log:
+                tasks = Task.all_objects.filter(user=user, due_date__range=(first, last))
+                non_deleted = tasks.filter(is_deleted=False)
+                deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
+                
+                total_tasks = non_deleted.count() + deleted_completed.count()
+                completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+                
+                if total_tasks == 0:
+                    completion_rate = 0
+                    status = 'No Tasks'
+                else:
+                    completion_rate = completed_tasks / total_tasks * 100
+                    if completion_rate >= 90:
+                        status = 'Highly Productive'
+                    elif completion_rate >= 70:
+                        status = 'Productive'
+                    elif completion_rate >= 40:
+                        status = 'Needs Improvement'
+                    else:
+                        status = 'Low Productivity'
+                
+                log = ProductivityLog.objects.create(
+                    user=user,
+                    period_type='monthly',
+                    period_start=first,
+                    period_end=last,
+                    completion_rate=completion_rate,
+                    total_tasks=total_tasks,
+                    completed_tasks=completed_tasks,
+                    status=status
+                )
+            
             data.append({
                 'month': month,
                 'log': {
-                    'status': log.status if log else 'No Data',
-                    'completion_rate': log.completion_rate if log else 0,
-                    'total_tasks': log.total_tasks if log else 0,
-                    'completed_tasks': log.completed_tasks if log else 0
+                    'status': log.status,
+                    'completion_rate': log.completion_rate,
+                    'total_tasks': log.total_tasks,
+                    'completed_tasks': log.completed_tasks
                 }
             })
     return Response(data)

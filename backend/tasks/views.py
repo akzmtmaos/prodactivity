@@ -24,8 +24,17 @@ class TaskViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         try:
             logger.debug(f"[TaskViewSet] perform_create called by user: {self.request.user} (auth: {self.request.user.is_authenticated})")
-            serializer.save(user=self.request.user)
-            logger.debug("[TaskViewSet] Task created successfully.")
+            task = serializer.save(user=self.request.user)
+            logger.debug(f"[TaskViewSet] Task created successfully. Title: {task.title}, Completed: {task.completed}, Due Date: {task.due_date}")
+            
+            # Update productivity for today if the new task is due today
+            from django.utils import timezone
+            today = timezone.now().date()
+            if task.due_date == today:
+                logger.debug(f"[TaskViewSet] Updating productivity for today's task")
+                self._update_today_productivity(self.request.user)
+            else:
+                logger.debug(f"[TaskViewSet] Task not due today, skipping productivity update")
         except Exception as e:
             logger.error(f"[TaskViewSet] Error creating task: {e}")
             raise 
@@ -36,44 +45,69 @@ class TaskViewSet(viewsets.ModelViewSet):
         if instance.completed:
             if not XPLog.objects.filter(user=instance.user, task=instance).exists():
                 XPLog.objects.create(user=instance.user, task=instance, xp=10)
-            # Log productivity for today if not already logged, or update if higher
-            from django.utils import timezone
-            today = timezone.now().date()
-            tasks = Task.all_objects.filter(user=instance.user, due_date=today, is_deleted=False)
-            total_tasks = tasks.count()
-            completed_tasks = tasks.filter(completed=True).count()
-            if total_tasks == 0:
-                completion_rate = 0
-                status = 'No Tasks'
-            else:
-                completion_rate = completed_tasks / total_tasks * 100
-                if completion_rate >= 90:
-                    status = 'Highly Productive'
-                elif completion_rate >= 70:
-                    status = 'Productive'
-                elif completion_rate >= 40:
-                    status = 'Needs Improvement'
-                else:
-                    status = 'Low Productivity'
-            log, created = ProductivityLog.objects.get_or_create(
-                user=instance.user,
-                period_type='daily',
-                period_start=today,
-                period_end=today,
-                defaults={
-                    'completion_rate': completion_rate,
-                    'total_tasks': total_tasks,
-                    'completed_tasks': completed_tasks,
-                    'status': status
-                }
-            )
-            if not created and completion_rate > log.completion_rate:
-                log.completion_rate = completion_rate
-                log.total_tasks = total_tasks
-                log.completed_tasks = completed_tasks
-                log.status = status
-                log.save()
+            # Update productivity for today
+            self._update_today_productivity(instance.user)
         return instance
+    
+    def _update_today_productivity(self, user):
+        """Update productivity for today's tasks"""
+        from django.utils import timezone
+        today = timezone.now().date()
+        tasks = Task.all_objects.filter(user=user, due_date=today, is_deleted=False)
+        total_tasks = tasks.count()
+        completed_tasks = tasks.filter(completed=True).count()
+        
+        logger.debug(f"[_update_today_productivity] Today: {today}")
+        logger.debug(f"[_update_today_productivity] Total tasks: {total_tasks}, Completed: {completed_tasks}")
+        
+        # Log all tasks for debugging
+        for task in tasks:
+            logger.debug(f"[_update_today_productivity] Task: {task.title}, Completed: {task.completed}")
+        
+        if total_tasks == 0:
+            completion_rate = 0
+            status = 'No Tasks'
+        else:
+            completion_rate = completed_tasks / total_tasks * 100
+            logger.debug(f"[_update_today_productivity] Completion rate: {completion_rate}%")
+            
+            if completion_rate >= 90:
+                status = 'Highly Productive'
+            elif completion_rate >= 70:
+                status = 'Productive'
+            elif completion_rate >= 40:
+                status = 'Needs Improvement'
+            else:
+                status = 'Low Productivity'
+        
+        logger.debug(f"[_update_today_productivity] Final status: {status}")
+        
+        # Update or create productivity log for today
+        log, created = ProductivityLog.objects.get_or_create(
+            user=user,
+            period_type='daily',
+            period_start=today,
+            period_end=today,
+            defaults={
+                'completion_rate': completion_rate,
+                'total_tasks': total_tasks,
+                'completed_tasks': completed_tasks,
+                'status': status
+            }
+        )
+        
+        # Update existing log if completion rate is higher
+        if not created and completion_rate > log.completion_rate:
+            log.completion_rate = completion_rate
+            log.total_tasks = total_tasks
+            log.completed_tasks = completed_tasks
+            log.status = status
+            log.save()
+            logger.debug(f"[_update_today_productivity] Updated existing log")
+        elif created:
+            logger.debug(f"[_update_today_productivity] Created new log")
+        else:
+            logger.debug(f"[_update_today_productivity] No update needed")
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
