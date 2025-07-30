@@ -468,6 +468,11 @@ const Home = () => {
                               {note.notebook_name}
                             </span>
                           )}
+                          {(note.last_visited || note.updated_at) && (
+                            <span className="mt-1 text-[8px] text-gray-400 dark:text-gray-500 line-clamp-1 px-1">
+                              {format(new Date(note.last_visited || note.updated_at), 'MMM d')}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -503,6 +508,11 @@ const Home = () => {
                         {note.notebook_name && (
                           <span className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 px-1">
                             {note.notebook_name}
+                          </span>
+                        )}
+                        {(note.last_visited || note.updated_at) && (
+                          <span className="mt-1 text-[8px] text-gray-400 dark:text-gray-500 line-clamp-1 px-1">
+                            {format(new Date(note.last_visited || note.updated_at), 'MMM d')}
                           </span>
                         )}
                       </div>
