@@ -118,10 +118,14 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       {prodLogs
         .filter(item => {
           // Filter to only show data for the selected year
+          console.log(`Weekly filtering item:`, item);
           const weekStart = item.week_start ? new Date(item.week_start) : null;
+          console.log(`Week start: ${weekStart}, week start year: ${weekStart?.getFullYear()}, selected year: ${selectedDate.getFullYear()}`);
           if (!weekStart || weekStart.getFullYear() !== selectedDate.getFullYear()) {
+            console.log(`Filtering out weekly item with year ${weekStart?.getFullYear()}`);
             return false;
           }
+          console.log(`Keeping weekly item with year ${weekStart.getFullYear()}`);
           return true;
         })
         .map((item, idx) => {
@@ -176,13 +180,35 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
 
   const renderMonthlyView = () => (
     <>
+      {console.log('=== MONTHLY VIEW DEBUG ===')}
+      {console.log('Selected date:', selectedDate)}
+      {console.log('Selected year:', selectedDate.getFullYear())}
+      {console.log('All prodLogs:', prodLogs)}
+      {console.log('ProdLogs structure:', prodLogs.map(item => ({ year: item.year, month: item.month, log: item.log })))}
 
       {prodLogs
         .filter(item => {
           // Filter to only show data for the selected year
-          if (!item.year || item.year !== selectedDate.getFullYear()) {
+          console.log(`Filtering item:`, item);
+          
+          // Try different ways to get the year
+          let itemYear = null;
+          if (item.year) {
+            itemYear = item.year;
+          } else if (item.month && item.month >= 1 && item.month <= 12) {
+            // If we have month but no year, assume current year (this might be the issue)
+            itemYear = new Date().getFullYear();
+          } else if (item.date) {
+            itemYear = new Date(item.date).getFullYear();
+          }
+          
+          console.log(`Item year: ${itemYear}, selected year: ${selectedDate.getFullYear()}`);
+          
+          if (!itemYear || itemYear !== selectedDate.getFullYear()) {
+            console.log(`Filtering out item with year ${itemYear}`);
             return false;
           }
+          console.log(`Keeping item with year ${itemYear}`);
           return true;
         })
         .map((item, idx) => {
