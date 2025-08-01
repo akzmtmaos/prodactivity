@@ -114,81 +114,121 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
 
   const renderWeeklyView = () => (
     <>
-      {prodLogs.map((item, idx) => {
-        const weekStart = item.week_start ? new Date(item.week_start) : null;
-        const weekEnd = item.week_end ? new Date(item.week_end) : null;
-        if (!weekStart || isNaN(weekStart.getTime()) || !weekEnd || isNaN(weekEnd.getTime())) return null;
-        return (
-          <div key={item.week_start} className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2">
-            <div className="text-left">
-              <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-              </div>
-            </div>
-            <div className="flex justify-center">
-              <div className="w-full max-w-lg">
-                <div className="w-full h-6 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden relative">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
-                      item.log.completion_rate >= 70 ? 'bg-green-500 dark:bg-green-300' :
-                      item.log.completion_rate >= 40 ? 'bg-yellow-500 dark:bg-yellow-400' :
-                      'bg-red-500 dark:bg-red-400'
-                    }`}
-                    style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white pointer-events-none">
-                    {item.log.completion_rate}%
-                  </span>
+
+      {prodLogs
+        .filter(item => {
+          // Filter to only show data for the selected year
+          const weekStart = item.week_start ? new Date(item.week_start) : null;
+          if (!weekStart || weekStart.getFullYear() !== selectedDate.getFullYear()) {
+            return false;
+          }
+          return true;
+        })
+        .map((item, idx) => {
+          const weekStart = item.week_start ? new Date(item.week_start) : null;
+          const weekEnd = item.week_end ? new Date(item.week_end) : null;
+          if (!weekStart || isNaN(weekStart.getTime()) || !weekEnd || isNaN(weekEnd.getTime())) return null;
+          return (
+            <div key={item.week_start} className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2">
+              <div className="text-left">
+                <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </div>
               </div>
+              <div className="flex justify-center">
+                <div className="w-full max-w-lg">
+                  <div className="w-full h-6 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden relative">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
+                        item.log.completion_rate >= 70 ? 'bg-green-500 dark:bg-green-300' :
+                        item.log.completion_rate >= 40 ? 'bg-yellow-500 dark:bg-yellow-400' :
+                        'bg-red-500 dark:bg-red-400'
+                      }`}
+                      style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white pointer-events-none">
+                      {item.log.completion_rate}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className={`text-base font-bold ${getProductivityColor(item.log.status)}`}>{item.log.status}</span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className={`text-base font-bold ${getProductivityColor(item.log.status)}`}>{item.log.status}</span>
-            </div>
+          );
+        })}
+      
+      {/* Show message if no data for selected year */}
+      {prodLogs.filter(item => {
+        const weekStart = item.week_start ? new Date(item.week_start) : null;
+        return weekStart && weekStart.getFullYear() === selectedDate.getFullYear();
+      }).length === 0 && (
+        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8">
+          <div className="text-center">
+            <p className="text-gray-500 dark:text-gray-400">No productivity data available for {selectedDate.getFullYear()}</p>
           </div>
-        );
-      })}
+        </div>
+      )}
     </>
   );
 
   const renderMonthlyView = () => (
     <>
-      {prodLogs.map((item, idx) => {
-        if (!item.month || isNaN(item.month) || item.month < 1 || item.month > 12) return null;
-        const monthDate = new Date(selectedDate.getFullYear(), item.month - 1, 1);
-        if (isNaN(monthDate.getTime())) return null;
-        return (
-          <div key={item.month} className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2">
-            <div className="text-left">
-              <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                {monthDate.toLocaleDateString('en-US', { month: 'long' })}
-              </div>
-            </div>
-            <div className="flex justify-center">
-              <div className="w-full max-w-lg">
-                <div className="w-full h-6 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden relative">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
-                      item.log.completion_rate >= 70 ? 'bg-green-500 dark:bg-green-300' :
-                      item.log.completion_rate >= 40 ? 'bg-yellow-500 dark:bg-yellow-400' :
-                      'bg-red-500 dark:bg-red-400'
-                    }`}
-                    style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white pointer-events-none">
-                    {item.log.completion_rate}%
-                  </span>
+
+      {prodLogs
+        .filter(item => {
+          // Filter to only show data for the selected year
+          if (!item.year || item.year !== selectedDate.getFullYear()) {
+            return false;
+          }
+          return true;
+        })
+        .map((item, idx) => {
+          if (!item.month || isNaN(item.month) || item.month < 1 || item.month > 12) return null;
+          const monthDate = new Date(selectedDate.getFullYear(), item.month - 1, 1);
+          if (isNaN(monthDate.getTime())) return null;
+          return (
+            <div key={item.month} className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2">
+              <div className="text-left">
+                <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {monthDate.toLocaleDateString('en-US', { month: 'long' })}
                 </div>
               </div>
+              <div className="flex justify-center">
+                <div className="w-full max-w-lg">
+                  <div className="w-full h-6 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden relative">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
+                        item.log.completion_rate >= 70 ? 'bg-green-500 dark:bg-green-300' :
+                        item.log.completion_rate >= 40 ? 'bg-yellow-500 dark:bg-yellow-400' :
+                        'bg-red-500 dark:bg-red-400'
+                      }`}
+                      style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
+                    />
+                    <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white pointer-events-none">
+                      {item.log.completion_rate}%
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className={`text-base font-bold ${getProductivityColor(item.log.status)}`}>{item.log.status}</span>
+              </div>
             </div>
-            <div className="text-right">
-              <span className={`text-base font-bold ${getProductivityColor(item.log.status)}`}>{item.log.status}</span>
-            </div>
+          );
+        })}
+      
+      {/* Show message if no data for selected year */}
+      {prodLogs.filter(item => item.year === selectedDate.getFullYear()).length === 0 && (
+        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8">
+          <div className="text-center">
+            <p className="text-gray-500 dark:text-gray-400">No productivity data available for {selectedDate.getFullYear()}</p>
           </div>
-        );
-      })}
+        </div>
+      )}
     </>
   );
 

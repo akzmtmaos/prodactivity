@@ -223,7 +223,7 @@ const Progress = () => {
     const today = new Date();
     let nextDate: Date;
     if (progressView === 'Daily') {
-      nextDate = addMonths(selectedDate, 1);
+      nextDate = addDays(selectedDate, 1);
       // Only allow if nextDate is not after today
       if (nextDate > today) return;
       setSelectedDate(nextDate);
@@ -259,8 +259,8 @@ const Progress = () => {
   // Determine if prev button should be disabled
   const isPrevDisabled = (() => {
     const today = new Date();
-    const joined = user && user.date_joined ? new Date(user.date_joined) : today;
-    const earliestAllowed = joined > today ? joined : today;
+    const joined = user && user.date_joined ? new Date(user.date_joined) : new Date('2020-01-01'); // Default to reasonable date
+    const earliestAllowed = joined;
     
     if (progressView === 'Daily') {
       const prevDate = subDays(selectedDate, 1);
