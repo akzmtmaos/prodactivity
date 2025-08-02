@@ -33,8 +33,18 @@ const Progress = () => {
 
   // Add state for selected date/period
   const [selectedDate, setSelectedDate] = useState(new Date());
+  
+  // Debug: Track selectedDate changes
+  useEffect(() => {
+    console.log('selectedDate changed to:', selectedDate.toISOString());
+  }, [selectedDate]);
   // Add state for productivity logs list
   const [prodLogs, setProdLogs] = useState<any[]>([]);
+  
+  // Debug: Track prodLogs changes
+  useEffect(() => {
+    console.log('prodLogs changed to:', prodLogs.length, 'items');
+  }, [prodLogs]);
 
   useEffect(() => {
     // Get user data from localStorage
@@ -173,26 +183,28 @@ const Progress = () => {
         const headers = getAuthHeaders();
         let url: string | undefined;
         if (progressView === 'Daily') {
-          // For daily view, we want to fetch all historical logs, not just for selectedDate
-          // The API should return all daily logs for the user
-          url = `/api/progress/productivity_logs/?view=daily`;
+          // For daily view, fetch logs for the specific month being viewed
+          const year = selectedDate.getFullYear();
+          const month = selectedDate.getMonth() + 1; // getMonth() returns 0-11, we need 1-12
+          const monthStr = `${year}-${month.toString().padStart(2, '0')}-01`;
+          url = `/api/progress/productivity_logs/?view=daily&date=${monthStr}`;
         } else if (progressView === 'Weekly') {
           const yearStr = selectedDate.getFullYear();
-          url = `/api/progress/productivity_logs/?view=weekly&date=${yearStr}-01-01&year=${yearStr}`;
+          url = `/api/progress/productivity_logs/?view=weekly&date=${yearStr}-01-01`;
         } else if (progressView === 'Monthly') {
           const yearStr = selectedDate.getFullYear();
-          url = `/api/progress/productivity_logs/?view=monthly&date=${yearStr}-01-01&year=${yearStr}`;
+          url = `/api/progress/productivity_logs/?view=monthly&date=${yearStr}-01-01`;
         } else {
           throw new Error('Invalid progressView');
         }
-        console.log('Fetching productivity logs from:', url); // Debug log
-        console.log('Selected date for API call:', selectedDate);
-        console.log('Selected year for API call:', selectedDate.getFullYear());
+        console.log('Fetching productivity logs from:', url, 'for selectedDate:', selectedDate.toISOString()); // Debug log
         const res = await fetch(url, { ...(headers && { headers }) });
         if (!res.ok) throw new Error('Failed to fetch productivity logs');
         const data = await res.json();
         console.log('Received productivity logs:', data); // Debug log
-        console.log('Data structure sample:', data.slice(0, 3).map((item: any) => ({ year: item.year, month: item.month, log: item.log })));
+        console.log('Total items received:', data.length); // Debug log
+        console.log('Date range:', data.length > 0 ? `${data[0]?.date} to ${data[data.length-1]?.date}` : 'No data'); // Debug log
+        console.log('Setting prodLogs to:', data); // Debug log
         setProdLogs(data);
       } catch (e) {
         console.error('Error fetching productivity logs:', e);
@@ -207,23 +219,18 @@ const Progress = () => {
     const today = new Date();
     let prevDate: Date;
     
-    console.log('handlePrev called, current selectedDate:', selectedDate);
-    
     if (progressView === 'Daily') {
-      prevDate = subDays(selectedDate, 1);
+      prevDate = subMonths(selectedDate, 1);
       // Don't allow going to future dates
       if (prevDate > today) return;
-      console.log('Setting selectedDate to (Daily):', prevDate);
       setSelectedDate(prevDate);
     } else if (progressView === 'Weekly') {
       prevDate = subWeeks(selectedDate, 1);
       if (prevDate > today) return;
-      console.log('Setting selectedDate to (Weekly):', prevDate);
       setSelectedDate(prevDate);
     } else if (progressView === 'Monthly') {
       prevDate = subMonths(selectedDate, 1);
       if (prevDate > today) return;
-      console.log('Setting selectedDate to (Monthly):', prevDate);
       setSelectedDate(prevDate);
     }
   };
@@ -231,7 +238,7 @@ const Progress = () => {
     const today = new Date();
     let nextDate: Date;
     if (progressView === 'Daily') {
-      nextDate = addDays(selectedDate, 1);
+      nextDate = addMonths(selectedDate, 1);
       // Only allow if nextDate is not after today
       if (nextDate > today) return;
       setSelectedDate(nextDate);
@@ -250,7 +257,7 @@ const Progress = () => {
   const isNextDisabled = (() => {
     const today = new Date();
     if (progressView === 'Daily') {
-      const nextDate = addDays(selectedDate, 1);
+      const nextDate = addMonths(selectedDate, 1);
       return nextDate > today;
     }
     if (progressView === 'Weekly') {
@@ -267,11 +274,12 @@ const Progress = () => {
   // Determine if prev button should be disabled
   const isPrevDisabled = (() => {
     const today = new Date();
-    const joined = user && user.date_joined ? new Date(user.date_joined) : new Date('2020-01-01'); // Default to reasonable date
-    const earliestAllowed = joined;
+    // For now, allow navigation to any historical data
+    // We can add user join date restriction later if needed
+    const earliestAllowed = new Date('2020-01-01'); // Allow going back to 2020
     
     if (progressView === 'Daily') {
-      const prevDate = subDays(selectedDate, 1);
+      const prevDate = subMonths(selectedDate, 1);
       return prevDate < earliestAllowed;
     }
     if (progressView === 'Weekly') {
@@ -286,22 +294,18 @@ const Progress = () => {
   })();
   // Format date display
   function getDateDisplay() {
-    console.log('getDateDisplay called with selectedDate:', selectedDate);
     if (progressView === 'Daily') {
       // Show month and year of the selected date
-      const result = format(selectedDate, 'MMMM yyyy');
-      console.log('Daily display result:', result);
-      return result;
+      return format(selectedDate, 'MMMM yyyy');
     }
     if (progressView === 'Weekly' || progressView === 'Monthly') {
       // Show only the year
-      const result = format(selectedDate, 'yyyy');
-      console.log('Weekly/Monthly display result:', result);
-      return result;
+      return format(selectedDate, 'yyyy');
     }
     return '';
   }
-  // Reset selectedDate when tab changes - REMOVED as it was causing issues with navigation
+  // Note: Removed automatic selectedDate reset to prevent data disappearing
+  // The selectedDate will now persist when navigating between months
 
   if (!user) {
     return (

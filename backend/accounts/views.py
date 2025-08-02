@@ -37,8 +37,11 @@ def login_view(request):
         return Response({'message': 'Email and password required.'}, status=400)
 
     try:
-        user = User.objects.get(email=email)
-    except User.DoesNotExist:
+        # Get the first user with this email (in case of duplicates)
+        user = User.objects.filter(email=email).first()
+        if not user:
+            return Response({'message': 'Invalid credentials'}, status=401)
+    except Exception:
         return Response({'message': 'Invalid credentials'}, status=401)
 
     if user.check_password(password):

@@ -31,9 +31,12 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   onComplete,
   deckId // Add deckId prop
 }) => {
+  // ALL HOOKS MUST BE CALLED FIRST, BEFORE ANY CONDITIONAL LOGIC
+  const { isCollapsed } = useNavbar();
+  
   // Shuffle flashcards once at the start
   const [shuffledFlashcards] = useState(() => {
-    const arr = [...flashcards];
+    const arr = [...flashcards].filter(f => f && f.id && f.front && f.back);
     for (let i = arr.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -47,26 +50,67 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   const [quizComplete, setQuizComplete] = useState(false);
   const [options, setOptions] = useState<string[]>([]);
 
+  // Generate multiple choice options for current question
+  useEffect(() => {
+    if (shuffledFlashcards.length > 0 && currentQuestionIndex < shuffledFlashcards.length) {
+      const currentQuestion = shuffledFlashcards[currentQuestionIndex];
+      if (currentQuestion) {
+        // Get 3 random wrong answers from other flashcards
+        const wrongAnswers = shuffledFlashcards
+          .filter(f => f.id !== currentQuestion.id)
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 3)
+          .map(f => f.back);
+
+        // Combine correct answer with wrong answers and shuffle
+        const allOptions = [currentQuestion.back, ...wrongAnswers]
+          .sort(() => Math.random() - 0.5);
+        
+        setOptions(allOptions);
+      }
+    }
+  }, [currentQuestionIndex, shuffledFlashcards]);
+
   const currentQuestion = shuffledFlashcards[currentQuestionIndex];
   const progress = ((currentQuestionIndex + 1) / shuffledFlashcards.length) * 100;
 
-  // Generate multiple choice options for current question
-  useEffect(() => {
-    if (currentQuestion) {
-      // Get 3 random wrong answers from other flashcards
-      const wrongAnswers = shuffledFlashcards
-        .filter(f => f.id !== currentQuestion.id)
-        .sort(() => Math.random() - 0.5)
-        .slice(0, 3)
-        .map(f => f.back);
+  // NOW WE CAN HAVE CONDITIONAL LOGIC AFTER ALL HOOKS ARE CALLED
+  
+  // Handle empty flashcards case
+  if (flashcards.length === 0) {
+    return (
+      <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto flex flex-col items-center justify-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-md">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">No Flashcards</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">This deck has no flashcards to quiz. Please add some cards first!</p>
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+          >
+            Back to Decks
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-      // Combine correct answer with wrong answers and shuffle
-      const allOptions = [currentQuestion.back, ...wrongAnswers]
-        .sort(() => Math.random() - 0.5);
-      
-      setOptions(allOptions);
-    }
-  }, [currentQuestionIndex, shuffledFlashcards]);
+  // Safety check for current question
+  if (!currentQuestion) {
+    return (
+      <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto flex flex-col items-center justify-center">
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-md">
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Error</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">Unable to load quiz questions. Please try again.</p>
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+          >
+            Back to Decks
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleAnswerSelect = (answer: string) => {
     setSelectedAnswer(answer);
@@ -121,9 +165,6 @@ const QuizSession: React.FC<QuizSessionProps> = ({
     setQuizComplete(true);
     onComplete(quizResults);
   };
-
-  const { isCollapsed } = useNavbar();
-  const marginClass = `md:ml-${isCollapsed ? '20' : '64'}`;
 
   if (quizComplete) {
     const correctAnswers = Object.entries(answers).filter(

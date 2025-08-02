@@ -74,6 +74,7 @@ const Decks = () => {
   const [showStudySession, setShowStudySession] = useState(false);
   const [showSubDeckModal, setShowSubDeckModal] = useState(false);
   const [showQuizSession, setShowQuizSession] = useState(false);
+  const [showNoFlashcardsModal, setShowNoFlashcardsModal] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<'decks' | 'stats' | 'archived'>('decks');
@@ -201,16 +202,26 @@ const Decks = () => {
   const handlePractice = (deckId: string) => {
     const deck = decks.find(d => d.id === deckId);
     if (deck) {
-      setSelectedDeck(deck);
-      setShowStudySession(true);
+      if (deck.flashcardCount === 0) {
+        setSelectedDeck(deck);
+        setShowNoFlashcardsModal(true);
+      } else {
+        setSelectedDeck(deck);
+        setShowStudySession(true);
+      }
     }
   };
 
   const handleQuizMode = (deckId: string) => {
     const deck = decks.find(d => d.id === deckId);
     if (deck) {
-      setSelectedDeck(deck);
-      setShowQuizSession(true);
+      if (deck.flashcardCount === 0) {
+        setSelectedDeck(deck);
+        setShowNoFlashcardsModal(true);
+      } else {
+        setSelectedDeck(deck);
+        setShowQuizSession(true);
+      }
     }
   };
 
@@ -392,12 +403,14 @@ const Decks = () => {
       {showStudySession && selectedDeck && (
         <StudySession
           deckTitle={selectedDeck.title}
-          flashcards={selectedDeck.flashcards.map(f => ({
-            id: f.id,
-            front: f.front || f.question,
-            back: f.back || f.answer,
-            difficulty: f.difficulty
-          }))}
+          flashcards={selectedDeck.flashcards
+            .filter(f => f && f.id && (f.front || f.question) && (f.back || f.answer))
+            .map(f => ({
+              id: f.id,
+              front: f.front || f.question,
+              back: f.back || f.answer,
+              difficulty: f.difficulty
+            }))}
           onClose={() => {
             setShowStudySession(false);
             setSelectedDeck(null);
@@ -432,12 +445,14 @@ const Decks = () => {
         <QuizSession
           deckId={selectedDeck.id}
           deckTitle={selectedDeck.title}
-          flashcards={selectedDeck.flashcards.map(f => ({
-            id: f.id,
-            front: f.front || f.question,
-            back: f.back || f.answer,
-            difficulty: f.difficulty
-          }))}
+          flashcards={selectedDeck.flashcards
+            .filter(f => f && f.id && (f.front || f.question) && (f.back || f.answer))
+            .map(f => ({
+              id: f.id,
+              front: f.front || f.question,
+              back: f.back || f.answer,
+              difficulty: f.difficulty
+            }))}
           onClose={() => {
             setShowQuizSession(false);
             setSelectedDeck(null);
@@ -741,20 +756,64 @@ const Decks = () => {
                   }}
                 />
               )}
-              {showSubDeckModal && selectedDeck && (
-                <SubDeckModal
-                  isOpen={showSubDeckModal}
-                  deckTitle={selectedDeck.title}
-                  subDecks={selectedDeck.subDecks || []}
-                  onClose={() => {
-                    setShowSubDeckModal(false);
+                          {showSubDeckModal && selectedDeck && (
+        <SubDeckModal
+          isOpen={showSubDeckModal}
+          deckTitle={selectedDeck.title}
+          subDecks={selectedDeck.subDecks || []}
+          onClose={() => {
+            setShowSubDeckModal(false);
+            setSelectedDeck(null);
+          }}
+          onAddSubDeck={(subDeckData) => handleAddSubDeck(selectedDeck.id, subDeckData)}
+          onUpdateSubDeck={(id, subDeckData) => handleUpdateSubDeck(selectedDeck.id, id, subDeckData)}
+          onDeleteSubDeck={(id) => handleDeleteSubDeck(selectedDeck.id, id)}
+        />
+      )}
+      {/* No Flashcards Error Modal */}
+      {showNoFlashcardsModal && selectedDeck && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/20 sm:mx-0 sm:h-10 sm:w-10">
+                    <svg className="h-6 w-6 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+                      No Flashcards Available
+                    </h3>
+                    <div className="mt-2">
+                                           <p className="text-sm text-gray-500 dark:text-gray-400">
+                       The deck "{selectedDeck.title}" has no flashcards. Please add some cards first!
+                     </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowNoFlashcardsModal(false);
                     setSelectedDeck(null);
                   }}
-                  onAddSubDeck={(subDeckData) => handleAddSubDeck(selectedDeck.id, subDeckData)}
-                  onUpdateSubDeck={(id, subDeckData) => handleUpdateSubDeck(selectedDeck.id, id, subDeckData)}
-                  onDeleteSubDeck={(id) => handleDeleteSubDeck(selectedDeck.id, id)}
-                />
-              )}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
             </div>
           )}
           {activeTab === 'stats' && (
