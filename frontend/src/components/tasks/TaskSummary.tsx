@@ -1,5 +1,6 @@
 import React from 'react';
 import { Task } from '../../types/task';
+import { getTodayDate } from '../../utils/dateUtils';
 
 interface TaskSummaryProps {
   tasks: Task[];
@@ -12,7 +13,7 @@ const TaskSummary: React.FC<TaskSummaryProps> = ({ tasks }) => {
   const highPriorityTasks = tasks.filter(task => task.priority === 'high' && !task.completed).length;
   
   // Calculate tasks due today
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayDate();
   const dueToday = tasks.filter(task => task.dueDate === today && !task.completed).length;
 
   return (

@@ -7,13 +7,25 @@ import TaskFilters from '../components/tasks/TaskFilters';
 import TaskSummary from '../components/tasks/TaskSummary';
 import { Task } from '../types/task';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
+import { getTimezoneOffset } from '../utils/dateUtils';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
 // Add getAuthHeaders function for JWT authentication
 const getAuthHeaders = () => {
   const token = localStorage.getItem('accessToken');
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  const headers: Record<string, string> = {};
+  
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+  
+  // Add timezone offset for backend date handling
+  // Temporarily disabled to test basic functionality
+  // const timezoneOffset = getTimezoneOffset();
+  // headers['X-Timezone-Offset'] = timezoneOffset.toString();
+  
+  return headers;
 };
 
 const Tasks = () => {
@@ -100,14 +112,16 @@ const Tasks = () => {
       
       params.append('ordering', `${sortDirection === 'desc' ? '-' : ''}${sortField}`);
       
-      const response = await axios.get(`${API_BASE_URL}/tasks/?${params.toString()}`, { headers: getAuthHeaders() });
+      const headers = getAuthHeaders();
+      const response = await axios.get(`${API_BASE_URL}/tasks/?${params.toString()}`, { headers });
+      
       // Map due_date to dueDate for each task
       const mappedTasks = response.data.map((task: any) => ({
         ...task,
         dueDate: task.due_date,
       }));
       setTasks(mappedTasks);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error fetching tasks:', err);
       setError('Failed to load tasks. Please try again later.');
     } finally {
@@ -121,12 +135,17 @@ const Tasks = () => {
       // Map dueDate to due_date for backend compatibility (omit dueDate)
       const { dueDate, ...rest } = taskData;
       const backendTaskData = { ...rest, due_date: dueDate };
-      const response = await axios.post(`${API_BASE_URL}/tasks/`, backendTaskData, { headers: getAuthHeaders() });
+      
+      // Debug logging removed
+      
+      const headers = getAuthHeaders();
+      const response = await axios.post(`${API_BASE_URL}/tasks/`, backendTaskData, { headers });
+      
       // Map due_date to dueDate for the new task
       const newTask = { ...response.data, dueDate: response.data.due_date };
       setTasks([...tasks, newTask]);
       setIsFormOpen(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error adding task:', err);
       setError('Failed to add task. Please try again.');
     }

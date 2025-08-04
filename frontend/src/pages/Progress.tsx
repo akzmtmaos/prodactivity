@@ -8,6 +8,7 @@ import ProgressOverview from '../components/progress/ProgressOverview';
 import ProgressTabs from '../components/progress/ProgressTabs';
 import ProductivityHistory from '../components/progress/ProductivityHistory';
 import { format, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
+import { getTodayDate } from '../utils/dateUtils';
 
 const TABS = ['Daily', 'Weekly', 'Monthly'];
 
@@ -87,7 +88,7 @@ const Progress = () => {
     const fetchTodaysProductivity = async () => {
       try {
         const headers = getAuthHeaders();
-        const todayStr = new Date().toISOString().split('T')[0];
+        const todayStr = getTodayDate(); // Use local timezone instead of UTC
         // Add cache-busting parameter to ensure fresh data
         const res = await fetch(`/api/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
           ...(headers && { headers })
@@ -101,14 +102,21 @@ const Progress = () => {
         setTodaysProductivity(null);
       }
     };
+    
     fetchTodaysProductivity();
+    
+    // Set up periodic refresh every 30 seconds
+    const interval = setInterval(fetchTodaysProductivity, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Manual refresh function for debugging
   const refreshProductivity = async () => {
     try {
       const headers = getAuthHeaders();
-      const todayStr = new Date().toISOString().split('T')[0];
+      const todayStr = getTodayDate(); // Use local timezone instead of UTC
+      console.log('Refreshing productivity for date:', todayStr);
       const res = await fetch(`/api/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
         ...(headers && { headers })
       });
@@ -128,16 +136,16 @@ const Progress = () => {
         const headers = getAuthHeaders();
         let url: string | undefined;
         if (progressView === 'Daily') {
-          const todayStr = selectedDate.toISOString().split('T')[0];
+          const todayStr = format(selectedDate, 'yyyy-MM-dd'); // Use local date formatting
           url = `/api/progress/productivity/?view=daily&date=${todayStr}`;
         } else if (progressView === 'Weekly') {
           const monday = new Date(selectedDate);
           monday.setDate(monday.getDate() - monday.getDay() + 1);
-          const weekStr = monday.toISOString().split('T')[0];
+          const weekStr = format(monday, 'yyyy-MM-dd'); // Use local date formatting
           url = `/api/progress/productivity/?view=weekly&date=${weekStr}`;
         } else if (progressView === 'Monthly') {
           const firstOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-          const monthStr = firstOfMonth.toISOString().split('T')[0];
+          const monthStr = format(firstOfMonth, 'yyyy-MM-dd'); // Use local date formatting
           url = `/api/progress/productivity/?view=monthly&date=${monthStr}`;
         } else {
           throw new Error('Invalid progressView');
@@ -155,7 +163,7 @@ const Progress = () => {
         if (progressView === 'Daily') {
           const yesterday = new Date(selectedDate);
           yesterday.setDate(yesterday.getDate() - 1);
-          const yDate = yesterday.toISOString().split('T')[0];
+          const yDate = format(yesterday, 'yyyy-MM-dd'); // Use local date formatting
           const yRes = await fetch(`/api/progress/productivity/?view=daily&date=${yDate}`, {
             ...(headers && { headers })
           });

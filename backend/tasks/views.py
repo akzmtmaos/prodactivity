@@ -1,8 +1,9 @@
 from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticated
-from django_filters.rest_framework import DjangoFilterBackend
+# from django_filters.rest_framework import DjangoFilterBackend
 from .models import Task, XPLog, ProductivityLog
 from .serializers import TaskSerializer
+# from .utils import get_user_local_date_from_request
 import logging
 from rest_framework.response import Response
 
@@ -11,8 +12,8 @@ logger = logging.getLogger(__name__)
 class TaskViewSet(viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
-    filterset_fields = ['completed', 'priority', 'category']
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    # filterset_fields = ['completed', 'priority', 'category']  # Temporarily disabled
     search_fields = ['title', 'description']
     ordering_fields = ['due_date', 'priority', 'title', 'category']
     ordering = ['due_date', 'priority']
@@ -29,7 +30,15 @@ class TaskViewSet(viewsets.ModelViewSet):
             
             # Update productivity for today if the new task is due today
             from django.utils import timezone
-            today = timezone.now().date()
+            from datetime import timedelta
+            
+            # Use Philippine time (UTC+8)
+            utc_now = timezone.now()
+            ph_time = utc_now + timedelta(hours=8)
+            today = ph_time.date()
+            
+            logger.debug(f"[TaskViewSet] Task due_date: {task.due_date}, Today (Philippine): {today}, Equal: {task.due_date == today}")
+            
             if task.due_date == today:
                 logger.debug(f"[TaskViewSet] Updating productivity for today's task")
                 self._update_today_productivity(self.request.user)
@@ -52,10 +61,20 @@ class TaskViewSet(viewsets.ModelViewSet):
     def _update_today_productivity(self, user):
         """Update productivity for today's tasks"""
         from django.utils import timezone
-        today = timezone.now().date()
+        from datetime import timedelta
+        
+        # Use Philippine time (UTC+8)
+        utc_now = timezone.now()
+        ph_time = utc_now + timedelta(hours=8)
+        today = ph_time.date()
+        
+        logger.debug(f"[_update_today_productivity] Using Philippine date: {today}")
+        
         tasks = Task.all_objects.filter(user=user, due_date=today, is_deleted=False)
         total_tasks = tasks.count()
         completed_tasks = tasks.filter(completed=True).count()
+        
+        logger.debug(f"[_update_today_productivity] Total tasks: {total_tasks}, Completed: {completed_tasks}")
         
         logger.debug(f"[_update_today_productivity] Today: {today}")
         logger.debug(f"[_update_today_productivity] Total tasks: {total_tasks}, Completed: {completed_tasks}")

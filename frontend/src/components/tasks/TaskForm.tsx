@@ -1,5 +1,6 @@
 import React from 'react';
 import { Task } from '../../types/task';
+import { getTodayDate } from '../../utils/dateUtils';
 
 interface TaskFormProps {
   task?: Task;
@@ -11,7 +12,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel }) => {
   const [formData, setFormData] = React.useState<Omit<Task, 'id'>>({
     title: task?.title || '',
     description: task?.description || '',
-    dueDate: task?.dueDate || new Date().toISOString().split('T')[0],
+    dueDate: task?.dueDate || getTodayDate(),
     priority: task?.priority || 'medium',
     completed: task?.completed || false,
     category: task?.category || 'study'

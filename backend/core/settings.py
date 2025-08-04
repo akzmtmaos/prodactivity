@@ -139,6 +139,20 @@ MIDDLEWARE = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+# CORS Headers configuration
+CORS_ALLOW_HEADERS = [
+    'accept',
+    'accept-encoding',
+    'authorization',
+    'content-type',
+    'dnt',
+    'origin',
+    'user-agent',
+    'x-csrftoken',
+    'x-requested-with',
+    'x-timezone-offset',  # Allow our custom timezone header
+]
+
 ROOT_URLCONF = 'core.urls'
 
 TEMPLATES = [

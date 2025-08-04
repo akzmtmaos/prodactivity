@@ -106,7 +106,11 @@ def user_productivity(request):
     view = request.GET.get('view', 'weekly').lower()
     date_str = request.GET.get('date')
     lock = request.GET.get('lock') == '1'
-    today = timezone.localdate()
+    
+    # Use Philippine time (UTC+8) to match task creation logic
+    utc_now = timezone.now()
+    ph_time = utc_now + timedelta(hours=8)
+    today = ph_time.date()
 
     # Determine period
     if view == 'daily':
@@ -196,6 +200,11 @@ def user_productivity(request):
     # - Only deleted tasks that were completed (was_completed_on_delete=True)
     tasks = Task.all_objects.filter(user=user, due_date__range=(start, end))
     non_deleted = tasks.filter(is_deleted=False)
+    
+    print(f"[DEBUG] Productivity endpoint - Today (Philippine): {today}")
+    print(f"[DEBUG] Productivity endpoint - Start: {start}, End: {end}")
+    print(f"[DEBUG] Productivity endpoint - Total tasks found: {tasks.count()}")
+    print(f"[DEBUG] Productivity endpoint - Non-deleted tasks: {non_deleted.count()}")
     deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
     total_tasks = non_deleted.count() + deleted_completed.count()
     completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()

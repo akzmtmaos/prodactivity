@@ -1,6 +1,6 @@
 // frontend/src/components/NotebookList.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Edit, Trash2, Book, Save, X, MoreVertical } from 'lucide-react';
+import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen } from 'lucide-react';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
 import CreateNotebookModal from './CreateNotebookModal';
 
@@ -71,7 +71,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
   }, [openMenuId]);
 
   return (
-    <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 rounded-lg shadow p-5 h-[calc(100vh-12rem)] lg:h-[calc(100vh-12rem)] flex flex-col">
+    <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow p-5 h-[calc(100vh-12rem)] flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
           <Book className="inline-block mr-2" size={20} />
@@ -87,7 +87,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
       </div>
       
       {/* Notebooks list */}
-      <div className="space-y-2 flex-1 overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 overflow-y-auto">
         {notebooks.map((notebook) => (
           <div key={notebook.id} className="group">
             {editingNotebook?.id === notebook.id ? (
@@ -115,40 +115,65 @@ const NotebookList: React.FC<NotebookListProps> = ({
               </div>
             ) : (
               <div
-                className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${
+                className={`p-4 rounded-lg transition-all border h-full flex flex-col ${
                   selectedNotebook?.id === notebook.id
-                    ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200'
-                    : 'hover:bg-gray-100 dark:hover:bg-gray-700'
+                    ? 'bg-indigo-50 dark:bg-indigo-900/50 border-indigo-200 dark:border-indigo-700 shadow-md'
+                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600'
                 }`}
-                onClick={() => onNotebookSelect(notebook)}
               >
-                <div className="flex items-center">
-                  <Book className="mr-2 text-white" size={18} />
-                  <div>
-                    <span className={`font-medium ${selectedNotebook?.id === notebook.id ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-gray-800 dark:text-gray-200'}`}>{notebook.name}</span>
-                    <span className="ml-2 text-sm text-gray-500 dark:text-gray-400">
-                      ({notebook.notes_count})
-                    </span>
+                <div className="flex items-center mb-3">
+                  <div className={`p-2 rounded-lg mr-3 ${
+                    selectedNotebook?.id === notebook.id
+                      ? 'bg-indigo-100 dark:bg-indigo-800'
+                      : 'bg-gray-100 dark:bg-gray-700'
+                  }`}>
+                    <Book className={`${
+                      selectedNotebook?.id === notebook.id
+                        ? 'text-indigo-600 dark:text-indigo-300'
+                        : 'text-gray-600 dark:text-gray-400'
+                    }`} size={20} />
+                  </div>
+                  <div className="flex-1">
+                    <div className={`font-semibold text-lg ${
+                      selectedNotebook?.id === notebook.id 
+                        ? 'text-indigo-700 dark:text-indigo-300' 
+                        : 'text-gray-800 dark:text-gray-200'
+                    }`}>
+                      {notebook.name}
+                    </div>
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {notebook.notes_count} {notebook.notes_count === 1 ? 'note' : 'notes'}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center gap-2 mt-auto">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      onNotebookSelect(notebook);
+                    }}
+                    className="flex-1 px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center"
+                  >
+                    <FolderOpen size={14} className="mr-1" />
+                    View Notes
+                  </button>
                   <button
                     onClick={e => {
                       e.stopPropagation();
                       onStartEditingNotebook(notebook);
                     }}
-                    className="p-1 text-gray-500 hover:text-indigo-600 mr-1"
+                    className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
                   >
-                    <Edit size={16} className="text-white" />
+                    <Edit size={16} />
                   </button>
                   <button
                     onClick={e => {
                       e.stopPropagation();
                       setNotebookToDelete(notebook);
                     }}
-                    className="p-1 text-gray-500 hover:text-red-600"
+                    className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
                   >
-                    <Trash2 size={16} className="text-white" />
+                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>
