@@ -68,9 +68,12 @@ const Notes = () => {
 
   // Add filter state
   const [filterType, setFilterType] = useState<'all' | 'title' | 'content' | 'date'>('all');
+  const [notebookSearchTerm, setNotebookSearchTerm] = useState('');
+  const [notebookFilterType, setNotebookFilterType] = useState<'all' | 'name' | 'date'>('all');
 
   // Add tab state
   const [activeTab, setActiveTab] = useState<'notes' | 'logs' | 'archived'>('notes');
+  const [activeNotebookTab, setActiveNotebookTab] = useState<'notebooks' | 'archived'>('notebooks');
 
   // Add toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -226,6 +229,8 @@ const Notes = () => {
     setSelectedNotebook(null);
     setNotes([]);
     setSearchTerm('');
+    setNotebookSearchTerm('');
+    setNotebookFilterType('all');
   };
 
   const handleAddNotebook = async () => {
@@ -501,6 +506,20 @@ const Notes = () => {
     );
   });
 
+  // Filter notebooks based on search term and filter type
+  const filteredNotebooks = notebooks.filter(notebook => {
+    const term = notebookSearchTerm.toLowerCase();
+    if (!term) return true;
+    if (notebookFilterType === 'name') return notebook.name.toLowerCase().includes(term);
+    if (notebookFilterType === 'date') return notebook.created_at.toLowerCase().includes(term) || notebook.updated_at.toLowerCase().includes(term);
+    // 'all'
+    return (
+      notebook.name.toLowerCase().includes(term) ||
+      notebook.created_at.toLowerCase().includes(term) ||
+      notebook.updated_at.toLowerCase().includes(term)
+    );
+  });
+
   // Add handler to update note title
   const handleUpdateNoteTitle = async (noteId: number, newTitle: string) => {
     try {
@@ -715,7 +734,60 @@ const Notes = () => {
                 }
               </p>
             </div>
-            {/* Search and Filter Bar - Only show when viewing notes */}
+            {/* Search and Filter Bar - Show for both notebooks and notes */}
+            {currentView === 'notebooks' && (
+              <>
+                {/* Search and Filter Bar for Notebooks - Desktop */}
+                <div className="hidden sm:flex items-center gap-2 mt-4 sm:mt-0 justify-end w-full sm:w-auto">
+                  <select
+                    value={notebookFilterType}
+                    onChange={e => setNotebookFilterType(e.target.value as any)}
+                    className="h-10 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    style={{ minWidth: '100px' }}
+                  >
+                    <option value="all">All</option>
+                    <option value="name">Name</option>
+                    <option value="date">Date</option>
+                  </select>
+                  <div className="w-64">
+                    <SearchBar
+                      searchTerm={notebookSearchTerm}
+                      onSearchChange={setNotebookSearchTerm}
+                      placeholder="Search notebooks..."
+                      inputClassName="h-10"
+                      noMargin
+                    />
+                  </div>
+                </div>
+                
+                {/* Search and Filter Bar for Notebooks - Mobile */}
+                <div className="sm:hidden mb-6">
+                  <div className="flex gap-3">
+                    <div className="flex-1">
+                      <SearchBar
+                        searchTerm={notebookSearchTerm}
+                        onSearchChange={setNotebookSearchTerm}
+                        placeholder="Search notebooks..."
+                        inputClassName="h-12 text-base"
+                        noMargin
+                      />
+                    </div>
+                    <div className="w-32">
+                      <select
+                        value={notebookFilterType}
+                        onChange={e => setNotebookFilterType(e.target.value as any)}
+                        className="w-full h-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="all">All</option>
+                        <option value="name">Name</option>
+                        <option value="date">Date</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+            
             {currentView === 'notes' && (
               <>
                 {/* Search and Filter Bar - Desktop */}
@@ -771,7 +843,34 @@ const Notes = () => {
               </>
             )}
           </div>
-          {/* Tabs styled like Settings - Only show when viewing notes */}
+          {/* Tabs styled like Settings - Show for both notebooks and notes */}
+          {currentView === 'notebooks' && (
+            <div>
+              <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
+                <button
+                  onClick={() => setActiveNotebookTab('notebooks')}
+                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                    activeNotebookTab === 'notebooks'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  Notebooks
+                </button>
+                <button
+                  onClick={() => setActiveNotebookTab('archived')}
+                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                    activeNotebookTab === 'archived'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  Archived
+                </button>
+              </div>
+            </div>
+          )}
+          
           {currentView === 'notes' && (
             <div>
               <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
@@ -848,41 +947,80 @@ const Notes = () => {
             <div className="flex-1 overflow-hidden">
               {currentView.includes('notebook') && (
                 <>
-                  {notebooks.length === 0 ? (
+                  {activeNotebookTab === 'notebooks' && (
+                    <>
+                      {notebooks.length === 0 ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <div className="text-gray-400 dark:text-gray-500 mb-4">
+                              <Book size={48} />
+                            </div>
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                              No notebooks yet
+                            </h3>
+                            <p className="text-gray-500 dark:text-gray-400 mb-4">
+                              Create your first notebook to get started
+                            </p>
+                            <button
+                              onClick={() => {/* This will be handled by the NotebookList component */}}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                            >
+                              Create Notebook
+                            </button>
+                          </div>
+                        </div>
+                      ) : filteredNotebooks.length === 0 ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <div className="text-gray-400 dark:text-gray-500 mb-4">
+                              <Book size={48} />
+                            </div>
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                              No notebooks found
+                            </h3>
+                            <p className="text-gray-500 dark:text-gray-400 mb-4">
+                              Try adjusting your search terms
+                            </p>
+                            <button
+                              onClick={() => setNotebookSearchTerm('')}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+                            >
+                              Clear Search
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <NotebookList
+                          notebooks={filteredNotebooks}
+                          selectedNotebook={selectedNotebook}
+                          editingNotebook={editingNotebook}
+                          newNotebookName={newNotebookName}
+                          onNotebookSelect={handleNotebookSelect}
+                          onAddNotebook={handleAddNotebook}
+                          onUpdateNotebook={handleUpdateNotebook}
+                          onDeleteNotebook={handleDeleteNotebook}
+                          onStartEditingNotebook={handleStartEditingNotebook}
+                          onCancelEditingNotebook={handleCancelEditingNotebook}
+                          onNotebookNameChange={setNewNotebookName}
+                          onCreateNotebook={handleCreateNotebookDirect}
+                        />
+                      )}
+                    </>
+                  )}
+                  {activeNotebookTab === 'archived' && (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
                         <div className="text-gray-400 dark:text-gray-500 mb-4">
                           <Book size={48} />
                         </div>
                         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                          No notebooks yet
+                          Archived Notebooks
                         </h3>
                         <p className="text-gray-500 dark:text-gray-400 mb-4">
-                          Create your first notebook to get started
+                          Archived notebooks will appear here
                         </p>
-                        <button
-                          onClick={() => {/* This will be handled by the NotebookList component */}}
-                          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                        >
-                          Create Notebook
-                        </button>
                       </div>
                     </div>
-                  ) : (
-                    <NotebookList
-                      notebooks={notebooks}
-                      selectedNotebook={selectedNotebook}
-                      editingNotebook={editingNotebook}
-                      newNotebookName={newNotebookName}
-                      onNotebookSelect={handleNotebookSelect}
-                      onAddNotebook={handleAddNotebook}
-                      onUpdateNotebook={handleUpdateNotebook}
-                      onDeleteNotebook={handleDeleteNotebook}
-                      onStartEditingNotebook={handleStartEditingNotebook}
-                      onCancelEditingNotebook={handleCancelEditingNotebook}
-                      onNotebookNameChange={setNewNotebookName}
-                      onCreateNotebook={handleCreateNotebookDirect}
-                    />
                   )}
                 </>
               )}
@@ -956,7 +1094,19 @@ const Notes = () => {
             cancelLabel="Cancel"
           />
           {currentView === 'notes' && activeTab === 'archived' && (
-            <div className="p-8 text-center text-gray-500 dark:text-gray-400">Archived notes will appear here.</div>
+            <div className="flex items-center justify-center h-full">
+              <div className="text-center">
+                <div className="text-gray-400 dark:text-gray-500 mb-4">
+                  <Book size={48} />
+                </div>
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  Archived Notes
+                </h3>
+                <p className="text-gray-500 dark:text-gray-400 mb-4">
+                  Archived notes will appear here
+                </p>
+              </div>
+            </div>
           )}
         </div>
       </div>

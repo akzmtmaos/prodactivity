@@ -22,7 +22,7 @@ const TaskItem: React.FC<TaskItemProps> = ({
 }) => {
   return (
     <div
-      className={`group flex items-center gap-4 p-4 mb-3 bg-gray-50 dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 transition hover:shadow-md relative`}
+      className={`group flex items-center gap-4 p-4 mb-3 bg-gray-50 dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 transition hover:shadow-md relative min-h-[80px] w-full`}
     >
       {/* Priority color bar */}
       <div className={`w-1.5 h-10 rounded-full mr-2 ${priorityColors[task.priority] || 'bg-gray-300'}`}></div>

@@ -71,7 +71,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
   }, [openMenuId]);
 
   return (
-    <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow p-5 h-[calc(100vh-12rem)] flex flex-col">
+    <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow p-5 h-full flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
           <Book className="inline-block mr-2" size={20} />
@@ -87,11 +87,11 @@ const NotebookList: React.FC<NotebookListProps> = ({
       </div>
       
       {/* Notebooks list */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 flex-1 overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-1 overflow-y-auto">
         {notebooks.map((notebook) => (
           <div key={notebook.id} className="group">
             {editingNotebook?.id === notebook.id ? (
-              <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg">
+              <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg min-h-[140px] w-full">
                 <input
                   type="text"
                   value={newNotebookName}
@@ -115,11 +115,12 @@ const NotebookList: React.FC<NotebookListProps> = ({
               </div>
             ) : (
               <div
-                className={`p-4 rounded-lg transition-all border h-full flex flex-col ${
+                className={`p-4 rounded-lg transition-all border flex flex-col cursor-pointer min-h-[140px] w-full ${
                   selectedNotebook?.id === notebook.id
                     ? 'bg-indigo-50 dark:bg-indigo-900/50 border-indigo-200 dark:border-indigo-700 shadow-md'
                     : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600'
                 }`}
+                onClick={() => onNotebookSelect(notebook)}
               >
                 <div className="flex items-center mb-3">
                   <div className={`p-2 rounded-lg mr-3 ${
@@ -146,23 +147,14 @@ const NotebookList: React.FC<NotebookListProps> = ({
                     </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 mt-auto">
-                  <button
-                    onClick={e => {
-                      e.stopPropagation();
-                      onNotebookSelect(notebook);
-                    }}
-                    className="flex-1 px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors flex items-center justify-center"
-                  >
-                    <FolderOpen size={14} className="mr-1" />
-                    View Notes
-                  </button>
+                <div className="flex items-center gap-2 mt-auto justify-end">
                   <button
                     onClick={e => {
                       e.stopPropagation();
                       onStartEditingNotebook(notebook);
                     }}
                     className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
+                    title="Edit notebook"
                   >
                     <Edit size={16} />
                   </button>
@@ -172,6 +164,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
                       setNotebookToDelete(notebook);
                     }}
                     className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                    title="Delete notebook"
                   >
                     <Trash2 size={16} />
                   </button>
