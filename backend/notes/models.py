@@ -7,7 +7,9 @@ class Notebook(models.Model):
     name = models.CharField(max_length=255)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notebooks')
     created_at = models.DateTimeField(default=timezone.now)
-    updated_at = models.DateTimeField(auto_now=True) 
+    updated_at = models.DateTimeField(auto_now=True)
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         verbose_name_plural = "Notebooks"
@@ -19,7 +21,7 @@ class Notebook(models.Model):
     
     @property
     def notes_count(self):
-        return self.notes.filter(is_deleted=False).count()
+        return self.notes.filter(is_deleted=False, is_archived=False).count()
 
 class Note(models.Model):
     title = models.CharField(max_length=255)
@@ -30,6 +32,8 @@ class Note(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
     last_visited = models.DateTimeField(null=True, blank=True)
     
     class Meta:

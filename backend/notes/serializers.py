@@ -7,7 +7,7 @@ class NotebookSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Notebook
-        fields = ['id', 'name', 'created_at', 'updated_at', 'notes_count']
+        fields = ['id', 'name', 'created_at', 'updated_at', 'notes_count', 'is_archived', 'archived_at']
         read_only_fields = ['id', 'created_at', 'updated_at'] 
     
     def create(self, validated_data):
@@ -19,7 +19,7 @@ class NoteSerializer(serializers.ModelSerializer):
     
     class Meta:
         model = Note
-        fields = ['id', 'title', 'content', 'notebook', 'notebook_name', 'created_at', 'updated_at', 'is_deleted', 'deleted_at', 'last_visited']
+        fields = ['id', 'title', 'content', 'notebook', 'notebook_name', 'created_at', 'updated_at', 'is_deleted', 'deleted_at', 'is_archived', 'archived_at', 'last_visited']
         read_only_fields = ['id', 'created_at', 'updated_at', 'notebook_name']
     
     def create(self, validated_data):

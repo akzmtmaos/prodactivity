@@ -9,7 +9,7 @@ import NoteEditor from '../components/notes/NoteEditor';
 import PageLayout from '../components/PageLayout';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
-import { ChevronLeft, Plus, FolderOpen, Book } from 'lucide-react';
+import { ChevronLeft, Plus, FolderOpen, Book, Archive, RotateCcw } from 'lucide-react';
 
 interface Notebook {
   id: number;
@@ -17,6 +17,8 @@ interface Notebook {
   created_at: string;
   updated_at: string;
   notes_count: number;
+  is_archived: boolean;
+  archived_at: string | null;
 }
 
 interface Note {
@@ -28,6 +30,8 @@ interface Note {
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
+  is_archived: boolean;
+  archived_at: string | null;
 }
 
 interface User {
@@ -48,7 +52,9 @@ const Notes = () => {
   
   // State for notebooks and notes
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [archivedNotebooks, setArchivedNotebooks] = useState<Notebook[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
+  const [archivedNotes, setArchivedNotes] = useState<Note[]>([]);
   const [selectedNotebook, setSelectedNotebook] = useState<Notebook | null>(null);
   
   // State for form inputs
@@ -137,6 +143,8 @@ const Notes = () => {
       
       try {
         await fetchNotebooks();
+        await fetchArchivedNotebooks(); // Fetch archived notebooks
+        await fetchNotes(notebooks[0]?.id || 0); // Fetch notes for the first notebook if available
       } catch (error: any) {
         console.error('Failed to fetch notebooks:', error);
         if (error?.response?.status === 401) {
@@ -202,6 +210,36 @@ const Notes = () => {
     }
   };
 
+  // Fetch archived notebooks from API
+  const fetchArchivedNotebooks = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const response = await axios.get(`${API_URL}/notes/archived/notebooks/`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.data) {
+        setArchivedNotebooks(response.data);
+      }
+    } catch (error: any) {
+      console.error('Failed to fetch archived notebooks:', error);
+      if (error.response?.status === 401) {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+      }
+    }
+  };
+
   // Fetch notes for selected notebook
   const fetchNotes = async (notebookId: number) => {
     try {
@@ -211,6 +249,18 @@ const Notes = () => {
       setNotes(response.data);
     } catch (error) {
       handleError(error, 'Failed to fetch notes');
+    }
+  };
+
+  // Fetch archived notes
+  const fetchArchivedNotes = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/notes/archived/notes/`, {
+        headers: getAuthHeaders()
+      });
+      setArchivedNotes(response.data);
+    } catch (error) {
+      handleError(error, 'Failed to fetch archived notes');
     }
   };
 
@@ -301,6 +351,48 @@ const Notes = () => {
       }
     } catch (error) {
       handleError(error, 'Failed to delete notebook');
+    }
+  };
+
+  // Archive/Unarchive notebook
+  const handleArchiveNotebook = async (notebookId: number, archive: boolean) => {
+    try {
+      await axios.patch(`${API_URL}/notes/notebooks/${notebookId}/`, {
+        is_archived: archive
+      }, {
+        headers: getAuthHeaders()
+      });
+      
+      if (archive) {
+        // Move from active notebooks to archived notebooks
+        const notebookToArchive = notebooks.find(nb => nb.id === notebookId);
+        if (notebookToArchive) {
+          const archivedNotebook = { ...notebookToArchive, is_archived: true, archived_at: new Date().toISOString() };
+          setArchivedNotebooks([...archivedNotebooks, archivedNotebook]);
+          setNotebooks(notebooks.filter(nb => nb.id !== notebookId));
+          
+          // If this was the selected notebook, clear selection
+          if (selectedNotebook?.id === notebookId) {
+            setSelectedNotebook(null);
+            setNotes([]);
+          }
+        }
+      } else {
+        // Move from archived notebooks back to active notebooks
+        const notebookToUnarchive = archivedNotebooks.find(nb => nb.id === notebookId);
+        if (notebookToUnarchive) {
+          const activeNotebook = { ...notebookToUnarchive, is_archived: false, archived_at: null };
+          setNotebooks([...notebooks, activeNotebook]);
+          setArchivedNotebooks(archivedNotebooks.filter(nb => nb.id !== notebookId));
+        }
+      }
+      
+      setToast({ 
+        message: `Notebook ${archive ? 'archived' : 'unarchived'} successfully.`, 
+        type: 'success' 
+      });
+    } catch (error) {
+      handleError(error, `Failed to ${archive ? 'archive' : 'unarchive'} notebook`);
     }
   };
 
@@ -696,6 +788,81 @@ const Notes = () => {
     }
   };
 
+  // Add useEffect to handle tab changes
+  useEffect(() => {
+    if (activeNotebookTab === 'archived') {
+      fetchArchivedNotebooks();
+    } else {
+      fetchNotebooks();
+    }
+  }, [activeNotebookTab]);
+
+  useEffect(() => {
+    if (activeTab === 'archived') {
+      fetchArchivedNotes();
+    } else if (selectedNotebook) {
+      fetchNotes(selectedNotebook.id);
+    }
+  }, [activeTab, selectedNotebook]);
+
+  // Archive/Unarchive note
+  const handleArchiveNote = async (noteId: number, archive: boolean) => {
+    try {
+      await axios.patch(`${API_URL}/notes/${noteId}/`, {
+        is_archived: archive
+      }, {
+        headers: getAuthHeaders()
+      });
+      
+      if (archive) {
+        // Move from active notes to archived notes
+        const noteToArchive = notes.find(n => n.id === noteId);
+        if (noteToArchive) {
+          const archivedNote = { ...noteToArchive, is_archived: true, archived_at: new Date().toISOString() };
+          setArchivedNotes([...archivedNotes, archivedNote]);
+          setNotes(notes.filter(n => n.id !== noteId));
+          
+          // Update notebook notes count
+          if (selectedNotebook) {
+            const updatedNotebooks = notebooks.map(nb => 
+              nb.id === selectedNotebook.id 
+                ? { ...nb, notes_count: nb.notes_count - 1 }
+                : nb
+            );
+            setNotebooks(updatedNotebooks);
+            setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count - 1 });
+          }
+        }
+      } else {
+        // Move from archived notes back to active notes
+        const noteToUnarchive = archivedNotes.find(n => n.id === noteId);
+        if (noteToUnarchive) {
+          const activeNote = { ...noteToUnarchive, is_archived: false, archived_at: null };
+          setNotes([...notes, activeNote]);
+          setArchivedNotes(archivedNotes.filter(n => n.id !== noteId));
+          
+          // Update notebook notes count
+          if (selectedNotebook) {
+            const updatedNotebooks = notebooks.map(nb => 
+              nb.id === selectedNotebook.id 
+                ? { ...nb, notes_count: nb.notes_count + 1 }
+                : nb
+            );
+            setNotebooks(updatedNotebooks);
+            setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count + 1 });
+          }
+        }
+      }
+      
+      setToast({ 
+        message: `Note ${archive ? 'archived' : 'unarchived'} successfully.`, 
+        type: 'success' 
+      });
+    } catch (error) {
+      handleError(error, `Failed to ${archive ? 'archive' : 'unarchive'} note`);
+    }
+  };
+
   // Debug logging
   console.log('Current state:', {
     loading,
@@ -913,7 +1080,7 @@ const Notes = () => {
           {/* Main Content */}
           <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)] flex flex-col">
             {/* Header with back button when viewing notes */}
-            {currentView === 'notes' && selectedNotebook && (
+            {currentView === 'notes' && selectedNotebook && activeTab === 'notes' && (
               <div className="p-4 border-b border-gray-200 dark:border-gray-700">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center">
@@ -934,11 +1101,35 @@ const Notes = () => {
                   </div>
                   <button
                     onClick={handleStartAddingNote}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center"
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
                   >
-                    <Plus size={16} className="mr-1 text-white" />
-                    Add Note
+                    <Plus size={16} />
+                    <span className="font-medium">Add Note</span>
                   </button>
+                </div>
+              </div>
+            )}
+
+            {/* Header with back button when viewing archived notes - no Add button */}
+            {currentView === 'notes' && selectedNotebook && activeTab === 'archived' && (
+              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <button
+                      onClick={handleBackToNotebooks}
+                      className="p-2 mr-3 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
+                        {selectedNotebook.name} - Archived
+                      </h2>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {archivedNotes.length} archived notes
+                      </span>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -1003,24 +1194,47 @@ const Notes = () => {
                           onCancelEditingNotebook={handleCancelEditingNotebook}
                           onNotebookNameChange={setNewNotebookName}
                           onCreateNotebook={handleCreateNotebookDirect}
+                          onArchiveNotebook={handleArchiveNotebook}
+                          showAddButton={true}
                         />
                       )}
                     </>
                   )}
                   {activeNotebookTab === 'archived' && (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-center">
-                        <div className="text-gray-400 dark:text-gray-500 mb-4">
-                          <Book size={48} />
+                    <>
+                      {archivedNotebooks.length === 0 ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <div className="text-gray-400 dark:text-gray-500 mb-4">
+                              <Archive size={48} />
+                            </div>
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                              No archived notebooks
+                            </h3>
+                            <p className="text-gray-500 dark:text-gray-400 mb-4">
+                              Archived notebooks will appear here
+                            </p>
+                          </div>
                         </div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                          Archived Notebooks
-                        </h3>
-                        <p className="text-gray-500 dark:text-gray-400 mb-4">
-                          Archived notebooks will appear here
-                        </p>
-                      </div>
-                    </div>
+                      ) : (
+                        <NotebookList
+                          notebooks={archivedNotebooks}
+                          selectedNotebook={selectedNotebook}
+                          editingNotebook={editingNotebook}
+                          newNotebookName={newNotebookName}
+                          onNotebookSelect={handleNotebookSelect}
+                          onAddNotebook={handleAddNotebook}
+                          onUpdateNotebook={handleUpdateNotebook}
+                          onDeleteNotebook={handleDeleteNotebook}
+                          onStartEditingNotebook={handleStartEditingNotebook}
+                          onCancelEditingNotebook={handleCancelEditingNotebook}
+                          onNotebookNameChange={setNewNotebookName}
+                          onCreateNotebook={handleCreateNotebookDirect}
+                          onArchiveNotebook={handleArchiveNotebook}
+                          showAddButton={false}
+                        />
+                      )}
+                    </>
                   )}
                 </>
               )}
@@ -1046,6 +1260,7 @@ const Notes = () => {
                   onNoteContentChange={(content) => setNewNote({ ...newNote, content })}
                   onUpdateNoteTitle={handleUpdateNoteTitle}
                   onBulkDelete={handleBulkDeleteNotes}
+                  onArchiveNote={handleArchiveNote}
                   deletingNoteId={noteToDelete?.id || null}
                 />
               )}
@@ -1094,19 +1309,48 @@ const Notes = () => {
             cancelLabel="Cancel"
           />
           {currentView === 'notes' && activeTab === 'archived' && (
-            <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <div className="text-gray-400 dark:text-gray-500 mb-4">
-                  <Book size={48} />
+            <>
+              {archivedNotes.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center">
+                    <div className="text-gray-400 dark:text-gray-500 mb-4">
+                      <Archive size={48} />
+                    </div>
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                      No archived notes
+                    </h3>
+                    <p className="text-gray-500 dark:text-gray-400 mb-4">
+                      Archived notes will appear here
+                    </p>
+                  </div>
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                  Archived Notes
-                </h3>
-                <p className="text-gray-500 dark:text-gray-400 mb-4">
-                  Archived notes will appear here
-                </p>
-              </div>
-            </div>
+              ) : (
+                <NotesList
+                  selectedNotebook={selectedNotebook}
+                  notes={archivedNotes}
+                  isAddingNote={false}
+                  editingNote={null}
+                  noteTitle={newNote.title}
+                  noteContent={newNote.content}
+                  onStartAddingNote={handleStartAddingNote}
+                  onCancelAddingNote={handleCancelAddingNote}
+                  onAddNote={handleAddNote}
+                  onEditNote={handleEditNote}
+                  onCancelEditingNote={handleCancelEditingNote}
+                  onUpdateNote={handleUpdateNote}
+                  onDeleteNote={(noteId) => {
+                    const note = archivedNotes.find(n => n.id === noteId);
+                    if (note) handleRequestDeleteNote(note);
+                  }}
+                  onNoteTitleChange={(title) => setNewNote({ ...newNote, title })}
+                  onNoteContentChange={(content) => setNewNote({ ...newNote, content })}
+                  onUpdateNoteTitle={handleUpdateNoteTitle}
+                  onBulkDelete={handleBulkDeleteNotes}
+                  onArchiveNote={handleArchiveNote}
+                  deletingNoteId={noteToDelete?.id || null}
+                />
+              )}
+            </>
           )}
         </div>
       </div>

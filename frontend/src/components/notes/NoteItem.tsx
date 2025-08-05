@@ -1,6 +1,6 @@
 // frontend/src/components/NoteItem.tsx
 import React from 'react';
-import { Edit, Trash2, MoreVertical } from 'lucide-react';
+import { Edit, Trash2, MoreVertical, Archive, RotateCcw } from 'lucide-react';
 import EditTitleModal from './EditTitleModal';
 import axios from 'axios';
 
@@ -13,6 +13,8 @@ interface Note {
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
+  is_archived: boolean;
+  archived_at: string | null;
 }
 
 interface NoteItemProps {
@@ -20,10 +22,11 @@ interface NoteItemProps {
   onEdit: (note: Note) => void;
   onEditTitle: (note: Note) => void;
   onDelete: (noteId: number) => void;
+  onArchive: () => void;
   deletingNoteId?: number | null;
 }
 
-const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete, deletingNoteId }) => {
+const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete, onArchive, deletingNoteId }) => {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showEditModal, setShowEditModal] = React.useState(false);
   const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api/notes';
@@ -48,6 +51,11 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
   const handleSaveTitle = (newTitle: string) => {
     onEditTitle({ ...note, title: newTitle });
     setShowEditModal(false);
+  };
+
+  const handleArchive = () => {
+    setShowMenu(false);
+    onArchive();
   };
 
   const handleNoteClick = async () => {
@@ -111,6 +119,21 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
                 >
                   <Edit size={14} className="inline mr-2" /> Edit Title
                 </button>
+                {note.is_archived ? (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleArchive(); }}
+                    className="block w-full text-left px-4 py-2 text-sm text-green-600 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <RotateCcw size={14} className="inline mr-2" /> Unarchive
+                  </button>
+                ) : (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleArchive(); }}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Archive size={14} className="inline mr-2" /> Archive
+                  </button>
+                )}
                 <button
                   onClick={(e) => { e.stopPropagation(); setShowMenu(false); onDelete(note.id); }}
                   className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700"

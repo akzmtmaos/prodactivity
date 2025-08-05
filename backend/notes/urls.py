@@ -29,4 +29,8 @@ urlpatterns = [
 
     # Deleted notes endpoint
     # path('trash/notes/', deleted_notes, name='deleted-notes'),
+    
+    # Archive endpoints
+    path('archived/notes/', views.archived_notes, name='archived-notes'),
+    path('archived/notebooks/', views.archived_notebooks, name='archived-notebooks'),
 ]

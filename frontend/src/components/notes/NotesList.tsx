@@ -1,6 +1,6 @@
 // frontend/src/components/NotesList.tsx
 import React, { useState } from 'react';
-import { Plus, ChevronRight, FileText, BookOpen, Trash2 } from 'lucide-react';
+import { Plus, ChevronRight, FileText, BookOpen, Trash2, Archive, RotateCcw } from 'lucide-react';
 import NoteItem from './NoteItem';
 import NoteForm from './NoteForm';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
@@ -11,6 +11,8 @@ interface Notebook {
   created_at: string;
   updated_at: string;
   notes_count: number;
+  is_archived: boolean;
+  archived_at: string | null;
 }
 
 interface Note {
@@ -22,6 +24,8 @@ interface Note {
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
+  is_archived: boolean;
+  archived_at: string | null;
 }
 
 interface NotesListProps {
@@ -42,6 +46,7 @@ interface NotesListProps {
   onNoteContentChange: (content: string) => void;
   onUpdateNoteTitle: (noteId: number, newTitle: string) => void;
   onBulkDelete: (noteIds: number[]) => void;
+  onArchiveNote: (noteId: number, archive: boolean) => void;
   deletingNoteId?: number | null;
 }
 
@@ -63,6 +68,7 @@ const NotesList: React.FC<NotesListProps> = ({
   onNoteContentChange,
   onUpdateNoteTitle,
   onBulkDelete,
+  onArchiveNote,
   deletingNoteId,
 }) => {
   const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
@@ -100,7 +106,7 @@ const NotesList: React.FC<NotesListProps> = ({
 
   if (!selectedNotebook) {
     return (
-      <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)] lg:h-[calc(100vh-12rem)]">
+      <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)]">
         <div className="p-5 text-center">
           <BookOpen className="mx-auto h-12 w-12 text-gray-400 dark:text-white" />
           <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
@@ -115,39 +121,21 @@ const NotesList: React.FC<NotesListProps> = ({
   }
 
   return (
-    <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)] lg:h-[calc(100vh-12rem)] flex flex-col">
-      {/* Header - Only show on desktop */}
-      <div className="hidden lg:block p-5 border-b border-gray-200 dark:border-gray-700">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center">
-            <ChevronRight className="mr-2 text-gray-400 dark:text-white" size={20} />
-            <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-              {selectedNotebook.name}
-            </h2>
-            <span className="ml-3 text-sm text-gray-500 dark:text-gray-400">
-              {notes.length} notes
-            </span>
-          </div>
-          <div className="flex items-center space-x-2">
-            {selectedNotes.length > 0 && (
-              <button
-                onClick={handleBulkDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center"
-              >
-                <Trash2 size={16} className="mr-1" />
-                Delete Selected ({selectedNotes.length})
-              </button>
-            )}
+    <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)] flex flex-col">
+      {/* Bulk Delete Button - Only show when notes are selected */}
+      {selectedNotes.length > 0 && (
+        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex justify-end">
             <button
-              onClick={onStartAddingNote}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center"
+              onClick={handleBulkDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
             >
-              <Plus size={16} className="mr-1 text-white" />
-              Add Note
+              <Trash2 size={16} />
+              <span>Delete Selected ({selectedNotes.length})</span>
             </button>
           </div>
         </div>
-      </div>
+      )}
       
       {/* Content */}
       <div className="p-5 flex-1 overflow-y-auto">
@@ -202,6 +190,7 @@ const NotesList: React.FC<NotesListProps> = ({
                       onEdit={onEditNote}
                       onEditTitle={(updatedNote) => onUpdateNoteTitle(updatedNote.id, updatedNote.title)}
                       onDelete={() => onDeleteNote(note.id)}
+                      onArchive={() => onArchiveNote(note.id, !note.is_archived)}
                     />
                   </div>
                 </div>

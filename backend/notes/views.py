@@ -19,7 +19,9 @@ class NotebookListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        return Notebook.objects.filter(user=self.request.user)
+        # Filter by archive status
+        is_archived = self.request.query_params.get('archived', 'false').lower() == 'true'
+        return Notebook.objects.filter(user=self.request.user, is_archived=is_archived)
 
 class NotebookRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = NotebookSerializer
@@ -35,12 +37,24 @@ class NotebookRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         notebook.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    def partial_update(self, request, *args, **kwargs):
+        notebook = self.get_object()
+        is_archived = request.data.get('is_archived', None)
+        if is_archived is not None:
+            notebook.is_archived = is_archived
+            notebook.archived_at = timezone.now() if is_archived else None
+            notebook.save()
+        serializer = self.get_serializer(notebook)
+        return Response(serializer.data)
+
 class NoteListCreateView(generics.ListCreateAPIView):
     serializer_class = NoteSerializer
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        queryset = Note.objects.filter(user=self.request.user, is_deleted=False)
+        # Filter by archive status
+        is_archived = self.request.query_params.get('archived', 'false').lower() == 'true'
+        queryset = Note.objects.filter(user=self.request.user, is_deleted=False, is_archived=is_archived)
         
         # Filter by notebook if provided
         notebook_id = self.request.query_params.get('notebook', None)
@@ -76,12 +90,23 @@ class NoteRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     def partial_update(self, request, *args, **kwargs):
         note = self.get_object()
         print(f"[DEBUG] PATCH /api/notes/{note.id}/ - data: {request.data}")
+        
+        # Handle archive status
+        is_archived = request.data.get('is_archived', None)
+        if is_archived is not None:
+            note.is_archived = is_archived
+            note.archived_at = timezone.now() if is_archived else None
+            note.save()
+            print(f"[DEBUG] Note {note.id} updated: is_archived={note.is_archived}, archived_at={note.archived_at}")
+        
+        # Handle delete status
         is_deleted = request.data.get('is_deleted', None)
         if is_deleted is not None:
             note.is_deleted = is_deleted
             note.deleted_at = None if not is_deleted else timezone.now()
             note.save()
             print(f"[DEBUG] Note {note.id} updated: is_deleted={note.is_deleted}, deleted_at={note.deleted_at}")
+        
         serializer = self.get_serializer(note)
         return Response(serializer.data)
 
@@ -123,4 +148,18 @@ def deleted_notes(request):
     notes = Note.objects.filter(user=request.user, is_deleted=True)
     print(f"[DEBUG] Trash API - User: {request.user}, Deleted Notes: {list(notes.values('id', 'title', 'is_deleted', 'deleted_at'))}")
     serializer = NoteSerializer(notes, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def archived_notes(request):
+    notes = Note.objects.filter(user=request.user, is_archived=True, is_deleted=False)
+    serializer = NoteSerializer(notes, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def archived_notebooks(request):
+    notebooks = Notebook.objects.filter(user=request.user, is_archived=True)
+    serializer = NotebookSerializer(notebooks, many=True)
     return Response(serializer.data) 

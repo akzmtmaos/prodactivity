@@ -209,16 +209,7 @@ const Settings: React.FC = () => {
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">Manage your account and preferences</p>
         </div>
-        {/* Show save/profile messages above content */}
-        {activeTab === 'profile' && profileMessage && (
-          <div className={`mb-6 p-4 rounded-lg ${
-            profileMessage.type === 'success'
-              ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-              : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-          }`}>
-            {profileMessage.text}
-          </div>
-        )}
+
         {activeTab === 'general' && saveMessage && (
           <div className={`mb-6 p-4 rounded-lg ${
             saveMessage.type === 'success'
