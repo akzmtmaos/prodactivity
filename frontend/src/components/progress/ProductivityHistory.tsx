@@ -173,7 +173,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
                     style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
                   />
                   <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white pointer-events-none">
-                    {item.log.completion_rate}%
+                    {item.log.completion_rate % 1 === 0 ? item.log.completion_rate.toFixed(0) : item.log.completion_rate.toFixed(2)}%
                   </span>
                 </div>
               </div>
@@ -239,7 +239,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
                     style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
                   />
                   <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white pointer-events-none">
-                    {item.log.completion_rate}%
+                    {item.log.completion_rate % 1 === 0 ? item.log.completion_rate.toFixed(0) : item.log.completion_rate.toFixed(2)}%
                   </span>
                 </div>
               </div>

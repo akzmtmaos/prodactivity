@@ -49,7 +49,7 @@ const ProductivityRow: React.FC<ProductivityRowProps> = ({
               style={{ width: `${Math.min(completionRate, 100)}%` }}
             />
             <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white pointer-events-none">
-              {completionRate}%
+              {completionRate % 1 === 0 ? completionRate.toFixed(0) : completionRate.toFixed(2)}%
             </span>
           </div>
         </div>
