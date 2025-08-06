@@ -190,28 +190,40 @@ const Progress = () => {
       try {
         const headers = getAuthHeaders();
         let url: string | undefined;
-        if (progressView === 'Daily') {
-          // For daily view, fetch logs for the specific month being viewed
-          const year = selectedDate.getFullYear();
-          const month = selectedDate.getMonth() + 1; // getMonth() returns 0-11, we need 1-12
-          const monthStr = `${year}-${month.toString().padStart(2, '0')}-01`;
-          url = `/api/progress/productivity_logs/?view=daily&date=${monthStr}`;
-        } else if (progressView === 'Weekly') {
-          const yearStr = selectedDate.getFullYear();
-          url = `/api/progress/productivity_logs/?view=weekly&date=${yearStr}-01-01`;
-        } else if (progressView === 'Monthly') {
-          const yearStr = selectedDate.getFullYear();
-          url = `/api/progress/productivity_logs/?view=monthly&date=${yearStr}-01-01`;
-        } else {
-          throw new Error('Invalid progressView');
-        }
+              if (progressView === 'Daily') {
+        // For daily view, fetch logs for the specific month being viewed
+        const year = selectedDate.getFullYear();
+        const month = selectedDate.getMonth() + 1; // getMonth() returns 0-11, we need 1-12
+        const monthStr = `${year}-${month.toString().padStart(2, '0')}-01`;
+        url = `/api/progress/productivity_logs/?view=daily&date=${monthStr}`;
+      } else if (progressView === 'Weekly') {
+        // For weekly view, use the selected date to determine which year's weeks to fetch
+        const yearStr = selectedDate.getFullYear();
+        url = `/api/progress/productivity_logs/?view=weekly&date=${yearStr}-01-01`;
+      } else if (progressView === 'Monthly') {
+        // For monthly view, use the selected date to determine which year's months to fetch
+        const yearStr = selectedDate.getFullYear();
+        url = `/api/progress/productivity_logs/?view=monthly&date=${yearStr}-01-01`;
+      } else {
+        throw new Error('Invalid progressView');
+      }
         console.log('Fetching productivity logs from:', url, 'for selectedDate:', selectedDate.toISOString()); // Debug log
-        const res = await fetch(url, { ...(headers && { headers }) });
+        // Add timestamp to prevent caching
+        const timestamp = new Date().getTime();
+        const urlWithTimestamp = `${url}&_t=${timestamp}`;
+        const res = await fetch(urlWithTimestamp, { ...(headers && { headers }) });
         if (!res.ok) throw new Error('Failed to fetch productivity logs');
         const data = await res.json();
         console.log('Received productivity logs:', data); // Debug log
         console.log('Total items received:', data.length); // Debug log
         console.log('Date range:', data.length > 0 ? `${data[0]?.date} to ${data[data.length-1]?.date}` : 'No data'); // Debug log
+        // Debug: Log specific weekly data
+        if (progressView === 'Weekly' && data.length > 0) {
+          console.log('Weekly data details:');
+          data.forEach((item: any, index: number) => {
+            console.log(`  Week ${index + 1}: ${item.week_start} to ${item.week_end} - ${item.log.completion_rate}%`);
+          });
+        }
         console.log('Setting prodLogs to:', data); // Debug log
         setProdLogs(data);
       } catch (e) {

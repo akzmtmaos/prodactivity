@@ -138,12 +138,21 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     );
   };
 
-  const renderWeeklyView = () => (
+  const renderWeeklyView = () => {
+    console.log('renderWeeklyView called with:', {
+      prodLogsLength: prodLogs.length,
+      prodLogs: prodLogs
+    });
+    
+    return (
     <>
       {prodLogs.map((item, idx) => {
         const weekStart = item.week_start ? new Date(item.week_start) : null;
         const weekEnd = item.week_end ? new Date(item.week_end) : null;
-        if (!weekStart || isNaN(weekStart.getTime()) || !weekEnd || isNaN(weekEnd.getTime())) return null;
+        if (!weekStart || isNaN(weekStart.getTime()) || !weekEnd || isNaN(weekEnd.getTime())) {
+          console.log('Invalid week dates for item:', item);
+          return null;
+        }
         return (
           <div key={item.week_start} className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2">
             <div className="text-left">
@@ -175,13 +184,39 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           </div>
         );
       })}
+      
+      {/* Show message if no weekly data found */}
+      {prodLogs.length === 0 && (
+        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8">
+          <div className="text-center">
+            <p className="text-gray-500 dark:text-gray-400 mb-2">No weekly data found</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">This might be because:</p>
+            <ul className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              <li>• No tasks were completed in any week</li>
+              <li>• Data is still being processed</li>
+              <li>• API is not returning weekly data</li>
+            </ul>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Total logs received: {prodLogs.length}</p>
+          </div>
+        </div>
+      )}
     </>
-  );
+    );
+  };
 
-  const renderMonthlyView = () => (
+  const renderMonthlyView = () => {
+    console.log('renderMonthlyView called with:', {
+      prodLogsLength: prodLogs.length,
+      prodLogs: prodLogs
+    });
+    
+    return (
     <>
       {prodLogs.map((item, idx) => {
-        if (!item.month || isNaN(item.month) || item.month < 1 || item.month > 12) return null;
+        if (!item.month || isNaN(item.month) || item.month < 1 || item.month > 12) {
+          console.log('Invalid month for item:', item);
+          return null;
+        }
         const monthDate = new Date(selectedDate.getFullYear(), item.month - 1, 1);
         if (isNaN(monthDate.getTime())) return null;
         return (
@@ -215,8 +250,25 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           </div>
         );
       })}
+      
+      {/* Show message if no monthly data found */}
+      {prodLogs.length === 0 && (
+        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8">
+          <div className="text-center">
+            <p className="text-gray-500 dark:text-gray-400 mb-2">No monthly data found</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">This might be because:</p>
+            <ul className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              <li>• No tasks were completed in any month</li>
+              <li>• Data is still being processed</li>
+              <li>• API is not returning monthly data</li>
+            </ul>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Total logs received: {prodLogs.length}</p>
+          </div>
+        </div>
+      )}
     </>
-  );
+    );
+  };
 
   return (
     <div className="w-full mb-4">
