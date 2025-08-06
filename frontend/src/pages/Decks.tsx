@@ -527,7 +527,7 @@ const Decks = () => {
           <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                Decks
+                Flashcards
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
                 Ready to learn something new today?
@@ -602,7 +602,7 @@ const Decks = () => {
                 </div>
                 <div className="ml-4">
                   <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalCards}</h3>
-                  <p className="text-gray-600 dark:text-gray-400">Total Cards</p>
+                  <p className="text-gray-600 dark:text-gray-400">Total Flashcards</p>
                 </div>
               </div>
             </div>

@@ -892,11 +892,11 @@ const Notes = () => {
           <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                {currentView === 'notebooks' ? 'Notebooks' : 'Notes'}
+                {currentView === 'notebooks' ? 'Notes' : 'Notes'}
               </h1>
               <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
                 {currentView === 'notebooks' 
-                  ? 'Create and manage your notebooks' 
+                  ? 'Create and manage your notes' 
                   : `Notes in ${selectedNotebook?.name || ''}`
                 }
               </p>

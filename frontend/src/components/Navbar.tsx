@@ -105,7 +105,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     { path: "/", name: "Home", icon: <Home size={20} /> },
     { path: "/progress", name: "Progress", icon: <BarChart2 size={20} /> },
     { path: "/notes", name: "Notes", icon: <FileText size={20} /> },
-    { path: "/decks", name: "Decks", icon: <Layers size={20} /> },
+    { path: "/decks", name: "Flashcards", icon: <Layers size={20} /> },
     { path: "/tasks", name: "Tasks", icon: <CheckSquare size={20} /> },
   ];
 
