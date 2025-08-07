@@ -4,12 +4,13 @@ import axios from 'axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import NotebookList from '../components/notes/NotebookList';
 import NotesList from '../components/notes/NotesList';
-import SearchBar from '../components/notes/SearchBar';
 import NoteEditor from '../components/notes/NoteEditor';
 import PageLayout from '../components/PageLayout';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
-import { ChevronLeft, Plus, FolderOpen, Book, Archive, RotateCcw } from 'lucide-react';
+import { ChevronLeft, Plus, Book, Archive } from 'lucide-react';
+import NotesHeader from '../components/notes/NotesHeader';
+import NotesTabs from '../components/notes/NotesTabs';
 
 interface Notebook {
   id: number;
@@ -45,8 +46,6 @@ const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 const Notes = () => {
   const { id: noteIdFromUrl } = useParams();
   const navigate = useNavigate();
-  const [user, setUser] = useState<User | null>(null);
-  const [greeting, setGreeting] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -97,78 +96,6 @@ const Notes = () => {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
-  };
-
-  // Load user data and initialize app
-  useEffect(() => {
-    const initializeApp = async () => {
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
-        window.location.href = '/login';
-        return;
-      }
-
-      const getUserData = () => {
-        const userData = localStorage.getItem('user');
-        if (userData && userData !== "undefined") {
-          try {
-            const parsedUser = JSON.parse(userData);
-            
-            if (parsedUser && typeof parsedUser === 'object') {
-              if (parsedUser.username) {
-                setUser(parsedUser);
-              } else if (parsedUser.user && parsedUser.user.username) {
-                setUser(parsedUser.user);
-              } else {
-                setUser({ username: 'User' });
-              }
-            } else {
-              setUser({ username: 'User' });
-            }
-          } catch (e) {
-            console.error('Error parsing user data:', e);
-            setUser({ username: 'User' });
-          }
-        } else {
-          setUser({ username: 'User' });
-        }
-      };
-
-      getUserData();
-      
-      const hour = new Date().getHours();
-      if (hour < 12) setGreeting('Good morning');
-      else if (hour < 18) setGreeting('Good afternoon');
-      else setGreeting('Good evening');
-      
-      try {
-        await fetchNotebooks();
-        await fetchArchivedNotebooks(); // Fetch archived notebooks
-        await fetchNotes(notebooks[0]?.id || 0); // Fetch notes for the first notebook if available
-      } catch (error: any) {
-        console.error('Failed to fetch notebooks:', error);
-        if (error?.response?.status === 401) {
-          window.location.href = '/login';
-          return;
-        }
-      }
-      
-      setLoading(false);
-    };
-
-    initializeApp();
-  }, []);
-
-  // Error handler
-  const handleError = (error: any, message: string) => {
-    console.error(message, error);
-    if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken'); // Changed from 'token' to 'accessToken'
-      localStorage.removeItem('refreshToken'); // Also remove refresh token
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-    setError(message);
   };
 
   // Fetch notebooks from API
@@ -667,7 +594,7 @@ const Notes = () => {
     if (notebooks.length > 0) {
       openNoteFromUrl();
     }
-  }, [notebooks, noteIdFromUrl]);
+  }, [notebooks, noteIdFromUrl, navigate]);
 
   // Add useEffect to handle opening note from localStorage
   useEffect(() => {
@@ -767,27 +694,6 @@ const Notes = () => {
     }
   };
 
-  // Add direct notebook update handler
-  const handleUpdateNotebookDirect = async (id: number, name: string) => {
-    if (!name.trim()) return;
-    try {
-      const response = await axios.put(`${API_URL}/notes/notebooks/${id}/`, {
-        name: name.trim()
-      }, {
-        headers: getAuthHeaders()
-      });
-      const updatedNotebooks = notebooks.map(nb => 
-        nb.id === id ? response.data : nb
-      );
-      setNotebooks(updatedNotebooks);
-      if (selectedNotebook?.id === id) {
-        setSelectedNotebook(response.data);
-      }
-    } catch (error) {
-      handleError(error, 'Failed to update notebook');
-    }
-  };
-
   // Add useEffect to handle tab changes
   useEffect(() => {
     if (activeNotebookTab === 'archived') {
@@ -804,6 +710,77 @@ const Notes = () => {
       fetchNotes(selectedNotebook.id);
     }
   }, [activeTab, selectedNotebook]);
+
+  useEffect(() => {
+    const initializeApp = async () => {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        window.location.href = '/login';
+        return;
+      }
+
+      const getUserData = () => {
+        const userData = localStorage.getItem('user');
+        if (userData && userData !== "undefined") {
+          try {
+            const parsedUser = JSON.parse(userData);
+            
+            if (parsedUser && typeof parsedUser === 'object') {
+              if (parsedUser.username) {
+                // setUser(parsedUser); // This line was removed
+              } else if (parsedUser.user && parsedUser.user.username) {
+                // setUser(parsedUser.user); // This line was removed
+              } else {
+                // setUser({ username: 'User' }); // This line was removed
+              }
+            } else {
+              // setUser({ username: 'User' }); // This line was removed
+            }
+          } catch (e) {
+            console.error('Error parsing user data:', e);
+            // setUser({ username: 'User' }); // This line was removed
+          }
+        } else {
+          // setUser({ username: 'User' }); // This line was removed
+        }
+      };
+
+      // getUserData(); // This line was removed
+      
+      // const hour = new Date().getHours(); // This line was removed
+      // if (hour < 12) setGreeting('Good morning'); // This line was removed
+      // else if (hour < 18) setGreeting('Good afternoon'); // This line was removed
+      // else setGreeting('Good evening'); // This line was removed
+      
+      try {
+        await fetchNotebooks();
+        await fetchArchivedNotebooks(); // Fetch archived notebooks
+        await fetchNotes(notebooks[0]?.id || 0); // Fetch notes for the first notebook if available
+      } catch (error: any) {
+        console.error('Failed to fetch notebooks:', error);
+        if (error?.response?.status === 401) {
+          window.location.href = '/login';
+          return;
+        }
+      }
+      
+      setLoading(false);
+    };
+
+    initializeApp();
+  }, []); // Only run once on mount
+
+  // Error handler
+  const handleError = (error: any, message: string) => {
+    console.error(message, error);
+    if (error.response?.status === 401) {
+      localStorage.removeItem('accessToken'); // Changed from 'token' to 'accessToken'
+      localStorage.removeItem('refreshToken'); // Also remove refresh token
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    setError(message);
+  };
 
   // Archive/Unarchive note
   const handleArchiveNote = async (noteId: number, archive: boolean) => {
@@ -889,181 +866,29 @@ const Notes = () => {
       <div className="flex h-full">
         <div className="flex-1 space-y-6">
           {/* Header */}
-          <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-                {currentView === 'notebooks' ? 'Notes' : 'Notes'}
-              </h1>
-              <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
-                {currentView === 'notebooks' 
-                  ? 'Create and manage your notes' 
-                  : `Notes in ${selectedNotebook?.name || ''}`
-                }
-              </p>
-            </div>
-            {/* Search and Filter Bar - Show for both notebooks and notes */}
-            {currentView === 'notebooks' && (
-              <>
-                {/* Search and Filter Bar for Notebooks - Desktop */}
-                <div className="hidden sm:flex items-center gap-2 mt-4 sm:mt-0 justify-end w-full sm:w-auto">
-                  <select
-                    value={notebookFilterType}
-                    onChange={e => setNotebookFilterType(e.target.value as any)}
-                    className="h-10 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    style={{ minWidth: '100px' }}
-                  >
-                    <option value="all">All</option>
-                    <option value="name">Name</option>
-                    <option value="date">Date</option>
-                  </select>
-                  <div className="w-64">
-                    <SearchBar
-                      searchTerm={notebookSearchTerm}
-                      onSearchChange={setNotebookSearchTerm}
-                      placeholder="Search notebooks..."
-                      inputClassName="h-10"
-                      noMargin
-                    />
-                  </div>
-                </div>
-                
-                {/* Search and Filter Bar for Notebooks - Mobile */}
-                <div className="sm:hidden mb-6">
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <SearchBar
-                        searchTerm={notebookSearchTerm}
-                        onSearchChange={setNotebookSearchTerm}
-                        placeholder="Search notebooks..."
-                        inputClassName="h-12 text-base"
-                        noMargin
-                      />
-                    </div>
-                    <div className="w-32">
-                      <select
-                        value={notebookFilterType}
-                        onChange={e => setNotebookFilterType(e.target.value as any)}
-                        className="w-full h-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option value="all">All</option>
-                        <option value="name">Name</option>
-                        <option value="date">Date</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-            
-            {currentView === 'notes' && (
-              <>
-                {/* Search and Filter Bar - Desktop */}
-                <div className="hidden sm:flex items-center gap-2 mt-4 sm:mt-0 justify-end w-full sm:w-auto">
-                  <select
-                    value={filterType}
-                    onChange={e => setFilterType(e.target.value as any)}
-                    className="h-10 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    style={{ minWidth: '100px' }}
-                  >
-                    <option value="all">All</option>
-                    <option value="title">Title</option>
-                    <option value="content">Content</option>
-                    <option value="date">Date</option>
-                  </select>
-                  <div className="w-64">
-                    <SearchBar
-                      searchTerm={searchTerm}
-                      onSearchChange={setSearchTerm}
-                      placeholder="Search notes..."
-                      inputClassName="h-10"
-                      noMargin
-                    />
-                  </div>
-                </div>
-                
-                {/* Search and Filter Bar - Mobile */}
-                <div className="sm:hidden mb-6">
-                  <div className="flex gap-3">
-                    <div className="flex-1">
-                      <SearchBar
-                        searchTerm={searchTerm}
-                        onSearchChange={setSearchTerm}
-                        placeholder="Search notes..."
-                        inputClassName="h-12 text-base"
-                        noMargin
-                      />
-                    </div>
-                    <div className="w-32">
-                      <select
-                        value={filterType}
-                        onChange={e => setFilterType(e.target.value as any)}
-                        className="w-full h-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option value="all">All</option>
-                        <option value="title">Title</option>
-                        <option value="content">Content</option>
-                        <option value="date">Date</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-          </div>
-          {/* Tabs styled like Settings - Show for both notebooks and notes */}
-          {currentView === 'notebooks' && (
-            <div>
-              <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
-                <button
-                  onClick={() => setActiveNotebookTab('notebooks')}
-                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeNotebookTab === 'notebooks'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Notebooks
-                </button>
-                <button
-                  onClick={() => setActiveNotebookTab('archived')}
-                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeNotebookTab === 'archived'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Archived
-                </button>
-              </div>
-            </div>
-          )}
+          <NotesHeader
+            currentView={currentView}
+            selectedNotebook={selectedNotebook}
+            notesCount={notes.length}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filterType={filterType}
+            setFilterType={setFilterType as (type: 'all' | 'title' | 'content' | 'date') => void}
+            notebookSearchTerm={notebookSearchTerm}
+            setNotebookSearchTerm={setNotebookSearchTerm}
+            notebookFilterType={notebookFilterType}
+            setNotebookFilterType={setNotebookFilterType as (type: 'all' | 'name' | 'date') => void}
+            onBackToNotebooks={handleBackToNotebooks}
+          />
           
-          {currentView === 'notes' && (
-            <div>
-              <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
-                <button
-                  onClick={() => setActiveTab('notes')}
-                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeTab === 'notes'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Notes
-                </button>
-                <button
-                  onClick={() => setActiveTab('archived')}
-                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeTab === 'archived'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Archived
-                </button>
-              </div>
-            </div>
-          )}
+          {/* Tabs styled like Settings - Show for both notebooks and notes */}
+          <NotesTabs
+            currentView={currentView}
+            activeTab={activeTab}
+            setActiveTab={setActiveTab as (tab: 'notes' | 'logs' | 'archived') => void}
+            activeNotebookTab={activeNotebookTab}
+            setActiveNotebookTab={setActiveNotebookTab as (tab: 'notebooks' | 'archived') => void}
+          />
           {/* Error display */}
           {error && (
             <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
