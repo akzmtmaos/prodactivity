@@ -13,6 +13,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
   const [newEvent, setNewEvent] = useState<Omit<ScheduleEvent, 'id'>>({
     title: '',
     date: new Date(),
+    endDate: new Date(),
     startTime: '09:00',
     endTime: '10:00',
     category: 'study',
@@ -22,6 +23,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
   const [errors, setErrors] = useState<{
     title?: string;
     date?: string;
+    endDate?: string;
     startTime?: string;
     endTime?: string;
   }>({});
@@ -37,6 +39,13 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
     // Date validation
     if (!newEvent.date || !isValid(newEvent.date)) {
       newErrors.date = 'Please enter a valid date';
+    }
+
+    // End Date validation
+    if (!newEvent.endDate || !isValid(newEvent.endDate)) {
+      newErrors.endDate = 'Please enter a valid end date';
+    } else if (newEvent.endDate < newEvent.date) {
+      newErrors.endDate = 'End date cannot be before start date';
     }
 
     // Time validation
@@ -72,6 +81,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
       setNewEvent({
         title: '',
         date: new Date(),
+        endDate: new Date(),
         startTime: '09:00',
         endTime: '10:00',
         category: 'study',
@@ -89,13 +99,30 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
     try {
       const date = new Date(e.target.value);
       if (isValid(date)) {
-        setNewEvent({...newEvent, date});
+        setNewEvent({
+          ...newEvent,
+          date,
+          endDate: newEvent.endDate ? (date > newEvent.endDate ? date : newEvent.endDate) : date
+        });
         setErrors({...errors, date: undefined});
       } else {
         setErrors({...errors, date: 'Please enter a valid date'});
       }
     } catch (error) {
       setErrors({...errors, date: 'Please enter a valid date'});
+    }
+  };
+  const handleEndDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    try {
+      const endDate = new Date(e.target.value);
+      if (isValid(endDate)) {
+        setNewEvent({...newEvent, endDate});
+        setErrors({...errors, endDate: undefined});
+      } else {
+        setErrors({...errors, endDate: 'Please enter a valid end date'});
+      }
+    } catch (error) {
+      setErrors({...errors, endDate: 'Please enter a valid end date'});
     }
   };
 
@@ -121,7 +148,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
                 }}
                 className={`mt-1 block w-full p-2 border ${
                   errors.title ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
+                } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
                 required
               />
               {errors.title && (
@@ -129,18 +156,47 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
               )}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Date</label>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Category</label>
+              <select
+                value={newEvent.category}
+                onChange={(e) => setNewEvent({...newEvent, category: e.target.value as any})}
+                className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
+              >
+                <option value="study">Study</option>
+                <option value="assignment">Assignment</option>
+                <option value="exam">Exam</option>
+                <option value="meeting">Meeting</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Date</label>
               <input
                 type="date"
                 value={newEvent.date ? format(new Date(newEvent.date), 'yyyy-MM-dd') : ''}
                 onChange={handleDateChange}
                 className={`mt-1 block w-full p-2 border ${
                   errors.date ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
+                } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
                 required
               />
               {errors.date && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.date}</p>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">End Date</label>
+              <input
+                type="date"
+                value={newEvent.endDate ? format(new Date(newEvent.endDate), 'yyyy-MM-dd') : ''}
+                onChange={handleEndDateChange}
+                className={`mt-1 block w-full p-2 border ${
+                  errors.endDate ? 'border-red-500' : 'border-gray-300'
+                } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
+                required
+              />
+              {errors.endDate && (
+                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.endDate}</p>
               )}
             </div>
             <div>
@@ -154,7 +210,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
                 }}
                 className={`mt-1 block w-full p-2 border ${
                   errors.startTime ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
+                } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
                 required
               />
               {errors.startTime && (
@@ -172,33 +228,19 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
                 }}
                 className={`mt-1 block w-full p-2 border ${
                   errors.endTime ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white`}
+                } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
                 required
               />
               {errors.endTime && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.endTime}</p>
               )}
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Category</label>
-              <select
-                value={newEvent.category}
-                onChange={(e) => setNewEvent({...newEvent, category: e.target.value as any})}
-                className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
-              >
-                <option value="study">Study</option>
-                <option value="assignment">Assignment</option>
-                <option value="exam">Exam</option>
-                <option value="meeting">Meeting</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
               <textarea
                 value={newEvent.description}
                 onChange={(e) => setNewEvent({...newEvent, description: e.target.value})}
-                className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
                 rows={3}
               />
             </div>

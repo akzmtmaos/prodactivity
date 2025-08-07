@@ -870,7 +870,7 @@ const Notes = () => {
             currentView={currentView}
             selectedNotebook={selectedNotebook}
             notesCount={notes.length}
-            searchTerm={searchTerm}
+                      searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             filterType={filterType}
             setFilterType={setFilterType as (type: 'all' | 'title' | 'content' | 'date') => void}
@@ -903,7 +903,7 @@ const Notes = () => {
           )}
           
           {/* Main Content */}
-          <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)] flex flex-col">
+          <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-8rem)] flex flex-col">
             {/* Header with back button when viewing notes */}
             {currentView === 'notes' && selectedNotebook && activeTab === 'notes' && (
               <div className="p-4 border-b border-gray-200 dark:border-gray-700">

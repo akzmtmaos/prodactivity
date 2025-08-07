@@ -36,9 +36,18 @@ const Calendar: React.FC<CalendarProps> = ({
   };
 
   const getEventsForDate = (date: Date) => {
-    return events.filter(event => 
-      isSameDay(new Date(event.date), date)
-    ).sort((a, b) => 
+    // Helper to zero out the time part
+    const toMidnight = (d: Date) => {
+      const nd = new Date(d);
+      nd.setHours(0, 0, 0, 0);
+      return nd;
+    };
+    const dayMid = toMidnight(date).getTime();
+    return events.filter(event => {
+      const start = toMidnight(new Date(event.date)).getTime();
+      const end = event.endDate ? toMidnight(new Date(event.endDate)).getTime() : start;
+      return dayMid >= start && dayMid <= end;
+    }).sort((a, b) => 
       a.startTime.localeCompare(b.startTime)
     );
   };

@@ -2,8 +2,9 @@ export interface ScheduleEvent {
   id: string;
   title: string;
   date: Date;
+  endDate?: Date;
   startTime: string;
   endTime: string;
-  category: 'study' | 'assignment' | 'exam' | 'meeting' | 'other';
-  description?: string;
+  category: string;
+  description: string;
 } 
