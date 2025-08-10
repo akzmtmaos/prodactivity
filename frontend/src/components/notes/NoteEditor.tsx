@@ -116,6 +116,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   // Add a key to force BlockEditor to re-mount only on document import
   const [editorKey, setEditorKey] = useState(0);
   const [forceRemountEditor, setForceRemountEditor] = useState(false);
+  const [pageView, setPageView] = useState<boolean>(true);
+  const [paperSize, setPaperSize] = useState<'A4' | 'Letter'>('A4');
+  const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
+  const [margins, setMargins] = useState<{ top: number; right: number; bottom: number; left: number }>({ top: 24, right: 24, bottom: 24, left: 24 });
 
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingClose, setPendingClose] = useState(false);
@@ -498,51 +502,27 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     <div className="fixed inset-0 bg-white dark:bg-gray-900 z-[9999] flex flex-col" style={{ position: 'fixed', top: '-100vh', left: 0, right: 0, bottom: 0, marginTop: '100vh' }}>
       {/* Header */}
       <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-10">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center space-x-4">
+        <div className="flex items-center justify-between gap-3 p-2 px-4">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
             <button
               onClick={handleBack}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex-shrink-0"
+              type="button"
             >
               <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
             </button>
-            <div className="flex items-center space-x-4">
-              <input
-                type="text"
-                value={title}
-                onChange={handleTitleChange}
-                placeholder="Untitled Note"
-                className="text-xl font-semibold bg-transparent border-none focus:outline-none focus:ring-0 w-full text-gray-900 dark:text-white"
-              />
-              <div className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-                {note && (
-                  <>
-                    Created: {new Date(note.created_at).toLocaleDateString()} | 
-                    Updated: {new Date(note.updated_at).toLocaleDateString()}
-                  </>
-                )}
-                {hasChanges && (
-                  <span className="ml-2 text-yellow-500">
-                    • Unsaved changes
-                  </span>
-                )}
-                {lastSaved && (
-                  <span className="ml-2 text-green-500">
-                    • Last saved: {lastSaved.toLocaleTimeString()}
-                  </span>
-                )}
-              </div>
-            </div>
+            <input
+              type="text"
+              value={title}
+              onChange={handleTitleChange}
+              placeholder="Untitled Note"
+              className="text-xl font-semibold bg-transparent border-none focus:outline-none focus:ring-0 w-full text-gray-900 dark:text-white"
+            />
           </div>
-          <div className="flex-1" />
-        </div>
-
-        {/* Toolbar */}
-        <div className="flex items-center justify-between p-2 border-t border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2 whitespace-nowrap">
             <button
               onClick={handleSave}
-              className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
               title="Save"
               type="button"
             >
@@ -555,16 +535,42 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               onAlignmentChange={handleAlignment}
               selectedColor={selectedColor}
             />
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
+                <input type="checkbox" checked={pageView} onChange={(e) => setPageView(e.target.checked)} />
+                Page view
+              </label>
+              {pageView && (
+                <>
+                  <select
+                    value={paperSize}
+                    onChange={(e) => setPaperSize(e.target.value as 'A4' | 'Letter')}
+                    className="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300"
+                  >
+                    <option value="A4">A4</option>
+                    <option value="Letter">Letter</option>
+                  </select>
+                  <select
+                    value={orientation}
+                    onChange={(e) => setOrientation(e.target.value as 'portrait' | 'landscape')}
+                    className="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300"
+                  >
+                    <option value="portrait">Portrait</option>
+                    <option value="landscape">Landscape</option>
+                  </select>
+                </>
+              )}
+            </div>
+            <button
+              onClick={handleImportPDF}
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center flex-shrink-0"
+              title="Import Document"
+              type="button"
+            >
+              <FileUp size={16} className="mr-2" />
+              Import
+            </button>
           </div>
-          <button
-            onClick={handleImportPDF}
-            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 ml-2 flex items-center"
-            title="Import Document"
-            type="button"
-          >
-            <FileUp size={16} className="mr-2" />
-            Import
-          </button>
         </div>
       </div>
 
@@ -572,14 +578,38 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       <div className="flex-1 overflow-hidden">
         <div className="h-full flex min-w-0">
           {/* Editor */}
-          <div className="flex-1 overflow-y-auto p-4 min-w-0">
-            <div className="max-w-full break-words">
-              <BlockEditor
-                key={editorKey}
-                initialContent={content}
-                onChange={handleContentChange}
-                onFormattingChange={handleFormattingChange}
-              />
+          <div className="flex-1 overflow-y-auto p-4 min-w-0 flex justify-center">
+            <div className={`${pageView ? 'bg-gray-100 dark:bg-gray-900 w-full flex justify-center' : 'w-full'} ${/* compress width when AI panel open */''}`} style={{}}>
+              <div
+                className={`${pageView ? 'bg-white dark:bg-gray-800 shadow transition-[width] duration-200' : ''}`}
+                style={pageView ? (() => {
+                  const sizes = {
+                    A4: { width: 794, height: 1123 },
+                    Letter: { width: 816, height: 1056 },
+                  } as const;
+                  const size = sizes[paperSize];
+                  const baseW = orientation === 'portrait' ? size.width : size.height;
+                  const baseH = orientation === 'portrait' ? size.height : size.width;
+                  // If AI panel is open, slightly reduce page width to make room visually
+                  const adjustedW = baseW; // keep page width fixed; centering will shift left naturally
+                  return {
+                    width: `${adjustedW}px`,
+                    minHeight: `${baseH}px`,
+                    margin: '16px',
+                    padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px`,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)'
+                  } as React.CSSProperties;
+                })() : {}}
+              >
+                <div className="max-w-full break-words">
+                  <BlockEditor
+                    key={editorKey}
+                    initialContent={content}
+                    onChange={handleContentChange}
+                    onFormattingChange={handleFormattingChange}
+                  />
+                </div>
+              </div>
             </div>
           </div>
 
@@ -587,6 +617,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
           <AIFeaturesPanel
             content={content}
             onApplySummary={handleApplySummary}
+            onActiveChange={(open) => {
+              // When panel opens, layout already accounts by flex; we keep editor centered so it visually shifts left.
+            }}
           />
         </div>
       </div>

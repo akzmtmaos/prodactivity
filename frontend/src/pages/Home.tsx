@@ -66,13 +66,16 @@ const Home = () => {
         return;
       }
 
-      // Sort notes by last_visited or updated_at, ensuring last_visited is properly handled
+      // Sort notes by the most recent of updated_at or last_visited
       const sortedNotes = response.data
         .filter((note: Note) => !note.is_deleted) // Filter out deleted notes
         .sort((a: Note, b: Note) => {
-          // Convert dates to timestamps, defaulting to updated_at if last_visited is null
-          const dateA = a.last_visited ? new Date(a.last_visited).getTime() : new Date(a.updated_at).getTime();
-          const dateB = b.last_visited ? new Date(b.last_visited).getTime() : new Date(b.updated_at).getTime();
+          const updatedA = new Date(a.updated_at).getTime();
+          const visitedA = a.last_visited ? new Date(a.last_visited).getTime() : 0;
+          const updatedB = new Date(b.updated_at).getTime();
+          const visitedB = b.last_visited ? new Date(b.last_visited).getTime() : 0;
+          const dateA = Math.max(updatedA, visitedA);
+          const dateB = Math.max(updatedB, visitedB);
           return dateB - dateA; // Sort in descending order (most recent first)
         })
         .slice(0, 8); // Get the 8 most recent notes

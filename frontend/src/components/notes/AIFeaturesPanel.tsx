@@ -11,6 +11,7 @@ interface ChatMessage {
 interface AIFeaturesPanelProps {
   content: string;
   onApplySummary: (summary: string) => void;
+  onActiveChange?: (isOpen: boolean) => void;
 }
 
 // Typing Animation Component
@@ -76,7 +77,7 @@ const TypingAnimation: React.FC<{ text: string; speed?: number }> = ({ text, spe
   );
 };
 
-const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySummary }) => {
+const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySummary, onActiveChange }) => {
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [summaryResult, setSummaryResult] = useState<string>('');
@@ -88,6 +89,7 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
   const chatEndRef = useRef<HTMLDivElement>(null);
   const [reviewResult, setReviewResult] = useState<string>('');
   const [isReviewing, setIsReviewing] = useState(false);
+  const [panelVisible, setPanelVisible] = useState(false);
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api/notes';
 
@@ -106,6 +108,9 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
 
   const handleFeatureClick = (featureId: string) => {
     setActiveFeature(featureId);
+    // ensure mount, then animate in
+    requestAnimationFrame(() => setPanelVisible(true));
+    if (onActiveChange) onActiveChange(true);
     // Reset chat when switching to chat feature
     if (featureId === 'chat') {
       setChatMessages([]);
@@ -297,63 +302,11 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
 
   return (
     <>
-      {/* AI Features Sidebar */}
-      <div className="w-16 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col items-center py-4 space-y-4">
-        <button
-          onClick={() => handleFeatureClick('summarize')}
-          className={`p-2 rounded-lg transition-colors group relative
-            ${activeFeature === 'summarize' 
-              ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
-              : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'}`}
-          title="Smart Summarization"
-        >
-          <DocumentTextIcon className="h-6 w-6" />
-          <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
-            <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
-              Smart Summarization
-            </div>
-            <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => handleFeatureClick('review')}
-          className={`p-2 rounded-lg transition-colors group relative
-            ${activeFeature === 'review' 
-              ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
-              : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'}`}
-          title="AI Reviewer"
-        >
-          <AcademicCapIcon className="h-6 w-6" />
-          <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
-            <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
-              AI Reviewer
-            </div>
-            <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
-          </div>
-        </button>
-
-        <button
-          onClick={() => handleFeatureClick('chat')}
-          className={`p-2 rounded-lg transition-colors group relative
-            ${activeFeature === 'chat' 
-              ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
-              : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'}`}
-          title="AI Chat"
-        >
-          <ChatBubbleLeftRightIcon className="h-6 w-6" />
-          <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
-            <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
-              AI Chat
-            </div>
-            <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
-          </div>
-        </button>
-      </div>
-
-      {/* Feature Results Panel */}
+      {/* AI Feature Results Panel (left of navbar) */}
       {activeFeature && (
-        <div className="absolute right-16 w-96 bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-lg" style={{ top: '130px', bottom: '0' }}>
+        <div
+          className={`w-96 h-full bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-lg transform transition-all duration-200 ease-out will-change-transform ${panelVisible ? 'opacity-100 -translate-x-0' : 'opacity-0 -translate-x-4'}`}
+        >
           <div className="h-full flex flex-col">
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
@@ -375,7 +328,11 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
                 )}
                 <button
                   onClick={() => {
-                    setActiveFeature(null);
+                    setPanelVisible(false);
+                    setTimeout(() => {
+                      setActiveFeature(null);
+                      if (onActiveChange) onActiveChange(false);
+                    }, 200);
                     setSummaryResult('');
                     setChatMessages([]);
                     setChatInput('');
@@ -457,14 +414,11 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
                 )}
                 {activeFeature === 'chat' && (
                   <div className="flex flex-col h-full">
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-20">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-2">
                       {chatMessages.map((message, index) => {
-                        // Only show typing animation for the latest assistant message that's being generated
                         const isLatestAssistantMessage = message.role === 'assistant' && 
                           index === chatMessages.length - 1;
-                        
                         const shouldShowTyping = isLatestAssistantMessage && isTyping && message.content;
-                        
                         return (
                           <div
                             key={index}
@@ -488,22 +442,9 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
                           </div>
                         );
                       })}
-                      
-                      {/* Loading Dots */}
-                      {isChatLoading && !isTyping && (
-                        <div className="flex justify-start">
-                          <div className="max-w-[80%] rounded-lg p-3 bg-gray-100 dark:bg-gray-700">
-                            <div className="flex space-x-2">
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-100"></div>
-                              <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce delay-200"></div>
-                            </div>
-                          </div>
-                        </div>
-                      )}
                       <div ref={chatEndRef} />
                     </div>
-                    <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                    <div className="sticky bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                       <form onSubmit={handleChatSubmit} className="p-4">
                         <div className="flex space-x-2">
                           <input
@@ -531,6 +472,62 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
           </div>
         </div>
       )}
+
+      {/* AI Features Sidebar (navbar at far right) */}
+      <div className="w-16 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col items-center py-4 space-y-4">
+        <button
+          onClick={() => handleFeatureClick('summarize')}
+          className={`p-2 rounded-lg transition-colors group relative
+            ${activeFeature === 'summarize' 
+              ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
+              : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'}`}
+          title="Smart Summarization"
+        >
+          <DocumentTextIcon className="h-6 w-6" />
+          <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
+            <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+              Smart Summarization
+            </div>
+            <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
+          </div>
+        </button>
+        
+        <button
+          onClick={() => handleFeatureClick('review')}
+          className={`p-2 rounded-lg transition-colors group relative
+            ${activeFeature === 'review' 
+              ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
+              : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'}`}
+          title="AI Reviewer"
+        >
+          <AcademicCapIcon className="h-6 w-6" />
+          <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
+            <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+              AI Reviewer
+            </div>
+            <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
+          </div>
+        </button>
+        
+        <button
+          onClick={() => handleFeatureClick('chat')}
+          className={`p-2 rounded-lg transition-colors group relative
+            ${activeFeature === 'chat' 
+              ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
+              : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'}`}
+          title="AI Chat"
+        >
+          <ChatBubbleLeftRightIcon className="h-6 w-6" />
+          <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
+            <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+              AI Chat
+            </div>
+            <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
+          </div>
+        </button>
+      </div>
+
+      {/* Duplicate right-side panel removed */}
     </>
   );
 };

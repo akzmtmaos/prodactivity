@@ -455,6 +455,8 @@ const Notes = () => {
           headers: getAuthHeaders()
         });
         setNotes([response.data, ...notes]);
+        // Notify other parts of the app (e.g., Home quick notes) to refresh
+        window.dispatchEvent(new Event('noteUpdated'));
         // Switch to edit mode after first save to prevent duplicates
         setNoteEditorNote(response.data);
         setIsNewNoteEditor(false);
@@ -485,6 +487,8 @@ const Notes = () => {
           note.id === noteEditorNote.id ? response.data : note
         );
         setNotes(updatedNotes);
+        // Notify other parts of the app (e.g., Home quick notes) to refresh
+        window.dispatchEvent(new Event('noteUpdated'));
         
         // Update the noteEditorNote to reflect the new title
         setNoteEditorNote(response.data);

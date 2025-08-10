@@ -82,6 +82,81 @@ function findTextNodeAtOffset(node: Node, offset: number): { node: Node, offset:
   return null;
 }
 
+// Helper to find if current selection is inside a specific tag
+function isSelectionInsideTag(tagName: string): boolean {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return false;
+  let node: Node | null = selection.anchorNode;
+  const upper = tagName.toUpperCase();
+  while (node) {
+    if ((node as HTMLElement).tagName === upper) return true;
+    node = node.parentNode;
+  }
+  return false;
+}
+
+function getSafeSelectionRange(): Range | null {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return null;
+  try {
+    return selection.getRangeAt(0);
+  } catch {
+    return null;
+  }
+}
+
+function getHTMLFragmentsAroundCaret(container: HTMLElement): { beforeHTML: string; afterHTML: string } | null {
+  const range = getSafeSelectionRange();
+  if (!range) return null;
+  const beforeRange = document.createRange();
+  beforeRange.selectNodeContents(container);
+  try {
+    beforeRange.setEnd(range.startContainer, range.startOffset);
+  } catch {
+    // If invalid, fallback to start of container
+    beforeRange.setEnd(container, 0);
+  }
+  const afterRange = document.createRange();
+  afterRange.selectNodeContents(container);
+  try {
+    afterRange.setStart(range.startContainer, range.startOffset);
+  } catch {
+    // Fallback to end of container
+    afterRange.setStart(container, container.childNodes.length);
+  }
+  const beforeWrapper = document.createElement('div');
+  beforeWrapper.appendChild(beforeRange.cloneContents());
+  const afterWrapper = document.createElement('div');
+  afterWrapper.appendChild(afterRange.cloneContents());
+  return { beforeHTML: beforeWrapper.innerHTML, afterHTML: afterWrapper.innerHTML };
+}
+
+function isCaretAtStart(container: HTMLElement): boolean {
+  const range = getSafeSelectionRange();
+  if (!range) return true;
+  const testRange = document.createRange();
+  testRange.selectNodeContents(container);
+  try {
+    testRange.setEnd(range.startContainer, range.startOffset);
+  } catch {
+    return true;
+  }
+  return testRange.toString().length === 0;
+}
+
+function isCaretAtEnd(container: HTMLElement): boolean {
+  const range = getSafeSelectionRange();
+  if (!range) return true;
+  const testRange = document.createRange();
+  testRange.selectNodeContents(container);
+  try {
+    testRange.setStart(range.endContainer, range.endOffset);
+  } catch {
+    return true;
+  }
+  return testRange.toString().length === 0;
+}
+
 const SortableBlock: React.FC<SortableBlockProps> = ({ 
   block, 
   index,
@@ -207,7 +282,8 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
   const handleKeyDown = (e: React.KeyboardEvent) => {
     const target = e.currentTarget;
     const selection = window.getSelection();
-    const range = selection?.getRangeAt(0);
+    // Do NOT call getRangeAt here; selection may have 0 ranges
+    // Ranges are retrieved later only after checking rangeCount
     
     // Ctrl+A (or Cmd+A) should select all blocks, not just within the current block
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
@@ -231,19 +307,18 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
       return;
     }
     
-    // Handle Enter key for all block types
+    // Handle Enter key for all block types except when inside a table
     if (e.key === 'Enter' && !e.shiftKey) {
+      // If caret is inside a table/cell, let the browser handle row/cell behavior
+      if (isSelectionInsideTag('TABLE') || isSelectionInsideTag('TD') || isSelectionInsideTag('TH')) {
+        return; // allow default
+      }
       e.preventDefault();
-      const selection = window.getSelection();
-      if (!selection || selection.rangeCount === 0) return;
-      const range = selection.getRangeAt(0);
-
-      // Always split using textContent and range offsets
-      const originalText = target.textContent || '';
-      const startOffset = range.startOffset;
-        const beforeText = originalText.slice(0, startOffset);
-        const afterText = originalText.slice(startOffset);
-        const newBlockId = splitBlock(index, beforeText, afterText);
+      const container = target as HTMLElement;
+      const fragments = getHTMLFragmentsAroundCaret(container);
+      if (!fragments) return;
+      const { beforeHTML, afterHTML } = fragments;
+      const newBlockId = splitBlock(index, beforeHTML, afterHTML);
       setTimeout(() => {
         const newBlockElement = document.querySelector(`[data-block-id="${newBlockId}"]`);
         const newBlockEditable = newBlockElement?.querySelector('[contenteditable]');
@@ -264,9 +339,8 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
     if (e.key === 'Backspace') {
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) return;
-      
-      const range = selection.getRangeAt(0);
-      const isAtStart = range.startOffset === 0;
+      const container = target as HTMLElement;
+      const isAtStart = isCaretAtStart(container);
       const isCollapsed = selection.isCollapsed;
       
       // Only delete block if cursor is at the very beginning of an empty block
@@ -346,9 +420,8 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
     if (e.key === 'Delete') {
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) return;
-      
-      const range = selection.getRangeAt(0);
-      const isAtEnd = range.endOffset === (range.endContainer.textContent?.length || 0);
+      const container = target as HTMLElement;
+      const isAtEnd = isCaretAtEnd(container);
       const isCollapsed = selection.isCollapsed;
       
       // If cursor is at the end of a block, merge with next block
@@ -389,8 +462,8 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
     if (e.key === 'ArrowUp' && index > 0) {
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const isAtStart = range.startOffset === 0;
+        const container = target as HTMLElement;
+        const isAtStart = isCaretAtStart(container);
         
         if (isAtStart) {
           e.preventDefault();
@@ -403,8 +476,8 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
     if (e.key === 'ArrowDown' && index < blocks.length - 1) {
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
-        const range = selection.getRangeAt(0);
-        const isAtEnd = range.endOffset === (range.endContainer.textContent?.length || 0);
+        const container = target as HTMLElement;
+        const isAtEnd = isCaretAtEnd(container);
         
         if (isAtEnd) {
           e.preventDefault();
