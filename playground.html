@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Squid Game Player Board</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #000000;
+            color: white;
+            min-height: 100vh;
+            padding: 24px;
+            overflow-x: auto;
+        }
+        .digital-font {
+            font-family: 'Courier New', 'Digital-7', 'DSEG7', monospace;
+            font-weight: bold;
+            text-shadow: 0 0 3px rgba(0,255,0,0.3);
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+        }
+        .title {
+            font-size: 3rem;
+            font-weight: bold;
+            text-align: center;
+            margin-bottom: 32px;
+            font-family: 'Impact', 'Arial Black', sans-serif;
+        }
+        .counter-box {
+            background-color: #000000;
+            border-radius: 8px;
+            padding: 24px;
+            display: inline-block;
+            border: 4px solid #4b5563;
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .counter-text {
+            font-size: 1.875rem;
+            margin-bottom: 8px;
+        }
+        .survivor-text { color: #4ade80; }
+        .eliminated-text { color: #f87171; }
+        .button-container {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 32px;
+        }
+        .btn {
+            padding: 12px 32px;
+            border-radius: 8px;
+            font-weight: bold;
+            font-size: 1.125rem;
+            border: 2px solid;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-green {
+            background-color: #059669;
+            color: white;
+            border-color: #065f46;
+        }
+        .btn-green:hover { background-color: #047857; }
+        .btn-red {
+            background-color: #dc2626;
+            color: white;
+            border-color: #991b1b;
+        }
+        .btn-red:hover { background-color: #b91c1c; }
+        .board {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .row {
+            display: flex;
+            justify-content: center;
+        }
+        .row-right {
+            justify-content: flex-end;
+        }
+        .diamond {
+            width: 56px;
+            height: 56px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transform: rotate(45deg);
+            transition: all 0.3s;
+            border: 2px solid #000000;
+            position: relative;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+            z-index: 2;
+        }
+        .diamond:hover {
+            transform: rotate(45deg) scale(1.05);
+        }
+        .diamond.alive {
+            background-color: #ec4899;
+        }
+        .diamond.alive:hover {
+            background-color: #f472b6;
+        }
+        .diamond.eliminated {
+            background-color: #4b5563;
+            opacity: 0.4;
+            z-index: 1;
+        }
+        .player-number {
+            transform: rotate(-45deg);
+            font-size: 11px;
+            font-weight: 900;
+        }
+        .player-number.alive {
+            color: #4ade80;
+            text-shadow: 0 0 3px rgba(74, 222, 128, 0.6);
+        }
+        .player-number.eliminated {
+            color: #f87171;
+            text-decoration: line-through;
+            opacity: 0.6;
+        }
+        .x-mark {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 32px;
+            height: 2px;
+            background-color: #dc2626;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .x-mark-1 { transform: translate(-50%, -50%) rotate(-45deg); }
+        .x-mark-2 { transform: translate(-50%, -50%) rotate(45deg); }
+        .legend {
+            margin-top: 48px;
+            text-align: center;
+        }
+        .legend-box {
+            background-color: #000000;
+            border-radius: 8px;
+            padding: 24px;
+            display: inline-block;
+            border: 2px solid #4b5563;
+        }
+        .legend-item {
+            color: white;
+            margin-bottom: 12px;
+            font-size: 1.125rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .legend-diamond {
+            width: 24px;
+            height: 24px;
+            transform: rotate(45deg);
+            border: 2px solid;
+            margin-right: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .legend-diamond.alive {
+            background-color: #ec4899;
+            border-color: #be185d;
+        }
+        .legend-diamond.eliminated {
+            background-color: #4b5563;
+            border-color: #374151;
+            opacity: 0.4;
+        }
+        .player-number {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    font-family: 'Digital-7', monospace;
+    color: #00ff80;
+    font-size: 14px;
+    text-shadow:
+        0 0 5px #00ff80,
+        0 0 10px #00ff80,
+        0 0 20px rgba(0, 255, 128, 0.8);
+}
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="text-align: center; margin-bottom: 32px;">
+            <h1 class="title">SQUID GAME</h1>
+            <div class="counter-box">
+                <div class="counter-text digital-font survivor-text">
+                    SURVIVORS: <span id="survivor-count">456</span>
+                </div>
+                <div class="counter-text digital-font eliminated-text">
+                    ELIMINATED: <span id="eliminated-count">000</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="button-container">
+            <button onclick="resetAll()" class="btn btn-green">
+                RESET ALL
+            </button>
+            <button onclick="eliminateAll()" class="btn btn-red">
+                ELIMINATE ALL
+            </button>
+        </div>
+
+        <div style="padding-left:700px;" id="player-board" class="board">
+            <!-- Players will be generated here -->
+        </div>
+
+        <div class="legend">
+            <div class="legend-box">
+                <div class="legend-item">
+                    <span class="legend-diamond alive"></span>
+                    Click diamond to eliminate player
+                </div>
+                <div class="legend-item">
+                    <span class="legend-diamond eliminated"></span>
+                    Click again to revive player
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let eliminatedPlayers = new Set();
+        const totalPlayers = 456;
+
+        // Calculate diamond structure - expand until player 300, then contract
+        function generatePyramidStructure() {
+            const rows = [];
+            let currentPlayer = 1;
+            let playersPerRow = 1;
+            let expanding = true;
+            
+            while (currentPlayer <= totalPlayers) {
+                const rowPlayers = [];
+                
+                for (let i = 0; i < playersPerRow && currentPlayer <= totalPlayers; i++) {
+                    rowPlayers.push(currentPlayer);
+                    currentPlayer++;
+                }
+                
+                rows.push(rowPlayers);
+                
+                // Check if we've reached player 300 (switch to contracting)
+                if (currentPlayer > 300 && expanding) {
+                    expanding = false;
+                }
+                
+                if (expanding) {
+                    playersPerRow += 1; // Each row has 1 more player
+                } else {
+                    playersPerRow = Math.max(1, playersPerRow - 1); // Each row has 1 less player
+                }
+            }
+            
+            return rows;
+        }
+
+        function togglePlayer(playerNumber) {
+            if (eliminatedPlayers.has(playerNumber)) {
+                eliminatedPlayers.delete(playerNumber);
+            } else {
+                eliminatedPlayers.add(playerNumber);
+            }
+            updatePlayerVisual(playerNumber);
+            updateCounters();
+        }
+
+        function updatePlayerVisual(playerNumber) {
+            const playerElement = document.getElementById(`player-${playerNumber}`);
+            const numberElement = playerElement.querySelector('.player-number');
+            const isEliminated = eliminatedPlayers.has(playerNumber);
+            
+            // Remove existing X marks
+            const existingXMarks = playerElement.querySelectorAll('.x-mark');
+            existingXMarks.forEach(mark => mark.remove());
+            
+            if (isEliminated) {
+                playerElement.className = playerElement.className.replace('alive', 'eliminated');
+                numberElement.className = numberElement.className.replace('alive', 'eliminated');
+                playerElement.title = `Player ${playerNumber.toString().padStart(3, '0')} - ELIMINATED`;
+                
+                // Add X marks
+                const xMark1 = document.createElement('div');
+                xMark1.className = 'x-mark x-mark-1';
+                const xMark2 = document.createElement('div');
+                xMark2.className = 'x-mark x-mark-2';
+                playerElement.appendChild(xMark1);
+                playerElement.appendChild(xMark2);
+            } else {
+                playerElement.className = playerElement.className.replace('eliminated', 'alive');
+                numberElement.className = numberElement.className.replace('eliminated', 'alive');
+                playerElement.title = `Player ${playerNumber.toString().padStart(3, '0')} - ALIVE`;
+            }
+        }
+
+        function updateCounters() {
+            const survivingCount = totalPlayers - eliminatedPlayers.size;
+            document.getElementById('survivor-count').textContent = survivingCount.toString().padStart(3, '0');
+            document.getElementById('eliminated-count').textContent = eliminatedPlayers.size.toString().padStart(3, '0');
+        }
+
+        function resetAll() {
+            eliminatedPlayers.clear();
+            for (let i = 1; i <= totalPlayers; i++) {
+                updatePlayerVisual(i);
+            }
+            updateCounters();
+        }
+
+        function eliminateAll() {
+            eliminatedPlayers = new Set(Array.from({length: totalPlayers}, (_, i) => i + 1));
+            for (let i = 1; i <= totalPlayers; i++) {
+                updatePlayerVisual(i);
+            }
+            updateCounters();
+        }
+
+        // Generate the player board
+        function createPlayerBoard() {
+            const pyramidRows = generatePyramidStructure();
+            const boardElement = document.getElementById('player-board');
+            
+            pyramidRows.forEach((row, rowIndex) => {
+                const containsPlayer441to456 = row.some(player => player >= 441 && player <= 456);
+                
+                const rowDiv = document.createElement('div');
+                rowDiv.className = containsPlayer441to456 ? 'row row-right' : 'row';
+                if (rowIndex > 0) {
+                    rowDiv.style.marginTop = '-16px';
+                }
+                
+                row.forEach((playerNumber, playerIndex) => {
+                    const playerDiv = document.createElement('div');
+                    playerDiv.id = `player-${playerNumber}`;
+                    playerDiv.className = 'diamond alive';
+                    if (playerIndex > 0) {
+                        playerDiv.style.marginLeft = '24px';
+                    }
+                    playerDiv.title = `Player ${playerNumber.toString().padStart(3, '0')} - ALIVE`;
+                    playerDiv.onclick = () => togglePlayer(playerNumber);
+                    
+                    const numberSpan = document.createElement('span');
+                    numberSpan.className = 'player-number digital-font alive';
+                    numberSpan.textContent = playerNumber.toString().padStart(3, '0');
+                    
+                    playerDiv.appendChild(numberSpan);
+                    rowDiv.appendChild(playerDiv);
+                });
+                
+                boardElement.appendChild(rowDiv);
+            });
+        }
+
+        // Initialize the board when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            createPlayerBoard();
+        });
+    </script>
+</body>
+</html>

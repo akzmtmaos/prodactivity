@@ -235,3 +235,15 @@ MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
 # Create media directories if they don't exist
 os.makedirs(os.path.join(MEDIA_ROOT, 'temp'), exist_ok=True)
+
+# Email backend (console for development)
+EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@prodactivity.local')
+
+# Simple cache for password reset tokens
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'prodactivity-cache',
+    }
+}

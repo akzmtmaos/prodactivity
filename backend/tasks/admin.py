@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Task, ProductivityLog
+from .models import Task, ProductivityLog, Subtask
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
@@ -14,3 +14,10 @@ class ProductivityLogAdmin(admin.ModelAdmin):
     search_fields = ('user__username', 'status')
     ordering = ('-period_start', '-logged_at')
     date_hierarchy = 'period_start' 
+
+
+@admin.register(Subtask)
+class SubtaskAdmin(admin.ModelAdmin):
+    list_display = ('title', 'task', 'completed', 'created_at')
+    list_filter = ('completed', 'created_at')
+    search_fields = ('title', 'task__title', 'task__user__username')

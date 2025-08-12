@@ -1,5 +1,5 @@
 from django.contrib.auth.models import User
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import IntegrityError
@@ -9,6 +9,11 @@ from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAuthenticated
 from .models import Profile
 from .serializers import ProfileSerializer
+from rest_framework.throttling import AnonRateThrottle
+from django.core.mail import send_mail
+from django.utils.crypto import get_random_string
+from django.core.cache import cache
+from django.conf import settings
 
 @api_view(['POST'])
 def register(request):
@@ -28,7 +33,12 @@ def register(request):
         return Response({'success': False, 'message': 'Username or email already exists'}, status=status.HTTP_400_BAD_REQUEST)
 
 
+class LoginThrottle(AnonRateThrottle):
+    rate = '10/minute'
+
+
 @api_view(['POST'])
+@throttle_classes([LoginThrottle])
 def login_view(request):
     email = request.data.get('email')
     password = request.data.get('password')
@@ -83,3 +93,52 @@ def update_avatar(request):
             avatar_url = f"{request_scheme}://{request_host}{profile.avatar.url}"
         return Response({'avatar': avatar_url}, status=200)
     return Response(serializer.errors, status=400)
+
+
+# Password reset request: generate token and send email
+class PasswordResetThrottle(AnonRateThrottle):
+    rate = '5/hour'
+
+
+@api_view(['POST'])
+@throttle_classes([PasswordResetThrottle])
+def password_reset_request(request):
+    email = request.data.get('email')
+    if not email:
+        return Response({'detail': 'Email is required'}, status=400)
+    user = User.objects.filter(email=email).first()
+    # Don't reveal whether email exists
+    if user:
+        token = get_random_string(32)
+        cache_key = f"pwreset:{token}"
+        cache.set(cache_key, user.id, timeout=60*60)  # 1 hour
+        reset_url = f"{request.scheme}://{request.get_host()}/reset-password?token={token}"
+        try:
+            send_mail(
+                subject='Password Reset Request',
+                message=f'Use the link to reset your password: {reset_url}',
+                from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', 'no-reply@prodactivity.local'),
+                recipient_list=[email],
+                fail_silently=True,
+            )
+        except Exception:
+            pass
+    return Response({'detail': 'If an account exists for that email, a reset link has been sent.'})
+
+
+@api_view(['POST'])
+def password_reset_confirm(request):
+    token = request.data.get('token')
+    new_password = request.data.get('password')
+    if not token or not new_password:
+        return Response({'detail': 'Token and new password are required'}, status=400)
+    user_id = cache.get(f"pwreset:{token}")
+    if not user_id:
+        return Response({'detail': 'Invalid or expired token'}, status=400)
+    user = User.objects.filter(id=user_id).first()
+    if not user:
+        return Response({'detail': 'User not found'}, status=404)
+    user.set_password(new_password)
+    user.save()
+    cache.delete(f"pwreset:{token}")
+    return Response({'detail': 'Password has been reset successfully.'})

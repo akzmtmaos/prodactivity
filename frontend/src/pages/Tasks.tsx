@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import PageLayout from '../components/PageLayout';
 import TaskList from '../components/tasks/TaskList';
@@ -7,7 +8,7 @@ import TaskFilters from '../components/tasks/TaskFilters';
 import TaskSummary from '../components/tasks/TaskSummary';
 import { Task } from '../types/task';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
-import { getTimezoneOffset } from '../utils/dateUtils';
+// import { getTimezoneOffset } from '../utils/dateUtils';
 
 const API_BASE_URL = 'http://localhost:8000/api';
 
@@ -29,6 +30,7 @@ const getAuthHeaders = () => {
 };
 
 const Tasks = () => {
+  const navigate = useNavigate();
   const [user, setUser] = useState<any | null>(null);
   // Remove greeting state
   // const [greeting, setGreeting] = useState('');
@@ -95,6 +97,11 @@ const Tasks = () => {
     setError(null);
     
     try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        navigate('/login');
+        return;
+      }
       // Build query params for filtering and sorting
       const params = new URLSearchParams();
       
@@ -105,12 +112,13 @@ const Tasks = () => {
       if (filterPriority !== 'all') {
         params.append('priority', filterPriority);
       }
-      
       if (searchTerm) {
         params.append('search', searchTerm);
       }
       
-      params.append('ordering', `${sortDirection === 'desc' ? '-' : ''}${sortField}`);
+      // Map frontend field names to backend field names for ordering
+      const orderingField = sortField === 'dueDate' ? 'due_date' : (sortField as string);
+      params.append('ordering', `${sortDirection === 'desc' ? '-' : ''}${orderingField}`);
       
       const headers = getAuthHeaders();
       const response = await axios.get(`${API_BASE_URL}/tasks/?${params.toString()}`, { headers });
@@ -123,7 +131,15 @@ const Tasks = () => {
       setTasks(mappedTasks);
     } catch (err: any) {
       console.error('Error fetching tasks:', err);
-      setError('Failed to load tasks. Please try again later.');
+      if (err?.response?.status === 401) {
+        setError('Your session has expired. Please log in again.');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        setTimeout(() => navigate('/login'), 500);
+      } else {
+        setError('Failed to load tasks. Please try again later.');
+      }
     } finally {
       setLoading(false);
     }
@@ -201,7 +217,8 @@ const Tasks = () => {
       const response = await axios.patch(`${API_BASE_URL}/tasks/${id}/`, {
         completed: !taskToToggle.completed
       }, { headers: getAuthHeaders() });
-      setTasks(tasks.map(task => task.id === id ? response.data : task));
+      const updated = { ...response.data, dueDate: response.data.due_date };
+      setTasks(tasks.map(task => task.id === id ? updated : task));
     } catch (err) {
       console.error('Error toggling task completion:', err);
       setError('Failed to update task. Please try again.');

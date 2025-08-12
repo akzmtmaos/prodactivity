@@ -1,5 +1,7 @@
-import React from 'react';
-import { Task } from '../../types/task';
+import React, { useMemo, useState } from 'react';
+import { Task, Subtask } from '../../types/task';
+import SubtaskModal from './SubtaskModal';
+import AddSubtaskModal from './AddSubtaskModal';
 
 interface TaskItemProps {
   task: Task;
@@ -14,12 +16,14 @@ const priorityColors: Record<string, string> = {
   low: 'bg-green-500',
 };
 
-const TaskItem: React.FC<TaskItemProps> = ({
-  task,
-  onToggleComplete,
-  onEdit,
-  onDelete,
-}) => {
+const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete }) => {
+  const [isSubtasksOpen, setIsSubtasksOpen] = useState(false);
+  const [isAddSubtaskOpen, setIsAddSubtaskOpen] = useState(false);
+  const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>(task.subtasks || []);
+
+  const totalSubtasks = useMemo(() => localSubtasks.length, [localSubtasks]);
+  const completedSubtasks = useMemo(() => localSubtasks.filter(s => s.completed).length, [localSubtasks]);
+
   return (
     <div
       className={`group flex items-center gap-4 p-4 mb-3 bg-gray-50 dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 transition hover:shadow-md relative min-h-[80px] w-full`}
@@ -60,8 +64,31 @@ const TaskItem: React.FC<TaskItemProps> = ({
           </span>
         </div>
       </div>
-      {/* Action icons (show on hover or always on mobile) */}
-      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Action icons */}
+      <div className="flex items-center gap-2">
+        <button
+          className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+          onClick={() => setIsSubtasksOpen(true)}
+          title="Manage subtasks"
+        >
+          <svg className="h-5 w-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h6" />
+          </svg>
+          {totalSubtasks > 0 && (
+            <span className="absolute -top-1 -right-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-600 text-white">
+              {completedSubtasks}/{totalSubtasks}
+            </span>
+          )}
+        </button>
+        <button
+          className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
+          onClick={() => setIsAddSubtaskOpen(true)}
+          title="Add subtask"
+        >
+          <svg className="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+          </svg>
+        </button>
         <button
           className="p-2 rounded hover:bg-indigo-100 dark:hover:bg-indigo-900"
           onClick={() => onEdit(task)}
@@ -81,6 +108,19 @@ const TaskItem: React.FC<TaskItemProps> = ({
           </svg>
         </button>
       </div>
+      <SubtaskModal
+        taskId={task.id}
+        isOpen={isSubtasksOpen}
+        initialSubtasks={localSubtasks}
+        onClose={() => setIsSubtasksOpen(false)}
+        onChange={(updated) => setLocalSubtasks(updated)}
+      />
+      <AddSubtaskModal
+        taskId={task.id}
+        isOpen={isAddSubtaskOpen}
+        onClose={() => setIsAddSubtaskOpen(false)}
+        onAdded={(s) => setLocalSubtasks(prev => [...prev, s])}
+      />
     </div>
   );
 };

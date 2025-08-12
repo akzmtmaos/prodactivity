@@ -1,11 +1,12 @@
 from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticated
 # from django_filters.rest_framework import DjangoFilterBackend
-from .models import Task, XPLog, ProductivityLog
-from .serializers import TaskSerializer
+from .models import Task, XPLog, ProductivityLog, Subtask
+from .serializers import TaskSerializer, SubtaskSerializer
 # from .utils import get_user_local_date_from_request
 import logging
 from rest_framework.response import Response
+from rest_framework.decorators import action
 
 logger = logging.getLogger(__name__)
 
@@ -136,3 +137,20 @@ class TaskViewSet(viewsets.ModelViewSet):
         except Exception as e:
             logger.error(f"[TaskViewSet] Error soft-deleting task: {e}")
             return Response({'detail': 'Failed to delete task. Please try again.'}, status=status.HTTP_400_BAD_REQUEST) 
+
+
+class SubtaskViewSet(viewsets.ModelViewSet):
+    serializer_class = SubtaskSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        return Subtask.objects.filter(task__user=self.request.user)
+
+    def perform_create(self, serializer):
+        subtask = serializer.save()
+        if subtask.task.user != self.request.user:
+            # Revert and forbid
+            subtask.delete()
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You do not have permission to create a subtask for this task.")
+        return subtask

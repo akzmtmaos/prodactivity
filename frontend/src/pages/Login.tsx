@@ -16,6 +16,9 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ text: string, type: 'success' | 'error' | 'info' } | null>(null);
+  const [forgotOpen, setForgotOpen] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotStatus, setForgotStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -65,6 +68,21 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleForgot = async () => {
+    if (!forgotEmail) return;
+    setForgotStatus('sending');
+    try {
+      await fetch('http://localhost:8000/api/password-reset/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail })
+      });
+      setForgotStatus('sent');
+    } catch (e) {
+      setForgotStatus('sent');
     }
   };
 
@@ -225,8 +243,41 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
               Create Account
             </Link>
           </p>
+          <button
+            type="button"
+            className="mt-3 text-sm text-indigo-600 dark:text-indigo-300 hover:underline"
+            onClick={() => setForgotOpen(true)}
+          >
+            Forgot your password?
+          </button>
         </motion.div>
       </motion.div>
+
+      {/* Forgot Password Modal */}
+      {forgotOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-xl w-full max-w-md">
+            <h3 className="text-lg font-semibold mb-2">Reset your password</h3>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-4">Enter your email and we'll send a reset link.</p>
+            <input
+              type="email"
+              placeholder="you@example.com"
+              value={forgotEmail}
+              onChange={(e) => setForgotEmail(e.target.value)}
+              className="w-full mb-4 px-3 py-2 rounded border border-gray-300 dark:border-gray-700 bg-transparent"
+            />
+            {forgotStatus === 'sent' && (
+              <div className="mb-3 text-sm text-green-600">If an account exists for that email, a reset link has been sent.</div>
+            )}
+            <div className="flex justify-end gap-2">
+              <button className="px-3 py-2 rounded border" onClick={() => { setForgotOpen(false); setForgotEmail(''); setForgotStatus('idle'); }}>Cancel</button>
+              <button className="px-3 py-2 rounded bg-indigo-600 text-white" onClick={handleForgot} disabled={forgotStatus==='sending'}>
+                {forgotStatus==='sending' ? 'Sending...' : 'Send link'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -89,6 +89,19 @@ class Task(models.Model):
             'completed_tasks': completed_tasks
         } 
 
+class Subtask(models.Model):
+    task = models.ForeignKey(Task, on_delete=models.CASCADE, related_name='subtasks')
+    title = models.CharField(max_length=200)
+    completed = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['created_at']
+
+    def __str__(self):
+        return f"{self.title} (Subtask of {self.task_id})"
+
 class XPLog(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='xp_logs')
     task = models.ForeignKey('Task', on_delete=models.SET_NULL, null=True, blank=True, related_name='xp_logs')
