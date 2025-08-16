@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, Filter, BookOpen, TrendingUp, Clock, Target } from 'lucide-react';
+import { Plus, Search, Filter, BookOpen, TrendingUp, Clock, Target, FileText } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import DeckCard from '../components/decks/DeckCard';
 import CreateDeckModal from '../components/decks/CreateDeckModal';
@@ -78,6 +78,275 @@ const Decks = () => {
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<'decks' | 'stats' | 'archived'>('decks');
+
+  // Notes -> Flashcards conversion modal state
+  interface Notebook {
+    id: number;
+    name: string;
+    created_at: string;
+    updated_at: string;
+    is_archived: boolean;
+    archived_at: string | null;
+  }
+  interface NoteItem {
+    id: number;
+    title: string;
+    content: string;
+    notebook: number;
+    notebook_name: string;
+    created_at: string;
+    updated_at: string;
+    is_deleted: boolean;
+    is_archived: boolean;
+    archived_at: string | null;
+  }
+  const [showConvertModal, setShowConvertModal] = useState(false);
+  const [notebooks, setNotebooks] = useState<Notebook[]>([]);
+  const [notesByNotebook, setNotesByNotebook] = useState<Record<number, NoteItem[]>>({});
+  const [selectedNoteIds, setSelectedNoteIds] = useState<Set<number>>(new Set());
+  const [loadingNotes, setLoadingNotes] = useState<boolean>(false);
+  const [parseStrategy, setParseStrategy] = useState<'qa' | 'heading'>('qa');
+  const [deckStrategy, setDeckStrategy] = useState<'per_note' | 'single'>('per_note');
+  const [singleDeckName, setSingleDeckName] = useState<string>('Converted Notes');
+  const [previewCount, setPreviewCount] = useState<number>(0);
+
+  const getAuthHeaders = () => {
+    const token = localStorage.getItem('accessToken');
+    return {
+      'Authorization': token ? `Bearer ${token}` : '',
+      'Content-Type': 'application/json',
+    } as Record<string, string>;
+  };
+
+  const API_BASE = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
+
+  const [modalSelectedNotebookId, setModalSelectedNotebookId] = useState<number | null>(null);
+
+  const ensureNotebooksLoaded = async () => {
+    if (notebooks.length > 0) return;
+    try {
+      setLoadingNotes(true);
+      const res = await fetch(`${API_BASE}/notes/notebooks/`, { headers: getAuthHeaders() });
+      if (!res.ok) throw new Error('Failed to fetch notebooks');
+      const data = await res.json();
+      setNotebooks(data);
+      if (data.length > 0) setModalSelectedNotebookId(data[0].id);
+    } catch (e) {
+      setToast({ message: 'Failed to load notebooks', type: 'error' });
+    } finally {
+      setLoadingNotes(false);
+    }
+  };
+
+  const fetchNotesForNotebook = async (notebookId: number) => {
+    if (notesByNotebook[notebookId]) return; // already loaded
+    try {
+      setLoadingNotes(true);
+      const res = await fetch(`${API_BASE}/notes/?notebook=${notebookId}`, { headers: getAuthHeaders() });
+      if (!res.ok) throw new Error('Failed to fetch notes');
+      const data = await res.json();
+      setNotesByNotebook(prev => ({ ...prev, [notebookId]: data }));
+    } catch (e) {
+      setToast({ message: 'Failed to load notes', type: 'error' });
+    } finally {
+      setLoadingNotes(false);
+    }
+  };
+
+  const parseNotesToCards = (notes: NoteItem[]): { question: string; answer: string }[] => {
+    const cards: { question: string; answer: string }[] = [];
+    for (const note of notes) {
+      const content = (note.content || '').replace(/\r\n/g, '\n');
+      if (parseStrategy === 'qa') {
+        // Look for explicit Q:/A: lines, else use ? heuristic
+        const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        let i = 0;
+        while (i < lines.length) {
+          const line = lines[i];
+          if (/^q\s*:|^Q\s*:/.test(line)) {
+            const q = line.replace(/^q\s*:|^Q\s*:/, '').trim();
+            let a = '';
+            if (i + 1 < lines.length && (/^a\s*:|^A\s*:/.test(lines[i + 1]) || lines[i + 1].length > 0)) {
+              const next = lines[i + 1];
+              a = next.replace(/^a\s*:|^A\s*:/, '').trim();
+              i += 2;
+            } else {
+              i += 1;
+            }
+            if (q && a) cards.push({ question: q, answer: a });
+            continue;
+          }
+          if (line.endsWith('?')) {
+            const q = line;
+            // Collect the next non-empty line(s) until blank or new question
+            let a = '';
+            let j = i + 1;
+            while (j < lines.length && !lines[j].endsWith('?') && !/^q\s*:|^Q\s*:/.test(lines[j])) {
+              if (a.length > 0) a += ' ';
+              a += lines[j];
+              j++;
+            }
+            if (q && a) cards.push({ question: q, answer: a });
+            i = j;
+            continue;
+          }
+          i++;
+        }
+      } else {
+        // heading strategy: treat markdown headings as questions, next paragraph as answer
+        const lines = content.split('\n');
+        let i = 0;
+        while (i < lines.length) {
+          const raw = lines[i].trim();
+          const isHeading = /^(#{1,6})\s+/.test(raw);
+          if (isHeading) {
+            const q = raw.replace(/^(#{1,6})\s+/, '').trim();
+            let aLines: string[] = [];
+            i++;
+            while (i < lines.length) {
+              const t = lines[i].trim();
+              if (t.length === 0) { i++; continue; }
+              if (/^(#{1,6})\s+/.test(t)) break;
+              aLines.push(t);
+              i++;
+              // Stop answer at blank line to avoid swallowing entire doc
+              if (i < lines.length && lines[i].trim() === '') break;
+            }
+            const a = aLines.join(' ');
+            if (q && a) cards.push({ question: q, answer: a });
+            continue;
+          }
+          i++;
+        }
+      }
+    }
+    return cards;
+  };
+
+  useEffect(() => {
+    if (!showConvertModal) return;
+    ensureNotebooksLoaded();
+  }, [showConvertModal]);
+
+  useEffect(() => {
+    if (!showConvertModal || modalSelectedNotebookId == null) return;
+    fetchNotesForNotebook(modalSelectedNotebookId);
+  }, [showConvertModal, modalSelectedNotebookId]);
+
+  useEffect(() => {
+    if (!showConvertModal) return;
+    if (modalSelectedNotebookId == null) { setPreviewCount(0); return; }
+    const notes = notesByNotebook[modalSelectedNotebookId] || [];
+    const selected = notes.filter(n => selectedNoteIds.has(n.id));
+    const cards = parseNotesToCards(selected);
+    setPreviewCount(cards.length);
+  }, [selectedNoteIds, parseStrategy, notesByNotebook, modalSelectedNotebookId, showConvertModal]);
+
+  const handleToggleNoteSelection = (noteId: number) => {
+    setSelectedNoteIds(prev => {
+      const next = new Set(prev);
+      if (next.has(noteId)) next.delete(noteId); else next.add(noteId);
+      return next;
+    });
+  };
+
+  const handleSelectAllNotes = (checked: boolean) => {
+    if (modalSelectedNotebookId == null) return;
+    const notes = notesByNotebook[modalSelectedNotebookId] || [];
+    if (checked) {
+      setSelectedNoteIds(new Set(notes.map(n => n.id)));
+    } else {
+      setSelectedNoteIds(new Set());
+    }
+  };
+
+  const convertSelectedNotes = async () => {
+    if (modalSelectedNotebookId == null) return;
+    const notes = notesByNotebook[modalSelectedNotebookId] || [];
+    const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
+    if (selectedNotes.length === 0) {
+      setToast({ message: 'Select at least one note', type: 'error' });
+      return;
+    }
+    const token = localStorage.getItem('accessToken');
+    try {
+      setLoadingNotes(true);
+      const createdDecks: Deck[] = [];
+      if (deckStrategy === 'single') {
+        // Create single deck
+        const res = await fetch('http://localhost:8000/api/decks/decks/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+          body: JSON.stringify({ title: singleDeckName.trim() || 'Converted Notes' })
+        });
+        if (!res.ok) throw new Error('Failed to create deck');
+        const deckData = await res.json();
+        const allCards = parseNotesToCards(selectedNotes);
+        for (const card of allCards) {
+          await fetch('http://localhost:8000/api/decks/flashcards/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+            body: JSON.stringify({ deck: deckData.id, front: card.question, back: card.answer })
+          });
+        }
+        const newDeck: Deck = {
+          id: deckData.id.toString(),
+          title: deckData.title,
+          flashcardCount: allCards.length,
+          progress: 0,
+          created_at: deckData.created_at,
+          updated_at: deckData.updated_at,
+          createdAt: deckData.created_at,
+          flashcards: allCards.map((c, idx) => ({ id: `${deckData.id}-${idx}`, question: c.question, answer: c.answer, front: c.question, back: c.answer })),
+          subDecks: [],
+          is_deleted: false,
+        };
+        createdDecks.push(newDeck);
+      } else {
+        // Create a deck per note
+        for (const note of selectedNotes) {
+          const res = await fetch('http://localhost:8000/api/decks/decks/', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+            body: JSON.stringify({ title: note.title || `Note ${note.id}` })
+          });
+          if (!res.ok) throw new Error('Failed to create deck');
+          const deckData = await res.json();
+          const cards = parseNotesToCards([note]);
+          for (const card of cards) {
+            await fetch('http://localhost:8000/api/decks/flashcards/', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+              body: JSON.stringify({ deck: deckData.id, front: card.question, back: card.answer })
+            });
+          }
+          const newDeck: Deck = {
+            id: deckData.id.toString(),
+            title: deckData.title,
+            flashcardCount: cards.length,
+            progress: 0,
+            created_at: deckData.created_at,
+            updated_at: deckData.updated_at,
+            createdAt: deckData.created_at,
+            flashcards: cards.map((c, idx) => ({ id: `${deckData.id}-${idx}`, question: c.question, answer: c.answer, front: c.question, back: c.answer })),
+            subDecks: [],
+            is_deleted: false,
+          };
+          createdDecks.push(newDeck);
+        }
+      }
+      // Merge into current decks
+      setDecks(prev => [...prev, ...createdDecks]);
+      setToast({ message: 'Notes converted to flashcards successfully', type: 'success' });
+      // Reset modal state
+      setShowConvertModal(false);
+      setSelectedNoteIds(new Set());
+    } catch (e) {
+      setToast({ message: 'Conversion failed. Please try again.', type: 'error' });
+    } finally {
+      setLoadingNotes(false);
+    }
+  };
 
   useEffect(() => {
     const fetchDecks = async () => {
@@ -572,6 +841,14 @@ const Decks = () => {
                   <option value="new">New</option>
                 </select>
               </div>
+              {/* Convert Notes button */}
+              <button
+                onClick={() => setShowConvertModal(true)}
+                className="inline-flex items-center h-10 min-w-[180px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+              >
+                <FileText size={20} className="mr-2" />
+                Convert Notes
+              </button>
               {/* Add Deck button */}
               <button
                 onClick={() => setShowCreateModal(true)}
@@ -808,6 +1085,157 @@ const Decks = () => {
                   className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm"
                 >
                   OK
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Convert Notes Modal */}
+      {showConvertModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full">
+              <div className="bg-white dark:bg-gray-800 px-6 pt-6 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-emerald-100 dark:bg-emerald-900/20 sm:mx-0 sm:h-10 sm:w-10">
+                    <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <div className="mt-3 text-left sm:mt-0 sm:ml-4 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Convert Notes to Flashcards</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Select notes and how to parse them into Q/A cards. Create a single deck or one deck per note.</p>
+                    <div className="mt-4 space-y-4">
+                      {/* Notebook selector */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notebook</label>
+                        <div className="flex items-center gap-2">
+                          <select
+                            disabled={loadingNotes}
+                            value={modalSelectedNotebookId ?? ''}
+                            onChange={(e) => { const id = Number(e.target.value); setModalSelectedNotebookId(Number.isNaN(id) ? null : id); setSelectedNoteIds(new Set()); }}
+                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                          >
+                            {notebooks.length === 0 && <option value="">{loadingNotes ? 'Loading...' : 'No notebooks found'}</option>}
+                            {notebooks.map(nb => (
+                              <option key={nb.id} value={nb.id}>{nb.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={() => ensureNotebooksLoaded()}
+                            className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600"
+                            type="button"
+                          >
+                            Refresh
+                          </button>
+                        </div>
+                      </div>
+                      {/* Notes list */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
+                          <div className="flex items-center gap-2 text-sm">
+                            <label className="inline-flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                checked={modalSelectedNotebookId != null && (notesByNotebook[modalSelectedNotebookId]?.length || 0) > 0 && (notesByNotebook[modalSelectedNotebookId] || []).every(n => selectedNoteIds.has(n.id))}
+                                onChange={(e) => handleSelectAllNotes(e.target.checked)}
+                              />
+                              <span className="text-gray-700 dark:text-gray-300">Select all</span>
+                            </label>
+                          </div>
+                        </div>
+                        <div className="max-h-60 overflow-auto rounded border border-gray-200 dark:border-gray-700">
+                          {loadingNotes && (
+                            <div className="p-4 text-sm text-gray-500 dark:text-gray-400">Loading notes...</div>
+                          )}
+                          {!loadingNotes && modalSelectedNotebookId != null && (notesByNotebook[modalSelectedNotebookId]?.length || 0) === 0 && (
+                            <div className="p-4 text-sm text-gray-500 dark:text-gray-400">No notes in this notebook.</div>
+                          )}
+                          {!loadingNotes && modalSelectedNotebookId != null && (notesByNotebook[modalSelectedNotebookId]?.length || 0) > 0 && (
+                            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
+                              {(notesByNotebook[modalSelectedNotebookId] || []).map(note => (
+                                <li key={note.id} className="flex items-start gap-3 p-2">
+                                  <input
+                                    type="checkbox"
+                                    className="mt-1"
+                                    checked={selectedNoteIds.has(note.id)}
+                                    onChange={() => handleToggleNoteSelection(note.id)}
+                                  />
+                                  <div>
+                                    <div className="text-sm font-medium text-gray-900 dark:text-white">{note.title}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xl">{note.content?.slice(0, 140)}</div>
+                                  </div>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </div>
+                      </div>
+                      {/* Parsing strategy */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Parsing Strategy</label>
+                          <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                            <label className="flex items-center gap-2">
+                              <input type="radio" name="parseStrategy" value="qa" checked={parseStrategy === 'qa'} onChange={() => setParseStrategy('qa')} />
+                              Q/A lines (detect lines starting with "Q:" followed by "A:", or questions ending with "?")
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <input type="radio" name="parseStrategy" value="heading" checked={parseStrategy === 'heading'} onChange={() => setParseStrategy('heading')} />
+                              Headings as questions (Markdown headings, next paragraph as answer)
+                            </label>
+                          </div>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deck Strategy</label>
+                          <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
+                            <label className="flex items-center gap-2">
+                              <input type="radio" name="deckStrategy" value="per_note" checked={deckStrategy === 'per_note'} onChange={() => setDeckStrategy('per_note')} />
+                              Create a deck per selected note (deck name = note title)
+                            </label>
+                            <label className="flex items-center gap-2">
+                              <input type="radio" name="deckStrategy" value="single" checked={deckStrategy === 'single'} onChange={() => setDeckStrategy('single')} />
+                              Create a single deck for all cards
+                            </label>
+                            {deckStrategy === 'single' && (
+                              <input
+                                type="text"
+                                value={singleDeckName}
+                                onChange={(e) => setSingleDeckName(e.target.value)}
+                                placeholder="Deck name"
+                                className="mt-1 w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      {/* Preview */}
+                      <div className="text-sm text-gray-700 dark:text-gray-300">
+                        Estimated cards: <span className="font-semibold">{previewCount}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  disabled={loadingNotes}
+                  onClick={convertSelectedNotes}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-60"
+                >
+                  Convert
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowConvertModal(false)}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
                 </button>
               </div>
             </div>

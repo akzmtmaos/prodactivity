@@ -195,7 +195,7 @@
             <h1 class="title">SQUID GAME</h1>
             <div class="counter-box">
                 <div class="counter-text digital-font survivor-text">
-                    SURVIVORS: <span id="survivor-count">456</span>
+                    SURVIVORS: <span id="survivor-count">124</span>
                 </div>
                 <div class="counter-text digital-font eliminated-text">
                     ELIMINATED: <span id="eliminated-count">000</span>
@@ -232,7 +232,7 @@
 
     <script>
         let eliminatedPlayers = new Set();
-        const totalPlayers = 456;
+        const totalPlayers = 124;
 
         // Calculate diamond structure - expand until player 300, then contract
         function generatePyramidStructure() {
@@ -332,10 +332,10 @@
             const boardElement = document.getElementById('player-board');
             
             pyramidRows.forEach((row, rowIndex) => {
-                const containsPlayer441to456 = row.some(player => player >= 441 && player <= 456);
+                const containsPlayer441to124 = row.some(player => player >= 441 && player <= 124);
                 
                 const rowDiv = document.createElement('div');
-                rowDiv.className = containsPlayer441to456 ? 'row row-right' : 'row';
+                rowDiv.className = containsPlayer441to124 ? 'row row-right' : 'row';
                 if (rowIndex > 0) {
                     rowDiv.style.marginTop = '-16px';
                 }
