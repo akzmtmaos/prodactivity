@@ -12,6 +12,9 @@ interface AIFeaturesPanelProps {
   content: string;
   onApplySummary: (summary: string) => void;
   onActiveChange?: (isOpen: boolean) => void;
+  sourceNoteId?: number;
+  sourceNotebookId?: number;
+  sourceTitle?: string;
 }
 
 // Typing Animation Component
@@ -77,7 +80,7 @@ const TypingAnimation: React.FC<{ text: string; speed?: number }> = ({ text, spe
   );
 };
 
-const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySummary, onActiveChange }) => {
+const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySummary, onActiveChange, sourceNoteId, sourceNotebookId, sourceTitle }) => {
   const [activeFeature, setActiveFeature] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [summaryResult, setSummaryResult] = useState<string>('');
@@ -91,7 +94,7 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
   const [isReviewing, setIsReviewing] = useState(false);
   const [panelVisible, setPanelVisible] = useState(false);
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api/notes';
+  const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 
   // Get auth headers for API calls
   const getAuthHeaders = () => {
@@ -271,19 +274,43 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
     setIsReviewing(true);
     setReviewResult('');
     try {
-      const response = await axios.post(`${API_URL}/notes/review/`, {
-        text: content
+      // Compose detailed prompt like Reviewer page
+      const detailedPrompt = `Please review the following content and provide your response in the following format:
+
+Summary:
+
+[Write a concise summary here]
+
+Terminology:
+
+- [List important terminologies with brief explanations as bullet points]
+
+Key Points:
+
+- [List key points and main ideas as bullet points]
+
+Main Idea:
+
+- [State the main idea(s) as bullet points]
+
+Leave one blank line between each section. Use bullet points for lists.
+
+Content:
+${content}`;
+
+      const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
+        text: detailedPrompt,
+        title: (sourceTitle && sourceTitle.trim() ? `${sourceTitle.trim()} - Study Summary` : 'Study Summary'),
+        source_note: sourceNoteId ?? null,
+        source_notebook: sourceNotebookId ?? null,
+        tags: []
       }, {
         headers: getAuthHeaders()
       });
-      if (response.data.error) {
-        throw new Error(response.data.error);
-      }
-      const review = response.data.review;
-      if (!review) {
-        throw new Error('No review was generated');
-      }
-      setReviewResult(review);
+      const created = response.data;
+      setReviewResult('Reviewer generated successfully.');
+      // Navigate to the new reviewer
+      window.location.href = `/reviewer/r/${created.id}`;
     } catch (error: any) {
       console.error('Failed to review note:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to review note. Please try again.';

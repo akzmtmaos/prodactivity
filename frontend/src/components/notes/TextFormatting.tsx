@@ -6,12 +6,11 @@ import {
   AlignLeft, 
   AlignCenter, 
   AlignRight,
+  AlignJustify,
   List,
   ListOrdered,
   Strikethrough,
   Quote,
-  Link,
-  Image,
   ChevronDown,
   LayoutGrid
 } from 'lucide-react';
@@ -27,8 +26,10 @@ interface TextFormattingProps {
   };
   onToggleFormatting: (command: string, value?: string) => void;
   onShowColorPicker: () => void;
-  onAlignmentChange: (alignment: 'left' | 'center' | 'right') => void;
+  onAlignmentChange: (alignment: 'left' | 'center' | 'right' | 'justify') => void;
   selectedColor: string;
+  onSelectHighlightColor: (color: string) => void;
+  highlightColors: Array<{ name: string; value: string }>;
 }
 
 const TextFormatting: React.FC<TextFormattingProps> = ({
@@ -36,10 +37,15 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
   onToggleFormatting,
   onShowColorPicker,
   onAlignmentChange,
-  selectedColor
+  selectedColor,
+  onSelectHighlightColor,
+  highlightColors
 }) => {
+  // Debug: Log the highlightColors prop
+  console.log('TextFormatting highlightColors:', highlightColors);
   const [showTableMenu, setShowTableMenu] = useState(false);
   const [tableMenuPosition, setTableMenuPosition] = useState<{ x: number; y: number } | null>(null);
+  const [showColorMenu, setShowColorMenu] = useState(false);
 
   const getActiveEditable = (): HTMLElement | null => {
     const selection = window.getSelection();
@@ -62,46 +68,31 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
     }
   };
 
-  const handleFormattingClick = (command: string, value?: string) => {
-    // Ensure we have a selection in a contentEditable element
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) {
-      // If no selection, try to focus the first contentEditable element
-      const contentEditable = document.querySelector('[contenteditable]') as HTMLElement;
-      if (contentEditable) {
-        contentEditable.focus();
-        const range = document.createRange();
-        range.selectNodeContents(contentEditable);
-        range.collapse(false);
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-      }
-    }
-    
-    onToggleFormatting(command, value);
-    // Ensure BlockEditor state updates after execCommand
-    syncActiveEditable();
-  };
+     const handleFormattingClick = (command: string, value?: string) => {
+     // Ensure we have a selection in a contentEditable element
+     const selection = window.getSelection();
+     if (!selection || selection.rangeCount === 0) {
+       // If no selection, try to focus the first contentEditable element
+       const contentEditable = document.querySelector('[contenteditable]') as HTMLElement;
+       if (contentEditable) {
+         contentEditable.focus();
+         const range = document.createRange();
+         range.selectNodeContents(contentEditable);
+         range.collapse(false);
+         selection?.removeAllRanges();
+         selection?.addRange(range);
+       }
+     }
+     
+     onToggleFormatting(command, value);
+     // Ensure BlockEditor state updates after execCommand
+     syncActiveEditable();
+   };
 
-  const handleLinkClick = () => {
-    const url = prompt('Enter link URL:');
-    if (url) {
-      handleFormattingClick('createLink', url);
-    }
-  };
-
-  const handleImageClick = () => {
-    const url = prompt('Enter image URL:');
-    if (url) {
-      const img = document.createElement('img');
-      img.src = url;
-      img.style.maxWidth = '100%';
-      img.style.height = 'auto';
-      img.style.display = 'block';
-      document.execCommand('insertHTML', false, img.outerHTML);
-      syncActiveEditable();
-    }
-  };
+   const toggleColorMenu = (e: React.MouseEvent) => {
+     e.preventDefault();
+     setShowColorMenu(prev => !prev);
+   };  
 
   // Utilities for table manipulation
   const findParentTag = (node: Node | null, tagName: string): HTMLElement | null => {
@@ -249,10 +240,14 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
       if (!target.closest('.table-menu') && !target.closest('.table-button')) {
         setShowTableMenu(false);
       }
+      if (!target.closest('.color-menu') && !target.closest('.color-button')) {
+        setShowColorMenu(false);
+      }
     };
     if (showTableMenu) document.addEventListener('mousedown', handleClick);
+    if (showColorMenu) document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
-  }, [showTableMenu]);
+  }, [showTableMenu, showColorMenu]);
 
   return (
     <div className="flex items-center space-x-1 p-2">
@@ -311,35 +306,78 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
       >
         <Quote size={16} />
       </button>
-      <button
-        onClick={onShowColorPicker}
-        className={`p-2 rounded-lg flex items-center space-x-1 highlight-button ${
-          activeFormatting.highlight
-            ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
-            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-        }`}
-        title="Highlight"
-      >
-        <div 
-          className="w-4 h-4 rounded-sm border border-gray-300 dark:border-gray-600" 
-          style={{ backgroundColor: selectedColor }}
-        />
-        <ChevronDown size={14} />
-      </button>
-      <button
-        onClick={handleLinkClick}
-        className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
-        title="Insert Link"
-      >
-        <Link size={16} />
-      </button>
-      <button
-        onClick={handleImageClick}
-        className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
-        title="Insert Image"
-      >
-        <Image size={16} />
-      </button>
+      <div className="relative inline-block">
+        <button
+          onClick={toggleColorMenu}
+          className={`p-2 rounded-lg flex items-center space-x-1 highlight-button color-button ${
+            activeFormatting.highlight
+              ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
+              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
+          }`}
+          title="Highlight"
+        >
+          <div 
+            className="w-4 h-4 rounded-sm border border-gray-300 dark:border-gray-600" 
+            style={{ backgroundColor: selectedColor }}
+          />
+          <ChevronDown size={14} />
+        </button>
+
+                          {showColorMenu && (
+           <div
+             className="absolute color-menu z-50 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-md p-3 flex gap-2"
+             style={{ left: 0, top: '100%' }}
+           >
+             {/* Light highlight colors */}
+             <button
+               onClick={() => { onSelectHighlightColor('#fff3cd'); setShowColorMenu(false); }}
+               className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+               style={{ backgroundColor: '#fff3cd' }}
+               title="Light Yellow"
+             />
+             <button
+               onClick={() => { onSelectHighlightColor('#d1ecf1'); setShowColorMenu(false); }}
+               className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+               style={{ backgroundColor: '#d1ecf1' }}
+               title="Light Blue"
+             />
+             <button
+               onClick={() => { onSelectHighlightColor('#d4edda'); setShowColorMenu(false); }}
+               className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+               style={{ backgroundColor: '#d4edda' }}
+               title="Light Green"
+             />
+                           <button
+                onClick={() => { onSelectHighlightColor('#ffeaa7'); setShowColorMenu(false); }}
+                className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                style={{ backgroundColor: '#ffeaa7' }}
+                title="Light Orange"
+              />
+              <button
+                onClick={() => { onSelectHighlightColor('#e8d5ff'); setShowColorMenu(false); }}
+                className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                style={{ backgroundColor: '#e8d5ff' }}
+                title="Light Purple"
+              />
+              <button
+                onClick={() => { onSelectHighlightColor('#ffd6d6'); setShowColorMenu(false); }}
+                className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
+                style={{ backgroundColor: '#ffd6d6' }}
+                title="Light Red"
+              />
+             
+             {/* Remove highlight option */}
+             <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-1" />
+             <button
+               onClick={() => { onSelectHighlightColor('transparent'); setShowColorMenu(false); }}
+               className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform bg-white dark:bg-gray-700 flex items-center justify-center"
+               title="Remove Highlight"
+             >
+               <div className="w-3 h-0.5 bg-gray-500 dark:bg-gray-400 rotate-45" />
+             </button>
+           </div>
+         )}
+      </div>
       
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
       
@@ -357,13 +395,20 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
       >
         <AlignCenter size={16} />
       </button>
-      <button
-        onClick={() => onAlignmentChange('right')}
-        className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
-        title="Align Right"
-      >
-        <AlignRight size={16} />
-      </button>
+             <button
+         onClick={() => onAlignmentChange('right')}
+         className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
+         title="Align Right"
+       >
+         <AlignRight size={16} />
+       </button>
+       <button
+         onClick={() => onAlignmentChange('justify')}
+         className="p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
+         title="Justify"
+       >
+         <AlignJustify size={16} />
+       </button>
       
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
       

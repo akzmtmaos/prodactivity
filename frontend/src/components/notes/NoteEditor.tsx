@@ -3,25 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   ArrowLeft, 
   Save, 
-  Bold, 
-  Italic, 
-  Underline, 
-  AlignLeft, 
-  AlignCenter, 
-  AlignRight,
-  List,
-  ListOrdered,
-  Type,
-  Palette,
-  Strikethrough,
-  Code,
-  Quote,
-  Link,
-  Image,
-  FileText,
-  FileUp,
-  X,
-  ChevronDown
+  FileUp
 } from 'lucide-react';
 import { DocumentTextIcon, ChatBubbleLeftRightIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 import BlockEditor from './BlockEditor';
@@ -69,7 +51,9 @@ const HIGHLIGHT_COLORS = [
   { name: 'Orange', value: '#ffb74d' },
   { name: 'Purple', value: '#ce93d8' },
   { name: 'Red', value: '#ef9a9a' },
-  { name: 'Remove', value: 'transparent' }
+  { name: 'Light Blue', value: '#81d4fa' },
+  { name: 'Light Green', value: '#c8e6c9' },
+  { name: 'Light Yellow', value: '#fff9c4' }
 ];
 
 const NoteEditor: React.FC<NoteEditorProps> = ({
@@ -456,9 +440,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     );
   };
 
-  const handleAlignment = (alignment: 'left' | 'center' | 'right') => {
+  const handleAlignment = (alignment: 'left' | 'center' | 'right' | 'justify') => {
     document.execCommand('removeFormat', false);
-    document.execCommand(`justify${alignment.charAt(0).toUpperCase() + alignment.slice(1)}`);
+    if (alignment === 'justify') {
+      document.execCommand('justifyFull', false);
+    } else {
+      document.execCommand(`justify${alignment.charAt(0).toUpperCase() + alignment.slice(1)}`);
+    }
   };
 
   // Handle formatting changes from BlockEditor
@@ -511,13 +499,22 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             >
               <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
             </button>
-            <input
-              type="text"
-              value={title}
-              onChange={handleTitleChange}
-              placeholder="Untitled Note"
-              className="text-xl font-semibold bg-transparent border-none focus:outline-none focus:ring-0 w-full text-gray-900 dark:text-white"
-            />
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <input
+                type="text"
+                value={title}
+                onChange={handleTitleChange}
+                placeholder="Untitled Note"
+                className="text-xl font-semibold bg-transparent border-none focus:outline-none focus:ring-0 w-full text-gray-900 dark:text-white"
+              />
+              {/* Save status indicator */}
+              <div 
+                className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                  hasChanges ? 'bg-orange-500' : 'bg-green-500'
+                }`}
+                title={hasChanges ? 'Unsaved changes' : 'Saved'}
+              />
+            </div>
           </div>
           <div className="flex items-center gap-2 whitespace-nowrap">
             <button
@@ -534,32 +531,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               onShowColorPicker={showColorPickerAtSelection}
               onAlignmentChange={handleAlignment}
               selectedColor={selectedColor}
+              onSelectHighlightColor={(color) => handleHighlightColor(color)}
+              highlightColors={HIGHLIGHT_COLORS}
             />
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
                 <input type="checkbox" checked={pageView} onChange={(e) => setPageView(e.target.checked)} />
                 Page view
               </label>
-              {pageView && (
-                <>
-                  <select
-                    value={paperSize}
-                    onChange={(e) => setPaperSize(e.target.value as 'A4' | 'Letter')}
-                    className="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300"
-                  >
-                    <option value="A4">A4</option>
-                    <option value="Letter">Letter</option>
-                  </select>
-                  <select
-                    value={orientation}
-                    onChange={(e) => setOrientation(e.target.value as 'portrait' | 'landscape')}
-                    className="px-2 py-1 text-xs bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300"
-                  >
-                    <option value="portrait">Portrait</option>
-                    <option value="landscape">Landscape</option>
-                  </select>
-                </>
-              )}
             </div>
             <button
               onClick={handleImportPDF}
@@ -578,8 +557,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       <div className="flex-1 overflow-hidden">
         <div className="h-full flex min-w-0">
           {/* Editor */}
-          <div className="flex-1 overflow-y-auto p-4 min-w-0 flex justify-center">
-            <div className={`${pageView ? 'bg-gray-100 dark:bg-gray-900 w-full flex justify-center' : 'w-full'} ${/* compress width when AI panel open */''}`} style={{}}>
+          <div className={`flex-1 overflow-y-auto p-4 min-w-0 flex justify-center ${pageView ? 'bg-gray-100 dark:bg-gray-900' : ''}`}>
+            <div className={`${pageView ? 'w-full flex justify-center' : 'w-full'} ${/* compress width when AI panel open */''}`} style={{}}>
               <div
                 className={`${pageView ? 'bg-white dark:bg-gray-800 shadow transition-[width] duration-200' : ''}`}
                 style={pageView ? (() => {
@@ -620,44 +599,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             onActiveChange={(open) => {
               // When panel opens, layout already accounts by flex; we keep editor centered so it visually shifts left.
             }}
+            sourceNoteId={note?.id}
+            sourceNotebookId={note?.notebook}
+            sourceTitle={note?.title || ''}
           />
         </div>
       </div>
 
-      {/* Floating Color Picker */}
-      {showColorPicker && (
-        <div 
-          className="fixed color-picker bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 z-[10000]"
-          style={{
-            left: `${colorPickerPosition.x}px`,
-            top: `${colorPickerPosition.y}px`,
-            transform: 'translate(-50%, -100%)'
-          }}
-        >
-          <div className="grid grid-cols-4 gap-2">
-            {HIGHLIGHT_COLORS.map((color) => (
-              <button
-                key={color.value}
-                onClick={() => handleHighlightColor(color.value)}
-                className={`p-2 rounded-lg flex flex-col items-center space-y-1 ${
-                  color.value === selectedColor
-                    ? 'bg-gray-100 dark:bg-gray-700'
-                    : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                }`}
-                title={color.name}
-              >
-                <div 
-                  className="w-6 h-6 rounded-sm border border-gray-300 dark:border-gray-600" 
-                  style={{ backgroundColor: color.value }}
-                />
-                <span className="text-xs text-gray-600 dark:text-gray-400">
-                  {color.name}
-                </span>
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Floating Color Picker - Removed in favor of dropdown */}
 
       <ImportModal
         isOpen={showImportModal}

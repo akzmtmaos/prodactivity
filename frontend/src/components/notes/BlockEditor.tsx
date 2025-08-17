@@ -108,27 +108,23 @@ function getSafeSelectionRange(): Range | null {
 function getHTMLFragmentsAroundCaret(container: HTMLElement): { beforeHTML: string; afterHTML: string } | null {
   const range = getSafeSelectionRange();
   if (!range) return null;
-  const beforeRange = document.createRange();
-  beforeRange.selectNodeContents(container);
-  try {
-    beforeRange.setEnd(range.startContainer, range.startOffset);
-  } catch {
-    // If invalid, fallback to start of container
-    beforeRange.setEnd(container, 0);
-  }
-  const afterRange = document.createRange();
-  afterRange.selectNodeContents(container);
-  try {
-    afterRange.setStart(range.startContainer, range.startOffset);
-  } catch {
-    // Fallback to end of container
-    afterRange.setStart(container, container.childNodes.length);
-  }
-  const beforeWrapper = document.createElement('div');
-  beforeWrapper.appendChild(beforeRange.cloneContents());
-  const afterWrapper = document.createElement('div');
-  afterWrapper.appendChild(afterRange.cloneContents());
-  return { beforeHTML: beforeWrapper.innerHTML, afterHTML: afterWrapper.innerHTML };
+  
+  // Get the text content of the container
+  const fullText = container.textContent || '';
+  
+  // Create a range to measure the position
+  const measureRange = document.createRange();
+  measureRange.selectNodeContents(container);
+  measureRange.setEnd(range.startContainer, range.startOffset);
+  
+  // Calculate the caret position in the text
+  const caretPosition = measureRange.toString().length;
+  
+  // Split the text at the caret position
+  const beforeText = fullText.substring(0, caretPosition);
+  const afterText = fullText.substring(caretPosition);
+  
+  return { beforeHTML: beforeText, afterHTML: afterText };
 }
 
 function isCaretAtStart(container: HTMLElement): boolean {
@@ -381,15 +377,16 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
         const prevBlockEditable = prevBlockElement?.querySelector('[contenteditable]') as HTMLElement;
         
         if (prevBlockEditable) {
-          // Get current and previous content
-          const currentContent = target.innerHTML;
-          const prevContent = prevBlockEditable.innerHTML;
+          // Get current and previous content as text to avoid HTML concatenation issues
+          const currentText = target.textContent || '';
+          const prevText = prevBlockEditable.textContent || '';
           
           // Before merging, get the length of the previous block's text content
-          let prevBlockTextLength = getTextLength(prevBlockEditable);
+          let prevBlockTextLength = prevText.length;
 
-          // Merge content into previous block
-          prevBlockEditable.innerHTML = prevContent + currentContent;
+          // Merge content into previous block using text content
+          const mergedText = prevText + currentText;
+          prevBlockEditable.textContent = mergedText;
           onContentChange(blocks[index - 1].id, prevBlockEditable.innerHTML);
           
           // Delete current block
@@ -433,12 +430,13 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
         const nextBlockEditable = nextBlockElement?.querySelector('[contenteditable]') as HTMLElement;
         
         if (nextBlockEditable) {
-          // Get current and next content
-          const currentContent = target.innerHTML;
-          const nextContent = nextBlockEditable.innerHTML;
+          // Get current and next content as text to avoid HTML concatenation issues
+          const currentText = target.textContent || '';
+          const nextText = nextBlockEditable.textContent || '';
           
-          // Merge content into current block
-          target.innerHTML = currentContent + nextContent;
+          // Merge content into current block using text content
+          const mergedText = currentText + nextText;
+          target.textContent = mergedText;
           onContentChange(block.id, target.innerHTML);
           
           // Delete next block

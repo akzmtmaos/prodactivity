@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Search, Filter, BookOpen, TrendingUp, Clock, Target, FileText } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
+import Pagination from '../components/common/Pagination';
 import DeckCard from '../components/decks/DeckCard';
 import CreateDeckModal from '../components/decks/CreateDeckModal';
 import EditDeckModal from '../components/decks/EditDeckModal';
@@ -78,6 +79,8 @@ const Decks = () => {
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<'decks' | 'stats' | 'archived'>('decks');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const PAGE_SIZE = 12;
 
   // Notes -> Flashcards conversion modal state
   interface Notebook {
@@ -642,6 +645,19 @@ const Decks = () => {
       }
     });
 
+  const totalPages = Math.max(1, Math.ceil(filteredDecks.length / PAGE_SIZE));
+  useEffect(() => {
+    // Reset to first page when filters/search change
+    setCurrentPage(1);
+  }, [searchTerm, sortBy, filterBy]);
+  useEffect(() => {
+    // Clamp current page if total pages shrinks
+    if (currentPage > totalPages) setCurrentPage(totalPages);
+  }, [totalPages]);
+  const startIndex = (currentPage - 1) * PAGE_SIZE;
+  const endIndex = startIndex + PAGE_SIZE;
+  const pagedDecks = filteredDecks.slice(startIndex, endIndex);
+
   // Calculate summary stats
   const totalDecks = decks.length;
   const totalCards = decks.reduce((sum, deck) => sum + deck.flashcardCount, 0);
@@ -934,9 +950,10 @@ const Decks = () => {
           {/* Tab Content */}
           {activeTab === 'decks' && (
             <div className="space-y-6">
-              {/* Decks Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {filteredDecks.map((deck) => (
+              {/* Decks Grid with scroll */}
+              <div className="max-h-[65vh] overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {pagedDecks.map((deck) => (
                   <div key={deck.id} className="relative">
                     <DeckCard
                       deck={deck}
@@ -959,8 +976,14 @@ const Decks = () => {
                     )}
                     {/* Removed Manage Subdecks button as requested */}
                   </div>
-                ))}
+                  ))}
+                </div>
               </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={Math.ceil(filteredDecks.length / PAGE_SIZE)}
+                onPageChange={setCurrentPage}
+              />
               {/* Empty State */}
               {filteredDecks.length === 0 && (
                 <div className="text-center py-12">
