@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useImperativeHandle } from 'react';
 import { Plus, GripVertical } from 'lucide-react';
 import {
   DndContext,
@@ -29,6 +29,11 @@ interface BlockEditorProps {
   initialContent?: string;
   onChange: (content: string) => void;
   onFormattingChange?: (formatting: any) => void;
+  onBlockTypeChange?: (blockId: string, type: Block['type']) => void;
+}
+
+interface BlockEditorRef {
+  changeCurrentBlockType: (type: Block['type']) => void;
 }
 
 interface SortableBlockProps {
@@ -43,6 +48,7 @@ interface SortableBlockProps {
   onBlockAlignmentChange: (id: string, alignment: Block['alignment']) => void;
   onFormattingChange?: (formatting: any) => void;
   splitBlock: (index: number, before: string, after: string, currentContent?: string) => string;
+  onBlockFocus: (index: number) => void;
 }
 
 // Utility to find the last text node in a node
@@ -171,7 +177,8 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
   onBlockTypeChange,
   onBlockAlignmentChange,
   onFormattingChange,
-  splitBlock
+  splitBlock,
+  onBlockFocus
 }) => {
   const contentRef = useRef<HTMLDivElement>(null);
   const {
@@ -200,11 +207,14 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
 
     // Process hashtags for headings
     const processedContent = processHashtags(content);
+    console.log('Content processing result:', { original: content, processed: processedContent });
     
     // If content was processed (hashtags found), update the block type
     if (processedContent !== content) {
       const headingType = getHeadingTypeFromContent(content);
+      console.log('Heading type detected:', headingType);
       if (headingType && block.type !== headingType) {
+        console.log('Changing block type from', block.type, 'to', headingType);
         onBlockTypeChange(block.id, headingType);
       }
       onContentChange(block.id, processedContent);
@@ -212,6 +222,7 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
       // If no hashtags found and this is a heading block, convert back to text
       if ((block.type === 'heading1' || block.type === 'heading2' || block.type === 'heading3') && 
           !getHeadingTypeFromContent(content)) {
+        console.log('Converting heading back to text');
         onBlockTypeChange(block.id, 'text');
       }
       onContentChange(block.id, content);
@@ -236,14 +247,17 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
 
   // Helper function to process hashtags and convert to headings
   const processHashtags = (content: string): string => {
+    console.log('processHashtags called with:', content);
+    
     // Check if the line starts with hashtags
     const trimmedContent = content.trim();
     
-    // Match patterns like # Heading, ## Heading, ### Heading
+    // Match patterns like # Heading, ## Heading, ### Heading (with space)
     const headingMatch = trimmedContent.match(/^(#{1,3})\s+(.+)$/);
     if (headingMatch) {
       const hashtags = headingMatch[1];
       const headingText = headingMatch[2];
+      console.log('Found heading pattern with space:', { hashtags, headingText });
       
       // Return just the heading text (hashtags will be removed)
       return headingText;
@@ -254,22 +268,26 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
     if (noSpaceMatch) {
       const hashtags = noSpaceMatch[1];
       const headingText = noSpaceMatch[2];
+      console.log('Found heading pattern without space:', { hashtags, headingText });
       
       // Return just the heading text (hashtags will be removed)
       return headingText;
     }
     
+    console.log('No hashtag pattern found, returning original content');
     return content;
   };
 
   // Helper function to determine heading type from content
   const getHeadingTypeFromContent = (content: string): Block['type'] | null => {
+    console.log('getHeadingTypeFromContent called with:', content);
     const trimmedContent = content.trim();
     
     // Match patterns like # Heading, ## Heading, ### Heading
     const headingMatch = trimmedContent.match(/^(#{1,3})\s+(.+)$/);
     if (headingMatch) {
       const hashtagCount = headingMatch[1].length;
+      console.log('Found heading match with space:', { hashtagCount, match: headingMatch[0] });
       switch (hashtagCount) {
         case 1:
           return 'heading1';
@@ -286,6 +304,7 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
     const noSpaceMatch = trimmedContent.match(/^(#{1,3})(.+)$/);
     if (noSpaceMatch) {
       const hashtagCount = noSpaceMatch[1].length;
+      console.log('Found heading match without space:', { hashtagCount, match: noSpaceMatch[0] });
       switch (hashtagCount) {
         case 1:
           return 'heading1';
@@ -298,10 +317,14 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
       }
     }
     
+    console.log('No heading pattern found');
     return null;
   };
 
   const handleFocus = () => {
+    // Update focused block index
+    onBlockFocus(index);
+    
     // Update formatting state when block is focused
     if (onFormattingChange) {
       setTimeout(() => {
@@ -645,6 +668,8 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
     return content;
   };
 
+  console.log('SortableBlock rendering:', { blockId: block.id, blockType: block.type, blockContent: block.content });
+  
   return (
     <div
       ref={setNodeRef}
@@ -660,51 +685,108 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
           </div>
         </div>
         <div className="flex-grow min-w-0">
-          {/* Hashtag indicator */}
-          {block.type === 'text' && (block.content.trim().match(/^(#{1,3})\s+(.+)$/) || block.content.trim().match(/^(#{1,3})(.+)$/)) && (
-            <div className="text-xs text-blue-500 mb-1 font-mono flex items-center gap-2">
-              <span>
-                {block.content.trim().match(/^(#{1,3})/)?.[1]} - {block.content.trim().match(/^(#{1,3})/)?.[1]?.length === 1 ? 'Heading 1' : 
-                 block.content.trim().match(/^(#{1,3})/)?.[1]?.length === 2 ? 'Heading 2' : 'Heading 3'}
-              </span>
-              <span className="text-gray-400">(Press Enter to convert)</span>
-            </div>
-          )}
           
 
-          <div
-            ref={contentRef}
-            contentEditable
-            suppressContentEditableWarning
-            onInput={handleInput}
-            onFocus={handleFocus}
-            onKeyDown={handleKeyDown}
-            onPaste={handlePaste}
-            onClick={handleClick}
-            className={`outline-none min-h-[1.5em] text-gray-900 dark:text-white whitespace-pre-wrap break-words overflow-wrap-anywhere w-full ${
-              block.type === 'heading1' ? 'text-3xl font-bold mb-4' :
-              block.type === 'heading2' ? 'text-2xl font-bold mb-3' :
-              block.type === 'heading3' ? 'text-xl font-bold mb-2' :
-              block.type === 'image' ? 'block' :
-              ''
-            }`}
-            style={block.type === 'image' ? {
-              textAlign: block.alignment || 'left',
-              cursor: 'pointer'
-            } : {
-              wordWrap: 'break-word',
-              overflowWrap: 'break-word',
-              whiteSpace: 'pre-wrap',
-              maxWidth: '100%'
-            }}
-          />
+          {block.type === 'heading1' ? (
+            <h1
+              ref={contentRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleInput}
+              onFocus={handleFocus}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onClick={handleClick}
+              className="outline-none min-h-[1.5em] text-gray-900 dark:text-white whitespace-pre-wrap break-words overflow-wrap-anywhere w-full"
+              style={{
+                fontSize: '2rem',
+                lineHeight: '1.2',
+                fontWeight: '700',
+                marginBottom: '1rem',
+                marginTop: '1.5rem',
+                wordWrap: 'break-word',
+                overflowWrap: 'break-word',
+                whiteSpace: 'pre-wrap',
+                maxWidth: '100%'
+              }}
+            />
+          ) : block.type === 'heading2' ? (
+            <h2
+              ref={contentRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleInput}
+              onFocus={handleFocus}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onClick={handleClick}
+              className="outline-none min-h-[1.5em] text-gray-900 dark:text-white whitespace-pre-wrap break-words overflow-wrap-anywhere w-full"
+              style={{
+                fontSize: '1.5rem',
+                lineHeight: '1.3',
+                fontWeight: '600',
+                marginBottom: '0.75rem',
+                marginTop: '1.25rem',
+                wordWrap: 'break-word',
+                overflowWrap: 'break-word',
+                whiteSpace: 'pre-wrap',
+                maxWidth: '100%'
+              }}
+            />
+          ) : block.type === 'heading3' ? (
+            <h3
+              ref={contentRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleInput}
+              onFocus={handleFocus}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onClick={handleClick}
+              className="outline-none min-h-[1.5em] text-gray-900 dark:text-white whitespace-pre-wrap break-words overflow-wrap-anywhere w-full"
+              style={{
+                fontSize: '1.25rem',
+                lineHeight: '1.4',
+                fontWeight: '600',
+                marginBottom: '0.5rem',
+                marginTop: '1rem',
+                wordWrap: 'break-word',
+                overflowWrap: 'break-word',
+                whiteSpace: 'pre-wrap',
+                maxWidth: '100%'
+              }}
+            />
+          ) : (
+            <div
+              ref={contentRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleInput}
+              onFocus={handleFocus}
+              onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
+              onClick={handleClick}
+              className={`outline-none min-h-[1.5em] text-gray-900 dark:text-white whitespace-pre-wrap break-words overflow-wrap-anywhere w-full ${
+                block.type === 'image' ? 'block' : ''
+              }`}
+              style={block.type === 'image' ? {
+                textAlign: block.alignment || 'left',
+                cursor: 'pointer'
+              } : {
+                wordWrap: 'break-word',
+                overflowWrap: 'break-word',
+                whiteSpace: 'pre-wrap',
+                maxWidth: '100%'
+              }}
+            />
+          )}
         </div>
       </div>
     </div>
   );
 };
 
-const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange, onFormattingChange }) => {
+const BlockEditor = React.forwardRef<BlockEditorRef, BlockEditorProps>(({ initialContent = '', onChange, onFormattingChange, onBlockTypeChange }, ref) => {
   const [blocks, setBlocks] = useState<Block[]>(() => {
     if (!initialContent) {
       return [{ id: '1', type: 'text', content: '' }];
@@ -715,6 +797,39 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
       content: line
     }));
   });
+
+  const [focusedBlockIndex, setFocusedBlockIndex] = useState<number>(0);
+
+  // Expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    changeCurrentBlockType: (type: Block['type']) => {
+      console.log('changeCurrentBlockType called with:', type);
+      console.log('Current focused block index:', focusedBlockIndex);
+      
+      if (focusedBlockIndex >= 0 && focusedBlockIndex < blocks.length) {
+        const blockId = blocks[focusedBlockIndex].id;
+        console.log('Changing block type for block ID:', blockId);
+        updateBlockType(blockId, type);
+      } else {
+        console.log('No valid focused block index');
+      }
+    },
+    
+    // Add a simpler method that works like Notion
+    changeBlockTypeByContent: (content: string, type: Block['type']) => {
+      console.log('changeBlockTypeByContent called:', { content, type });
+      
+      // Find the block that contains this content
+      const blockIndex = blocks.findIndex(block => block.content.includes(content));
+      if (blockIndex >= 0) {
+        const blockId = blocks[blockIndex].id;
+        console.log('Found block with content, changing type:', { blockId, type });
+        updateBlockType(blockId, type);
+      } else {
+        console.log('No block found with content:', content);
+      }
+    }
+  }));
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -759,11 +874,21 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
   };
 
   const updateBlockType = (id: string, type: Block['type']) => {
+    console.log('updateBlockType called:', { id, type });
+    console.log('Current blocks before update:', blocks);
+    
     const newBlocks = blocks.map(block =>
       block.id === id ? { ...block, type } : block
     );
+    
+    console.log('New blocks after update:', newBlocks);
     setBlocks(newBlocks);
     onChange(blocksToContent(newBlocks));
+    
+    // Call external onBlockTypeChange if provided
+    if (onBlockTypeChange) {
+      onBlockTypeChange(id, type);
+    }
   };
 
   const updateBlockAlignment = (id: string, alignment: Block['alignment']) => {
@@ -853,7 +978,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
         items={blocks.map(block => block.id)}
         strategy={verticalListSortingStrategy}
       >
-        <div className="space-y-1 min-w-0">
+        <div className="space-y-1 min-w-0" data-block-editor="true">
           {blocks.map((block, index) => (
             <SortableBlock
               key={block.id}
@@ -868,12 +993,13 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
               onBlockAlignmentChange={updateBlockAlignment}
               onFormattingChange={onFormattingChange}
               splitBlock={splitBlock}
+              onBlockFocus={setFocusedBlockIndex}
             />
           ))}
         </div>
       </SortableContext>
     </DndContext>
   );
-};
+});
 
 export default BlockEditor; 

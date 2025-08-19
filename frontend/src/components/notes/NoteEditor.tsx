@@ -79,6 +79,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const [showImportModal, setShowImportModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [blocks, setBlocks] = useState<Array<{ id: string; type: string; content: string }>>([]);
+  const blockEditorRef = useRef<any>(null);
 
   // Add state for tracking active formatting
   const [activeFormatting, setActiveFormatting] = useState<{
@@ -338,41 +339,123 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     setHasChanges(true);
   };
 
-  // Function to toggle formatting
+  // Function to handle block type changes for BlockEditor
+  const handleBlockTypeChange = (blockId: string, type: string) => {
+    setBlocks(prevBlocks => 
+      prevBlocks.map(block => 
+        block.id === blockId ? { ...block, type } : block
+      )
+    );
+  };
+
+  // Function to toggle formatting - now works with BlockEditor system
   const toggleFormatting = (command: string, value: string = '') => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0) return;
-
-    // Check if the formatting is already applied
-    let isActive = false;
-    if (command === 'bold') isActive = document.queryCommandState('bold');
-    else if (command === 'italic') isActive = document.queryCommandState('italic');
-    else if (command === 'underline') isActive = document.queryCommandState('underline');
-    else if (command === 'strikeThrough') isActive = document.queryCommandState('strikeThrough');
-    else if (command === 'formatBlock') isActive = document.queryCommandValue('formatBlock') === value;
-    else if (command === 'hiliteColor') {
-      const currentColor = document.queryCommandValue('hiliteColor');
-      isActive = currentColor !== 'transparent' && currentColor !== '';
-    }
-
-    // Toggle the formatting
-    if (isActive) {
-      if (command === 'formatBlock') {
-        document.execCommand('formatBlock', false, 'div');
-      } else if (command === 'hiliteColor') {
-        document.execCommand('hiliteColor', false, 'transparent');
+    console.log('toggleFormatting called:', { command, value });
+    
+    // Handle heading formatting for BlockEditor
+    if (command === 'formatBlock' && (value === 'h1' || value === 'h2' || value === 'h3')) {
+      console.log('Heading formatting detected:', { command, value });
+      
+      // Map HTML heading tags to BlockEditor types
+      const blockTypeMap: { [key: string]: string } = {
+        'h1': 'heading1',
+        'h2': 'heading2', 
+        'h3': 'heading3'
+      };
+      
+      const newType = blockTypeMap[value];
+      console.log('Mapped to block type:', newType);
+      console.log('BlockEditor ref:', blockEditorRef.current);
+      
+      if (newType && blockEditorRef.current) {
+        // Get the current selection text
+        const selection = window.getSelection();
+        if (selection && selection.rangeCount > 0) {
+          const range = selection.getRangeAt(0);
+          const selectedText = range.toString();
+          console.log('Selected text:', selectedText);
+          
+          if (selectedText) {
+            // Change the block type based on the selected content
+            blockEditorRef.current.changeBlockTypeByContent(selectedText, newType);
+          } else {
+            // If no text selected, try the focused block approach
+            blockEditorRef.current.changeCurrentBlockType(newType);
+          }
+        } else {
+          // Fallback to focused block approach
+          blockEditorRef.current.changeCurrentBlockType(newType);
+        }
+        return;
       } else {
-        document.execCommand(command, false);
+        console.log('Failed to call changeCurrentBlockType:', { newType, hasRef: !!blockEditorRef.current });
       }
-    } else {
-      document.execCommand(command, false, value);
+    }
+    
+    // For other formatting commands, use the traditional execCommand approach
+    // but ensure we're working with the BlockEditor's contentEditable elements
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) {
+      console.log('No selection found for formatting');
+      return;
     }
 
-    // Update active formatting state
-    setActiveFormatting(prev => ({
-      ...prev,
-      [command === 'hiliteColor' ? 'highlight' : command]: !isActive
-    }));
+    // Find the contentEditable element within the BlockEditor
+    const blockEditorElement = document.querySelector('[data-block-editor]') as HTMLElement;
+    if (blockEditorElement) {
+      // Focus the BlockEditor first
+      blockEditorElement.focus();
+      
+      // Check if the formatting is already applied
+      let isActive = false;
+      if (command === 'bold') isActive = document.queryCommandState('bold');
+      else if (command === 'italic') isActive = document.queryCommandState('italic');
+      else if (command === 'underline') isActive = document.queryCommandState('underline');
+      else if (command === 'strikeThrough') isActive = document.queryCommandState('strikeThrough');
+      else if (command === 'formatBlock') isActive = document.queryCommandValue('formatBlock') === value;
+      else if (command === 'hiliteColor') {
+        const currentColor = document.queryCommandValue('hiliteColor');
+        isActive = currentColor !== 'transparent' && currentColor !== '';
+      }
+
+      // Toggle the formatting
+      if (isActive) {
+        if (command === 'formatBlock') {
+          document.execCommand('formatBlock', false, 'div');
+        } else if (command === 'hiliteColor') {
+          document.execCommand('hiliteColor', false, 'transparent');
+        } else {
+          document.execCommand(command, false);
+        }
+      } else {
+        document.execCommand(command, false, value);
+      }
+      
+      // Trigger a change event to update the BlockEditor state
+      const event = new Event('input', { bubbles: true });
+      blockEditorElement.dispatchEvent(event);
+      
+      console.log('Applied formatting command:', { command, value });
+    } else {
+      console.log('BlockEditor element not found');
+    }
+
+    // Update active formatting state based on the command result
+    if (command === 'bold') {
+      setActiveFormatting(prev => ({ ...prev, bold: document.queryCommandState('bold') }));
+    } else if (command === 'italic') {
+      setActiveFormatting(prev => ({ ...prev, italic: document.queryCommandState('italic') }));
+    } else if (command === 'underline') {
+      setActiveFormatting(prev => ({ ...prev, underline: document.queryCommandState('underline') }));
+    } else if (command === 'strikeThrough') {
+      setActiveFormatting(prev => ({ ...prev, strikethrough: document.queryCommandState('strikeThrough') }));
+    } else if (command === 'hiliteColor') {
+      const currentColor = document.queryCommandValue('hiliteColor');
+      setActiveFormatting(prev => ({ 
+        ...prev, 
+        highlight: currentColor !== 'transparent' && currentColor !== '' 
+      }));
+    }
   };
 
   // Function to show color picker at selection position
@@ -568,10 +651,12 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               >
                 <div className="max-w-full break-words">
                   <BlockEditor
+                    ref={blockEditorRef}
                     key={editorKey}
                     initialContent={content}
                     onChange={handleContentChange}
                     onFormattingChange={handleFormattingChange}
+                    onBlockTypeChange={handleBlockTypeChange}
                   />
                 </div>
               </div>

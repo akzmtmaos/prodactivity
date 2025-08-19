@@ -87,6 +87,19 @@ class NoteRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         note.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
+    def update(self, request, *args, **kwargs):
+        note = self.get_object()
+        print(f"[DEBUG] PUT /api/notes/{note.id}/ - data: {request.data}")
+        
+        # Update the note with the provided data
+        serializer = self.get_serializer(note, data=request.data, partial=False)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        else:
+            print(f"[DEBUG] Validation errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
     def partial_update(self, request, *args, **kwargs):
         note = self.get_object()
         print(f"[DEBUG] PATCH /api/notes/{note.id}/ - data: {request.data}")
