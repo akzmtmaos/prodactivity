@@ -187,21 +187,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   };
 
   const handleContentChange = (newContent: string) => {
-    // Check for markdown-style heading shortcuts
-    const lines = newContent.split('\n');
-    const updatedLines = lines.map(line => {
-      const trimmedLine = line.trim();
-      if (trimmedLine === '#') {
-        return '<h1></h1>';
-      } else if (trimmedLine === '##') {
-        return '<h2></h2>';
-      } else if (trimmedLine === '###') {
-        return '<h3></h3>';
-      }
-      return line;
-    });
-    
-    setContent(updatedLines.join('\n'));
+    setContent(newContent);
     setHasChanges(true);
   };
 

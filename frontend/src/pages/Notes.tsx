@@ -1,6 +1,6 @@
 // frontend/src/pages/Notes.tsx
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import axiosInstance from '../utils/axiosConfig';
 import { useParams, useNavigate } from 'react-router-dom';
 import NotebookList from '../components/notes/NotebookList';
 import NotesList from '../components/notes/NotesList';
@@ -35,13 +35,7 @@ interface Note {
   archived_at: string | null;
 }
 
-interface User {
-  username: string;
-  email?: string;
-}
 
-// Initialize the API service URLs - FIXED
-const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 
 const Notes = () => {
   const { id: noteIdFromUrl } = useParams();
@@ -89,14 +83,7 @@ const Notes = () => {
   
 
 
-  // Get auth headers for API calls
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('accessToken'); // Changed from 'token' to 'accessToken'
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-  };
+
 
   // Fetch notebooks from API
   const fetchNotebooks = async () => {
@@ -108,12 +95,7 @@ const Notes = () => {
       }
 
       console.log('Fetching notebooks...'); // Debug log
-      const response = await axios.get(`${API_URL}/notes/notebooks/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axiosInstance.get(`/notes/notebooks/`);
       
       console.log('Notebooks response:', response.data); // Debug log
       
@@ -125,15 +107,7 @@ const Notes = () => {
       }
     } catch (error: any) {
       console.error('Failed to fetch notebooks:', error);
-      if (error.response?.status === 401) {
-        // Token expired or invalid
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        window.location.href = '/login';
-      } else {
-        setError('Failed to fetch notebooks. Please try again.');
-      }
+      setError('Failed to fetch notebooks. Please try again.');
     }
   };
 
@@ -146,12 +120,7 @@ const Notes = () => {
         return;
       }
 
-      const response = await axios.get(`${API_URL}/notes/archived/notebooks/`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await axiosInstance.get(`/notes/archived/notebooks/`);
       
       if (response.data) {
         setArchivedNotebooks(response.data);
@@ -170,9 +139,7 @@ const Notes = () => {
   // Fetch notes for selected notebook
   const fetchNotes = async (notebookId: number) => {
     try {
-      const response = await axios.get(`${API_URL}/notes/?notebook=${notebookId}`, {
-        headers: getAuthHeaders()
-      });
+      const response = await axiosInstance.get(`/notes/?notebook=${notebookId}`);
       setNotes(response.data);
     } catch (error) {
       handleError(error, 'Failed to fetch notes');
@@ -182,9 +149,7 @@ const Notes = () => {
   // Fetch archived notes
   const fetchArchivedNotes = async () => {
     try {
-      const response = await axios.get(`${API_URL}/notes/archived/notes/`, {
-        headers: getAuthHeaders()
-      });
+      const response = await axiosInstance.get(`/notes/archived/notes/`);
       setArchivedNotes(response.data);
     } catch (error) {
       handleError(error, 'Failed to fetch archived notes');
@@ -214,10 +179,8 @@ const Notes = () => {
     if (!newNotebookName.trim()) return;
     
     try {
-      const response = await axios.post(`${API_URL}/notes/notebooks/`, {
+      const response = await axiosInstance.post(`/notes/notebooks/`, {
         name: newNotebookName.trim()
-      }, {
-        headers: getAuthHeaders()
       });
       
       setNotebooks([...notebooks, response.data]);
@@ -242,10 +205,8 @@ const Notes = () => {
     if (!editingNotebook || !newNotebookName.trim()) return;
     
     try {
-      const response = await axios.put(`${API_URL}/notes/notebooks/${editingNotebook.id}/`, {
+      const response = await axiosInstance.put(`/notes/notebooks/${editingNotebook.id}/`, {
         name: newNotebookName.trim()
-      }, {
-        headers: getAuthHeaders()
       });
       
       const updatedNotebooks = notebooks.map(nb => 
@@ -266,9 +227,7 @@ const Notes = () => {
 
   const handleDeleteNotebook = async (notebookId: number) => {
     try {
-      await axios.delete(`${API_URL}/notes/notebooks/${notebookId}/`, {
-        headers: getAuthHeaders()
-      });
+            await axiosInstance.delete(`/notes/notebooks/${notebookId}/`);
       
       setNotebooks(notebooks.filter(nb => nb.id !== notebookId));
       
@@ -284,10 +243,8 @@ const Notes = () => {
   // Archive/Unarchive notebook
   const handleArchiveNotebook = async (notebookId: number, archive: boolean) => {
     try {
-      await axios.patch(`${API_URL}/notes/notebooks/${notebookId}/`, {
+      await axiosInstance.patch(`/notes/notebooks/${notebookId}/`, {
         is_archived: archive
-      }, {
-        headers: getAuthHeaders()
       });
       
       if (archive) {
@@ -337,12 +294,10 @@ const Notes = () => {
   const handleAddNote = async () => {
     if (!selectedNotebook) return;
     try {
-      const response = await axios.post(`${API_URL}/notes/`, {
+      const response = await axiosInstance.post(`/notes/`, {
         title: (newNote.title && newNote.title.trim()) ? newNote.title.trim() : 'Untitled Note',
         content: newNote.content,
         notebook: selectedNotebook.id
-      }, {
-        headers: getAuthHeaders()
       });
       setNotes([response.data, ...notes]);
       setIsNewNoteEditor(false);
@@ -378,10 +333,8 @@ const Notes = () => {
   // Add function to update last_visited timestamp
   const updateLastVisited = async (noteId: number) => {
     try {
-      await axios.patch(`${API_URL}/notes/${noteId}/`, {
+      await axiosInstance.patch(`/notes/${noteId}/`, {
         last_visited: new Date().toISOString()
-      }, {
-        headers: getAuthHeaders()
       });
     } catch (error) {
       console.error('Failed to update last_visited timestamp:', error);
@@ -397,12 +350,10 @@ const Notes = () => {
     if (!editingNote || !newNote.title.trim()) return;
     
     try {
-      const response = await axios.put(`${API_URL}/notes/${editingNote.id}/`, {
+      const response = await axiosInstance.put(`/notes/${editingNote.id}/`, {
         title: newNote.title.trim(),
         content: newNote.content,
         notebook: editingNote.notebook
-      }, {
-        headers: getAuthHeaders()
       });
       
       const updatedNotes = notes.map(note => 
@@ -420,9 +371,7 @@ const Notes = () => {
   // This DELETE request performs a soft delete (moves note to Trash)
   const handleDeleteNote = async (noteId: number) => {
     try {
-      await axios.delete(`${API_URL}/notes/${noteId}/`, {
-        headers: getAuthHeaders()
-      });
+      await axiosInstance.delete(`/notes/${noteId}/`);
       setNotes(notes.filter(note => note.id !== noteId));
       
       // Update notebook notes count
@@ -447,12 +396,10 @@ const Notes = () => {
     setIsSavingNote(true);
     if (isNewNoteEditor && selectedNotebook) {
       try {
-        const response = await axios.post(`${API_URL}/notes/`, {
+        const response = await axiosInstance.post(`/notes/`, {
           title: title.trim() || 'Untitled Note',
           content,
           notebook: selectedNotebook.id
-        }, {
-          headers: getAuthHeaders()
         });
         setNotes([response.data, ...notes]);
         // Notify other parts of the app (e.g., Home quick notes) to refresh
@@ -474,12 +421,10 @@ const Notes = () => {
       }
     } else if (noteEditorNote) {
       try {
-        const response = await axios.put(`${API_URL}/notes/${noteEditorNote.id}/`, {
+        const response = await axiosInstance.put(`/notes/${noteEditorNote.id}/`, {
           title: title.trim() || 'Untitled Note',
           content,
           notebook: noteEditorNote.notebook
-        }, {
-          headers: getAuthHeaders()
         });
         
         // Update the note in the local state
@@ -548,12 +493,10 @@ const Notes = () => {
     try {
       const note = notes.find(n => n.id === noteId);
       if (!note) return;
-      const response = await axios.put(`${API_URL}/notes/${noteId}/`, {
+      const response = await axiosInstance.put(`/notes/${noteId}/`, {
         title: newTitle.trim() || 'Untitled Note',
         content: note.content,
         notebook: note.notebook
-      }, {
-        headers: getAuthHeaders()
       });
       const updatedNotes = notes.map(n => n.id === noteId ? response.data : n);
       setNotes(updatedNotes);
@@ -570,9 +513,7 @@ const Notes = () => {
     const openNoteFromUrl = async () => {
       if (noteIdFromUrl) {
         try {
-          const response = await axios.get(`${API_URL}/notes/${noteIdFromUrl}/`, {
-            headers: getAuthHeaders()
-          });
+          const response = await axiosInstance.get(`/notes/${noteIdFromUrl}/`);
           const note = response.data;
           
           // Find the notebook for this note
@@ -607,9 +548,7 @@ const Notes = () => {
       
       if (noteId) {
         try {
-          const response = await axios.get(`${API_URL}/notes/${noteId}/`, {
-            headers: getAuthHeaders()
-          });
+          const response = await axiosInstance.get(`/notes/${noteId}/`);
           const note = response.data;
           
           // Find the notebook for this note
@@ -651,9 +590,7 @@ const Notes = () => {
     try {
       // Delete notes one by one
       for (const noteId of noteIds) {
-        await axios.delete(`${API_URL}/notes/${noteId}/`, {
-          headers: getAuthHeaders()
-        });
+        await axiosInstance.delete(`/notes/${noteId}/`);
       }
       
       // Update the notes list
@@ -687,10 +624,8 @@ const Notes = () => {
   const handleCreateNotebookDirect = async (name: string) => {
     if (!name.trim()) return;
     try {
-      const response = await axios.post(`${API_URL}/notes/notebooks/`, {
+      const response = await axiosInstance.post(`/notes/notebooks/`, {
         name: name.trim()
-      }, {
-        headers: getAuthHeaders()
       });
       setNotebooks([...notebooks, response.data]);
     } catch (error) {
@@ -789,10 +724,8 @@ const Notes = () => {
   // Archive/Unarchive note
   const handleArchiveNote = async (noteId: number, archive: boolean) => {
     try {
-      await axios.patch(`${API_URL}/notes/${noteId}/`, {
+      await axiosInstance.patch(`/notes/${noteId}/`, {
         is_archived: archive
-      }, {
-        headers: getAuthHeaders()
       });
       
       if (archive) {

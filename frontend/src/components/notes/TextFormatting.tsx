@@ -46,6 +46,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
   const [showTableMenu, setShowTableMenu] = useState(false);
   const [tableMenuPosition, setTableMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const [showColorMenu, setShowColorMenu] = useState(false);
+  const [showHeadingMenu, setShowHeadingMenu] = useState(false);
 
   const getActiveEditable = (): HTMLElement | null => {
     const selection = window.getSelection();
@@ -379,6 +380,40 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
          )}
       </div>
       
+      {/* Heading dropdown */}
+      <div className="relative">
+        <button
+          onClick={() => setShowHeadingMenu(prev => !prev)}
+          className="px-2 py-1 text-xs font-bold text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded flex items-center space-x-1"
+          title="Headings"
+        >
+          <span>H</span>
+          <ChevronDown size={12} />
+        </button>
+        {showHeadingMenu && (
+          <div className="absolute z-50 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-md min-w-[80px]">
+            <button 
+              onClick={() => { handleFormattingClick('formatBlock', 'h1'); setShowHeadingMenu(false); }}
+              className="block w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+            >
+              H1
+            </button>
+            <button 
+              onClick={() => { handleFormattingClick('formatBlock', 'h2'); setShowHeadingMenu(false); }}
+              className="block w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+            >
+              H2
+            </button>
+            <button 
+              onClick={() => { handleFormattingClick('formatBlock', 'h3'); setShowHeadingMenu(false); }}
+              className="block w-full text-left px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 text-sm"
+            >
+              H3
+            </button>
+          </div>
+        )}
+      </div>
+      
       <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
       
       <button
@@ -472,6 +507,8 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
         <option value="h3">Heading 3</option>
         <option value="p">Paragraph</option>
       </select>
+      
+
     </div>
   );
 };

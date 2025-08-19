@@ -38,11 +38,11 @@ interface SortableBlockProps {
   onContentChange: (id: string, content: string) => void;
   onAddBlock: (index: number, content?: string) => string;
   onDeleteBlock: (index: number) => void;
-  onFocusBlock: (index: number) => void;
+  onFocusBlock: (index: number, position?: 'start' | 'end') => void;
   onBlockTypeChange: (id: string, type: Block['type']) => void;
   onBlockAlignmentChange: (id: string, alignment: Block['alignment']) => void;
   onFormattingChange?: (formatting: any) => void;
-  splitBlock: (index: number, before: string, after: string) => string;
+  splitBlock: (index: number, before: string, after: string, currentContent?: string) => string;
 }
 
 // Utility to find the last text node in a node
@@ -124,6 +124,13 @@ function getHTMLFragmentsAroundCaret(container: HTMLElement): { beforeHTML: stri
   const beforeText = fullText.substring(0, caretPosition);
   const afterText = fullText.substring(caretPosition);
   
+  console.log('getHTMLFragmentsAroundCaret:', {
+    fullText: fullText,
+    caretPosition,
+    beforeText: beforeText,
+    afterText: afterText
+  });
+  
   return { beforeHTML: beforeText, afterHTML: afterText };
 }
 
@@ -184,8 +191,31 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
 
   const handleInput = (e: React.FormEvent) => {
     const target = e.currentTarget;
-    const content = target.innerHTML || '';
-    onContentChange(block.id, content);
+    const content = target.textContent || '';
+    console.log('handleInput:', {
+      blockId: block.id,
+      content: content,
+      innerHTML: target.innerHTML
+    });
+
+    // Process hashtags for headings
+    const processedContent = processHashtags(content);
+    
+    // If content was processed (hashtags found), update the block type
+    if (processedContent !== content) {
+      const headingType = getHeadingTypeFromContent(content);
+      if (headingType && block.type !== headingType) {
+        onBlockTypeChange(block.id, headingType);
+      }
+      onContentChange(block.id, processedContent);
+    } else {
+      // If no hashtags found and this is a heading block, convert back to text
+      if ((block.type === 'heading1' || block.type === 'heading2' || block.type === 'heading3') && 
+          !getHeadingTypeFromContent(content)) {
+        onBlockTypeChange(block.id, 'text');
+      }
+      onContentChange(block.id, content);
+    }
     
     // Update formatting state
     if (onFormattingChange) {
@@ -202,6 +232,73 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
         onFormattingChange(formatting);
       }
     }
+  };
+
+  // Helper function to process hashtags and convert to headings
+  const processHashtags = (content: string): string => {
+    // Check if the line starts with hashtags
+    const trimmedContent = content.trim();
+    
+    // Match patterns like # Heading, ## Heading, ### Heading
+    const headingMatch = trimmedContent.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      const hashtags = headingMatch[1];
+      const headingText = headingMatch[2];
+      
+      // Return just the heading text (hashtags will be removed)
+      return headingText;
+    }
+    
+    // Also handle cases where hashtags are at the very beginning without space
+    const noSpaceMatch = trimmedContent.match(/^(#{1,3})(.+)$/);
+    if (noSpaceMatch) {
+      const hashtags = noSpaceMatch[1];
+      const headingText = noSpaceMatch[2];
+      
+      // Return just the heading text (hashtags will be removed)
+      return headingText;
+    }
+    
+    return content;
+  };
+
+  // Helper function to determine heading type from content
+  const getHeadingTypeFromContent = (content: string): Block['type'] | null => {
+    const trimmedContent = content.trim();
+    
+    // Match patterns like # Heading, ## Heading, ### Heading
+    const headingMatch = trimmedContent.match(/^(#{1,3})\s+(.+)$/);
+    if (headingMatch) {
+      const hashtagCount = headingMatch[1].length;
+      switch (hashtagCount) {
+        case 1:
+          return 'heading1';
+        case 2:
+          return 'heading2';
+        case 3:
+          return 'heading3';
+        default:
+          return null;
+      }
+    }
+    
+    // Also handle cases where hashtags are at the very beginning without space
+    const noSpaceMatch = trimmedContent.match(/^(#{1,3})(.+)$/);
+    if (noSpaceMatch) {
+      const hashtagCount = noSpaceMatch[1].length;
+      switch (hashtagCount) {
+        case 1:
+          return 'heading1';
+        case 2:
+          return 'heading2';
+        case 3:
+          return 'heading3';
+        default:
+          return null;
+      }
+    }
+    
+    return null;
   };
 
   const handleFocus = () => {
@@ -281,6 +378,31 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
     // Do NOT call getRangeAt here; selection may have 0 ranges
     // Ranges are retrieved later only after checking rangeCount
     
+    // Handle arrow key navigation between blocks
+    if (e.key === 'ArrowUp' && index > 0) {
+      const container = target as HTMLElement;
+      const isAtStart = isCaretAtStart(container);
+      
+      // If at the start of the block, move to previous block
+      if (isAtStart) {
+        e.preventDefault();
+        onFocusBlock(index - 1, 'end');
+        return;
+      }
+    }
+    
+    if (e.key === 'ArrowDown' && index < blocks.length - 1) {
+      const container = target as HTMLElement;
+      const isAtEnd = isCaretAtEnd(container);
+      
+      // If at the end of the block, move to next block
+      if (isAtEnd) {
+        e.preventDefault();
+        onFocusBlock(index + 1, 'start');
+        return;
+      }
+    }
+    
     // Ctrl+A (or Cmd+A) should select all blocks, not just within the current block
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'a') {
       e.preventDefault();
@@ -314,7 +436,20 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
       const fragments = getHTMLFragmentsAroundCaret(container);
       if (!fragments) return;
       const { beforeHTML, afterHTML } = fragments;
-      const newBlockId = splitBlock(index, beforeHTML, afterHTML);
+      
+      // Get the current content from the DOM to ensure we have the latest
+      const currentContent = container.textContent || '';
+      console.log('Enter key - current content from DOM:', currentContent);
+      
+      // Check if the current block contains hashtags and convert to heading
+      const headingType = getHeadingTypeFromContent(currentContent);
+      if (headingType && block.type === 'text') {
+        const processedContent = processHashtags(currentContent);
+        onContentChange(block.id, processedContent);
+        onBlockTypeChange(block.id, headingType);
+      }
+      
+      const newBlockId = splitBlock(index, beforeHTML, afterHTML, currentContent);
       setTimeout(() => {
         const newBlockElement = document.querySelector(`[data-block-id="${newBlockId}"]`);
         const newBlockEditable = newBlockElement?.querySelector('[contenteditable]');
@@ -339,22 +474,22 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
       const isAtStart = isCaretAtStart(container);
       const isCollapsed = selection.isCollapsed;
       
-      // Only delete block if cursor is at the very beginning of an empty block
-      if (isAtStart && isCollapsed && target.textContent === '') {
+      // Handle empty blocks and merging with previous block
+      if (isAtStart && isCollapsed && index > 0) {
         e.preventDefault();
-        // Don't delete if this is the only block
-        if (blocks.length > 1) {
+        
+        // If current block is empty, just delete it and focus the previous block
+        if (target.textContent === '') {
           onDeleteBlock(index);
-          // After deletion, focus the next block and place caret at the end
           setTimeout(() => {
-            const nextBlock = blocks[index + 1] || blocks[index - 1];
-            if (nextBlock) {
-              const nextBlockElement = document.querySelector(`[data-block-id="${nextBlock.id}"]`);
-              const nextBlockEditable = nextBlockElement?.querySelector('[contenteditable]') as HTMLElement;
-              if (nextBlockEditable) {
-                nextBlockEditable.focus();
+            const prevBlock = blocks[index - 1];
+            if (prevBlock) {
+              const prevBlockElement = document.querySelector(`[data-block-id="${prevBlock.id}"]`);
+              const prevBlockEditable = prevBlockElement?.querySelector('[contenteditable]') as HTMLElement;
+              if (prevBlockEditable) {
+                prevBlockEditable.focus();
                 const newRange = document.createRange();
-                newRange.selectNodeContents(nextBlockEditable);
+                newRange.selectNodeContents(prevBlockEditable);
                 newRange.collapse(false); // Place caret at the end
                 const selection = window.getSelection();
                 if (selection) {
@@ -364,12 +499,10 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
               }
             }
           }, 0);
+          return;
         }
-        return;
-      }
-      
-      // If cursor is at the beginning of a non-empty block, merge with previous block
-      if (isAtStart && isCollapsed && index > 0) {
+        
+        // If current block is not empty, merge with previous block
         e.preventDefault();
         
         // Get the previous block element
@@ -381,13 +514,23 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
           const currentText = target.textContent || '';
           const prevText = prevBlockEditable.textContent || '';
           
+          console.log('Backspace merge:', {
+            currentText: currentText,
+            prevText: prevText,
+            mergedText: prevText + currentText
+          });
+          
           // Before merging, get the length of the previous block's text content
           let prevBlockTextLength = prevText.length;
 
           // Merge content into previous block using text content
           const mergedText = prevText + currentText;
           prevBlockEditable.textContent = mergedText;
-          onContentChange(blocks[index - 1].id, prevBlockEditable.innerHTML);
+          console.log('About to call onContentChange with:', {
+            blockId: blocks[index - 1].id,
+            content: prevBlockEditable.textContent || ''
+          });
+          onContentChange(blocks[index - 1].id, prevBlockEditable.textContent || '');
           
           // Delete current block
           onDeleteBlock(index);
@@ -437,7 +580,7 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
           // Merge content into current block using text content
           const mergedText = currentText + nextText;
           target.textContent = mergedText;
-          onContentChange(block.id, target.innerHTML);
+          onContentChange(block.id, target.textContent || '');
           
           // Delete next block
           onDeleteBlock(index + 1);
@@ -456,42 +599,51 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
       }
     }
     
-    // Handle Arrow Up/Down for navigation between blocks
-    if (e.key === 'ArrowUp' && index > 0) {
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const container = target as HTMLElement;
-        const isAtStart = isCaretAtStart(container);
-        
-        if (isAtStart) {
-          e.preventDefault();
-          onFocusBlock(index - 1);
-          return;
-        }
-      }
-    }
-    
-    if (e.key === 'ArrowDown' && index < blocks.length - 1) {
-      const selection = window.getSelection();
-      if (selection && selection.rangeCount > 0) {
-        const container = target as HTMLElement;
-        const isAtEnd = isCaretAtEnd(container);
-        
-        if (isAtEnd) {
-          e.preventDefault();
-          onFocusBlock(index + 1);
-          return;
-        }
-      }
-    }
+
   };
 
   // Update content when block changes
   useEffect(() => {
-    if (contentRef.current && contentRef.current.innerHTML !== block.content) {
-      contentRef.current.innerHTML = block.content;
+    if (contentRef.current && contentRef.current.textContent !== block.content) {
+      contentRef.current.textContent = block.content;
     }
   }, [block.content, block.id]);
+
+  // Function to render content with hashtag highlighting
+  const renderContentWithHashtags = (content: string) => {
+    // If this is a heading block, don't show hashtags
+    if (block.type === 'heading1' || block.type === 'heading2' || block.type === 'heading3') {
+      return content;
+    }
+    
+    // Check if content starts with hashtags
+    const hashtagMatch = content.match(/^(#{1,3})\s+(.+)$/);
+    if (hashtagMatch) {
+      const hashtags = hashtagMatch[1];
+      const text = hashtagMatch[2];
+      return (
+        <span>
+          <span className="text-blue-500 font-mono">{hashtags}</span>
+          <span> {text}</span>
+        </span>
+      );
+    }
+    
+    // Also check for hashtags without space
+    const noSpaceMatch = content.match(/^(#{1,3})(.+)$/);
+    if (noSpaceMatch) {
+      const hashtags = noSpaceMatch[1];
+      const text = noSpaceMatch[2];
+      return (
+        <span>
+          <span className="text-blue-500 font-mono">{hashtags}</span>
+          <span>{text}</span>
+        </span>
+      );
+    }
+    
+    return content;
+  };
 
   return (
     <div
@@ -508,6 +660,18 @@ const SortableBlock: React.FC<SortableBlockProps> = ({
           </div>
         </div>
         <div className="flex-grow min-w-0">
+          {/* Hashtag indicator */}
+          {block.type === 'text' && (block.content.trim().match(/^(#{1,3})\s+(.+)$/) || block.content.trim().match(/^(#{1,3})(.+)$/)) && (
+            <div className="text-xs text-blue-500 mb-1 font-mono flex items-center gap-2">
+              <span>
+                {block.content.trim().match(/^(#{1,3})/)?.[1]} - {block.content.trim().match(/^(#{1,3})/)?.[1]?.length === 1 ? 'Heading 1' : 
+                 block.content.trim().match(/^(#{1,3})/)?.[1]?.length === 2 ? 'Heading 2' : 'Heading 3'}
+              </span>
+              <span className="text-gray-400">(Press Enter to convert)</span>
+            </div>
+          )}
+          
+
           <div
             ref={contentRef}
             contentEditable
@@ -586,6 +750,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
   };
 
   const updateBlock = (id: string, content: string) => {
+    console.log('updateBlock called:', { id, content });
     const newBlocks = blocks.map(block =>
       block.id === id ? { ...block, content } : block
     );
@@ -630,7 +795,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
     }, 0);
   };
 
-  const focusBlock = (index: number) => {
+  const focusBlock = (index: number, position: 'start' | 'end' = 'end') => {
     if (index < 0 || index >= blocks.length) return;
     setTimeout(() => {
       const blockElement = document.querySelector(`[data-block-id="${blocks[index].id}"]`);
@@ -641,7 +806,7 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
           const range = document.createRange();
           const selection = window.getSelection();
           range.selectNodeContents(contentEditable);
-          range.collapse(false);
+          range.collapse(position === 'start');
           selection?.removeAllRanges();
           selection?.addRange(range);
         }
@@ -649,13 +814,24 @@ const BlockEditor: React.FC<BlockEditorProps> = ({ initialContent = '', onChange
     }, 50);
   };
 
-  const splitBlock = (index: number, before: string, after: string): string => {
+  const splitBlock = (index: number, before: string, after: string, currentContent?: string): string => {
+    console.log('splitBlock:', {
+      index,
+      before: before,
+      after: after,
+      currentBlockContent: blocks[index].content,
+      currentContentFromDOM: currentContent,
+      allBlocks: blocks.map(b => ({ id: b.id, content: b.content }))
+    });
+    
     const newBlock: Block = {
       id: `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       type: 'text',
       content: after
     };
     const newBlocks = [...blocks];
+    
+    // Use the before content from the function parameter, not from state
     newBlocks[index] = { ...newBlocks[index], content: before };
     newBlocks.splice(index + 1, 0, newBlock);
     setBlocks(newBlocks);

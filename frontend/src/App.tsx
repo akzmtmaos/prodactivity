@@ -21,6 +21,8 @@ import Reviewer from "./pages/Reviewer";
 import LandingPage from "./pages/LandingPage";
 import QuizSessionPage from './pages/QuizSessionPage';
 import StudySessionPage from './pages/StudySessionPage';
+// Import axios configuration to set up interceptors
+import './utils/axiosConfig';
 
 // Modified PrivateRoute component that adds layout for pages with navbar
 interface PrivateRouteProps {
