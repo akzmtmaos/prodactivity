@@ -220,22 +220,28 @@ class TaskViewSet(viewsets.ModelViewSet):
                 'error': 'Please provide either a file or description as evidence'
             }, status=status.HTTP_400_BAD_REQUEST)
         
-        # Save evidence
-        if evidence_file:
-            task.evidence_file = evidence_file
-        
-        if evidence_description:
-            task.evidence_description = evidence_description
-        
-        task.evidence_uploaded = True
-        task.evidence_uploaded_at = timezone.now()
-        task.save()
-        
-        return Response({
-            'message': 'Evidence uploaded successfully',
-            'has_evidence': task.evidence_uploaded,
-            'can_be_completed': task.can_be_completed()
-        })
+        try:
+            # Save evidence
+            if evidence_file:
+                task.evidence_file = evidence_file
+            
+            if evidence_description:
+                task.evidence_description = evidence_description
+            
+            task.evidence_uploaded = True
+            task.evidence_uploaded_at = timezone.now()
+            task.save()
+            
+            return Response({
+                'message': 'Evidence uploaded successfully',
+                'has_evidence': task.evidence_uploaded,
+                'can_be_completed': task.can_be_completed()
+            })
+        except Exception as e:
+            logger.error(f"Error uploading evidence for task {task.id}: {e}")
+            return Response({
+                'error': 'Failed to upload evidence. Please try again.'
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=True, methods=['get'])
     def evidence_status(self, request, pk=None):
@@ -257,24 +263,17 @@ class TaskViewSet(viewsets.ModelViewSet):
         """Get list of missing requirements for task completion"""
         missing = []
         
-        # Check basic activity
-        has_basic_activity = (
-            task.has_activity or 
-            task.time_spent_minutes >= 5 or 
-            (task.activity_notes and len(task.activity_notes.strip()) > 10)
-        )
+        # Temporarily disabled until migration is applied
+        # TODO: Re-enable evidence requirement after migration is applied
         
-        if not has_basic_activity:
-            missing.append('Work activity (log time, add notes, or mark as worked on)')
-        
-        # Check evidence
-        has_evidence = (
-            task.evidence_uploaded and 
-            (task.evidence_file or (task.evidence_description and len(task.evidence_description.strip()) > 20))
-        )
-        
-        if not has_evidence:
-            missing.append('Evidence of work (upload file or provide detailed description)')
+        # # Check evidence
+        # has_evidence = (
+        #     task.evidence_uploaded and 
+        #     (task.evidence_file or (task.evidence_description and len(task.evidence_description.strip()) > 20))
+        # )
+        # 
+        # if not has_evidence:
+        #     missing.append('Evidence of work (upload file or provide detailed description)')
         
         return missing
 

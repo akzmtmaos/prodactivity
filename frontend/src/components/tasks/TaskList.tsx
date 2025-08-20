@@ -7,6 +7,7 @@ interface TaskListProps {
   onToggleComplete: (id: number) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: number) => void;
+  onTaskCompleted?: (completedTask: any) => void;
   sortField: keyof Task;
   sortDirection: 'asc' | 'desc';
   onSort: (field: keyof Task) => void;
@@ -18,6 +19,7 @@ const TaskList: React.FC<TaskListProps> = ({
   onToggleComplete,
   onEdit,
   onDelete,
+  onTaskCompleted,
   sortField,
   sortDirection,
   onSort,
@@ -63,6 +65,7 @@ const TaskList: React.FC<TaskListProps> = ({
             onToggleComplete={onToggleComplete}
             onEdit={onEdit}
             onDelete={onDelete}
+            onTaskCompleted={onTaskCompleted}
           />
         ))}
       </div>

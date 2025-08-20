@@ -210,15 +210,7 @@ const Settings: React.FC = () => {
           <p className="text-gray-600 dark:text-gray-400 mt-2">Manage your account and preferences</p>
         </div>
 
-        {activeTab === 'general' && saveMessage && (
-          <div className={`mb-6 p-4 rounded-lg ${
-            saveMessage.type === 'success'
-              ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
-              : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-          }`}>
-            {saveMessage.text}
-          </div>
-        )}
+
         {/* Main row: sticky sidebar + content */}
         <div className="flex flex-col md:flex-row gap-8">
           {/* Sticky Sidebar */}

@@ -10,5 +10,5 @@ class TermsAndConditionsSerializer(serializers.ModelSerializer):
 class NotificationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Notification
-        fields = ['id', 'user', 'message', 'type', 'is_read', 'created_at', 'task', 'event']
-        read_only_fields = ['id', 'user', 'created_at', 'task', 'event'] 
+        fields = ['id', 'user', 'title', 'message', 'notification_type', 'is_read', 'created_at']
+        read_only_fields = ['id', 'user', 'created_at'] 

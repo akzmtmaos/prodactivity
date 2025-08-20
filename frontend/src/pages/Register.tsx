@@ -52,7 +52,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     if (!/[A-Z]/.test(password)) {
       return { isValid: false, message: 'Password must contain at least one capital letter' };
     }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
       return { isValid: false, message: 'Password must contain at least one special character' };
     }
     return { isValid: true, message: '' };
@@ -66,7 +66,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     if (/[A-Z]/.test(password)) score++;
     if (/[a-z]/.test(password)) score++;
     if (/[0-9]/.test(password)) score++;
-    if (/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) score++;
+    if (/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) score++;
     
     if (score <= 2) return { strength: 'weak', color: 'bg-red-500', width: 'w-1/3' };
     if (score <= 3) return { strength: 'medium', color: 'bg-yellow-500', width: 'w-2/3' };

@@ -9,6 +9,7 @@ interface TaskItemProps {
   onToggleComplete: (id: number) => void;
   onEdit: (task: Task) => void;
   onDelete: (id: number) => void;
+  onTaskCompleted?: (completedTask: any) => void;
 }
 
 const priorityColors: Record<string, string> = {
@@ -17,7 +18,7 @@ const priorityColors: Record<string, string> = {
   low: 'bg-green-500',
 };
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete, onTaskCompleted }) => {
   const [isSubtasksOpen, setIsSubtasksOpen] = useState(false);
   const [isAddSubtaskOpen, setIsAddSubtaskOpen] = useState(false);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
@@ -33,7 +34,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
 
   const handleToggleComplete = async () => {
     // If task is not completed and cannot be completed, show activity modal
-    if (!task.completed && task.can_be_completed === false) {
+    if (!task.completed && (task.can_be_completed === false || !task.evidence_uploaded)) {
       setIsActivityModalOpen(true);
       return;
     }
@@ -43,8 +44,12 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
   };
 
   const handleActivityLogged = () => {
-    // Refresh the task data to update the can_be_completed status
-    window.location.reload();
+    // Task completion is now handled by onTaskCompleted callback
+    // No need to refresh the page
+  };
+
+  const openActivityModal = () => {
+    setIsActivityModalOpen(true);
   };
 
   const toggleSubtask = async (s: Subtask) => {
@@ -78,6 +83,30 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
           {/* Task main info */}
           <div className="flex-1 min-w-0">
             <div className={`text-base font-semibold ${task.completed ? 'text-gray-400 line-through' : 'text-gray-800 dark:text-white'}`}>{task.title}</div>
+            
+            {/* Activity/Evidence requirement indicator */}
+            {/* Temporarily disabled until migration is applied */}
+            {/* {!task.completed && !task.evidence_uploaded && (
+              <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <svg className="w-4 h-4 text-orange-600 dark:text-orange-400 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-sm text-orange-700 dark:text-orange-300 font-medium">
+                      Evidence required to complete task
+                    </span>
+                  </div>
+                  <button
+                    onClick={openActivityModal}
+                    className="text-xs bg-orange-600 text-white px-3 py-1 rounded-md hover:bg-orange-700 transition-colors"
+                  >
+                    Add Evidence
+                  </button>
+                </div>
+              </div>
+            )} */}
+            
             <div className="flex flex-wrap items-center gap-2 mt-1">
               {task.description && (
                 <span className={`text-sm ${task.completed ? 'text-gray-300 line-through' : 'text-gray-500 dark:text-gray-400'}`}>
@@ -139,6 +168,18 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
           </div>
           {/* Action icons */}
           <div className="flex items-center gap-2">
+            {/* Activity/Evidence button */}
+            {!task.completed && (
+              <button
+                className="p-2 rounded hover:bg-green-100 dark:hover:bg-green-900"
+                onClick={openActivityModal}
+                title="Add evidence"
+              >
+                <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </button>
+            )}
             <button
               className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsSubtasksOpen(prev => !prev)}
@@ -225,6 +266,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
         taskId={task.id}
         taskTitle={task.title}
         onActivityLogged={handleActivityLogged}
+        onTaskCompleted={onTaskCompleted}
       />
     </>
   );

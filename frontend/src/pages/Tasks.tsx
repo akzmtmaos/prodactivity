@@ -233,6 +233,11 @@ const Tasks = () => {
     }
   };
 
+  // Handle task completion from evidence submission
+  const handleTaskCompleted = (completedTask: any) => {
+    setTasks(tasks.map(task => task.id === completedTask.id ? completedTask : task));
+  };
+
   // Handle form submission
   const handleSubmit = (taskData: Omit<Task, 'id'>) => {
     if (editingTask) {
@@ -412,6 +417,7 @@ const Tasks = () => {
                   setIsFormOpen(true);
                 }}
                 onDelete={handleDeleteClick}
+                onTaskCompleted={handleTaskCompleted}
                 sortField={sortField}
                 sortDirection={sortDirection}
                 onSort={handleSort}
