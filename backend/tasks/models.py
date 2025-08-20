@@ -30,6 +30,19 @@ class Task(models.Model):
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    
+    # New fields for productivity validation
+    has_activity = models.BooleanField(default=False, help_text="Whether the user has done any work on this task")
+    activity_notes = models.TextField(blank=True, help_text="Notes about what work was done on this task")
+    time_spent_minutes = models.IntegerField(default=0, help_text="Time spent working on this task in minutes")
+    last_activity_at = models.DateTimeField(null=True, blank=True, help_text="When the user last worked on this task")
+    
+    # Evidence fields for task completion
+    evidence_uploaded = models.BooleanField(default=False, help_text="Whether evidence has been uploaded")
+    evidence_description = models.TextField(blank=True, help_text="Description of the evidence provided")
+    evidence_file = models.FileField(upload_to='task_evidence/', null=True, blank=True, help_text="Evidence file (screenshot, document, etc.)")
+    evidence_uploaded_at = models.DateTimeField(null=True, blank=True, help_text="When evidence was uploaded")
+    
     # Soft delete fields
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
@@ -43,6 +56,25 @@ class Task(models.Model):
         
     def __str__(self):
         return self.title 
+
+    def can_be_completed(self):
+        """Check if the task can be marked as complete based on productivity criteria"""
+        # Task can be completed if:
+        # 1. User has logged some activity (has_activity = True)
+        # 2. AND user has provided evidence of work
+        # 3. AND either spent time OR provided notes OR uploaded evidence file
+        has_basic_activity = (
+            self.has_activity or 
+            self.time_spent_minutes >= 5 or 
+            (self.activity_notes and len(self.activity_notes.strip()) > 10)
+        )
+        
+        has_evidence = (
+            self.evidence_uploaded and 
+            (self.evidence_file or (self.evidence_description and len(self.evidence_description.strip()) > 20))
+        )
+        
+        return has_basic_activity and has_evidence
 
     def delete(self, using=None, keep_parents=False):
         if self.completed:

@@ -3,6 +3,7 @@ from rest_framework.decorators import api_view, permission_classes, throttle_cla
 from rest_framework.response import Response
 from rest_framework import status
 from django.db import IntegrityError
+import re
 
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
@@ -15,6 +16,33 @@ from django.utils.crypto import get_random_string
 from django.core.cache import cache
 from django.conf import settings
 
+def validate_username(username):
+    """Validate username format and length"""
+    if not username:
+        return False, "Username is required"
+    
+    if len(username) > 50:
+        return False, "Username must be 50 characters or less"
+    
+    # Check for special characters (only allow letters, numbers, and underscores)
+    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+        return False, "Username can only contain letters, numbers, and underscores"
+    
+    return True, ""
+
+def validate_password(password):
+    """Validate password strength"""
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long"
+    
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one capital letter"
+    
+    if not re.search(r'[!@#$%^&*()_+\-=\[\]{};\':"\\|,.<>/?]', password):
+        return False, "Password must contain at least one special character"
+    
+    return True, ""
+
 @api_view(['POST'])
 def register(request):
     data = request.data
@@ -24,6 +52,16 @@ def register(request):
 
     if not username or not email or not password:
         return Response({'success': False, 'message': 'All fields are required'}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate username
+    is_valid_username, username_error = validate_username(username)
+    if not is_valid_username:
+        return Response({'success': False, 'message': username_error}, status=status.HTTP_400_BAD_REQUEST)
+
+    # Validate password
+    is_valid_password, password_error = validate_password(password)
+    if not is_valid_password:
+        return Response({'success': False, 'message': password_error}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         user = User.objects.create_user(username=username, email=email, password=password)

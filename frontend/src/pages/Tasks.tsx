@@ -219,9 +219,17 @@ const Tasks = () => {
       }, { headers: getAuthHeaders() });
       const updated = { ...response.data, dueDate: response.data.due_date };
       setTasks(tasks.map(task => task.id === id ? updated : task));
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error toggling task completion:', err);
-      setError('Failed to update task. Please try again.');
+      
+      // Handle validation error for task completion
+      if (err.response?.data?.completed) {
+        setError(err.response.data.completed);
+        // Show the error for 5 seconds then clear it
+        setTimeout(() => setError(null), 5000);
+      } else {
+        setError('Failed to update task. Please try again.');
+      }
     }
   };
 

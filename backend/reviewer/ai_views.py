@@ -7,6 +7,7 @@ import logging
 from .serializers import ReviewerSerializer
 from rest_framework.decorators import api_view, permission_classes
 from .models import Reviewer
+from core.utils import get_ai_config
 
 logger = logging.getLogger(__name__)
 
@@ -30,30 +31,17 @@ class AIAutomaticReviewerView(APIView):
                 logger.warning("AIAutomaticReviewerView: No text provided.")
                 return Response({'error': 'No text provided.'}, status=400)
 
-            # Determine prompt type
-            if title.lower().startswith('quiz:'):
-                prompt = (
-                    "Generate a multiple choice quiz with 10 questions based on the following study material. "
-                    "For each question: Start with the question number and question text on its own line. "
-                    "Put each answer option (A, B, C, D) on a separate line, like this:\n"
-                    "1. What is the capital of France?\n"
-                    "A. Berlin\n"
-                    "B. Madrid\n"
-                    "C. Paris\n"
-                    "D. Rome\n"
-                    "**Answer:** C\n\n"
-                    "Do not put options on the same line as the question. Indicate the correct answer. Format as markdown.\n\n"
-                    f"Study Material:\n{text}\n\nQuiz:"
-                )
-            else:
-                prompt = (
-                    "Review the following content and provide:\n"
-                    "- A concise summary.\n"
-                    "- A list of important terms with brief explanations.\n"
-                    "- Key points and main ideas.\n"
-                    "- The main idea(s).\n"
-                    "Do not include section headers or labels. Use bullet points or short paragraphs for clarity.\n\n"
-                    f"Content:\n{text}"
+            # Determine prompt type and get from database
+            try:
+                if title.lower().startswith('quiz:'):
+                    prompt = get_ai_config('quiz_prompt', content=text)
+                else:
+                    prompt = get_ai_config('reviewer_prompt', content=text)
+            except ValueError as e:
+                logger.error(f"Failed to get AI configuration: {e}")
+                return Response(
+                    {'error': 'AI configuration not found. Please contact administrator.'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
 
             payload = {

@@ -6,7 +6,6 @@ import {
   FileUp
 } from 'lucide-react';
 import { DocumentTextIcon, ChatBubbleLeftRightIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
-import BlockEditor from './BlockEditor';
 import axios from 'axios';
 import * as pdfjsLib from 'pdfjs-dist';
 import ImportModal from '../../components/common/ImportModal';
@@ -78,8 +77,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const [importError, setImportError] = useState<string | null>(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [blocks, setBlocks] = useState<Array<{ id: string; type: string; content: string }>>([]);
-  const blockEditorRef = useRef<any>(null);
+  
+  // Simple contentEditable ref
+  const contentEditableRef = useRef<HTMLDivElement>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
 
   // Add state for tracking active formatting
   const [activeFormatting, setActiveFormatting] = useState<{
@@ -98,9 +99,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     highlight: false
   });
 
-  // Add a key to force BlockEditor to re-mount only on document import
-  const [editorKey, setEditorKey] = useState(0);
-  const [forceRemountEditor, setForceRemountEditor] = useState(false);
   const [pageView, setPageView] = useState<boolean>(true);
   const [paperSize, setPaperSize] = useState<'A4' | 'Letter'>('A4');
   const [orientation, setOrientation] = useState<'portrait' | 'landscape'>('portrait');
@@ -108,28 +106,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
   const [showUnsavedModal, setShowUnsavedModal] = useState(false);
   const [pendingClose, setPendingClose] = useState(false);
-
-  const onBlockTypeChange = (blockId: string, type: string) => {
-    setBlocks(prevBlocks => 
-      prevBlocks.map(block => 
-        block.id === blockId ? { ...block, type } : block
-      )
-    );
-  };
-
-  const onAddBlock = (index: number) => {
-    const newBlock = {
-      id: `block-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      type: 'text',
-      content: ''
-    };
-    setBlocks(prevBlocks => {
-      const newBlocks = [...prevBlocks];
-      newBlocks.splice(index + 1, 0, newBlock);
-      return newBlocks;
-    });
-    return newBlock.id;
-  };
 
   // Get auth headers for API calls
   const getAuthHeaders = () => {
@@ -247,8 +223,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       } else {
         throw new Error('Unsupported file type. Please upload a PDF or DOC/DOCX file.');
       }
-      // After import, force BlockEditor to re-mount
-      setForceRemountEditor(true);
+      // After import, content will be updated automatically
     } catch (error: any) {
       setError(error.message || 'Error processing file. Please try again.');
       throw error; // Re-throw to let the modal handle the error state
@@ -339,106 +314,53 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     setHasChanges(true);
   };
 
-  // Function to handle block type changes for BlockEditor
-  const handleBlockTypeChange = (blockId: string, type: string) => {
-    setBlocks(prevBlocks => 
-      prevBlocks.map(block => 
-        block.id === blockId ? { ...block, type } : block
-      )
-    );
-  };
-
-  // Function to toggle formatting - now works with BlockEditor system
+  // Simple formatting function for contentEditable
   const toggleFormatting = (command: string, value: string = '') => {
     console.log('toggleFormatting called:', { command, value });
     
-    // Handle heading formatting for BlockEditor
-    if (command === 'formatBlock' && (value === 'h1' || value === 'h2' || value === 'h3')) {
-      console.log('Heading formatting detected:', { command, value });
-      
-      // Map HTML heading tags to BlockEditor types
-      const blockTypeMap: { [key: string]: string } = {
-        'h1': 'heading1',
-        'h2': 'heading2', 
-        'h3': 'heading3'
-      };
-      
-      const newType = blockTypeMap[value];
-      console.log('Mapped to block type:', newType);
-      console.log('BlockEditor ref:', blockEditorRef.current);
-      
-      if (newType && blockEditorRef.current) {
-        // Get the current selection text
-        const selection = window.getSelection();
-        if (selection && selection.rangeCount > 0) {
-          const range = selection.getRangeAt(0);
-          const selectedText = range.toString();
-          console.log('Selected text:', selectedText);
-          
-          if (selectedText) {
-            // Change the block type based on the selected content
-            blockEditorRef.current.changeBlockTypeByContent(selectedText, newType);
-          } else {
-            // If no text selected, try the focused block approach
-            blockEditorRef.current.changeCurrentBlockType(newType);
-          }
-        } else {
-          // Fallback to focused block approach
-          blockEditorRef.current.changeCurrentBlockType(newType);
-        }
-        return;
-      } else {
-        console.log('Failed to call changeCurrentBlockType:', { newType, hasRef: !!blockEditorRef.current });
-      }
-    }
-    
-    // For other formatting commands, use the traditional execCommand approach
-    // but ensure we're working with the BlockEditor's contentEditable elements
+    // Ensure we have a selection
     const selection = window.getSelection();
     if (!selection || selection.rangeCount === 0) {
       console.log('No selection found for formatting');
       return;
     }
 
-    // Find the contentEditable element within the BlockEditor
-    const blockEditorElement = document.querySelector('[data-block-editor]') as HTMLElement;
-    if (blockEditorElement) {
-      // Focus the BlockEditor first
-      blockEditorElement.focus();
-      
-      // Check if the formatting is already applied
-      let isActive = false;
-      if (command === 'bold') isActive = document.queryCommandState('bold');
-      else if (command === 'italic') isActive = document.queryCommandState('italic');
-      else if (command === 'underline') isActive = document.queryCommandState('underline');
-      else if (command === 'strikeThrough') isActive = document.queryCommandState('strikeThrough');
-      else if (command === 'formatBlock') isActive = document.queryCommandValue('formatBlock') === value;
-      else if (command === 'hiliteColor') {
-        const currentColor = document.queryCommandValue('hiliteColor');
-        isActive = currentColor !== 'transparent' && currentColor !== '';
-      }
-
-      // Toggle the formatting
-      if (isActive) {
-        if (command === 'formatBlock') {
-          document.execCommand('formatBlock', false, 'div');
-        } else if (command === 'hiliteColor') {
-          document.execCommand('hiliteColor', false, 'transparent');
-        } else {
-          document.execCommand(command, false);
-        }
-      } else {
-        document.execCommand(command, false, value);
-      }
-      
-      // Trigger a change event to update the BlockEditor state
-      const event = new Event('input', { bubbles: true });
-      blockEditorElement.dispatchEvent(event);
-      
-      console.log('Applied formatting command:', { command, value });
-    } else {
-      console.log('BlockEditor element not found');
+    // Focus the contentEditable element
+    if (contentEditableRef.current) {
+      contentEditableRef.current.focus();
     }
+
+    // Check if the formatting is already applied
+    let isActive = false;
+    if (command === 'bold') isActive = document.queryCommandState('bold');
+    else if (command === 'italic') isActive = document.queryCommandState('italic');
+    else if (command === 'underline') isActive = document.queryCommandState('underline');
+    else if (command === 'strikeThrough') isActive = document.queryCommandState('strikeThrough');
+    else if (command === 'formatBlock') isActive = document.queryCommandValue('formatBlock') === value;
+    else if (command === 'hiliteColor') {
+      const currentColor = document.queryCommandValue('hiliteColor');
+      isActive = currentColor !== 'transparent' && currentColor !== '';
+    }
+
+    console.log('Formatting state before toggle:', { command, value, isActive });
+
+    // Toggle the formatting
+    if (isActive) {
+      if (command === 'formatBlock') {
+        console.log('Removing formatBlock, setting to div');
+        document.execCommand('formatBlock', false, 'div');
+      } else if (command === 'hiliteColor') {
+        document.execCommand('hiliteColor', false, 'transparent');
+      } else {
+        document.execCommand(command, false);
+      }
+    } else {
+      console.log('Applying formatting command:', { command, value });
+      const result = document.execCommand(command, false, value);
+      console.log('execCommand result:', result);
+    }
+    
+    console.log('Applied formatting command:', { command, value });
 
     // Update active formatting state based on the command result
     if (command === 'bold') {
@@ -456,6 +378,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         highlight: currentColor !== 'transparent' && currentColor !== '' 
       }));
     }
+
+    // Log the current HTML after formatting
+    setTimeout(() => {
+      if (contentEditableRef.current) {
+        console.log('HTML after formatting:', contentEditableRef.current.innerHTML);
+        console.log('Current formatBlock value:', document.queryCommandValue('formatBlock'));
+      }
+    }, 100);
   };
 
   // Function to show color picker at selection position
@@ -501,14 +431,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const onBlockAlignmentChange = (blockId: string, alignment: string) => {
-    setBlocks(prevBlocks => 
-      prevBlocks.map(block => 
-        block.id === blockId ? { ...block, alignment } : block
-      )
-    );
-  };
-
   const handleAlignment = (alignment: 'left' | 'center' | 'right' | 'justify') => {
     document.execCommand('removeFormat', false);
     if (alignment === 'justify') {
@@ -518,18 +440,36 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   };
 
-  // Handle formatting changes from BlockEditor
-  const handleFormattingChange = (formatting: any) => {
+  // Handle formatting changes from contentEditable
+  const handleFormattingChange = () => {
+    const formatting = {
+      bold: document.queryCommandState('bold'),
+      italic: document.queryCommandState('italic'),
+      underline: document.queryCommandState('underline'),
+      strikethrough: document.queryCommandState('strikeThrough'),
+      blockquote: document.queryCommandValue('formatBlock') === 'blockquote',
+      highlight: document.queryCommandValue('hiliteColor') !== 'transparent' && document.queryCommandValue('hiliteColor') !== ''
+    };
     setActiveFormatting(formatting);
   };
 
-  // Only force BlockEditor to re-mount after document import
+  // Initialize contentEditable with content
   useEffect(() => {
-    if (forceRemountEditor) {
-      setEditorKey(prev => prev + 1);
-      setForceRemountEditor(false);
+    if (contentEditableRef.current && !isInitialized) {
+      contentEditableRef.current.innerHTML = content;
+      setIsInitialized(true);
     }
-  }, [forceRemountEditor]);
+  }, [content, isInitialized]);
+
+  // Update contentEditable when content changes externally (like from import)
+  useEffect(() => {
+    if (contentEditableRef.current && isInitialized) {
+      const currentContent = contentEditableRef.current.innerHTML;
+      if (currentContent !== content) {
+        contentEditableRef.current.innerHTML = content;
+      }
+    }
+  }, [content, isInitialized]);
 
   // Handler for back/close button
   const handleBack = () => {
@@ -650,13 +590,53 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 })() : {}}
               >
                 <div className="max-w-full break-words">
-                  <BlockEditor
-                    ref={blockEditorRef}
-                    key={editorKey}
-                    initialContent={content}
-                    onChange={handleContentChange}
-                    onFormattingChange={handleFormattingChange}
-                    onBlockTypeChange={handleBlockTypeChange}
+                  <style>
+                    {`
+                      .note-editor h1 {
+                        font-size: 2rem !important;
+                        font-weight: 700 !important;
+                        line-height: 1.2 !important;
+                        margin-bottom: 1rem !important;
+                        margin-top: 1.5rem !important;
+                        display: block !important;
+                      }
+                      .note-editor h2 {
+                        font-size: 1.5rem !important;
+                        font-weight: 600 !important;
+                        line-height: 1.3 !important;
+                        margin-bottom: 0.75rem !important;
+                        margin-top: 1.25rem !important;
+                        display: block !important;
+                      }
+                      .note-editor h3 {
+                        font-size: 1.25rem !important;
+                        font-weight: 600 !important;
+                        line-height: 1.4 !important;
+                        margin-bottom: 0.5rem !important;
+                        margin-top: 1rem !important;
+                        display: block !important;
+                      }
+                    `}
+                  </style>
+                  <div
+                    ref={contentEditableRef}
+                    contentEditable
+                    className="min-h-[500px] outline-none focus:outline-none note-editor"
+                    onInput={(e) => {
+                      const newContent = e.currentTarget.innerHTML;
+                      setContent(newContent);
+                      setHasChanges(true);
+                      handleFormattingChange();
+                    }}
+                    onBlur={handleFormattingChange}
+                    onKeyUp={handleFormattingChange}
+                    suppressContentEditableWarning={true}
+                    style={{
+                      fontFamily: 'inherit',
+                      fontSize: 'inherit',
+                      lineHeight: '1.6',
+                      color: 'inherit'
+                    }}
                   />
                 </div>
               </div>

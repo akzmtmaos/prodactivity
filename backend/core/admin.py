@@ -9,7 +9,7 @@ from tasks.models import Task
 from schedule.models import Event
 from reviewer.models import Reviewer
 from progress.models import ProductivityScaleHistory
-from .models import TermsAndConditions, Notification
+from .models import TermsAndConditions, Notification, AIConfiguration
 
 class MyAdminSite(admin.AdminSite):
     site_header = "Prodactivity Admin"
@@ -37,12 +37,40 @@ class MyAdminSite(admin.AdminSite):
         )
         return TemplateResponse(request, "admin/dashboard.html", context)  # Template should be at core/templates/admin/dashboard.html
 
+@admin.register(AIConfiguration)
+class AIConfigurationAdmin(admin.ModelAdmin):
+    list_display = ('title', 'config_type', 'is_active', 'updated_at')
+    list_filter = ('config_type', 'is_active', 'created_at', 'updated_at')
+    search_fields = ('title', 'description', 'prompt_template')
+    readonly_fields = ('created_at', 'updated_at')
+    
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('config_type', 'title', 'is_active')
+        }),
+        ('Prompt Configuration', {
+            'fields': ('prompt_template', 'description'),
+            'classes': ('wide',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def get_readonly_fields(self, request, obj=None):
+        """Make config_type readonly after creation to prevent changing type."""
+        if obj:  # Editing an existing object
+            return self.readonly_fields + ('config_type',)
+        return self.readonly_fields
+
 # Instantiate and configure the custom admin site (replaces default admin site)
 admin_site = MyAdminSite()
 # Register all main models for admin management
 admin_site.register(User)
 admin_site.register(TermsAndConditions)
 admin_site.register(Notification)
+admin_site.register(AIConfiguration)
 admin_site.register(Notebook)
 admin_site.register(Note)
 admin_site.register(Deck)

@@ -93,6 +93,7 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
   const [reviewResult, setReviewResult] = useState<string>('');
   const [isReviewing, setIsReviewing] = useState(false);
   const [panelVisible, setPanelVisible] = useState(false);
+  const [generatedReviewerId, setGeneratedReviewerId] = useState<number | null>(null);
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 
@@ -308,15 +309,31 @@ ${content}`;
         headers: getAuthHeaders()
       });
       const created = response.data;
-      setReviewResult('Reviewer generated successfully.');
-      // Navigate to the new reviewer
-      window.location.href = `/reviewer/r/${created.id}`;
+      
+      // Show success message with option to view full reviewer
+      setReviewResult(`✅ Review generated successfully!
+
+Your review has been saved and is now available in the Reviewer section.
+
+Review ID: ${created.id}
+Title: ${created.title}
+
+Click "View Full Review" to see the complete reviewer with all features.`);
+      
+      // Store the reviewer ID for the "View Full Review" button
+      setGeneratedReviewerId(created.id);
     } catch (error: any) {
       console.error('Failed to review note:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Failed to review note. Please try again.';
-      alert(errorMessage);
+      setReviewResult(`❌ Error: ${errorMessage}`);
     } finally {
       setIsReviewing(false);
+    }
+  };
+
+  const handleViewFullReview = () => {
+    if (generatedReviewerId) {
+      window.open(`/reviewer/r/${generatedReviewerId}`, '_blank');
     }
   };
 
@@ -363,6 +380,8 @@ ${content}`;
                     setSummaryResult('');
                     setChatMessages([]);
                     setChatInput('');
+                    setGeneratedReviewerId(null);
+                    setReviewResult('');
                   }}
                   className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
                 >
@@ -435,6 +454,14 @@ ${content}`;
                         <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
                           {reviewResult}
                         </p>
+                        {generatedReviewerId && (
+                          <button
+                            onClick={handleViewFullReview}
+                            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                          >
+                            View Full Review
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

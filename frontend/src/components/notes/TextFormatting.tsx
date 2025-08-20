@@ -393,7 +393,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
           console.log('H1 button clicked!');
           handleFormattingClick('formatBlock', 'h1');
         }}
-        className="px-2 py-1 text-xs font-bold text-white bg-red-500 hover:bg-red-600 rounded border-2 border-red-600"
+        className="px-2 py-1 text-xs font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
         title="Heading 1"
       >
         H1
@@ -403,7 +403,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
           console.log('H2 button clicked!');
           handleFormattingClick('formatBlock', 'h2');
         }}
-        className="px-2 py-1 text-xs font-bold text-white bg-blue-500 hover:bg-blue-600 rounded border-2 border-blue-600"
+        className="px-2 py-1 text-xs font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
         title="Heading 2"
       >
         H2
@@ -413,7 +413,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
           console.log('H3 button clicked!');
           handleFormattingClick('formatBlock', 'h3');
         }}
-        className="px-2 py-1 text-xs font-bold text-white bg-green-500 hover:bg-green-600 rounded border-2 border-green-600"
+        className="px-2 py-1 text-xs font-bold text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 rounded"
         title="Heading 3"
       >
         H3

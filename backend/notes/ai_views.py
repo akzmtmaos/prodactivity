@@ -13,6 +13,7 @@ import logging
 import requests
 import os
 from reviewer.serializers import ReviewerSerializer
+from core.utils import get_ai_config
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -23,8 +24,10 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "llama2"  # Using llama2 with optimized configuration
 
 def format_chat_prompt(messages):
-    # Llama2-specific system instruction for better behavior
-    system_instruction = """<s>[INST] You are a helpful AI assistant. Follow these guidelines:
+    # Get chat prompt from database configuration
+    try:
+        # For chat, we'll use a simple system instruction
+        system_instruction = """<s>[INST] You are a helpful AI assistant. Follow these guidelines:
 - Provide clear, direct, and accurate responses
 - Do NOT use roleplay elements like *smiles*, *adjusts glasses*, *nods*, etc.
 - Be professional, friendly, and concise
@@ -33,6 +36,9 @@ def format_chat_prompt(messages):
 - Use natural, conversational language without excessive formatting
 
 Remember: No roleplay elements, no asterisks, just clear helpful responses. [/INST]"""
+    except ValueError:
+        # Fallback if no configuration found
+        system_instruction = """<s>[INST] You are a helpful AI assistant. [/INST]"""
     
     # Format conversation for Llama2 with proper instruction format
     conversation = [system_instruction]
@@ -190,8 +196,15 @@ class SummarizeView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Create a summarization prompt
-            summarize_prompt = f"Please provide a concise summary of the following text:\n\n{text}\n\nSummary:"
+            # Get summarization prompt from database configuration
+            try:
+                summarize_prompt = get_ai_config('summary_prompt', content=text)
+            except ValueError as e:
+                logger.error(f"Failed to get summary configuration: {e}")
+                return Response(
+                    {'error': 'AI configuration not found. Please contact administrator.'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
             
             payload = {
                 "model": OLLAMA_MODEL,
@@ -257,8 +270,15 @@ class ReviewView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Create a review prompt
-            review_prompt = f"Please review the following text and provide constructive feedback, suggestions for improvement, and highlight any strengths or weaknesses:\n\n{text}\n\nReview:"
+            # Get review prompt from database configuration
+            try:
+                review_prompt = get_ai_config('reviewer_prompt', content=text)
+            except ValueError as e:
+                logger.error(f"Failed to get review configuration: {e}")
+                return Response(
+                    {'error': 'AI configuration not found. Please contact administrator.'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
             
             payload = {
                 "model": OLLAMA_MODEL,
@@ -329,16 +349,18 @@ class AIAutomaticReviewerView(APIView):
                 logger.warning("AIAutomaticReviewerView: No text provided.")
                 return Response({'error': 'No text provided.'}, status=400)
 
-            # Determine prompt type
-            if title.lower().startswith('quiz:'):
-                prompt = (
-                    "Generate a multiple choice quiz based on the following study material. "
-                    "For each question, provide 4 options (A, B, C, D) and indicate the correct answer. "
-                    "Format as markdown.\n\n"
-                    f"Study Material:\n{text}\n\nQuiz:"
+            # Determine prompt type and get from database
+            try:
+                if title.lower().startswith('quiz:'):
+                    prompt = get_ai_config('quiz_prompt', content=text)
+                else:
+                    prompt = get_ai_config('summary_prompt', content=text)
+            except ValueError as e:
+                logger.error(f"Failed to get AI configuration: {e}")
+                return Response(
+                    {'error': 'AI configuration not found. Please contact administrator.'}, 
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
-            else:
-                prompt = f"Please provide a concise summary of the following text:\n\n{text}\n\nSummary:"
 
             payload = {
                 "model": OLLAMA_MODEL,
