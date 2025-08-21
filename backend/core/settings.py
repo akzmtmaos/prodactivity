@@ -238,7 +238,7 @@ os.makedirs(os.path.join(MEDIA_ROOT, 'temp'), exist_ok=True)
 
 # Email backend (console for development)
 EMAIL_BACKEND = os.getenv('EMAIL_BACKEND', 'django.core.mail.backends.console.EmailBackend')
-DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'no-reply@prodactivity.local')
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'sandiegoc89@gmail.com')
 
 # Gmail SMTP Configuration
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')

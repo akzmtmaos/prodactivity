@@ -4,7 +4,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { 
   Menu, X, Home, BarChart2, FileText, BookOpen, 
   CheckSquare, Calendar, Clock, Trash2, Bell, 
-  Settings, LogOut, ChevronLeft, ChevronRight, Brain, Layers, User as UserIcon 
+  Settings, ChevronLeft, ChevronRight, Brain, Layers
 } from "lucide-react";
 import { useNavbar } from "../context/NavbarContext";
 import NotificationBadge from "./notifications/NotificationBadge";
@@ -22,7 +22,6 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [user, setUser] = useState<any | null>(null);
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
 
   // Modified logout handler with proper TypeScript type
   const openLogoutModal = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -188,9 +187,8 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         {/* User actions */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="relative">
-            <button
-              onClick={() => setShowProfileMenu((v) => !v)}
-              className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${isCollapsed ? 'justify-center' : ''}`}
+            <div
+              className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
               title={isCollapsed ? (user?.username || "Profile") : undefined}
             >
               {user?.avatar ? (
@@ -209,30 +207,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                 </span>
               )}
               <span className={`ml-3 text-gray-800 dark:text-gray-200 font-medium ${isCollapsed ? 'hidden' : 'inline'}`}>{user?.displayName || user?.username || "User"}</span>
-              <ChevronRight size={16} className={`ml-2 ${isCollapsed ? 'hidden' : 'inline'}`} />
-            </button>
-            {showProfileMenu && (
-              <div className="absolute left-0 bottom-12 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-                <button
-                  onClick={() => { setShowProfileMenu(false); navigate('/settings'); }}
-                  className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                >
-                  <UserIcon size={16} className="mr-2" /> Profile
-                </button>
-                <button
-                  onClick={() => { setShowProfileMenu(false); navigate('/settings'); }}
-                  className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                >
-                  <Settings size={16} className="mr-2" /> Settings
-                </button>
-                <button
-                  onClick={() => { setShowProfileMenu(false); setShowLogoutModal(true); }}
-                  className="w-full px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                >
-                  <LogOut size={16} className="mr-2" /> Logout
-                </button>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </aside>
@@ -355,9 +330,8 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
             {/* Logout Button */}
             <div className="p-4 border-t border-gray-200 dark:border-gray-700">
               <div className="relative">
-                <button
-                  onClick={() => setShowProfileMenu((v) => !v)}
-                  className="flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
+                <div
+                  className="flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors"
                 >
                   {user?.avatar ? (
                     <img src={user.avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover" />
@@ -367,30 +341,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                     </span>
                   )}
                   <span className="ml-3 text-gray-800 dark:text-gray-200 font-medium">{user?.displayName || user?.username || "User"}</span>
-                  <ChevronRight size={18} className="ml-2" />
-                </button>
-                {showProfileMenu && (
-                  <div className="absolute left-0 bottom-16 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
-                    <button
-                      onClick={() => { setShowProfileMenu(false); navigate('/settings'); }}
-                      className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                    >
-                      <UserIcon size={16} className="mr-2" /> Profile
-                    </button>
-                    <button
-                      onClick={() => { setShowProfileMenu(false); navigate('/settings'); }}
-                      className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                    >
-                      <Settings size={16} className="mr-2" /> Settings
-                    </button>
-                    <button
-                      onClick={() => { setShowProfileMenu(false); setShowLogoutModal(true); }}
-                      className="w-full px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-                    >
-                      <LogOut size={16} className="mr-2" /> Logout
-                    </button>
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </div>

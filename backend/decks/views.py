@@ -16,7 +16,9 @@ class DeckListCreateView(generics.ListCreateAPIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get_queryset(self):
-        queryset = Deck.objects.filter(user=self.request.user, is_deleted=False)
+        # Filter by archive status
+        is_archived = self.request.query_params.get('archived', 'false').lower() == 'true'
+        queryset = Deck.objects.filter(user=self.request.user, is_deleted=False, is_archived=is_archived)
         parent_id = self.request.query_params.get('parent', None)
         if parent_id is not None:
             queryset = queryset.filter(parent_id=parent_id)
@@ -42,12 +44,23 @@ class DeckRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     def partial_update(self, request, *args, **kwargs):
         deck = self.get_object()
         print(f"[DEBUG] PATCH /api/decks/decks/{deck.id}/ - data: {request.data}")
+        
+        # Handle archive status
+        is_archived = request.data.get('is_archived', None)
+        if is_archived is not None:
+            deck.is_archived = is_archived
+            deck.archived_at = timezone.now() if is_archived else None
+            deck.save()
+            print(f"[DEBUG] Deck {deck.id} updated: is_archived={deck.is_archived}, archived_at={deck.archived_at}")
+        
+        # Handle delete status
         is_deleted = request.data.get('is_deleted', None)
         if is_deleted is not None:
             deck.is_deleted = is_deleted
             deck.deleted_at = None if not is_deleted else timezone.now()
             deck.save()
             print(f"[DEBUG] Deck {deck.id} updated: is_deleted={deck.is_deleted}, deleted_at={deck.deleted_at}")
+        
         serializer = self.get_serializer(deck)
         return Response(serializer.data)
 
@@ -74,6 +87,13 @@ class FlashcardRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
 def deleted_decks(request):
     decks = Deck.objects.filter(user=request.user, is_deleted=True)
     print(f"[DEBUG] Trash API - User: {request.user}, Deleted Decks: {list(decks.values('id', 'title', 'is_deleted', 'deleted_at'))}")
+    serializer = DeckSerializer(decks, many=True)
+    return Response(serializer.data)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def archived_decks(request):
+    decks = Deck.objects.filter(user=request.user, is_archived=True, is_deleted=False)
     serializer = DeckSerializer(decks, many=True)
     return Response(serializer.data)
 

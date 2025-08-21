@@ -11,6 +11,8 @@ class Deck(models.Model):
     progress = models.PositiveIntegerField(default=0)
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
+    is_archived = models.BooleanField(default=False)
+    archived_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         unique_together = ['title', 'user', 'parent']

@@ -8,5 +8,6 @@ urlpatterns = [
     path('flashcards/', views.FlashcardListCreateView.as_view(), name='flashcard-list-create'),
     path('flashcards/<int:pk>/', views.FlashcardRetrieveUpdateDestroyView.as_view(), name='flashcard-detail'),
     # path('trash/decks/', views.deleted_decks, name='deleted-decks'),
+    path('archived/decks/', views.archived_decks, name='archived-decks'),
     path('quizzes/sessions/', QuizSessionCreateView.as_view(), name='quizsession-create'),
 ] 

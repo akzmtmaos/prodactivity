@@ -36,6 +36,8 @@ interface Deck {
   flashcards: FlashcardData[];
   subDecks?: SubDeck[];
   is_deleted: boolean;
+  is_archived: boolean;
+  archived_at?: string;
 }
 
 interface DeckStats {
@@ -60,6 +62,7 @@ const Decks = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [decks, setDecks] = useState<Deck[]>([]);
+  const [archivedDecks, setArchivedDecks] = useState<Deck[]>([]);
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [selectedDeckStats, setSelectedDeckStats] = useState<DeckStats | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -303,6 +306,7 @@ const Decks = () => {
           flashcards: allCards.map((c, idx) => ({ id: `${deckData.id}-${idx}`, question: c.question, answer: c.answer, front: c.question, back: c.answer })),
           subDecks: [],
           is_deleted: false,
+          is_archived: false,
         };
         createdDecks.push(newDeck);
       } else {
@@ -334,6 +338,7 @@ const Decks = () => {
             flashcards: cards.map((c, idx) => ({ id: `${deckData.id}-${idx}`, question: c.question, answer: c.answer, front: c.question, back: c.answer })),
             subDecks: [],
             is_deleted: false,
+            is_archived: false,
           };
           createdDecks.push(newDeck);
         }
@@ -355,14 +360,16 @@ const Decks = () => {
     const fetchDecks = async () => {
       try {
         const token = localStorage.getItem('accessToken');
-        const res = await fetch('http://localhost:8000/api/decks/decks/', {
+        
+        // Fetch active decks
+        const activeRes = await fetch('http://localhost:8000/api/decks/decks/', {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },
         });
-        if (!res.ok) throw new Error('Failed to fetch decks');
-        const data = await res.json();
-        const topLevelDecks = data.filter((deck: any) => !deck.parent).map((deck: any) => {
+        if (!activeRes.ok) throw new Error('Failed to fetch active decks');
+        const activeData = await activeRes.json();
+        const topLevelDecks = activeData.filter((deck: any) => !deck.parent).map((deck: any) => {
           return {
             id: deck.id.toString(),
             title: deck.title,
@@ -388,11 +395,54 @@ const Decks = () => {
               updated_at: sd.updated_at
             })),
             is_deleted: false,
+            is_archived: false,
           };
         });
         setDecks(topLevelDecks);
+
+        // Fetch archived decks
+        const archivedRes = await fetch('http://localhost:8000/api/decks/archived/decks/', {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+        });
+        if (archivedRes.ok) {
+          const archivedData = await archivedRes.json();
+          const archivedTopLevelDecks = archivedData.filter((deck: any) => !deck.parent).map((deck: any) => {
+            return {
+              id: deck.id.toString(),
+              title: deck.title,
+              flashcardCount: deck.flashcard_count || 0,
+              progress: deck.progress || 0,
+              created_at: deck.created_at,
+              updated_at: deck.updated_at,
+              createdAt: deck.created_at,
+              flashcards: (deck.flashcards || []).map((fc: any) => ({
+                id: fc.id.toString(),
+                question: fc.front,
+                answer: fc.back,
+                front: fc.front,
+                back: fc.back,
+                difficulty: undefined
+              })),
+              subDecks: (deck.sub_decks || []).map((sd: any) => ({
+                id: sd.id.toString(),
+                title: sd.title,
+                description: sd.description || '',
+                parentDeckId: sd.parent_deck_id.toString(),
+                created_at: sd.created_at,
+                updated_at: sd.updated_at
+              })),
+              is_deleted: false,
+              is_archived: true,
+              archived_at: deck.archived_at,
+            };
+          });
+          setArchivedDecks(archivedTopLevelDecks);
+        }
       } catch (error) {
         setDecks([]);
+        setArchivedDecks([]);
       }
     };
     fetchDecks();
@@ -422,6 +472,7 @@ const Decks = () => {
         flashcards: [],
         subDecks: [],
         is_deleted: false,
+        is_archived: false,
       }]);
     } catch (error) {
       alert('Error creating deck.');
@@ -456,6 +507,40 @@ const Decks = () => {
     } catch (error) {
       alert('Error deleting deck.');
       setToast({ message: 'Failed to delete deck.', type: 'error' });
+    }
+  };
+
+  const handleArchiveDeck = async (deck: Deck, archive: boolean) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`http://localhost:8000/api/decks/decks/${deck.id}/`, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ is_archived: archive }),
+      });
+      if (!res.ok) throw new Error('Failed to archive deck');
+      
+      if (archive) {
+        // Move from active decks to archived decks
+        const deckToArchive = { ...deck, is_archived: true, archived_at: new Date().toISOString() };
+        setArchivedDecks(prev => [...prev, deckToArchive]);
+        setDecks(prev => prev.filter(d => d.id !== deck.id));
+      } else {
+        // Move from archived decks back to active decks
+        const deckToUnarchive = { ...deck, is_archived: false, archived_at: undefined };
+        setDecks(prev => [...prev, deckToUnarchive]);
+        setArchivedDecks(prev => prev.filter(d => d.id !== deck.id));
+      }
+      
+      setToast({ 
+        message: `Deck ${archive ? 'archived' : 'unarchived'} successfully.`, 
+        type: 'success' 
+      });
+    } catch (error) {
+      setToast({ message: `Failed to ${archive ? 'archive' : 'unarchive'} deck`, type: 'error' });
     }
   };
 
@@ -510,6 +595,13 @@ const Decks = () => {
     if (deck) {
       setSelectedDeck(deck);
       setShowDeleteModal(true);
+    }
+  };
+
+  const handleArchive = (deckId: string) => {
+    const deck = decks.find(d => d.id === deckId) || archivedDecks.find(d => d.id === deckId);
+    if (deck) {
+      handleArchiveDeck(deck, !deck.is_archived);
     }
   };
 
@@ -860,7 +952,7 @@ const Decks = () => {
               {/* Convert Notes button */}
               <button
                 onClick={() => setShowConvertModal(true)}
-                className="inline-flex items-center h-10 min-w-[180px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                className="inline-flex items-center h-10 min-w-[180px] px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
               >
                 <FileText size={20} className="mr-2" />
                 Convert Notes
@@ -868,7 +960,7 @@ const Decks = () => {
               {/* Add Deck button */}
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                className="inline-flex items-center h-10 min-w-[140px] px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
               >
                 <Plus size={20} className="mr-2" />
                 Add Deck
@@ -913,45 +1005,57 @@ const Decks = () => {
           </div>
           {/* Tab Bar styled like Settings */}
           <div>
-            <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-2">
-              <button
-                onClick={() => setActiveTab('decks')}
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'decks'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                Decks
-              </button>
-              <button
-                onClick={() => setActiveTab('stats')}
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'stats'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                Statistics
-              </button>
-              <button
-                onClick={() => setActiveTab('archived')}
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'archived'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                Archived
-              </button>
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2">
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setActiveTab('decks')}
+                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                    activeTab === 'decks'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  Decks
+                </button>
+                <button
+                  onClick={() => setActiveTab('stats')}
+                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                    activeTab === 'stats'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  Statistics
+                </button>
+                <button
+                  onClick={() => setActiveTab('archived')}
+                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                    activeTab === 'archived'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  Archived
+                </button>
+              </div>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={activeTab === 'decks' 
+                  ? Math.ceil(filteredDecks.length / PAGE_SIZE)
+                  : activeTab === 'stats' 
+                    ? Math.ceil(1 / PAGE_SIZE) // Placeholder for stats pagination
+                    : Math.ceil(1 / PAGE_SIZE) // Placeholder for archived pagination
+                }
+                onPageChange={setCurrentPage}
+              />
             </div>
             {/* Removed the <hr> below the tabs for consistency */}
           </div>
           {/* Tab Content */}
           {activeTab === 'decks' && (
-            <div className="space-y-6">
+            <div className="space-y-6 pb-6">
               {/* Decks Grid with scroll */}
-              <div className="max-h-[65vh] overflow-y-auto pr-1">
+              <div className="max-h-[80vh] overflow-y-auto pr-1">
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {pagedDecks.map((deck) => (
                   <div key={deck.id} className="relative">
@@ -963,6 +1067,7 @@ const Decks = () => {
                       onDelete={handleDelete}
                       onViewStats={handleViewStats}
                       onOpen={handleOpenDeck}
+                      onArchive={handleArchive}
                     />
                     {/* Subdecks display */}
                     {deck.subDecks && deck.subDecks.length > 0 && (
@@ -979,11 +1084,6 @@ const Decks = () => {
                   ))}
                 </div>
               </div>
-              <Pagination
-                currentPage={currentPage}
-                totalPages={Math.ceil(filteredDecks.length / PAGE_SIZE)}
-                onPageChange={setCurrentPage}
-              />
               {/* Empty State */}
               {filteredDecks.length === 0 && (
                 <div className="text-center py-12">
@@ -1268,13 +1368,46 @@ const Decks = () => {
             </div>
           )}
           {activeTab === 'stats' && (
-            <div className="p-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 min-h-[300px] flex items-center justify-center">
+            <div className="p-8 pb-6 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 min-h-[300px] flex items-center justify-center">
               <span className="text-gray-500 dark:text-gray-400 text-lg">Statistics coming soon...</span>
             </div>
           )}
           {activeTab === 'archived' && (
-            <div className="p-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 min-h-[300px] flex items-center justify-center">
-              <span className="text-gray-500 dark:text-gray-400 text-lg">Archived decks will appear here.</span>
+            <div className="space-y-6 pb-6">
+              {archivedDecks.length > 0 ? (
+                <div className="max-h-[80vh] overflow-y-auto pr-1">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {archivedDecks.map((deck) => (
+                      <div key={deck.id} className="relative">
+                        <DeckCard
+                          deck={deck}
+                          onStudy={handleStudy}
+                          onQuiz={handleQuiz}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          onViewStats={handleViewStats}
+                          onOpen={handleOpenDeck}
+                          onArchive={handleArchive}
+                        />
+                        {/* Subdecks display */}
+                        {deck.subDecks && deck.subDecks.length > 0 && (
+                          <div className="mt-2 ml-2 flex flex-wrap gap-2">
+                            {deck.subDecks.map((sub) => (
+                              <span key={sub.id} className="inline-block bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-medium border border-indigo-200 dark:border-indigo-700">
+                                {sub.title}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 min-h-[300px] flex items-center justify-center">
+                  <span className="text-gray-500 dark:text-gray-400 text-lg">No archived decks yet.</span>
+                </div>
+              )}
             </div>
           )}
         </div>

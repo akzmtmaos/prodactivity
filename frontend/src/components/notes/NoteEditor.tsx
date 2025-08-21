@@ -570,58 +570,113 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             <div className={`${pageView ? 'w-full flex justify-center' : 'w-full'} ${/* compress width when AI panel open */''}`} style={{}}>
               <div
                 className={`${pageView ? 'bg-white dark:bg-gray-800 shadow transition-[width] duration-200' : ''}`}
-                style={pageView ? (() => {
-                  const sizes = {
-                    A4: { width: 794, height: 1123 },
-                    Letter: { width: 816, height: 1056 },
-                  } as const;
-                  const size = sizes[paperSize];
-                  const baseW = orientation === 'portrait' ? size.width : size.height;
-                  const baseH = orientation === 'portrait' ? size.height : size.width;
-                  // If AI panel is open, slightly reduce page width to make room visually
-                  const adjustedW = baseW; // keep page width fixed; centering will shift left naturally
-                  return {
-                    width: `${adjustedW}px`,
-                    minHeight: `${baseH}px`,
-                    margin: '16px',
-                    padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px`,
-                    boxShadow: '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)'
-                  } as React.CSSProperties;
-                })() : {}}
+                                 style={pageView ? (() => {
+                   const sizes = {
+                     A4: { width: 794, height: 1123 },
+                     Letter: { width: 816, height: 1056 },
+                   } as const;
+                   const size = sizes[paperSize];
+                   const baseW = orientation === 'portrait' ? size.width : size.height;
+                   const baseH = orientation === 'portrait' ? size.height : size.width;
+                                       return {
+                      width: `${baseW}px`,
+                      height: 'fit-content',
+                      minHeight: `${baseH}px`,
+                      margin: '16px',
+                      padding: `${margins.top}px ${margins.right}px ${margins.bottom}px ${margins.left}px`,
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.1), 0 1px 2px rgba(0,0,0,0.06)'
+                    } as React.CSSProperties;
+                 })() : {}}
               >
-                <div className="max-w-full break-words">
+                                 <div className="w-full" style={{ width: '100%' }}>
                   <style>
                     {`
-                      .note-editor h1 {
-                        font-size: 2rem !important;
-                        font-weight: 700 !important;
-                        line-height: 1.2 !important;
-                        margin-bottom: 1rem !important;
-                        margin-top: 1.5rem !important;
+                                             .note-editor {
+                         width: 100% !important;
+                         max-width: 100% !important;
+                         overflow-wrap: break-word !important;
+                         word-wrap: break-word !important;
+                         word-break: break-all !important;
+                         white-space: normal !important;
+                         box-sizing: border-box !important;
+                         height: auto !important;
+                       }
+                       .note-editor * {
+                         max-width: 100% !important;
+                         overflow-wrap: break-word !important;
+                         word-wrap: break-word !important;
+                         word-break: break-all !important;
+                         box-sizing: border-box !important;
+                       }
+                                             .note-editor h1 {
+                         font-size: 2rem !important;
+                         font-weight: 700 !important;
+                         line-height: 1.2 !important;
+                         margin-bottom: 1rem !important;
+                         margin-top: 1.5rem !important;
+                         display: block !important;
+                         max-width: 100% !important;
+                         width: 100% !important;
+                       }
+                       .note-editor h2 {
+                         font-size: 1.5rem !important;
+                         font-weight: 600 !important;
+                         line-height: 1.3 !important;
+                         margin-bottom: 0.75rem !important;
+                         margin-top: 1.25rem !important;
+                         display: block !important;
+                         max-width: 100% !important;
+                         width: 100% !important;
+                       }
+                       .note-editor h3 {
+                         font-size: 1.25rem !important;
+                         font-weight: 600 !important;
+                         line-height: 1.4 !important;
+                         margin-bottom: 0.5rem !important;
+                         margin-top: 1rem !important;
+                         display: block !important;
+                         max-width: 100% !important;
+                         width: 100% !important;
+                       }
+                       .note-editor p, .note-editor div {
+                         max-width: 100% !important;
+                         width: 100% !important;
+                         white-space: normal !important;
+                         box-sizing: border-box !important;
+                         word-break: break-all !important;
+                       }
+                       .note-editor span {
+                         max-width: 100% !important;
+                         box-sizing: border-box !important;
+                       }
+                      .note-editor br {
                         display: block !important;
+                        content: "" !important;
+                        margin: 0 !important;
+                        padding: 0 !important;
                       }
-                      .note-editor h2 {
-                        font-size: 1.5rem !important;
-                        font-weight: 600 !important;
-                        line-height: 1.3 !important;
-                        margin-bottom: 0.75rem !important;
-                        margin-top: 1.25rem !important;
-                        display: block !important;
-                      }
-                      .note-editor h3 {
-                        font-size: 1.25rem !important;
-                        font-weight: 600 !important;
-                        line-height: 1.4 !important;
-                        margin-bottom: 0.5rem !important;
-                        margin-top: 1rem !important;
-                        display: block !important;
-                      }
+                                             .note-editor strong, .note-editor b {
+                         max-width: 100% !important;
+                         box-sizing: border-box !important;
+                       }
+                       .note-editor em, .note-editor i {
+                         max-width: 100% !important;
+                         box-sizing: border-box !important;
+                       }
+                       .note-editor u {
+                         max-width: 100% !important;
+                         box-sizing: border-box !important;
+                       }
+                       .note-editor mark {
+                         max-width: 100% !important;
+                         box-sizing: border-box !important;
+                       }
                     `}
                   </style>
                   <div
                     ref={contentEditableRef}
                     contentEditable
-                    className="min-h-[500px] outline-none focus:outline-none note-editor"
+                    className="outline-none focus:outline-none note-editor w-full"
                     onInput={(e) => {
                       const newContent = e.currentTarget.innerHTML;
                       setContent(newContent);
@@ -631,12 +686,19 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     onBlur={handleFormattingChange}
                     onKeyUp={handleFormattingChange}
                     suppressContentEditableWarning={true}
-                    style={{
-                      fontFamily: 'inherit',
-                      fontSize: 'inherit',
-                      lineHeight: '1.6',
-                      color: 'inherit'
-                    }}
+                                         style={{
+                       fontFamily: 'inherit',
+                       fontSize: 'inherit',
+                       lineHeight: '1.6',
+                       color: 'inherit',
+                       width: '100%',
+                       maxWidth: '100%',
+                       wordWrap: 'break-word',
+                       overflowWrap: 'break-word',
+                       wordBreak: 'break-all',
+                       whiteSpace: 'normal',
+                       boxSizing: 'border-box'
+                     }}
                   />
                 </div>
               </div>

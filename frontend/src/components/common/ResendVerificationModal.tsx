@@ -64,13 +64,13 @@ const ResendVerificationModal: React.FC<ResendVerificationModalProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="fixed inset-0 z-[9999] overflow-y-auto">
           <div className="flex items-center justify-center min-h-screen px-4 pt-4 pb-20 text-center sm:block sm:p-0">
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75"
+              className="fixed inset-0 transition-opacity bg-gray-500 bg-opacity-75 z-[9998]"
               onClick={handleClose}
             />
 
@@ -83,7 +83,7 @@ const ResendVerificationModal: React.FC<ResendVerificationModalProps> = ({
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               transition={{ type: "spring", duration: 0.5 }}
-              className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full"
+              className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full relative z-[10000]"
             >
               <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
                 <div className="sm:flex sm:items-start">
@@ -131,7 +131,7 @@ const ResendVerificationModal: React.FC<ResendVerificationModalProps> = ({
                     </div>
                   )}
 
-                  <div className="mt-6 sm:mt-4 sm:flex sm:flex-row-reverse">
+                  <div className="mt-6 sm:mt-4 sm:flex sm:flex-row-reverse relative z-[10001]">
                     <button
                       type="submit"
                       disabled={status === 'sending' || !emailInput.trim()}

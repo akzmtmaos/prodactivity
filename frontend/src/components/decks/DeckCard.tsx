@@ -12,6 +12,8 @@ interface Deck {
   createdAt: string;
   flashcards: any[];
   is_deleted: boolean;
+  is_archived: boolean;
+  archived_at?: string;
 }
 
 interface DeckCardProps {
@@ -22,6 +24,7 @@ interface DeckCardProps {
   onDelete: (deckId: string) => void;
   onViewStats: (deckId: string) => void;
   onOpen: (deckId: string) => void;
+  onArchive?: (deckId: string) => void;
 }
 
 const DeckCard: React.FC<DeckCardProps> = ({
@@ -31,7 +34,8 @@ const DeckCard: React.FC<DeckCardProps> = ({
   onEdit,
   onDelete,
   onViewStats,
-  onOpen
+  onOpen,
+  onArchive
 }) => {
   const [showMenu, setShowMenu] = useState(false);
 
@@ -103,6 +107,18 @@ const DeckCard: React.FC<DeckCardProps> = ({
                   <BarChart2 size={16} className="mr-2" />
                   View Stats
                 </button>
+                {onArchive && (
+                  <button
+                    onClick={() => {
+                      onArchive(deck.id);
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
+                  >
+                    <BookOpen size={16} className="mr-2" />
+                    {deck.is_archived ? 'Unarchive' : 'Archive'}
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     onDelete(deck.id);

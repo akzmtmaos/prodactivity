@@ -31,7 +31,7 @@ def send_verification_email(user, token):
         send_mail(
             subject=f'Verify Your Email - {settings.SITE_NAME}',
             message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=settings.EMAIL_HOST_USER,  # Use Gmail address as sender
             recipient_list=[user.email],
             html_message=html_message,
             fail_silently=False,
@@ -67,7 +67,7 @@ def send_password_reset_email(user, token):
         send_mail(
             subject=f'Reset Your Password - {settings.SITE_NAME}',
             message=plain_message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
+            from_email=settings.EMAIL_HOST_USER,  # Use Gmail address as sender
             recipient_list=[user.email],
             html_message=html_message,
             fail_silently=False,
@@ -107,11 +107,16 @@ def get_user_from_token(token, token_type='verification'):
     user_id = cache.get(cache_key)
     
     if user_id:
-        # Delete token after use for security
-        cache.delete(cache_key)
         return user_id
     
     return None
+
+def delete_verification_token(token, token_type='verification'):
+    """
+    Delete verification token after successful use
+    """
+    cache_key = f"{token_type}:{token}"
+    cache.delete(cache_key)
 
 def is_email_configured():
     """

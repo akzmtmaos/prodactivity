@@ -5,6 +5,7 @@ from rest_framework import status
 from django.db import IntegrityError
 import re
 from datetime import datetime
+from django.utils import timezone
 
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.contrib.auth import authenticate
@@ -22,6 +23,7 @@ from core.email_utils import (
     generate_verification_token,
     store_verification_token,
     get_user_from_token,
+    delete_verification_token,
     is_email_configured
 )
 
@@ -165,13 +167,16 @@ def verify_email(request):
     try:
         user = User.objects.get(id=user_id)
         user.profile.email_verified = True
-        user.profile.email_verified_at = datetime.now()
+        user.profile.email_verified_at = timezone.now()
         user.profile.save()
         
         # Activate user if they were inactive due to email verification requirement
         if not user.is_active:
             user.is_active = True
             user.save()
+        
+        # Delete token after successful verification
+        delete_verification_token(token, 'verification')
         
         return Response({'detail': 'Email verified successfully. You can now log in.'})
     except User.DoesNotExist:
