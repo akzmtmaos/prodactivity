@@ -1,0 +1,30 @@
+# Email Configuration (Gmail SMTP)
+EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USE_TLS=True
+EMAIL_HOST_USER=sandiegoc89@gmail.com
+EMAIL_HOST_PASSWORD=your-16-character-app-password
+
+# Email Verification Settings
+EMAIL_VERIFICATION_REQUIRED=True
+EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS=24
+PASSWORD_RESET_TOKEN_EXPIRE_HOURS=1
+
+# Site Settings
+SITE_NAME=Prodactivity
+FRONTEND_URL=http://localhost:3000
+DEFAULT_FROM_EMAIL=sandiegoc89@gmail.com
+
+# Database Configuration
+DB_NAME=prodactivity_db
+DB_USER=akzmtmaos
+DB_PASSWORD=12345mark
+DB_HOST=localhost
+DB_PORT=5432
+
+# Django Secret Key
+DJANGO_SECRET_KEY=django-insecure-i$uch6xcxz80fiq6td7+#z_lrz(thlxfqsha-1#r(w7&n*^o8e
+
+# Hugging Face API Key
+HUGGINGFACE_API_KEY=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

@@ -5,6 +5,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { User, Mail, Lock, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import TermsModal from '../components/common/TermsModal';
 
+
 interface RegisterProps {
   setIsAuthenticated: (value: boolean | ((prevState: boolean) => boolean)) => void;
 }
@@ -22,6 +23,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [showTermsModal, setShowTermsModal] = useState(false);
+
   const [validationErrors, setValidationErrors] = useState<{
     username?: string;
     password?: string;
@@ -159,12 +161,14 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
 
       const data = await res.json();
 
-      if (data.success) {
-        setMessage({ text: `Account created successfully!`, type: 'success' });
+            if (data.success) {
         setForm({ username: '', email: '', password: '', confirmPassword: '' });
-        setTimeout(() => {
-          navigate('/login');
-        }, 1500);
+        setAgreedToTerms(false);
+
+        // Navigate to verification page with email
+        navigate('/verification', { 
+          state: { email: form.email } 
+        });
       } else {
         // Handle specific validation errors from backend
         if (data.message && data.message.includes('email')) {
@@ -460,19 +464,21 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
             </motion.div>
           )}
         </AnimatePresence>
-        <motion.div
-          className="mt-8 text-center"
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-        >
-          <p className="text-gray-600 dark:text-gray-300">
-            Already have an account?{' '}
-            <Link to="/login" className="text-indigo-600 dark:text-indigo-300 font-medium hover:text-indigo-800 dark:hover:text-indigo-400 transition">
-              Sign In
-            </Link>
-          </p>
-        </motion.div>
+                 <motion.div
+           className="mt-8 text-center"
+           initial={{ opacity: 0, y: 10 }}
+           animate={{ opacity: 1, y: 0 }}
+           transition={{ delay: 0.5 }}
+         >
+           <p className="text-gray-600 dark:text-gray-300">
+             Already have an account?{' '}
+             <Link to="/login" className="text-indigo-600 dark:text-indigo-300 font-medium hover:text-indigo-800 dark:hover:text-indigo-400 transition">
+               Sign In
+             </Link>
+           </p>
+           
+
+         </motion.div>
       </motion.div>
       <TermsModal open={showTermsModal} onClose={() => setShowTermsModal(false)} />
     </div>

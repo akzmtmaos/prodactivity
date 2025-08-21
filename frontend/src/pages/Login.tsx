@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Mail, Lock, LogIn, Eye, EyeOff } from 'lucide-react';
 // @ts-ignore
 import { motion, AnimatePresence } from 'framer-motion';
+import ResendVerificationModal from '../components/common/ResendVerificationModal';
 
 interface LoginProps {
   setIsAuthenticated: (value: boolean | ((prevState: boolean) => boolean)) => void;
@@ -19,6 +20,8 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotStatus, setForgotStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [showResendVerification, setShowResendVerification] = useState(false);
+  const [emailVerificationRequired, setEmailVerificationRequired] = useState(false);
   const navigate = useNavigate();
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,6 +58,12 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
         });
         setIsAuthenticated(true);
         setTimeout(() => navigate('/'), 800);
+      } else if (data.email_verification_required) {
+        setEmailVerificationRequired(true);
+        setMessage({
+          text: data.message || 'Please verify your email address before logging in.',
+          type: 'error',
+        });
       } else {
         setMessage({
           text: data.message || 'Invalid credentials. Try again!',
@@ -322,13 +331,24 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
                   Create Account
                 </Link>
               </p>
-              <button
-                type="button"
-                className="mt-3 text-sm text-indigo-600 dark:text-indigo-300 hover:underline"
-                onClick={() => setForgotOpen(true)}
-              >
-                Forgot your password?
-              </button>
+              <div className="mt-3 space-y-2">
+                <button
+                  type="button"
+                  className="block text-sm text-indigo-600 dark:text-indigo-300 hover:underline"
+                  onClick={() => setForgotOpen(true)}
+                >
+                  Forgot your password?
+                </button>
+                {emailVerificationRequired && (
+                  <button
+                    type="button"
+                    className="block text-sm text-indigo-600 dark:text-indigo-300 hover:underline"
+                    onClick={() => setShowResendVerification(true)}
+                  >
+                    Resend verification email
+                  </button>
+                )}
+              </div>
             </>
           ) : (
             <button
@@ -343,6 +363,13 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
       </motion.div>
 
       {/* Forgot Password Modal removed; now rendered as in-card panel above */}
+      
+      {/* Resend Verification Modal */}
+      <ResendVerificationModal
+        isOpen={showResendVerification}
+        onClose={() => setShowResendVerification(false)}
+        email={formData.email}
+      />
     </div>
   );
 };

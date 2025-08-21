@@ -16,6 +16,8 @@ import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import ResetPassword from "./pages/ResetPassword";
+import VerifyEmail from "./pages/VerifyEmail";
+import Verification from "./pages/Verification";
 import DeckDetails from "./pages/DeckDetails";
 import Reviewer from "./pages/Reviewer";
 import LandingPage from "./pages/LandingPage";
@@ -168,9 +170,11 @@ function App() {
       <NavbarProvider>
         <Router>
           <Routes>
-            <Route path="/login" element={<Login setIsAuthenticated={handleSetAuthenticated} />} />
-            <Route path="/register" element={<Register setIsAuthenticated={handleSetAuthenticated} />} />
-            <Route path="/reset-password" element={<ResetPassword />} />
+                               <Route path="/login" element={<Login setIsAuthenticated={handleSetAuthenticated} />} />
+                   <Route path="/register" element={<Register setIsAuthenticated={handleSetAuthenticated} />} />
+                   <Route path="/verification" element={<Verification />} />
+                   <Route path="/reset-password" element={<ResetPassword />} />
+                   <Route path="/verify-email" element={<VerifyEmail />} />
             <Route
               path="/"
               element={
