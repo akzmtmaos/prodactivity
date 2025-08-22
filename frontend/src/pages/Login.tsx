@@ -350,15 +350,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
                 )}
               </div>
             </>
-          ) : (
-            <button
-              type="button"
-              className="text-sm text-indigo-600 dark:text-indigo-300 hover:underline"
-              onClick={() => { setForgotOpen(false); setForgotEmail(''); setForgotStatus('idle'); }}
-            >
-              Remembered your password? Back to Sign In
-            </button>
-          )}
+          ) : null}
         </motion.div>
       </motion.div>
 

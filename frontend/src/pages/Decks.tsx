@@ -161,14 +161,32 @@ const Decks = () => {
 
   const parseNotesToCards = (notes: NoteItem[]): { question: string; answer: string }[] => {
     const cards: { question: string; answer: string }[] = [];
+    
+    // Helper function to clean HTML tags and normalize text
+    const cleanText = (text: string): string => {
+      return text
+        .replace(/<[^>]*>/g, '') // Remove HTML tags
+        .replace(/&nbsp;/g, ' ') // Replace HTML entities
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/\s+/g, ' ') // Normalize whitespace
+        .trim();
+    };
+    
     for (const note of notes) {
-      const content = (note.content || '').replace(/\r\n/g, '\n');
+      const content = cleanText(note.content || '');
+      console.log('Parsing note:', note.title, 'Content length:', content.length);
+      
       if (parseStrategy === 'qa') {
-        // Look for explicit Q:/A: lines, else use ? heuristic
+        // Strategy 1: Look for explicit Q:/A: lines
         const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         let i = 0;
         while (i < lines.length) {
           const line = lines[i];
+          
+          // Check for Q: A: pattern
           if (/^q\s*:|^Q\s*:/.test(line)) {
             const q = line.replace(/^q\s*:|^Q\s*:/, '').trim();
             let a = '';
@@ -179,12 +197,16 @@ const Decks = () => {
             } else {
               i += 1;
             }
-            if (q && a) cards.push({ question: q, answer: a });
+            if (q && a) {
+              cards.push({ question: q, answer: a });
+              console.log('Found Q/A pattern:', q, '->', a);
+            }
             continue;
           }
+          
+          // Check for question mark pattern
           if (line.endsWith('?')) {
             const q = line;
-            // Collect the next non-empty line(s) until blank or new question
             let a = '';
             let j = i + 1;
             while (j < lines.length && !lines[j].endsWith('?') && !/^q\s*:|^Q\s*:/.test(lines[j])) {
@@ -192,14 +214,64 @@ const Decks = () => {
               a += lines[j];
               j++;
             }
-            if (q && a) cards.push({ question: q, answer: a });
+            if (q && a) {
+              cards.push({ question: q, answer: a });
+              console.log('Found ? pattern:', q, '->', a);
+            }
             i = j;
             continue;
           }
+          
           i++;
         }
+        
+        // Strategy 2: If no Q/A patterns found, create cards from sentences with better logic
+        if (cards.length === 0) {
+          const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 15);
+          for (let i = 0; i < sentences.length - 1; i++) {
+            const currentSentence = sentences[i].trim();
+            const nextSentence = sentences[i + 1].trim();
+            
+            // Skip if either sentence is too short or too long
+            if (currentSentence.length < 10 || currentSentence.length > 200 || 
+                nextSentence.length < 10 || nextSentence.length > 300) {
+              continue;
+            }
+            
+            // Create a question from the current sentence
+            let question = currentSentence;
+            if (!question.endsWith('?')) {
+              // Try to make it a question if it's not already
+              if (question.toLowerCase().includes('is') || question.toLowerCase().includes('are') || 
+                  question.toLowerCase().includes('can') || question.toLowerCase().includes('will')) {
+                question = question + '?';
+              } else {
+                question = 'What is ' + question.toLowerCase() + '?';
+              }
+            }
+            
+            cards.push({ question, answer: nextSentence });
+            console.log('Created from sentences:', question.substring(0, 50), '->', nextSentence.substring(0, 50));
+          }
+        }
+        
+        // Strategy 3: If still no cards, create from key concepts
+        if (cards.length === 0) {
+          const lines = content.split('\n').filter(line => line.trim().length > 20);
+          for (let i = 0; i < lines.length - 1; i++) {
+            const concept = lines[i].trim();
+            const explanation = lines[i + 1].trim();
+            
+            if (concept && explanation && concept.length > 10 && explanation.length > 10) {
+              const question = `What is ${concept.split(' ').slice(0, 3).join(' ')}?`;
+              cards.push({ question, answer: explanation });
+              console.log('Created from concepts:', question, '->', explanation.substring(0, 50));
+            }
+          }
+        }
+        
       } else {
-        // heading strategy: treat markdown headings as questions, next paragraph as answer
+        // Heading strategy: treat markdown headings as questions, next paragraph as answer
         const lines = content.split('\n');
         let i = 0;
         while (i < lines.length) {
@@ -219,13 +291,57 @@ const Decks = () => {
               if (i < lines.length && lines[i].trim() === '') break;
             }
             const a = aLines.join(' ');
-            if (q && a) cards.push({ question: q, answer: a });
+            if (q && a) {
+              cards.push({ question: q, answer: a });
+              console.log('Found heading pattern:', q, '->', a);
+            }
             continue;
           }
           i++;
         }
+        
+        // Fallback: If no headings found, create from paragraphs
+        if (cards.length === 0) {
+          const paragraphs = content.split('\n\n').filter(p => p.trim().length > 10);
+          for (let i = 0; i < paragraphs.length - 1; i += 2) {
+            const question = paragraphs[i].trim();
+            const answer = paragraphs[i + 1].trim();
+            if (question && answer && question.length > 5 && answer.length > 5) {
+              cards.push({ question, answer });
+              console.log('Created from paragraphs (heading strategy):', question.substring(0, 50), '->', answer.substring(0, 50));
+            }
+          }
+        }
+      }
+      
+      // Final fallback: If still no cards, create better cards from content chunks
+      if (cards.length === 0 && content.trim().length > 20) {
+        const chunks = content.split(/[.!?]+/).filter(chunk => chunk.trim().length > 20);
+        
+        if (chunks.length >= 2) {
+          // Create multiple cards from content chunks
+          for (let i = 0; i < chunks.length - 1; i++) {
+            const chunk = chunks[i].trim();
+            const nextChunk = chunks[i + 1].trim();
+            
+            if (chunk.length > 15 && nextChunk.length > 15) {
+              const question = `What is ${chunk.split(' ').slice(0, 4).join(' ')}?`;
+              const answer = nextChunk;
+              cards.push({ question, answer });
+              console.log('Created fallback card:', question, '->', answer.substring(0, 50));
+            }
+          }
+        } else {
+          // Single card from title and content
+          const question = note.title || 'What is this note about?';
+          const answer = content.substring(0, 300) + (content.length > 300 ? '...' : '');
+          cards.push({ question, answer });
+          console.log('Created single fallback card:', question, '->', answer.substring(0, 50));
+        }
       }
     }
+    
+    console.log('Total cards created:', cards.length);
     return cards;
   };
 
@@ -278,6 +394,7 @@ const Decks = () => {
     try {
       setLoadingNotes(true);
       const createdDecks: Deck[] = [];
+      
       if (deckStrategy === 'single') {
         // Create single deck
         const res = await fetch('http://localhost:8000/api/decks/decks/', {
@@ -288,22 +405,39 @@ const Decks = () => {
         if (!res.ok) throw new Error('Failed to create deck');
         const deckData = await res.json();
         const allCards = parseNotesToCards(selectedNotes);
+        
+        // Create flashcards with proper error handling
+        const createdFlashcards = [];
         for (const card of allCards) {
-          await fetch('http://localhost:8000/api/decks/flashcards/', {
+          const flashcardRes = await fetch('http://localhost:8000/api/decks/flashcards/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
             body: JSON.stringify({ deck: deckData.id, front: card.question, back: card.answer })
           });
+          if (!flashcardRes.ok) {
+            console.error('Failed to create flashcard:', card);
+            continue;
+          }
+          const flashcardData = await flashcardRes.json();
+          createdFlashcards.push({
+            id: flashcardData.id.toString(),
+            question: flashcardData.front,
+            answer: flashcardData.back,
+            front: flashcardData.front,
+            back: flashcardData.back,
+            difficulty: undefined
+          });
         }
+        
         const newDeck: Deck = {
           id: deckData.id.toString(),
           title: deckData.title,
-          flashcardCount: allCards.length,
+          flashcardCount: createdFlashcards.length,
           progress: 0,
           created_at: deckData.created_at,
           updated_at: deckData.updated_at,
           createdAt: deckData.created_at,
-          flashcards: allCards.map((c, idx) => ({ id: `${deckData.id}-${idx}`, question: c.question, answer: c.answer, front: c.question, back: c.answer })),
+          flashcards: createdFlashcards,
           subDecks: [],
           is_deleted: false,
           is_archived: false,
@@ -320,22 +454,39 @@ const Decks = () => {
           if (!res.ok) throw new Error('Failed to create deck');
           const deckData = await res.json();
           const cards = parseNotesToCards([note]);
+          
+          // Create flashcards with proper error handling
+          const createdFlashcards = [];
           for (const card of cards) {
-            await fetch('http://localhost:8000/api/decks/flashcards/', {
+            const flashcardRes = await fetch('http://localhost:8000/api/decks/flashcards/', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
               body: JSON.stringify({ deck: deckData.id, front: card.question, back: card.answer })
             });
+            if (!flashcardRes.ok) {
+              console.error('Failed to create flashcard:', card);
+              continue;
+            }
+            const flashcardData = await flashcardRes.json();
+            createdFlashcards.push({
+              id: flashcardData.id.toString(),
+              question: flashcardData.front,
+              answer: flashcardData.back,
+              front: flashcardData.front,
+              back: flashcardData.back,
+              difficulty: undefined
+            });
           }
+          
           const newDeck: Deck = {
             id: deckData.id.toString(),
             title: deckData.title,
-            flashcardCount: cards.length,
+            flashcardCount: createdFlashcards.length,
             progress: 0,
             created_at: deckData.created_at,
             updated_at: deckData.updated_at,
             createdAt: deckData.created_at,
-            flashcards: cards.map((c, idx) => ({ id: `${deckData.id}-${idx}`, question: c.question, answer: c.answer, front: c.question, back: c.answer })),
+            flashcards: createdFlashcards,
             subDecks: [],
             is_deleted: false,
             is_archived: false,
@@ -343,13 +494,15 @@ const Decks = () => {
           createdDecks.push(newDeck);
         }
       }
+      
       // Merge into current decks
       setDecks(prev => [...prev, ...createdDecks]);
-      setToast({ message: 'Notes converted to flashcards successfully', type: 'success' });
+      setToast({ message: `Successfully created ${createdDecks.length} deck(s) with flashcards`, type: 'success' });
       // Reset modal state
       setShowConvertModal(false);
       setSelectedNoteIds(new Set());
     } catch (e) {
+      console.error('Conversion error:', e);
       setToast({ message: 'Conversion failed. Please try again.', type: 'error' });
     } finally {
       setLoadingNotes(false);

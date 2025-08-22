@@ -9,6 +9,20 @@ const ResetPassword: React.FC = () => {
   const [confirm, setConfirm] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+
+  const validatePassword = (password: string): { isValid: boolean; message: string } => {
+    if (password.length < 8) {
+      return { isValid: false, message: 'Password must be at least 8 characters long' };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least one capital letter' };
+    }
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least one special character' };
+    }
+    return { isValid: true, message: '' };
+  };
 
   useEffect(() => {
     if (!token) {
@@ -18,10 +32,20 @@ const ResetPassword: React.FC = () => {
 
   const submit = async () => {
     if (!token) return;
+    
+    // Validate password strength
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.isValid) {
+      setPasswordError(passwordValidation.message);
+      return;
+    }
+    
     if (!password || password !== confirm) {
       setMessage('Passwords do not match.');
       return;
     }
+    
+    setPasswordError(null);
     setSubmitting(true);
     try {
       const res = await fetch('http://localhost:8000/api/password-reset/confirm/', {
@@ -49,13 +73,28 @@ const ResetPassword: React.FC = () => {
         <h1 className="text-xl font-semibold mb-4">Reset Password</h1>
         {message && <div className="mb-3 text-sm text-gray-700 dark:text-gray-300">{message}</div>}
         <div className="space-y-3">
-          <input
-            type="password"
-            placeholder="New password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2 rounded border border-gray-300 dark:border-gray-700 bg-transparent"
-          />
+          <div>
+            <input
+              type="password"
+              placeholder="New password"
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setPasswordError(null);
+              }}
+              className={`w-full px-3 py-2 rounded border bg-transparent ${
+                passwordError ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
+              }`}
+            />
+            {passwordError && (
+              <p className="text-red-500 text-sm mt-1">{passwordError}</p>
+            )}
+            {password && !passwordError && (
+              <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Password requirements: 8+ characters, 1 capital letter, 1 special character
+              </div>
+            )}
+          </div>
           <input
             type="password"
             placeholder="Confirm password"

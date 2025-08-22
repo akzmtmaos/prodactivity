@@ -48,10 +48,91 @@ const Settings: React.FC = () => {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [passwordFields, setPasswordFields] = useState({ current: '', new: '', confirm: '' });
   const [passwordError, setPasswordError] = useState('');
+  const [newPasswordError, setNewPasswordError] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isProfileSaving, setIsProfileSaving] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<{
+    current?: string;
+    new?: string;
+    confirm?: string;
+  }>({});
+
+  // Password validation function
+  const validatePassword = (password: string): { isValid: boolean; message: string } => {
+    if (password.length < 8) {
+      return { isValid: false, message: 'Password must be at least 8 characters long' };
+    }
+    if (!/[A-Z]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least one capital letter' };
+    }
+    if (!/[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]/.test(password)) {
+      return { isValid: false, message: 'Password must contain at least one special character' };
+    }
+    return { isValid: true, message: '' };
+  };
+
+  // Change password handler
+  const handleChangePassword = async () => {
+    // Clear previous errors
+    setPasswordError('');
+    setValidationErrors({});
+
+    // Validate current password
+    if (!passwordFields.current) {
+      setValidationErrors(prev => ({ ...prev, current: 'Current password is required' }));
+      return;
+    }
+
+    // Validate new password
+    const passwordValidation = validatePassword(passwordFields.new);
+    if (!passwordValidation.isValid) {
+      setValidationErrors(prev => ({ ...prev, new: passwordValidation.message }));
+      return;
+    }
+
+    // Check if passwords match
+    if (passwordFields.new !== passwordFields.confirm) {
+      setValidationErrors(prev => ({ ...prev, confirm: 'New passwords do not match' }));
+      return;
+    }
+
+    setIsChangingPassword(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch('http://localhost:8000/api/change-password/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          current_password: passwordFields.current,
+          new_password: passwordFields.new
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setPasswordError('');
+        setValidationErrors({});
+        setPasswordFields({ current: '', new: '', confirm: '' });
+        setShowPasswordModal(false);
+        // Show success message
+        setProfileMessage({ type: 'success', text: 'Password changed successfully!' });
+        setTimeout(() => setProfileMessage(null), 3000);
+      } else {
+        setPasswordError(data.detail || 'Failed to change password');
+      }
+    } catch (error) {
+      setPasswordError('Network error. Please try again.');
+    } finally {
+      setIsChangingPassword(false);
+    }
+  };
 
   // Logout handler
   const handleLogout = () => {
@@ -334,26 +415,128 @@ const Settings: React.FC = () => {
                   {/* Change Password Modal */}
                   {showPasswordModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6 w-full max-w-md">
-                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Lock size={18}/> Change Password</h3>
-                        <div className="space-y-4">
+                      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8 w-full max-w-md mx-4">
+                        <h3 className="text-xl font-semibold mb-6 flex items-center gap-2 text-gray-900 dark:text-white">
+                          <Lock size={20}/> Change Password
+                        </h3>
+                        <div className="space-y-5">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Current Password</label>
-                            <input type="password" value={passwordFields.current} onChange={e => setPasswordFields(f => ({ ...f, current: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Password</label>
+                            <input 
+                              type="password" 
+                              value={passwordFields.current} 
+                              onChange={e => {
+                                setPasswordFields(f => ({ ...f, current: e.target.value }));
+                                setPasswordError('');
+                                // Clear validation error when user starts typing
+                                if (validationErrors.current) {
+                                  setValidationErrors(prev => ({ ...prev, current: undefined }));
+                                }
+                              }}
+                              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm ${
+                                validationErrors.current 
+                                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
+                                  : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500'
+                              }`}
+                              placeholder="Enter current password"
+                            />
+                            {validationErrors.current && (
+                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                {validationErrors.current}
+                              </p>
+                            )}
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">New Password</label>
-                            <input type="password" value={passwordFields.new} onChange={e => setPasswordFields(f => ({ ...f, new: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Password</label>
+                            <input 
+                              type="password" 
+                              value={passwordFields.new} 
+                              onChange={e => {
+                                setPasswordFields(f => ({ ...f, new: e.target.value }));
+                                setPasswordError('');
+                                // Clear validation error when user starts typing
+                                if (validationErrors.new) {
+                                  setValidationErrors(prev => ({ ...prev, new: undefined }));
+                                }
+                              }}
+                              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm ${
+                                validationErrors.new 
+                                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
+                                  : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500'
+                              }`}
+                              placeholder="Enter new password"
+                            />
+                            {validationErrors.new && (
+                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                {validationErrors.new}
+                              </p>
+                            )}
+
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm New Password</label>
-                            <input type="password" value={passwordFields.confirm} onChange={e => setPasswordFields(f => ({ ...f, confirm: e.target.value }))} className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Confirm New Password</label>
+                            <input 
+                              type="password" 
+                              value={passwordFields.confirm} 
+                              onChange={e => {
+                                setPasswordFields(f => ({ ...f, confirm: e.target.value }));
+                                setPasswordError('');
+                                // Clear validation error when user starts typing
+                                if (validationErrors.confirm) {
+                                  setValidationErrors(prev => ({ ...prev, confirm: undefined }));
+                                }
+                              }}
+                              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm ${
+                                validationErrors.confirm 
+                                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
+                                  : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500'
+                              }`}
+                              placeholder="Confirm new password"
+                            />
+                            {validationErrors.confirm && (
+                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
+                                {validationErrors.confirm}
+                              </p>
+                            )}
                           </div>
-                          {passwordError && <div className="text-red-600 text-sm">{passwordError}</div>}
+                          {passwordError && (
+                            <div className="text-red-600 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
+                              {passwordError}
+                            </div>
+                          )}
                         </div>
-                        <div className="mt-6 flex justify-end gap-2">
-                          <button onClick={() => setShowPasswordModal(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
-                          <button onClick={() => {/* handle password change logic */}} className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700">Change Password</button>
+                        <div className="mt-8 flex justify-end gap-3">
+                          <button 
+                            onClick={() => {
+                              setShowPasswordModal(false);
+                              setPasswordFields({ current: '', new: '', confirm: '' });
+                              setPasswordError('');
+                              setValidationErrors({});
+                            }} 
+                            className="px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={handleChangePassword}
+                            disabled={isChangingPassword || Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors])}
+                            className={`px-6 py-3 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                              (isChangingPassword || Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors])) 
+                                ? 'opacity-70 cursor-not-allowed bg-gray-400' 
+                                : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                            }`}
+                          >
+                            {isChangingPassword ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                Changing...
+                              </>
+                            ) : Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors]) ? (
+                              'Please fix validation errors'
+                            ) : (
+                              'Change Password'
+                            )}
+                          </button>
                         </div>
                       </div>
                     </div>

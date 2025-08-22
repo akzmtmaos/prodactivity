@@ -1,6 +1,6 @@
 // Home.tsx - Modified version
 import React, { useEffect, useState } from 'react';
-import { Clock, Calendar, BookOpen, CheckSquare, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Clock, Calendar, BookOpen, CheckSquare, ChevronLeft, ChevronRight, Search } from 'lucide-react';
 import { useNavbar } from '../context/NavbarContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -41,6 +41,7 @@ const Home = () => {
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [notesCount, setNotesCount] = useState<number>(0);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
 
   // Get auth headers for API calls
   const getAuthHeaders = () => {
@@ -349,18 +350,53 @@ const Home = () => {
     );
   }
 
+  // Handle search functionality
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      // Navigate to search results or implement search functionality
+      // For now, we'll just log the search query
+      console.log('Searching for:', searchQuery);
+      // You can implement search logic here or navigate to a search page
+    }
+  };
+
   return (
     <div className="relative w-full min-h-screen">
       <div className={`px-4 py-6 sm:px-6 lg:px-8 transition-[margin] duration-300 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-64'} pb-32 md:pb-6 pt-20 md:pt-6`}>
         <div className="max-w-7xl mx-auto">
-          {/* Greeting section */}
-          <div className="mb-8">
+          {/* Centered Greeting section */}
+          <div className="text-center mb-16 mt-16">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               {greeting}, <span className="text-indigo-600 dark:text-indigo-400">{user?.username}</span>
             </h1>
             <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">
               Here's your productivity overview for today
             </p>
+          </div>
+
+          {/* Search Bar */}
+          <div className="max-w-2xl mx-auto mb-24 mt-16">
+            <form onSubmit={handleSearch} className="relative">
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search Notes, System, Reviewer, and more..."
+                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 dark:focus:border-indigo-400 transition-colors"
+                />
+                <button
+                  type="submit"
+                  className="absolute inset-y-0 right-0 px-3 flex items-center bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-lg transition-colors"
+                >
+                  <span className="text-sm font-medium">Search</span>
+                </button>
+              </div>
+            </form>
           </div>
 
           {/* Dynamic Stats grid - 2x2 on mobile, 4 columns on desktop */}

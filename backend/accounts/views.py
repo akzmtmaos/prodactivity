@@ -36,7 +36,8 @@ def validate_username(username):
         return False, "Username must be 50 characters or less"
     
     # Check for special characters (only allow letters, numbers, and underscores)
-    if not re.match(r'^[a-zA-Z0-9_]+$', username):
+    # Since we convert to lowercase, we only need to check lowercase pattern
+    if not re.match(r'^[a-z0-9_]+$', username):
         return False, "Username can only contain letters, numbers, and underscores"
     
     return True, ""
@@ -46,12 +47,18 @@ def validate_password(password):
     if len(password) < 8:
         return False, "Password must be at least 8 characters long"
     
+    if not re.search(r'[A-Z]', password):
+        return False, "Password must contain at least one capital letter"
+    
+    if not re.search(r'[!@#$%^&*()_+\-=[\]{};\':"\\|,.<>/?]', password):
+        return False, "Password must contain at least one special character"
+    
     return True, ""
 
 @api_view(['POST'])
 def register(request):
     data = request.data
-    username = data.get('username')
+    username = data.get('username', '').lower()  # Convert to lowercase
     email = data.get('email')
     password = data.get('password')
 
@@ -229,6 +236,11 @@ def password_reset_confirm(request):
     if not token or not new_password:
         return Response({'detail': 'Token and new password are required'}, status=400)
     
+    # Validate password strength
+    is_valid_password, password_error = validate_password(new_password)
+    if not is_valid_password:
+        return Response({'detail': password_error}, status=400)
+    
     user_id = get_user_from_token(token, 'password_reset')
     if not user_id:
         return Response({'detail': 'Invalid or expired token'}, status=400)
@@ -237,6 +249,35 @@ def password_reset_confirm(request):
         user = User.objects.get(id=user_id)
         user.set_password(new_password)
         user.save()
+        
+        # Delete token after successful password reset
+        delete_verification_token(token, 'password_reset')
+        
         return Response({'detail': 'Password has been reset successfully.'})
     except User.DoesNotExist:
         return Response({'detail': 'User not found'}, status=404)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def change_password(request):
+    """Change password for authenticated user"""
+    current_password = request.data.get('current_password')
+    new_password = request.data.get('new_password')
+    
+    if not current_password or not new_password:
+        return Response({'detail': 'Current password and new password are required'}, status=400)
+    
+    # Validate current password
+    if not request.user.check_password(current_password):
+        return Response({'detail': 'Current password is incorrect'}, status=400)
+    
+    # Validate new password strength
+    is_valid_password, password_error = validate_password(new_password)
+    if not is_valid_password:
+        return Response({'detail': password_error}, status=400)
+    
+    # Set new password
+    request.user.set_password(new_password)
+    request.user.save()
+    
+    return Response({'detail': 'Password changed successfully'})

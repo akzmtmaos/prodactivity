@@ -31,7 +31,7 @@ def send_verification_email(user, token):
         send_mail(
             subject=f'Verify Your Email - {settings.SITE_NAME}',
             message=plain_message,
-            from_email=settings.EMAIL_HOST_USER,  # Use Gmail address as sender
+            from_email=f"ProdActivity <{settings.EMAIL_HOST_USER}>",  # Use display name with Gmail address
             recipient_list=[user.email],
             html_message=html_message,
             fail_silently=False,
@@ -67,7 +67,7 @@ def send_password_reset_email(user, token):
         send_mail(
             subject=f'Reset Your Password - {settings.SITE_NAME}',
             message=plain_message,
-            from_email=settings.EMAIL_HOST_USER,  # Use Gmail address as sender
+            from_email=f"ProdActivity <{settings.EMAIL_HOST_USER}>",  # Use display name with Gmail address
             recipient_list=[user.email],
             html_message=html_message,
             fail_silently=False,
