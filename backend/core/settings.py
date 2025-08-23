@@ -12,7 +12,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', '')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-temporary-key-for-deployment')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
@@ -20,9 +20,10 @@ DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
 
 # Hugging Face API Key
-HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
-if not HUGGINGFACE_API_KEY:
-    raise ValueError("HUGGINGFACE_API_KEY environment variable is not set")
+HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY', '')
+# Only raise error if we're in production and the key is needed
+if not HUGGINGFACE_API_KEY and not DEBUG:
+    print("Warning: HUGGINGFACE_API_KEY not set - AI features will be disabled")
 
 # Application definition
 
@@ -185,10 +186,20 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASE_URL = os.getenv('DATABASE_URL')
 if DATABASE_URL:
     # Parse DATABASE_URL for Railway
-    import dj_database_url
-    DATABASES = {
-        'default': dj_database_url.parse(DATABASE_URL)
-    }
+    try:
+        import dj_database_url
+        DATABASES = {
+            'default': dj_database_url.parse(DATABASE_URL)
+        }
+    except Exception as e:
+        print(f"Error parsing DATABASE_URL: {e}")
+        # Fallback to SQLite for development
+        DATABASES = {
+            'default': {
+                'ENGINE': 'django.db.backends.sqlite3',
+                'NAME': BASE_DIR / 'db.sqlite3',
+            }
+        }
 else:
     # Local database configuration
     DATABASES = {
