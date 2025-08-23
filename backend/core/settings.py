@@ -274,17 +274,25 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'sandiegoc89@gmail.com')
 
 # Gmail SMTP Configuration
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
+EMAIL_PORT = safe_int(os.getenv('EMAIL_PORT'), 587)
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')  # Your Gmail address
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')  # App password from Gmail
 
 # Email verification settings
 EMAIL_VERIFICATION_REQUIRED = os.getenv('EMAIL_VERIFICATION_REQUIRED', 'True').lower() == 'true'
-EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS = int(os.getenv('EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS', '24'))
+
+# Safe integer parsing for environment variables
+def safe_int(value, default):
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
+EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS = safe_int(os.getenv('EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS'), 24)
 
 # Password reset settings
-PASSWORD_RESET_TOKEN_EXPIRE_HOURS = int(os.getenv('PASSWORD_RESET_TOKEN_EXPIRE_HOURS', '1'))
+PASSWORD_RESET_TOKEN_EXPIRE_HOURS = safe_int(os.getenv('PASSWORD_RESET_TOKEN_EXPIRE_HOURS'), 1)
 
 # Site settings for email links
 SITE_NAME = os.getenv('SITE_NAME', 'Prodactivity')
