@@ -2,6 +2,7 @@
   "name": "prodactivity",
   "version": "0.1.0",
   "private": true,
+  "homepage": "https://your-app-name.vercel.app",
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
@@ -63,5 +64,5 @@
     "postcss-preset-env": "^9.6.0",
     "tailwindcss": "^4.1.11"
   },
-  "proxy": "http://localhost:8000"
+  "proxy": "https://your-backend-url.railway.app"
 }

@@ -81,7 +81,7 @@ const Decks = () => {
   const [showNoFlashcardsModal, setShowNoFlashcardsModal] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [activeTab, setActiveTab] = useState<'decks' | 'stats' | 'archived'>('decks');
+  const [activeTab, setActiveTab] = useState<'decks' | 'archived'>('decks');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const PAGE_SIZE = 12;
 
@@ -1171,16 +1171,6 @@ const Decks = () => {
                   Decks
                 </button>
                 <button
-                  onClick={() => setActiveTab('stats')}
-                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeTab === 'stats'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Statistics
-                </button>
-                <button
                   onClick={() => setActiveTab('archived')}
                   className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                     activeTab === 'archived'
@@ -1195,9 +1185,7 @@ const Decks = () => {
                 currentPage={currentPage}
                 totalPages={activeTab === 'decks' 
                   ? Math.ceil(filteredDecks.length / PAGE_SIZE)
-                  : activeTab === 'stats' 
-                    ? Math.ceil(1 / PAGE_SIZE) // Placeholder for stats pagination
-                    : Math.ceil(1 / PAGE_SIZE) // Placeholder for archived pagination
+                  : Math.ceil(1 / PAGE_SIZE) // Placeholder for archived pagination
                 }
                 onPageChange={setCurrentPage}
               />
@@ -1518,11 +1506,6 @@ const Decks = () => {
           </div>
         </div>
       )}
-            </div>
-          )}
-          {activeTab === 'stats' && (
-            <div className="p-8 pb-6 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 min-h-[300px] flex items-center justify-center">
-              <span className="text-gray-500 dark:text-gray-400 text-lg">Statistics coming soon...</span>
             </div>
           )}
           {activeTab === 'archived' && (

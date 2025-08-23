@@ -8,10 +8,11 @@ from notes.views import deleted_notes
 from decks.views import deleted_decks
 from reviewer.ai_views import deleted_reviewers
 from core.admin import admin_site
-from core.views import NotificationListView, NotificationMarkReadView
+from core.views import NotificationListView, NotificationMarkReadView, health_check
 
 urlpatterns = [
     path('admin/', admin_site.urls),
+    path('api/health/', health_check, name='health-check'),
     path('api/token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/', include('accounts.urls')),

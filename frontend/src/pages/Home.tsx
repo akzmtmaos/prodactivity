@@ -1,6 +1,6 @@
 // Home.tsx - Modified version
 import React, { useEffect, useState } from 'react';
-import { Clock, Calendar, BookOpen, CheckSquare, ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Clock, Calendar, BookOpen, CheckSquare, ChevronLeft, ChevronRight, Search, X, FileText, Target, CheckCircle } from 'lucide-react';
 import { useNavbar } from '../context/NavbarContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
@@ -27,6 +27,27 @@ interface Note {
   is_deleted: boolean;
 }
 
+interface Deck {
+  id: string;
+  title: string;
+  flashcardCount: number;
+  progress: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface SearchResult {
+  id: string;
+  type: 'note' | 'deck' | 'task' | 'system';
+  title: string;
+  content?: string;
+  description?: string;
+  url: string;
+  icon: React.ReactNode;
+  category: string;
+  timestamp?: string;
+}
+
 const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api/notes';
 
 const Home = () => {
@@ -42,6 +63,11 @@ const Home = () => {
   const [notesCount, setNotesCount] = useState<number>(0);
   const [currentSlide, setCurrentSlide] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [showSearchResults, setShowSearchResults] = useState(false);
+  const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   // Get auth headers for API calls
   const getAuthHeaders = () => {
@@ -50,6 +76,285 @@ const Home = () => {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
     };
+  };
+
+  // Search across all system components
+  const performSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      setShowSearchResults(false);
+      return;
+    }
+
+    setIsSearching(true);
+    setShowSearchResults(true);
+
+    try {
+      const results: SearchResult[] = [];
+      const searchTerm = query.toLowerCase();
+
+      // Search Notes
+      try {
+        const notesResponse = await axios.get(`${API_URL}/notes/?search=${encodeURIComponent(query)}`, {
+          headers: getAuthHeaders()
+        });
+        
+        if (Array.isArray(notesResponse.data)) {
+          notesResponse.data.forEach((note: Note) => {
+            results.push({
+              id: note.id.toString(),
+              type: 'note',
+              title: note.title || 'Untitled Note',
+              content: note.content,
+              description: `${note.notebook_name} • ${format(new Date(note.updated_at), 'MMM d, yyyy')}`,
+              url: `/notes?note=${note.id}`,
+              icon: <FileText className="w-4 h-4" />,
+              category: 'Notes',
+              timestamp: note.updated_at
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Error searching notes:', error);
+      }
+
+      // Search Decks
+      try {
+        const decksResponse = await axios.get(`http://localhost:8000/api/decks/decks/?search=${encodeURIComponent(query)}`, {
+          headers: getAuthHeaders()
+        });
+        
+        if (Array.isArray(decksResponse.data)) {
+          decksResponse.data.forEach((deck: Deck) => {
+            results.push({
+              id: deck.id,
+              type: 'deck',
+              title: deck.title,
+              description: `${deck.flashcardCount} cards • ${deck.progress}% progress`,
+              url: `/decks/${deck.id}`,
+              icon: <Target className="w-4 h-4" />,
+              category: 'Flashcards',
+              timestamp: deck.updated_at
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Error searching decks:', error);
+      }
+
+      // Search Tasks
+      try {
+        const tasksResponse = await axios.get(`http://localhost:8000/api/tasks/?search=${encodeURIComponent(query)}`, {
+          headers: getAuthHeaders()
+        });
+        
+        if (Array.isArray(tasksResponse.data)) {
+          tasksResponse.data.forEach((task: Task) => {
+            results.push({
+              id: task.id.toString(),
+              type: 'task',
+              title: task.title,
+              content: task.description,
+              description: `${task.priority} priority • ${task.completed ? 'Completed' : 'Pending'}`,
+              url: `/tasks`,
+              icon: <CheckCircle className="w-4 h-4" />,
+              category: 'Tasks',
+              timestamp: task.dueDate
+            });
+          });
+        }
+      } catch (error) {
+        console.error('Error searching tasks:', error);
+      }
+
+      // Add system-wide search results
+      const systemResults = [
+        {
+          id: 'notes-page',
+          type: 'system' as const,
+          title: 'Notes',
+          description: 'View and manage all your notes',
+          url: '/notes',
+          icon: <FileText className="w-4 h-4" />,
+          category: 'System'
+        },
+        {
+          id: 'decks-page',
+          type: 'system' as const,
+          title: 'Flashcards',
+          description: 'Study with flashcards and quizzes',
+          url: '/decks',
+          icon: <Target className="w-4 h-4" />,
+          category: 'System'
+        },
+        {
+          id: 'tasks-page',
+          type: 'system' as const,
+          title: 'Tasks',
+          description: 'Manage your tasks and to-dos',
+          url: '/tasks',
+          icon: <CheckCircle className="w-4 h-4" />,
+          category: 'System'
+        },
+        {
+          id: 'schedule-page',
+          type: 'system' as const,
+          title: 'Schedule',
+          description: 'Plan your day and events',
+          url: '/schedule',
+          icon: <Calendar className="w-4 h-4" />,
+          category: 'System'
+        }
+      ].filter(item => 
+        item.title.toLowerCase().includes(searchTerm) || 
+        item.description.toLowerCase().includes(searchTerm)
+      );
+
+      results.push(...systemResults);
+
+      // Sort results by relevance and recency
+      results.sort((a, b) => {
+        // Prioritize exact title matches
+        const aTitleMatch = a.title.toLowerCase() === searchTerm;
+        const bTitleMatch = b.title.toLowerCase() === searchTerm;
+        if (aTitleMatch && !bTitleMatch) return -1;
+        if (!aTitleMatch && bTitleMatch) return 1;
+        
+        // Then by type (system items first)
+        if (a.type === 'system' && b.type !== 'system') return -1;
+        if (a.type !== 'system' && b.type === 'system') return 1;
+        
+        // Then by timestamp (newer first)
+        if (a.timestamp && b.timestamp) {
+          return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
+        }
+        
+        return 0;
+      });
+
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Search error:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Handle search functionality
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      performSearch(searchQuery);
+    }
+  };
+
+  // Handle search input changes with debouncing
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchQuery.trim()) {
+        performSearch(searchQuery);
+      } else {
+        setSearchResults([]);
+        setShowSearchResults(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchQuery]);
+
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!showSearchResults) return;
+
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          setSelectedResultIndex(prev => 
+            prev < searchResults.length - 1 ? prev + 1 : 0
+          );
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          setSelectedResultIndex(prev => 
+            prev > 0 ? prev - 1 : searchResults.length - 1
+          );
+          break;
+        case 'Enter':
+          e.preventDefault();
+          if (selectedResultIndex >= 0 && selectedResultIndex < searchResults.length) {
+            handleResultClick(searchResults[selectedResultIndex]);
+          }
+          break;
+        case 'Escape':
+          e.preventDefault();
+          closeSearchResults();
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showSearchResults, searchResults, selectedResultIndex]);
+
+  // Reset selected index when search results change
+  useEffect(() => {
+    setSelectedResultIndex(-1);
+  }, [searchResults]);
+
+  // Handle global search shortcut (Ctrl+K / Cmd+K)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Handle click outside to close dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchInputRef.current && !searchInputRef.current.contains(event.target as Node)) {
+        // Check if click is outside the search container
+        const searchContainer = searchInputRef.current.closest('.relative');
+        if (searchContainer && !searchContainer.contains(event.target as Node)) {
+          setShowSearchResults(false);
+        }
+      }
+    };
+
+    if (showSearchResults) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showSearchResults]);
+
+  // Handle result click
+  const handleResultClick = (result: SearchResult) => {
+    if (result.type === 'note') {
+      // For notes, navigate and set the note ID in localStorage
+      localStorage.setItem('openNoteId', result.id);
+      navigate(result.url);
+    } else {
+      navigate(result.url);
+    }
+    setShowSearchResults(false);
+    setSearchQuery('');
+  };
+
+  // Close search results
+  const closeSearchResults = () => {
+    setShowSearchResults(false);
+    setSearchQuery('');
+    setSearchResults([]);
   };
 
   // Fetch recent notes function
@@ -350,17 +655,6 @@ const Home = () => {
     );
   }
 
-  // Handle search functionality
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      // Navigate to search results or implement search functionality
-      // For now, we'll just log the search query
-      console.log('Searching for:', searchQuery);
-      // You can implement search logic here or navigate to a search page
-    }
-  };
-
   return (
     <div className="relative w-full min-h-screen">
       <div className={`px-4 py-6 sm:px-6 lg:px-8 transition-[margin] duration-300 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-64'} pb-32 md:pb-6 pt-20 md:pt-6`}>
@@ -376,17 +670,18 @@ const Home = () => {
           </div>
 
           {/* Search Bar */}
-          <div className="max-w-2xl mx-auto mb-24 mt-16">
+          <div className="max-w-2xl mx-auto mb-24 mt-16 relative">
             <form onSubmit={handleSearch} className="relative">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Search className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
+                  ref={searchInputRef}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search Notes, System, Reviewer, and more..."
+                  placeholder="Search Notes, System, Reviewer, and more... (Ctrl+K)"
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 dark:focus:border-indigo-400 transition-colors"
                 />
                 <button
@@ -397,6 +692,49 @@ const Home = () => {
                 </button>
               </div>
             </form>
+
+            {/* Search Results Dropdown */}
+            {showSearchResults && (
+              <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto z-50">
+                {isSearching ? (
+                  <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500 mx-auto mb-2"></div>
+                    Searching...
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                    No results found for "{searchQuery}". Try a different search term.
+                  </div>
+                ) : (
+                  <div className="py-2">
+                    {searchResults.map((result, index) => (
+                      <div
+                        key={result.id}
+                        className={`flex items-center px-4 py-3 cursor-pointer transition-colors ${
+                          index === selectedResultIndex 
+                            ? 'bg-indigo-50 dark:bg-indigo-900/20' 
+                            : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                        }`}
+                        onClick={() => handleResultClick(result)}
+                        onMouseEnter={() => setSelectedResultIndex(index)}
+                      >
+                        <div className="mr-3 text-indigo-600 dark:text-indigo-400">{result.icon}</div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">{result.title}</h4>
+                          <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{result.description}</p>
+                          {result.timestamp && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{format(new Date(result.timestamp), 'MMM d, yyyy')}</p>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-400 dark:text-gray-500 ml-2 flex-shrink-0">
+                          {result.category}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Dynamic Stats grid - 2x2 on mobile, 4 columns on desktop */}
@@ -690,6 +1028,8 @@ const Home = () => {
           </div>
         </div>
       </div>
+
+
     </div>
   );
 };
