@@ -18,13 +18,13 @@ DEFAULT_FROM_EMAIL=sandiegoc89@gmail.com
 
 # Database Configuration
 DB_NAME=prodactivity_db
-DB_USER=akzmtmaos
-DB_PASSWORD=12345mark
+DB_USER=your-database-user
+DB_PASSWORD=your-database-password
 DB_HOST=localhost
 DB_PORT=5432
 
 # Django Secret Key
-DJANGO_SECRET_KEY=django-insecure-i$uch6xcxz80fiq6td7+#z_lrz(thlxfqsha-1#r(w7&n*^o8e
+DJANGO_SECRET_KEY=your-django-secret-key-here
 
 # Hugging Face API Key
-HUGGINGFACE_API_KEY=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
+HUGGINGFACE_API_KEY=your-huggingface-api-key-here
