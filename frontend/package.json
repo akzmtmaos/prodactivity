@@ -64,5 +64,5 @@
     "postcss-preset-env": "^9.6.0",
     "tailwindcss": "^4.1.11"
   },
-  "proxy": "https://your-backend-url.railway.app"
+  "proxy": "https://your-actual-railway-url.railway.app"
 }
