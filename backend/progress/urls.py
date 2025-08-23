@@ -1,7 +1,23 @@
 from django.urls import path
+from django.http import JsonResponse
 from . import views
 
+def progress_root(request):
+    """Root view for progress app"""
+    return JsonResponse({
+        'message': 'Progress API is working!',
+        'endpoints': [
+            '/api/progress/stats/',
+            '/api/progress/level/',
+            '/api/progress/streaks/',
+            '/api/progress/chart/',
+            '/api/progress/productivity/',
+            '/api/progress/productivity_logs/',
+        ]
+    })
+
 urlpatterns = [
+    path('', progress_root, name='progress_root'),
     path('stats/', views.user_stats, name='user_stats'),
     path('level/', views.user_level, name='user_level'),
     path('streaks/', views.user_streaks, name='user_streaks'),

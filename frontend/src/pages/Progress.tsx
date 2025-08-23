@@ -72,13 +72,21 @@ const Progress = () => {
 
     // Fetch stats, level, streak, and chart data
     (async () => {
+      console.log('Fetching initial data...');
       const statsData = await fetchUserStats();
+      console.log('Stats data:', statsData);
       setStats(statsData);
+      
       const levelData = await fetchUserLevel();
+      console.log('Level data:', levelData);
       setUserLevel(levelData);
+      
       const streakData = await fetchStreakData();
+      console.log('Streak data:', streakData);
       setStreakData(streakData);
+      
       const chartData = await fetchChartData(progressView);
+      console.log('Chart data:', chartData);
       setChartData(chartData);
     })();
   }, []);
@@ -90,7 +98,7 @@ const Progress = () => {
         const headers = getAuthHeaders();
         const todayStr = getTodayDate(); // Use local timezone instead of UTC
         // Add cache-busting parameter to ensure fresh data
-        const res = await fetch(`/api/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
+        const res = await fetch(`${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
           ...(headers && { headers })
         });
         if (!res.ok) throw new Error('Failed to fetch today productivity');
@@ -117,7 +125,7 @@ const Progress = () => {
       const headers = getAuthHeaders();
       const todayStr = getTodayDate(); // Use local timezone instead of UTC
       console.log('Refreshing productivity for date:', todayStr);
-      const res = await fetch(`/api/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
+      const res = await fetch(`${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
         ...(headers && { headers })
       });
       if (!res.ok) throw new Error('Failed to fetch today productivity');
@@ -137,16 +145,16 @@ const Progress = () => {
         let url: string | undefined;
         if (progressView === 'Daily') {
           const todayStr = format(selectedDate, 'yyyy-MM-dd'); // Use local date formatting
-          url = `/api/progress/productivity/?view=daily&date=${todayStr}`;
+          url = `${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}`;
         } else if (progressView === 'Weekly') {
           const monday = new Date(selectedDate);
           monday.setDate(monday.getDate() - monday.getDay() + 1);
           const weekStr = format(monday, 'yyyy-MM-dd'); // Use local date formatting
-          url = `/api/progress/productivity/?view=weekly&date=${weekStr}`;
+          url = `${API_BASE_URL}/progress/productivity/?view=weekly&date=${weekStr}`;
         } else if (progressView === 'Monthly') {
           const firstOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
           const monthStr = format(firstOfMonth, 'yyyy-MM-dd'); // Use local date formatting
-          url = `/api/progress/productivity/?view=monthly&date=${monthStr}`;
+          url = `${API_BASE_URL}/progress/productivity/?view=monthly&date=${monthStr}`;
         } else {
           throw new Error('Invalid progressView');
         }
@@ -164,7 +172,7 @@ const Progress = () => {
           const yesterday = new Date(selectedDate);
           yesterday.setDate(yesterday.getDate() - 1);
           const yDate = format(yesterday, 'yyyy-MM-dd'); // Use local date formatting
-          const yRes = await fetch(`/api/progress/productivity/?view=daily&date=${yDate}`, {
+          const yRes = await fetch(`${API_BASE_URL}/progress/productivity/?view=daily&date=${yDate}`, {
             ...(headers && { headers })
           });
           if (yRes.status === 401) {
@@ -195,15 +203,15 @@ const Progress = () => {
         const year = selectedDate.getFullYear();
         const month = selectedDate.getMonth() + 1; // getMonth() returns 0-11, we need 1-12
         const monthStr = `${year}-${month.toString().padStart(2, '0')}-01`;
-        url = `/api/progress/productivity_logs/?view=daily&date=${monthStr}`;
+        url = `${API_BASE_URL}/progress/productivity_logs/?view=daily&date=${monthStr}`;
       } else if (progressView === 'Weekly') {
         // For weekly view, use the selected date to determine which year's weeks to fetch
         const yearStr = selectedDate.getFullYear();
-        url = `/api/progress/productivity_logs/?view=weekly&date=${yearStr}-01-01`;
+        url = `${API_BASE_URL}/progress/productivity_logs/?view=weekly&date=${yearStr}-01-01`;
       } else if (progressView === 'Monthly') {
         // For monthly view, use the selected date to determine which year's months to fetch
         const yearStr = selectedDate.getFullYear();
-        url = `/api/progress/productivity_logs/?view=monthly&date=${yearStr}-01-01`;
+        url = `${API_BASE_URL}/progress/productivity_logs/?view=monthly&date=${yearStr}-01-01`;
       } else {
         throw new Error('Invalid progressView');
       }
@@ -217,6 +225,8 @@ const Progress = () => {
         console.log('Received productivity logs:', data); // Debug log
         console.log('Total items received:', data.length); // Debug log
         console.log('Date range:', data.length > 0 ? `${data[0]?.date} to ${data[data.length-1]?.date}` : 'No data'); // Debug log
+        console.log('Response status:', res.status); // Debug log
+        console.log('Response headers:', Object.fromEntries(res.headers.entries())); // Debug log
         // Debug: Log specific weekly data
         if (progressView === 'Weekly' && data.length > 0) {
           console.log('Weekly data details:');
@@ -335,9 +345,6 @@ const Progress = () => {
     );
   }
 
-  // Progress bar for LevelProgress
-  const progressPercentage = Math.min(userLevel.currentXP / userLevel.xpToNextLevel, 1) * 100;
-
   // Helper to get formatted date for Daily view
   function getFormattedDate(offset = 0) {
     const date = new Date();
@@ -415,6 +422,9 @@ function getAuthHeaders(): HeadersInit | undefined {
   return token ? { 'Authorization': `Bearer ${token}` } : undefined;
 }
 
+// API base URL - use direct backend URL for now
+const API_BASE_URL = 'http://localhost:8000/api';
+
 function handle401() {
   localStorage.removeItem('accessToken');
   localStorage.removeItem('refreshToken');
@@ -425,7 +435,7 @@ function handle401() {
 async function fetchUserStats() {
   try {
     const headers = getAuthHeaders();
-    const res = await fetch('/api/progress/stats/', {
+    const res = await fetch(`${API_BASE_URL}/progress/stats/`, {
       ...(headers && { headers })
     });
     if (res.status === 401) {
@@ -442,7 +452,7 @@ async function fetchUserStats() {
 async function fetchUserLevel() {
   try {
     const headers = getAuthHeaders();
-    const res = await fetch('/api/progress/level/', {
+    const res = await fetch(`${API_BASE_URL}/progress/level/`, {
       ...(headers && { headers })
     });
     if (res.status === 401) {
@@ -459,7 +469,7 @@ async function fetchUserLevel() {
 async function fetchStreakData() {
   try {
     const headers = getAuthHeaders();
-    const res = await fetch('/api/progress/streaks/', {
+    const res = await fetch(`${API_BASE_URL}/progress/streaks/`, {
       ...(headers && { headers })
     });
     if (res.status === 401) {
@@ -476,7 +486,7 @@ async function fetchStreakData() {
 async function fetchChartData(view: string) {
   try {
     const headers = getAuthHeaders();
-    const res = await fetch(`/api/progress/chart/?view=${view}`, {
+    const res = await fetch(`${API_BASE_URL}/progress/chart/?view=${view}`, {
       ...(headers && { headers })
     });
     if (res.status === 401) {

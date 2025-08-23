@@ -5,13 +5,6 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
-# Safe integer parsing for environment variables
-def safe_int(value, default):
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return default
-
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -19,18 +12,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-temporary-key-for-deployment')
+SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-i$uch6xcxz80fiq6td7+#z_lrz(thlxfqsha-1#r(w7&n*^o8e')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
+DEBUG = True
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').split(',')
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
 
 # Hugging Face API Key
-HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY', '')
-# Only raise error if we're in production and the key is needed
-if not HUGGINGFACE_API_KEY and not DEBUG:
-    print("Warning: HUGGINGFACE_API_KEY not set - AI features will be disabled")
+HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
+if not HUGGINGFACE_API_KEY:
+    raise ValueError("HUGGINGFACE_API_KEY environment variable is not set")
 
 # Application definition
 
@@ -145,12 +137,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-# CORS configuration for production
-CORS_ALLOW_ALL_ORIGINS = os.getenv('CORS_ALLOW_ALL_ORIGINS', 'True').lower() == 'true'
-
-# If not allowing all origins, specify allowed origins
-if not CORS_ALLOW_ALL_ORIGINS:
-    CORS_ALLOWED_ORIGINS = os.getenv('CORS_ALLOWED_ORIGINS', '').split(',')
+CORS_ALLOW_ALL_ORIGINS = True
 
 # CORS Headers configuration
 CORS_ALLOW_HEADERS = [
@@ -189,36 +176,16 @@ WSGI_APPLICATION = 'core.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.2/ref/settings/#databases
 
-# Database configuration for Railway
-DATABASE_URL = os.getenv('DATABASE_URL')
-if DATABASE_URL:
-    # Parse DATABASE_URL for Railway
-    try:
-        import dj_database_url
-        DATABASES = {
-            'default': dj_database_url.parse(DATABASE_URL)
-        }
-    except Exception as e:
-        print(f"Error parsing DATABASE_URL: {e}")
-        # Fallback to SQLite for development
-        DATABASES = {
-            'default': {
-                'ENGINE': 'django.db.backends.sqlite3',
-                'NAME': BASE_DIR / 'db.sqlite3',
-            }
-        }
-else:
-    # Local database configuration
-    DATABASES = {
-        'default': {
-            'ENGINE': 'django.db.backends.postgresql',
-            'NAME': os.getenv('DB_NAME', 'prodactivity_db'),
-            'USER': os.getenv('DB_USER', ''),
-            'PASSWORD': os.getenv('DB_PASSWORD', ''),
-            'HOST': os.getenv('DB_HOST', 'localhost'),
-            'PORT': os.getenv('DB_PORT', '5432'),
-        }
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': os.getenv('DB_NAME', 'prodactivity_db'),
+        'USER': os.getenv('DB_USER', 'akzmtmaos'),
+        'PASSWORD': os.getenv('DB_PASSWORD', '12345mark'),
+        'HOST': os.getenv('DB_HOST', 'localhost'),
+        'PORT': os.getenv('DB_PORT', '5432'),
     }
+}
 
 
 # Password validation
@@ -255,13 +222,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
-
-# Add whitenoise for static file serving in production
-if not DEBUG:
-    MIDDLEWARE.insert(1, 'whitenoise.middleware.WhiteNoiseMiddleware')
-    STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -281,7 +242,7 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'sandiegoc89@gmail.com')
 
 # Gmail SMTP Configuration
 EMAIL_HOST = os.getenv('EMAIL_HOST', 'smtp.gmail.com')
-EMAIL_PORT = safe_int(os.getenv('EMAIL_PORT'), 587)
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', '587'))
 EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')  # Your Gmail address
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')  # App password from Gmail
@@ -289,10 +250,19 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')  # App password from 
 # Email verification settings
 EMAIL_VERIFICATION_REQUIRED = os.getenv('EMAIL_VERIFICATION_REQUIRED', 'True').lower() == 'true'
 
-EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS = safe_int(os.getenv('EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS'), 24)
+# Handle invalid EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS values
+try:
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS = int(os.getenv('EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS', '24'))
+except ValueError:
+    print("Warning: Invalid EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS value, using default 24")
+    EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS = 24
 
 # Password reset settings
-PASSWORD_RESET_TOKEN_EXPIRE_HOURS = safe_int(os.getenv('PASSWORD_RESET_TOKEN_EXPIRE_HOURS'), 1)
+try:
+    PASSWORD_RESET_TOKEN_EXPIRE_HOURS = int(os.getenv('PASSWORD_RESET_TOKEN_EXPIRE_HOURS', '1'))
+except ValueError:
+    print("Warning: Invalid PASSWORD_RESET_TOKEN_EXPIRE_HOURS value, using default 1")
+    PASSWORD_RESET_TOKEN_EXPIRE_HOURS = 1
 
 # Site settings for email links
 SITE_NAME = os.getenv('SITE_NAME', 'Prodactivity')

@@ -207,9 +207,9 @@ def user_productivity(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def productivity_log_list(request):
-    from tasks.models import ProductivityLog
+    from tasks.models import ProductivityLog, Task
     from django.utils import timezone
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, date
     user = request.user
     view = request.GET.get('view', 'daily').lower()
     date_str = request.GET.get('date')
@@ -306,162 +306,15 @@ def productivity_log_list(request):
                 }
             })
     elif view == 'weekly':
-        # Debug: Check for tasks in the specific weeks mentioned by user
-        from datetime import date
-        user_expected_weeks = [
-            (date(2025, 7, 21), date(2025, 7, 27), "Jul 21-27, 2025 (expected 90%)"),
-            (date(2025, 7, 28), date(2025, 8, 3), "Jul 28 - Aug 3, 2025 (expected 100%)"),
-            (date(2025, 8, 4), date(2025, 8, 10), "Aug 4-10, 2025 (expected 0%)")
-        ]
-        
-        print(f"[DEBUG] Checking user's expected weeks...")
-        for week_start, week_end, description in user_expected_weeks:
-            # Check if there's already a log for this exact week
-            existing_log = ProductivityLog.objects.filter(
-                user=user, 
-                period_type='weekly', 
-                period_start=week_start, 
-                period_end=week_end
-            ).first()
-            
-            if existing_log:
-                print(f"[DEBUG] Found existing log for {description}: {existing_log.completion_rate}% ({existing_log.status})")
-            else:
-                # Create a log for this specific week if it doesn't exist
-                tasks = Task.all_objects.filter(user=user, due_date__range=(week_start, week_end))
-                non_deleted = tasks.filter(is_deleted=False)
-                deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
-                total_tasks = non_deleted.count() + deleted_completed.count()
-                completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
-                completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
-                
-                if total_tasks == 0:
-                    status = 'No Tasks'
-                elif completion_rate >= 90:
-                    status = 'Highly Productive'
-                elif completion_rate >= 70:
-                    status = 'Productive'
-                elif completion_rate >= 40:
-                    status = 'Needs Improvement'
-                else:
-                    status = 'Low Productivity'
-                
-                print(f"[DEBUG] Creating log for {description}: {total_tasks} total, {completed_tasks} completed, {completion_rate:.1f}%")
-                
-                # Create the productivity log for this specific week
-                ProductivityLog.objects.get_or_create(
-                    user=user,
-                    period_type='weekly',
-                    period_start=week_start,
-                    period_end=week_end,
-                    defaults={
-                        'completion_rate': completion_rate,
-                        'total_tasks': total_tasks,
-                        'completed_tasks': completed_tasks,
-                        'status': status
-                    }
-                )
-        
         # List all weeks in the year
         year = base_date.year
         today = timezone.localdate()
-        current_week = today.isocalendar()[1]
-        current_year = today.year
         
-        for week in range(52, 0, -1):
-            # Get the start and end of the week
-            week_start = datetime.strptime(f'{year}-W{week:02d}-1', '%Y-W%W-%w').date()
-            week_end = week_start + timedelta(days=6)
-            
-            # Get existing daily logs for this week and calculate average
-            daily_logs = ProductivityLog.objects.filter(
-                user=user,
-                period_type='daily',
-                period_start__range=(week_start, week_end)
-            ).order_by('period_start')
-            
-            daily_rates = []
-            print(f"[DEBUG] Daily logs for week {week_start} to {week_end}:")
-            for daily_log in daily_logs:
-                if daily_log.total_tasks > 0:  # Include ALL days that have tasks
-                    daily_rates.append(daily_log.completion_rate)
-                    print(f"  {daily_log.period_start}: {daily_log.completion_rate:.2f}%")
-                else:
-                    print(f"  {daily_log.period_start}: No tasks")
-            
-            if daily_rates:
-                completion_rate = round(sum(daily_rates) / len(daily_rates), 2)
-            else:
-                completion_rate = 0
-            
-            print(f"[DEBUG] Weekly average from daily logs: {completion_rate:.2f}% (based on {len(daily_rates)} days)")
-            
-            # Calculate total and completed tasks for display purposes
-            tasks_in_week = Task.all_objects.filter(user=user, due_date__range=(week_start, week_end))
-            non_deleted = tasks_in_week.filter(is_deleted=False)
-            deleted_completed = tasks_in_week.filter(is_deleted=True, was_completed_on_delete=True)
-            total_tasks = non_deleted.count() + deleted_completed.count()
-            completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
-            
-            # For status, use the same thresholds as before
-            if completion_rate == 0:
-                status = 'No Tasks'
-            elif completion_rate >= 90:
-                status = 'Highly Productive'
-            elif completion_rate >= 70:
-                status = 'Productive'
-            elif completion_rate >= 40:
-                status = 'Needs Improvement'
-            else:
-                status = 'Low Productivity'
-            
-            # For display, keep total_tasks and completed_tasks as before
-            log, created = ProductivityLog.objects.get_or_create(
-                user=user,
-                period_type='weekly',
-                period_start=week_start,
-                period_end=week_end,
-                defaults={
-                    'completion_rate': completion_rate,
-                    'total_tasks': total_tasks,
-                    'completed_tasks': completed_tasks,
-                    'status': status
-                }
-            )
-            # Always update the log with current data (especially for current week)
-            if not created or week_end >= today:  # Update if it's current or future week
-                # Force delete and recreate for current week to ensure correct calculation
-                if week_end >= today:
-                    ProductivityLog.objects.filter(
-                        user=user,
-                        period_type='weekly',
-                        period_start=week_start,
-                        period_end=week_end
-                    ).delete()
-                    log = ProductivityLog.objects.create(
-                        user=user,
-                        period_type='weekly',
-                        period_start=week_start,
-                        period_end=week_end,
-                        completion_rate=completion_rate,
-                        total_tasks=total_tasks,
-                        completed_tasks=completed_tasks,
-                        status=status
-                    )
-                    print(f"[DEBUG] FORCE RECREATED log for week {week_start} to {week_end}: {total_tasks} tasks, {completion_rate:.2f}% (average of daily logs)")
-                else:
-                    log.completion_rate = completion_rate
-                    log.total_tasks = total_tasks
-                    log.completed_tasks = completed_tasks
-                    log.status = status
-                    log.save()
-                    print(f"[DEBUG] Updated log for week {week_start} to {week_end}: {total_tasks} tasks, {completion_rate:.2f}% (average of daily logs)")
-        
-        # Now get all logs again (including newly created ones)
+        # Get all existing weekly logs for this year
         all_logs = ProductivityLog.objects.filter(
-            user=user, 
+            user=user,
             period_type='weekly',
-            period_start__year=base_date.year
+            period_start__year=year
         ).order_by('-period_start')  # Most recent first
         
         # Process all logs for the response
@@ -477,19 +330,7 @@ def productivity_log_list(request):
             is_recent = (today - week_end).days <= 28  # Within last 4 weeks
             has_tasks = log.total_tasks > 0
             
-            # Check if this week overlaps with user's expected weeks
-            from datetime import date
-            user_expected_weeks = [
-                (date(2025, 7, 21), date(2025, 7, 27)),
-                (date(2025, 7, 28), date(2025, 8, 3)),
-                (date(2025, 8, 4), date(2025, 8, 10))
-            ]
-            is_expected_week = any(
-                week_start <= expected_end and week_end >= expected_start 
-                for expected_start, expected_end in user_expected_weeks
-            )
-            
-            if has_tasks or is_recent or is_expected_week:
+            if has_tasks or is_recent:
                 data.append({
                     'week_start': week_start,
                     'week_end': week_end,
@@ -503,89 +344,36 @@ def productivity_log_list(request):
     elif view == 'monthly':
         # List all months in the year
         year = base_date.year
-        today = timezone.localdate()
-        current_month = today.month
-        current_year = today.year
-        for month in range(12, 0, -1):
-            first = datetime(year, month, 1).date()
-            last = datetime(year, month, monthrange(year, month)[1]).date()
-            
-            # Get existing daily logs for this month and calculate average
-            daily_logs = ProductivityLog.objects.filter(
-                user=user,
-                period_type='daily',
-                period_start__range=(first, last)
-            ).order_by('period_start')
-            
-            daily_rates = []
-            print(f"[DEBUG] Daily logs for month {month} ({first} to {last}):")
-            for daily_log in daily_logs:
-                if daily_log.total_tasks > 0:  # Include ALL days that have tasks
-                    daily_rates.append(daily_log.completion_rate)
-                    print(f"  {daily_log.period_start}: {daily_log.completion_rate:.2f}%")
-                else:
-                    print(f"  {daily_log.period_start}: No tasks")
-            
-            if daily_rates:
-                completion_rate = round(sum(daily_rates) / len(daily_rates), 2)
-            else:
-                completion_rate = 0
-            
-            print(f"[DEBUG] Monthly average from daily logs: {completion_rate:.2f}% (based on {len(daily_rates)} days)")
-            
-            # Calculate total and completed tasks for display purposes
-            tasks_in_month = Task.all_objects.filter(user=user, due_date__range=(first, last))
-            non_deleted = tasks_in_month.filter(is_deleted=False)
-            deleted_completed = tasks_in_month.filter(is_deleted=True, was_completed_on_delete=True)
-            total_tasks = non_deleted.count() + deleted_completed.count()
-            completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
-            
-            # For status, use the same thresholds as before
-            if completion_rate == 0:
-                status = 'No Tasks'
-            elif completion_rate >= 90:
-                status = 'Highly Productive'
-            elif completion_rate >= 70:
-                status = 'Productive'
-            elif completion_rate >= 40:
-                status = 'Needs Improvement'
-            else:
-                status = 'Low Productivity'
-            
-            log, created = ProductivityLog.objects.get_or_create(
-                user=user,
-                period_type='monthly',
-                period_start=first,
-                period_end=last,
-                defaults={
-                    'completion_rate': completion_rate,
-                    'total_tasks': total_tasks,
-                    'completed_tasks': completed_tasks,
-                    'status': status
-                }
-            )
-            
-            # Always update the log with current data (especially for current month)
-            if not created or (month == current_month and year == current_year):
-                log.completion_rate = completion_rate
-                log.total_tasks = total_tasks
-                log.completed_tasks = completed_tasks
-                log.status = status
-                log.save()
-                print(f"[DEBUG] Updated log for month {month}: {total_tasks} tasks, {completion_rate:.2f}% (average of daily logs)")
+        
+        # Get all existing monthly logs for this year
+        all_logs = ProductivityLog.objects.filter(
+            user=user,
+            period_type='monthly',
+            period_start__year=year
+        ).order_by('-period_start')  # Most recent first
+        
+        # Process all logs for the response
+        for log in all_logs:
+            month = log.period_start.month
             
             # Debug: Log all months and their data
             print(f"Month {month}: {log.total_tasks} tasks, status: {log.status}")
             
-            data.append({
-                'month': month,
-                'log': {
-                    'status': log.status,
-                    'completion_rate': log.completion_rate,
-                    'total_tasks': log.total_tasks,
-                    'completed_tasks': log.completed_tasks
-                }
-            })
+            # Only include months that have tasks or are recent
+            today = timezone.localdate()
+            is_recent = (today - log.period_end).days <= 90  # Within last 3 months
+            has_tasks = log.total_tasks > 0
+            
+            if has_tasks or is_recent:
+                data.append({
+                    'month': month,
+                    'log': {
+                        'status': log.status,
+                        'completion_rate': log.completion_rate,
+                        'total_tasks': log.total_tasks,
+                        'completed_tasks': log.completed_tasks
+                    }
+                })
     return Response(data)
 
 @api_view(['GET'])
