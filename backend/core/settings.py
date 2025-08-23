@@ -5,6 +5,13 @@ from dotenv import load_dotenv
 # Load environment variables from .env file
 load_dotenv()
 
+# Safe integer parsing for environment variables
+def safe_int(value, default):
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return default
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -281,13 +288,6 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')  # App password from 
 
 # Email verification settings
 EMAIL_VERIFICATION_REQUIRED = os.getenv('EMAIL_VERIFICATION_REQUIRED', 'True').lower() == 'true'
-
-# Safe integer parsing for environment variables
-def safe_int(value, default):
-    try:
-        return int(value)
-    except (ValueError, TypeError):
-        return default
 
 EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS = safe_int(os.getenv('EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS'), 24)
 
