@@ -47,6 +47,7 @@ const Tasks = () => {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterCompleted, setFilterCompleted] = useState<boolean | null>(null);
   const [filterPriority, setFilterPriority] = useState<Task['priority'] | 'all'>('all');
+  const [filterTaskCategory, setFilterTaskCategory] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
 
   // State for delete confirmation modal
@@ -56,7 +57,7 @@ const Tasks = () => {
 
 
   // State for tabs
-  const [activeTab, setActiveTab] = useState<'tasks' | 'completed'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed'>('tasks');
 
   // Initial user/greeting setup
   useEffect(() => {
@@ -87,7 +88,7 @@ const Tasks = () => {
   useEffect(() => {
     fetchTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, filterCompleted, filterPriority, sortField, sortDirection]);
+  }, [searchTerm, filterCompleted, filterPriority, filterTaskCategory, sortField, sortDirection]);
 
 
 
@@ -114,6 +115,9 @@ const Tasks = () => {
       }
       if (searchTerm) {
         params.append('search', searchTerm);
+      }
+      if (filterTaskCategory) {
+        params.append('task_category', filterTaskCategory);
       }
       
       // Map frontend field names to backend field names for ordering
@@ -265,7 +269,39 @@ const Tasks = () => {
   // Filtered tasks for tabs
   const incompleteTasks = tasks.filter(task => !task.completed);
   const completedTasks = tasks.filter(task => task.completed);
-  const displayedTasks = activeTab === 'tasks' ? incompleteTasks : completedTasks;
+  
+  // Function to get category color styling
+  const getCategoryColor = (category: string) => {
+    if (category === 'Uncategorized') {
+      return {
+        bg: 'bg-gray-50 dark:bg-gray-700',
+        text: 'text-gray-900 dark:text-white',
+        count: 'text-gray-500 dark:text-gray-400',
+        border: 'border-gray-200 dark:border-gray-600'
+      };
+    }
+    // For categorized tasks, use purple to match the task category tags
+    return {
+      bg: 'bg-purple-50 dark:bg-purple-900/20',
+      text: 'text-purple-900 dark:text-purple-100',
+      count: 'text-purple-600 dark:text-purple-300',
+      border: 'border-purple-200 dark:border-purple-700'
+    };
+  };
+  
+  // Group tasks by category for the categories tab
+  const tasksByCategory = tasks.filter(task => !task.completed).reduce((acc, task) => {
+    const category = task.task_category || 'Uncategorized';
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(task);
+    return acc;
+  }, {} as Record<string, Task[]>);
+  
+  const displayedTasks = activeTab === 'tasks' ? incompleteTasks : 
+                        activeTab === 'completed' ? completedTasks : 
+                        []; // Categories tab will handle its own display
 
   // Show loading state while waiting for user data
   if (!user) {
@@ -299,10 +335,13 @@ const Tasks = () => {
                 onFilterCompletedChange={setFilterCompleted}
                 filterPriority={filterPriority}
                 onFilterPriorityChange={setFilterPriority}
+                filterTaskCategory={filterTaskCategory}
+                onFilterTaskCategoryChange={setFilterTaskCategory}
                 onResetFilters={() => {
                   setSearchTerm('');
                   setFilterCompleted(null);
                   setFilterPriority('all');
+                  setFilterTaskCategory('');
                 }}
               />
               <button
@@ -334,6 +373,16 @@ const Tasks = () => {
               onClick={() => setActiveTab('tasks')}
             >
               Tasks
+            </button>
+            <button
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'categories'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+              onClick={() => setActiveTab('categories')}
+            >
+              Category
             </button>
             <button
               className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
@@ -382,6 +431,73 @@ const Tasks = () => {
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
                 <p className="mt-2 text-gray-500 dark:text-gray-400">Loading tasks...</p>
               </div>
+            ) : activeTab === 'categories' ? (
+              // Categories tab display
+              <div className="p-6">
+                {Object.keys(tasksByCategory).length === 0 ? (
+                  <div className="text-center">
+                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No categories found</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+                      Create tasks with categories to see them organized here.
+                    </p>
+                    <div className="mt-6">
+                      <button
+                        type="button"
+                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                        onClick={() => setIsFormOpen(true)}
+                      >
+                        <svg className="-ml-1 mr-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                        </svg>
+                        New Task
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {Object.entries(tasksByCategory).map(([category, categoryTasks]) => {
+                      const colors = getCategoryColor(category);
+                      return (
+                        <div key={category} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+                          <div className={`${colors.bg} px-4 py-2 border-b ${colors.border}`}>
+                            <div className="flex items-center justify-between">
+                              <h3 className={`text-lg font-semibold ${colors.text}`}>
+                                {category}
+                              </h3>
+                              <span className={`text-sm ${colors.count}`}>
+                                {categoryTasks.length} task{categoryTasks.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="p-2">
+                            <TaskList
+                              tasks={categoryTasks}
+                              onToggleComplete={toggleTaskCompletion}
+                              onEdit={(task) => {
+                                setEditingTask(task);
+                                setIsFormOpen(true);
+                              }}
+                              onDelete={handleDeleteClick}
+                              onTaskCompleted={handleTaskCompleted}
+                              sortField={sortField}
+                              sortDirection={sortDirection}
+                              onSort={handleSort}
+                              onAddTask={() => {
+                                setEditingTask(undefined);
+                                setIsFormOpen(true);
+                              }}
+                              compact={true}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             ) : displayedTasks.length === 0 ? (
               <div className="p-6 text-center">
                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -389,11 +505,11 @@ const Tasks = () => {
                 </svg>
                 <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tasks found</h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {searchTerm || filterCompleted !== null || filterPriority !== 'all'
+                  {searchTerm || filterCompleted !== null || filterPriority !== 'all' || filterTaskCategory
                     ? 'Try changing your search or filter criteria.'
                     : 'Get started by creating a new task.'}
                 </p>
-                {!searchTerm && filterCompleted === null && filterPriority === 'all' && (
+                {!searchTerm && filterCompleted === null && filterPriority === 'all' && filterTaskCategory === '' && (
                   <div className="mt-6">
                     <button
                       type="button"

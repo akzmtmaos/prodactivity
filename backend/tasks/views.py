@@ -23,7 +23,14 @@ class TaskViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         logger.debug(f"[TaskViewSet] get_queryset called by user: {self.request.user} (auth: {self.request.user.is_authenticated})")
-        return Task.objects.filter(user=self.request.user)
+        queryset = Task.objects.filter(user=self.request.user)
+        
+        # Custom filtering for task_category
+        task_category = self.request.query_params.get('task_category', None)
+        if task_category:
+            queryset = queryset.filter(task_category__icontains=task_category)
+        
+        return queryset
 
     def perform_create(self, serializer):
         try:

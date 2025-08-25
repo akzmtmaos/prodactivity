@@ -6,6 +6,7 @@ export interface Task {
   priority: 'low' | 'medium' | 'high';
   completed: boolean;
   category: string;
+  task_category?: string;
   subtasks?: Subtask[];
   // New productivity validation fields
   has_activity?: boolean;

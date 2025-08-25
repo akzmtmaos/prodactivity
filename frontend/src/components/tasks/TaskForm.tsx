@@ -15,7 +15,8 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel }) => {
     dueDate: task?.dueDate || getTodayDate(),
     priority: task?.priority || 'medium',
     completed: task?.completed || false,
-    category: task?.category || 'study'
+    category: task?.category || 'study',
+    task_category: task?.task_category || ''
   });
   const [formError, setFormError] = React.useState<string | null>(null);
 
@@ -156,6 +157,22 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel }) => {
                 </div>
               </div>
             </div>
+          </div>
+          
+          {/* Task Category */}
+          <div className="mb-4">
+            <label htmlFor="task_category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Task Category
+            </label>
+            <input
+              type="text"
+              id="task_category"
+              name="task_category"
+              placeholder="e.g., CAPSTONE, Math, ComProg2"
+              className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 py-3 px-4 focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
+              value={formData.task_category}
+              onChange={handleInputChange}
+            />
           </div>
           
           {/* Completed (only show in edit mode) */}

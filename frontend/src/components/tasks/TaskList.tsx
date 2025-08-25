@@ -12,6 +12,7 @@ interface TaskListProps {
   sortDirection: 'asc' | 'desc';
   onSort: (field: keyof Task) => void;
   onAddTask?: () => void; // New prop for Add Task button
+  compact?: boolean; // New prop for compact layout
 }
 
 const TaskList: React.FC<TaskListProps> = ({
@@ -24,6 +25,7 @@ const TaskList: React.FC<TaskListProps> = ({
   sortDirection,
   onSort,
   onAddTask,
+  compact = false,
 }) => {
   if (tasks.length === 0) {
     return (
@@ -56,8 +58,8 @@ const TaskList: React.FC<TaskListProps> = ({
 
   // Render as a card list inside a fixed, scrollable container
   return (
-    <div className="h-[calc(100vh-8rem)] overflow-y-auto rounded-lg bg-gray-50 dark:bg-gray-800 p-2 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-indigo-700 scrollbar-track-gray-100 dark:scrollbar-track-gray-900 border border-gray-100 dark:border-gray-700">
-      <div className="flex flex-col gap-2">
+    <div className={`${compact ? '' : 'h-[calc(100vh-8rem)]'} overflow-y-auto rounded-lg bg-gray-50 dark:bg-gray-800 p-2 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-indigo-700 scrollbar-track-gray-100 dark:scrollbar-track-gray-900 border border-gray-100 dark:border-gray-700`}>
+      <div className="flex flex-col gap-1">
         {tasks.map((task) => (
           <TaskItem
             key={task.id}

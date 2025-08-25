@@ -129,6 +129,11 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
               <span className="text-xs text-indigo-500 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 rounded px-2 py-0.5">
                 {task.category.charAt(0).toUpperCase() + task.category.slice(1)}
               </span>
+              {task.task_category && (
+                <span className="text-xs text-purple-500 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 rounded px-2 py-0.5">
+                  {task.task_category}
+                </span>
+              )}
               
               {/* Activity status indicators */}
               {!task.completed && (

@@ -28,6 +28,7 @@ class Task(models.Model):
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
     completed = models.BooleanField(default=False)
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
+    task_category = models.CharField(max_length=50, blank=True, help_text="Custom task category (e.g., CAPSTONE, Math, ComProg2)")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     

@@ -400,7 +400,7 @@ const Home = () => {
     }
   };
 
-  // Fetch current tasks (incomplete, soonest due)
+      // Fetch pending tasks (incomplete, soonest due)
   const fetchTasks = async () => {
     setTasksLoading(true);
     try {
@@ -931,7 +931,7 @@ const Home = () => {
             {/* Tasks section (left) */}
             <div>
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Current Tasks</h2>
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Pending Tasks</h2>
                 <a href="/tasks" className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium">View Tasks</a>
               </div>
               <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg shadow flex flex-col p-4">
@@ -959,17 +959,24 @@ const Home = () => {
                           <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
                             {task.title}
                           </div>
-                          {task.category && (
-                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              {task.category.charAt(0).toUpperCase() + task.category.slice(1)}
-                            </div>
-                          )}
+                          <div className="mt-1 flex flex-wrap gap-1">
+                            {task.category && (
+                              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded px-1">
+                                {task.category.charAt(0).toUpperCase() + task.category.slice(1)}
+                              </span>
+                            )}
+                            {task.task_category && (
+                              <span className="text-xs text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/20 rounded px-1">
+                                {task.task_category}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400">
-                      No current tasks found
+                      No pending tasks found
                     </div>
                   )}
                 </div>

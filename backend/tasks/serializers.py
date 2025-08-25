@@ -8,7 +8,7 @@ class TaskSerializer(serializers.ModelSerializer):
     class Meta:
         model = Task
         fields = ['id', 'title', 'description', 'due_date', 'priority', 
-                 'completed', 'category', 'created_at', 'updated_at', 'subtasks',
+                 'completed', 'category', 'task_category', 'created_at', 'updated_at', 'subtasks',
                  'has_activity', 'activity_notes', 'time_spent_minutes', 'last_activity_at',
                  'evidence_uploaded', 'evidence_description', 'evidence_file', 'evidence_uploaded_at',
                  'can_be_completed']
