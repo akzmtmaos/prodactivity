@@ -1,0 +1,5 @@
+[33m41d3411[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmaster[m[33m)[m Remove actual token from template
+[33mcb57cb2[m Task Categorization updates
+[33m9a66ba4[m Task Categorization Feature and UI Improvements
+[33mf720b89[m Reverting back all changes that went back to normal bcuz why not
+[33mcab797c[m Fix safe_int function order - move to top of file
