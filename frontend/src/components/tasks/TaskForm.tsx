@@ -15,7 +15,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel }) => {
     dueDate: task?.dueDate || getTodayDate(),
     priority: task?.priority || 'medium',
     completed: task?.completed || false,
-    category: task?.category || 'study',
+    category: task?.category || 'other',
     task_category: task?.task_category || ''
   });
   const [formError, setFormError] = React.useState<string | null>(null);
@@ -89,24 +89,22 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel }) => {
             />
           </div>
           
-          {/* Due Date */}
-          <div className="mb-4">
-            <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Due Date
-            </label>
-            <input
-              type="date"
-              id="dueDate"
-              name="dueDate"
-              required
-              className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 py-3 px-4 focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
-              value={formData.dueDate}
-              onChange={handleInputChange}
-            />
-          </div>
-          
-          {/* Priority & Category (same line) */}
+          {/* Due Date & Priority (same line) */}
           <div className="mb-4 flex gap-3">
+            <div className="w-1/2">
+              <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Due Date
+              </label>
+              <input
+                type="date"
+                id="dueDate"
+                name="dueDate"
+                required
+                className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 py-3 px-4 focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
+                value={formData.dueDate}
+                onChange={handleInputChange}
+              />
+            </div>
             <div className="w-1/2">
               <label htmlFor="priority" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Priority
@@ -122,32 +120,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel }) => {
                   <option value="low">Low</option>
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
-                </select>
-                {/* Chevron icon for dropdown */}
-                <div className="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                  <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.585l3.71-3.355a.75.75 0 111.02 1.1l-4 3.62a.75.75 0 01-1.02 0l-4-3.62a.75.75 0 01.02-1.1z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="w-1/2">
-              <label htmlFor="category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Category
-              </label>
-              <div className="relative">
-                <select
-                  id="category"
-                  name="category"
-                  className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 py-3 px-4 pr-10 focus:shadow-indigo-200 dark:focus:shadow-indigo-900 appearance-none"
-                  value={formData.category}
-                  onChange={handleInputChange}
-                >
-                  <option value="work">Work</option>
-                  <option value="personal">Personal</option>
-                  <option value="study">Study</option>
-                  <option value="health">Health</option>
-                  <option value="other">Other</option>
                 </select>
                 {/* Chevron icon for dropdown */}
                 <div className="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">

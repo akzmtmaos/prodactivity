@@ -270,7 +270,18 @@ const Tasks = () => {
   const incompleteTasks = tasks.filter(task => !task.completed);
   const completedTasks = tasks.filter(task => task.completed);
   
-  // Function to get category color styling
+  // Function to generate consistent hash for category colors
+  const getCategoryColorHash = (category: string) => {
+    let hash = 0;
+    for (let i = 0; i < category.length; i++) {
+      const char = category.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
+  };
+
+  // Function to get category color styling with randomized but consistent colors
   const getCategoryColor = (category: string) => {
     if (category === 'Uncategorized') {
       return {
@@ -280,13 +291,24 @@ const Tasks = () => {
         border: 'border-gray-200 dark:border-gray-600'
       };
     }
-    // For categorized tasks, use purple to match the task category tags
-    return {
-      bg: 'bg-purple-50 dark:bg-purple-900/20',
-      text: 'text-purple-900 dark:text-purple-100',
-      count: 'text-purple-600 dark:text-purple-300',
-      border: 'border-purple-200 dark:border-purple-700'
-    };
+
+    // Array of color combinations for categories
+    const colorCombinations = [
+      { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-900 dark:text-blue-100', count: 'text-blue-600 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-700' },
+      { bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-900 dark:text-green-100', count: 'text-green-600 dark:text-green-300', border: 'border-green-200 dark:border-green-700' },
+      { bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-900 dark:text-purple-100', count: 'text-purple-600 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-700' },
+      { bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-900 dark:text-orange-100', count: 'text-orange-600 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-700' },
+      { bg: 'bg-pink-50 dark:bg-pink-900/20', text: 'text-pink-900 dark:text-pink-100', count: 'text-pink-600 dark:text-pink-300', border: 'border-pink-200 dark:border-pink-700' },
+      { bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-900 dark:text-indigo-100', count: 'text-indigo-600 dark:text-indigo-300', border: 'border-indigo-200 dark:border-indigo-700' },
+      { bg: 'bg-teal-50 dark:bg-teal-900/20', text: 'text-teal-900 dark:text-teal-100', count: 'text-teal-600 dark:text-teal-300', border: 'border-teal-200 dark:border-teal-700' },
+      { bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-900 dark:text-red-100', count: 'text-red-600 dark:text-red-300', border: 'border-red-200 dark:border-red-700' },
+      { bg: 'bg-yellow-50 dark:bg-yellow-900/20', text: 'text-yellow-900 dark:text-yellow-100', count: 'text-yellow-600 dark:text-yellow-300', border: 'border-yellow-200 dark:border-yellow-700' },
+      { bg: 'bg-cyan-50 dark:bg-cyan-900/20', text: 'text-cyan-900 dark:text-cyan-100', count: 'text-cyan-600 dark:text-cyan-300', border: 'border-cyan-200 dark:border-cyan-700' }
+    ];
+
+    const hash = getCategoryColorHash(category);
+    const colorIndex = hash % colorCombinations.length;
+    return colorCombinations[colorIndex];
   };
   
   // Group tasks by category for the categories tab

@@ -19,6 +19,37 @@ const priorityColors: Record<string, string> = {
 };
 
 const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete, onTaskCompleted }) => {
+  // Function to generate consistent hash for category colors
+  const getCategoryColorHash = (category: string) => {
+    let hash = 0;
+    for (let i = 0; i < category.length; i++) {
+      const char = category.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
+  };
+
+  // Function to get category color styling with randomized but consistent colors
+  const getCategoryColor = (category: string) => {
+    // Array of color combinations for categories
+    const colorCombinations = [
+      { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-900 dark:text-blue-100' },
+      { bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-900 dark:text-green-100' },
+      { bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-900 dark:text-purple-100' },
+      { bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-900 dark:text-orange-100' },
+      { bg: 'bg-pink-50 dark:bg-pink-900/20', text: 'text-pink-900 dark:text-pink-100' },
+      { bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-900 dark:text-indigo-100' },
+      { bg: 'bg-teal-50 dark:bg-teal-900/20', text: 'text-teal-900 dark:text-teal-100' },
+      { bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-900 dark:text-red-100' },
+      { bg: 'bg-yellow-50 dark:bg-yellow-900/20', text: 'text-yellow-900 dark:text-yellow-100' },
+      { bg: 'bg-cyan-50 dark:bg-cyan-900/20', text: 'text-cyan-900 dark:text-cyan-100' }
+    ];
+
+    const hash = getCategoryColorHash(category);
+    const colorIndex = hash % colorCombinations.length;
+    return colorCombinations[colorIndex];
+  };
   const [isSubtasksOpen, setIsSubtasksOpen] = useState(false);
   const [isAddSubtaskOpen, setIsAddSubtaskOpen] = useState(false);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
@@ -126,11 +157,8 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                 <span className={`w-2 h-2 rounded-full mr-1 ${priorityColors[task.priority] || 'bg-gray-300'}`}></span>
                 {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
               </span>
-              <span className="text-xs text-indigo-500 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-900/20 rounded px-2 py-0.5">
-                {task.category.charAt(0).toUpperCase() + task.category.slice(1)}
-              </span>
               {task.task_category && (
-                <span className="text-xs text-purple-500 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/20 rounded px-2 py-0.5">
+                <span className={`text-xs rounded px-2 py-0.5 ${getCategoryColor(task.task_category).bg} ${getCategoryColor(task.task_category).text}`}>
                   {task.task_category}
                 </span>
               )}
