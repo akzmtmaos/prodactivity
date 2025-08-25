@@ -321,6 +321,13 @@ const Tasks = () => {
     return acc;
   }, {} as Record<string, Task[]>);
   
+  // Extract existing categories for the TaskForm dropdown
+  const existingCategories = Array.from(new Set(
+    tasks
+      .map(task => task.task_category)
+      .filter((category): category is string => category !== undefined && category.trim() !== '')
+  )).sort();
+  
   const displayedTasks = activeTab === 'tasks' ? incompleteTasks : 
                         activeTab === 'completed' ? completedTasks : 
                         []; // Categories tab will handle its own display
@@ -443,6 +450,7 @@ const Tasks = () => {
                 setIsFormOpen(false);
                 setEditingTask(undefined);
               }}
+              existingCategories={existingCategories}
             />
           )}
 
