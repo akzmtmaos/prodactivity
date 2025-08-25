@@ -494,7 +494,7 @@ const Tasks = () => {
                               </span>
                             </div>
                           </div>
-                          <div className="p-2">
+                          <div className="p-2 bg-white dark:bg-gray-800">
                             <TaskList
                               tasks={categoryTasks}
                               onToggleComplete={toggleTaskCompletion}

@@ -99,7 +99,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
 
   return (
     <>
-      <div className={`group p-4 mb-3 bg-gray-50 dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 transition hover:shadow-md w-full`}>
+      <div className={`group p-4 mb-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 transition hover:shadow-md w-full`}>
         {/* Task row */}
         <div className="flex items-center gap-4">
           {/* Priority color bar */}
