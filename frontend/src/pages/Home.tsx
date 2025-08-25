@@ -69,6 +69,38 @@ const Home = () => {
   const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
+  // Function to generate consistent hash for category colors
+  const getCategoryColorHash = (category: string) => {
+    let hash = 0;
+    for (let i = 0; i < category.length; i++) {
+      const char = category.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return Math.abs(hash);
+  };
+
+  // Function to get category color styling with randomized but consistent colors
+  const getCategoryColor = (category: string) => {
+    // Array of color combinations for categories
+    const colorCombinations = [
+      { bg: 'bg-blue-100 dark:bg-blue-900/20', text: 'text-blue-800 dark:text-blue-400' },
+      { bg: 'bg-green-100 dark:bg-green-900/20', text: 'text-green-800 dark:text-green-400' },
+      { bg: 'bg-purple-100 dark:bg-purple-900/20', text: 'text-purple-800 dark:text-purple-400' },
+      { bg: 'bg-orange-100 dark:bg-orange-900/20', text: 'text-orange-800 dark:text-orange-400' },
+      { bg: 'bg-pink-100 dark:bg-pink-900/20', text: 'text-pink-800 dark:text-pink-400' },
+      { bg: 'bg-indigo-100 dark:bg-indigo-900/20', text: 'text-indigo-800 dark:text-indigo-400' },
+      { bg: 'bg-teal-100 dark:bg-teal-900/20', text: 'text-teal-800 dark:text-teal-400' },
+      { bg: 'bg-red-100 dark:bg-red-900/20', text: 'text-red-800 dark:text-red-400' },
+      { bg: 'bg-yellow-100 dark:bg-yellow-900/20', text: 'text-yellow-800 dark:text-yellow-400' },
+      { bg: 'bg-cyan-100 dark:bg-cyan-900/20', text: 'text-cyan-800 dark:text-cyan-400' }
+    ];
+
+    const hash = getCategoryColorHash(category);
+    const colorIndex = hash % colorCombinations.length;
+    return colorCombinations[colorIndex];
+  };
+
   // Get auth headers for API calls
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
@@ -960,13 +992,8 @@ const Home = () => {
                             {task.title}
                           </div>
                           <div className="mt-1 flex flex-wrap gap-1">
-                            {task.category && (
-                              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 rounded px-1">
-                                {task.category.charAt(0).toUpperCase() + task.category.slice(1)}
-                              </span>
-                            )}
                             {task.task_category && (
-                              <span className="text-xs text-purple-600 dark:text-purple-400 bg-purple-100 dark:bg-purple-900/20 rounded px-1">
+                              <span className={`text-xs rounded px-1 ${getCategoryColor(task.task_category).bg} ${getCategoryColor(task.task_category).text}`}>
                                 {task.task_category}
                               </span>
                             )}
