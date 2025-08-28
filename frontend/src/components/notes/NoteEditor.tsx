@@ -314,6 +314,167 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     setHasChanges(true);
   };
 
+  // Helper function to get current selection
+  const getSelection = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return null;
+    return selection.getRangeAt(0);
+  };
+
+  // Helper function to restore selection
+  const restoreSelection = (range: Range) => {
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  };
+
+  // Create list functionality
+  const createList = (isOrdered: boolean = false) => {
+    const range = getSelection();
+    if (!range || !contentEditableRef.current) return;
+
+    const listType = isOrdered ? 'ol' : 'ul';
+    const listItem = document.createElement('li');
+    listItem.textContent = '\u200B'; // Zero-width space to maintain cursor
+
+    const list = document.createElement(listType);
+    list.appendChild(listItem);
+
+    // Insert the list
+    range.deleteContents();
+    range.insertNode(list);
+
+    // Move cursor inside the list item
+    const newRange = document.createRange();
+    newRange.setStart(listItem, 0);
+    newRange.collapse(true);
+    restoreSelection(newRange);
+
+    // Update content
+    setContent(contentEditableRef.current.innerHTML);
+    setHasChanges(true);
+  };
+
+  // Convert text to list
+  const convertToBulletList = () => {
+    const range = getSelection();
+    if (!range || !contentEditableRef.current) return;
+
+    const container = range.commonAncestorContainer;
+    const textNode = container.nodeType === Node.TEXT_NODE ? container : container.firstChild;
+    
+    if (textNode && textNode.nodeType === Node.TEXT_NODE) {
+      const text = textNode.textContent || '';
+      if (text.trim().startsWith('- ')) {
+        // Remove the "- " and create bullet list
+        const newText = text.replace(/^- /, '');
+        const listItem = document.createElement('li');
+        listItem.textContent = newText;
+
+        const list = document.createElement('ul');
+        list.appendChild(listItem);
+
+        // Replace the text node with the list
+        if (textNode.parentNode) {
+          textNode.parentNode.replaceChild(list, textNode);
+          
+          // Move cursor to end of list item
+          const newRange = document.createRange();
+          newRange.setStart(listItem, 1);
+          newRange.collapse(true);
+          restoreSelection(newRange);
+        }
+
+        setContent(contentEditableRef.current.innerHTML);
+        setHasChanges(true);
+      }
+    }
+  };
+
+  // Handle backspace in lists
+  const handleListBackspace = (e: React.KeyboardEvent) => {
+    const range = getSelection();
+    if (!range) return;
+
+    const listItem = range.startContainer.parentElement;
+    
+    // Check if we're in a list item
+    if (listItem && (listItem.tagName === 'LI' || listItem.closest('li'))) {
+      const actualListItem = listItem.tagName === 'LI' ? listItem : listItem.closest('li');
+      if (actualListItem) {
+        const list = actualListItem.closest('ul, ol');
+        if (list) {
+          // Check if cursor is at the beginning of the list item
+          const isAtStart = range.startOffset === 0;
+          
+          // If list item is empty or only has zero-width space, remove the bullet
+          if (actualListItem.textContent?.trim() === '' || actualListItem.textContent?.trim() === '\u200B') {
+            e.preventDefault();
+            
+            // Create a new paragraph to replace the list item
+            const paragraph = document.createElement('p');
+            paragraph.innerHTML = '<br>';
+            
+            // Insert the paragraph AFTER the list item, then remove the list item
+            if (actualListItem.parentNode) {
+              actualListItem.parentNode.insertBefore(paragraph, actualListItem.nextSibling);
+              actualListItem.remove();
+              
+              // Move cursor to the new paragraph at the same position
+              const newRange = document.createRange();
+              newRange.setStart(paragraph, 0);
+              newRange.collapse(true);
+              restoreSelection(newRange);
+              
+              // If list is empty, remove it too
+              if (list.children.length === 0) {
+                list.remove();
+              }
+            }
+            
+            if (contentEditableRef.current) {
+              setContent(contentEditableRef.current.innerHTML);
+              setHasChanges(true);
+            }
+          } else if (isAtStart) {
+            // If cursor is at the beginning of a non-empty list item, remove the bullet
+            e.preventDefault();
+            
+            // Get the text content (not HTML) to avoid formatting issues
+            const textContent = actualListItem.textContent || '';
+            
+            // Create a new paragraph with just the text content
+            const paragraph = document.createElement('p');
+            paragraph.textContent = textContent;
+            
+            // Replace the list item with the paragraph
+            if (actualListItem.parentNode) {
+              actualListItem.parentNode.replaceChild(paragraph, actualListItem);
+              
+              // Move cursor to the beginning of the text content (same visual position)
+              const newRange = document.createRange();
+              newRange.setStart(paragraph.firstChild || paragraph, 0);
+              newRange.collapse(true);
+              restoreSelection(newRange);
+              
+              // If list is empty, remove it too
+              if (list.children.length === 0) {
+                list.remove();
+              }
+            }
+            
+            if (contentEditableRef.current) {
+              setContent(contentEditableRef.current.innerHTML);
+              setHasChanges(true);
+            }
+          }
+        }
+      }
+    }
+  };
+
   // Simple formatting function for contentEditable
   const toggleFormatting = (command: string, value: string = '') => {
     console.log('toggleFormatting called:', { command, value });
@@ -328,6 +489,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Focus the contentEditable element
     if (contentEditableRef.current) {
       contentEditableRef.current.focus();
+    }
+
+    // Handle list commands specially
+    if (command === 'insertUnorderedList') {
+      createList(false);
+      return;
+    } else if (command === 'insertOrderedList') {
+      createList(true);
+      return;
     }
 
     // Check if the formatting is already applied
@@ -671,6 +841,33 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          max-width: 100% !important;
                          box-sizing: border-box !important;
                        }
+                       .note-editor ul {
+                         list-style-type: disc !important;
+                         padding-left: 2rem !important;
+                         margin: 0.5rem 0 !important;
+                       }
+                       .note-editor ul li {
+                         margin: 0.25rem 0 !important;
+                         line-height: 1.5 !important;
+                         position: relative !important;
+                       }
+                       .note-editor ul li::marker {
+                         color: #6b7280 !important;
+                         font-size: 0.875rem !important;
+                       }
+                       .note-editor ol {
+                         list-style-type: decimal !important;
+                         padding-left: 2rem !important;
+                         margin: 0.5rem 0 !important;
+                       }
+                       .note-editor ol li {
+                         margin: 0.25rem 0 !important;
+                         line-height: 1.5 !important;
+                       }
+                       .note-editor ol li::marker {
+                         color: #6b7280 !important;
+                         font-size: 0.875rem !important;
+                       }
                     `}
                   </style>
                   <div
@@ -685,6 +882,95 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     }}
                     onBlur={handleFormattingChange}
                     onKeyUp={handleFormattingChange}
+                    onKeyDown={(e) => {
+                      // Handle Backspace key for lists
+                      if (e.key === 'Backspace') {
+                        handleListBackspace(e);
+                      }
+
+                      // Handle Enter key for lists
+                      if (e.key === 'Enter') {
+                        const range = getSelection();
+                        if (!range) return;
+
+                        const listItem = range.startContainer.parentElement;
+                        
+                        // Check if we're in a list item
+                        if (listItem && (listItem.tagName === 'LI' || listItem.closest('li'))) {
+                          const actualListItem = listItem.tagName === 'LI' ? listItem : listItem.closest('li');
+                          if (actualListItem) {
+                            const list = actualListItem.closest('ul, ol');
+                            if (list) {
+                              // If list item is empty, exit the list
+                              if (actualListItem.textContent?.trim() === '' || actualListItem.textContent?.trim() === '\u200B') {
+                                e.preventDefault();
+                                
+                                // Create a new paragraph after the list
+                                const paragraph = document.createElement('p');
+                                paragraph.innerHTML = '<br>';
+                                
+                                if (list.parentNode) {
+                                  list.parentNode.insertBefore(paragraph, list.nextSibling);
+                                  
+                                  // Move cursor to the new paragraph
+                                  const newRange = document.createRange();
+                                  newRange.setStart(paragraph, 0);
+                                  newRange.collapse(true);
+                                  restoreSelection(newRange);
+                                  
+                                  // Remove the empty list item
+                                  actualListItem.remove();
+                                  
+                                  // If list is empty, remove it too
+                                  if (list.children.length === 0) {
+                                    list.remove();
+                                  }
+                                }
+                                
+                                if (contentEditableRef.current) {
+                                  setContent(contentEditableRef.current.innerHTML);
+                                  setHasChanges(true);
+                                }
+                              } else {
+                                // Create new list item
+                                e.preventDefault();
+                                const newListItem = document.createElement('li');
+                                newListItem.textContent = '\u200B';
+                                list.appendChild(newListItem);
+                                
+                                // Move cursor to new list item
+                                const newRange = document.createRange();
+                                newRange.setStart(newListItem, 0);
+                                newRange.collapse(true);
+                                restoreSelection(newRange);
+                                
+                                if (contentEditableRef.current) {
+                                  setContent(contentEditableRef.current.innerHTML);
+                                  setHasChanges(true);
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                      
+                      // Handle space key for auto-conversion
+                      if (e.key === ' ') {
+                        const range = getSelection();
+                        if (!range) return;
+
+                        const container = range.commonAncestorContainer;
+                        if (container.nodeType === Node.TEXT_NODE) {
+                          const text = container.textContent || '';
+                          if (text.trim().endsWith('-')) {
+                            // Convert to bullet list
+                            setTimeout(() => {
+                              convertToBulletList();
+                            }, 10);
+                          }
+                        }
+                      }
+                    }}
                     suppressContentEditableWarning={true}
                                          style={{
                        fontFamily: 'inherit',
