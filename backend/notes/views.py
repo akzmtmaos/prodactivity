@@ -56,9 +56,11 @@ class NoteListCreateView(generics.ListCreateAPIView):
         is_archived = self.request.query_params.get('archived', 'false').lower() == 'true'
         queryset = Note.objects.filter(user=self.request.user, is_deleted=False, is_archived=is_archived)
         
-        # Filter by notebook if provided
+        # Filter by notebook if provided (unless global search is requested)
         notebook_id = self.request.query_params.get('notebook', None)
-        if notebook_id is not None:
+        global_search = self.request.query_params.get('global_search', 'false').lower() == 'true'
+        
+        if notebook_id is not None and not global_search:
             queryset = queryset.filter(notebook_id=notebook_id)
         
         # Search functionality
@@ -176,3 +178,66 @@ def archived_notebooks(request):
     notebooks = Notebook.objects.filter(user=request.user, is_archived=True)
     serializer = NotebookSerializer(notebooks, many=True)
     return Response(serializer.data) 
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def global_search_notes(request):
+    """
+    Global search endpoint to search across all notes and notebooks
+    """
+    search_query = request.query_params.get('q', '')
+    if not search_query.strip():
+        return Response({'results': []})
+    
+    results = []
+    
+    # Search across all notes (not deleted, not archived)
+    notes = Note.objects.filter(
+        user=request.user,
+        is_deleted=False,
+        is_archived=False
+    ).filter(
+        Q(title__icontains=search_query) | 
+        Q(content__icontains=search_query)
+    ).select_related('notebook').order_by('-updated_at')
+    
+    # Add notes to results
+    for note in notes:
+        results.append({
+            'id': note.id,
+            'type': 'note',
+            'title': note.title,
+            'content': note.content[:200] + '...' if len(note.content) > 200 else note.content,
+            'notebook_id': note.notebook.id,
+            'notebook_name': note.notebook.name,
+            'created_at': note.created_at,
+            'updated_at': note.updated_at,
+            'url': f'/notes/{note.id}'
+        })
+    
+    # Search across all notebooks (not archived)
+    notebooks = Notebook.objects.filter(
+        user=request.user,
+        is_archived=False
+    ).filter(
+        Q(name__icontains=search_query)
+    ).order_by('-updated_at')
+    
+    # Add notebooks to results
+    for notebook in notebooks:
+        results.append({
+            'id': notebook.id,
+            'type': 'notebook',
+            'title': notebook.name,
+            'content': f'Notebook with {notebook.notes_count} notes',
+            'notebook_id': notebook.id,
+            'notebook_name': notebook.name,
+            'created_at': notebook.created_at,
+            'updated_at': notebook.updated_at,
+            'url': f'/notes?notebook={notebook.id}'
+        })
+    
+    # Sort all results by updated_at (most recent first)
+    results.sort(key=lambda x: x['updated_at'], reverse=True)
+    
+    return Response({'results': results}) 

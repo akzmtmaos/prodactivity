@@ -8,7 +8,8 @@ import NoteEditor from '../components/notes/NoteEditor';
 import PageLayout from '../components/PageLayout';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
-import { ChevronLeft, Plus, Book, Archive } from 'lucide-react';
+import GlobalSearch from '../components/notes/GlobalSearch';
+import { ChevronLeft, Plus, Book, Archive, Search } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
 
@@ -65,9 +66,9 @@ const Notes = () => {
   const [isNewNoteEditor, setIsNewNoteEditor] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
 
-  // Add filter state
-  const [filterType, setFilterType] = useState<'all' | 'title' | 'content' | 'date'>('all');
+  // Search and filter state
   const [notebookSearchTerm, setNotebookSearchTerm] = useState('');
+  const [filterType, setFilterType] = useState<'all' | 'title' | 'content' | 'date'>('all');
   const [notebookFilterType, setNotebookFilterType] = useState<'all' | 'name' | 'date'>('all');
 
   // Add tab state
@@ -76,6 +77,9 @@ const Notes = () => {
 
   // Add toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  // Global search state
+  const [showGlobalSearch, setShowGlobalSearch] = useState(false);
 
   // Hierarchical navigation state - NEW
   type ViewType = 'notebooks' | 'notes';
@@ -172,6 +176,7 @@ const Notes = () => {
     setNotes([]);
     setSearchTerm('');
     setNotebookSearchTerm('');
+    setFilterType('all');
     setNotebookFilterType('all');
   };
 
@@ -458,7 +463,55 @@ const Notes = () => {
     navigate('/notes');
   };
 
-  // Update filteredNotes logic to use filterType
+  // Global search state for notes and notebooks
+  const [globalSearchResults, setGlobalSearchResults] = useState<{notes: Note[], notebooks: Notebook[]}>({notes: [], notebooks: []});
+  const [isGlobalSearching, setIsGlobalSearching] = useState(false);
+
+  // Global search function
+  const performGlobalSearch = async (query: string) => {
+    if (!query.trim()) {
+      setGlobalSearchResults({notes: [], notebooks: []});
+      return;
+    }
+
+    setIsGlobalSearching(true);
+    try {
+      const response = await axiosInstance.get(`/notes/global-search/?q=${encodeURIComponent(query)}`);
+      const results = response.data.results || [];
+      
+      // Separate notes and notebooks from results
+      const notes = results.filter((item: any) => item.type === 'note').map((item: any) => ({
+        ...item,
+        notebook: item.notebook_id,
+        notebook_name: item.notebook_name
+      }));
+      
+      const notebooks = results.filter((item: any) => item.type === 'notebook');
+      
+      setGlobalSearchResults({notes, notebooks});
+    } catch (error) {
+      console.error('Global search failed:', error);
+      setGlobalSearchResults({notes: [], notebooks: []});
+    } finally {
+      setIsGlobalSearching(false);
+    }
+  };
+
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (searchTerm || notebookSearchTerm) {
+        const query = searchTerm || notebookSearchTerm;
+        performGlobalSearch(query);
+      } else {
+        setGlobalSearchResults({notes: [], notebooks: []});
+      }
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm, notebookSearchTerm]);
+
+  // Local filtering logic
   const filteredNotes = notes.filter(note => {
     const term = searchTerm.toLowerCase();
     if (!term) return true;
@@ -474,7 +527,6 @@ const Notes = () => {
     );
   });
 
-  // Filter notebooks based on search term and filter type
   const filteredNotebooks = notebooks.filter(notebook => {
     const term = notebookSearchTerm.toLowerCase();
     if (!term) return true;
@@ -541,6 +593,21 @@ const Notes = () => {
     }
   }, [notebooks, noteIdFromUrl, navigate]);
 
+  // Add useEffect to handle notebook selection from URL parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const notebookId = urlParams.get('notebook');
+    
+    if (notebookId && notebooks.length > 0) {
+      const notebook = notebooks.find(nb => nb.id === parseInt(notebookId));
+      if (notebook) {
+        setSelectedNotebook(notebook);
+        fetchNotes(notebook.id);
+        setCurrentView('notes');
+      }
+    }
+  }, [notebooks]);
+
   // Add useEffect to handle opening note from localStorage
   useEffect(() => {
     const openNoteFromStorage = async () => {
@@ -576,6 +643,24 @@ const Notes = () => {
       openNoteFromStorage();
     }
   }, [notebooks]); // Re-run when notebooks are loaded
+
+  // Add keyboard shortcut for global search
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl+K or Cmd+K to open global search
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+        e.preventDefault();
+        setShowGlobalSearch(true);
+      }
+      // Escape to close global search
+      if (e.key === 'Escape' && showGlobalSearch) {
+        setShowGlobalSearch(false);
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showGlobalSearch]);
 
   // Hide NoteEditor when URL does not have a note ID
   useEffect(() => {
@@ -802,20 +887,22 @@ const Notes = () => {
     <PageLayout>
       <div className="flex h-full">
         <div className="flex-1 space-y-6">
-          {/* Header */}
+                    {/* Header */}
           <NotesHeader
             currentView={currentView}
             selectedNotebook={selectedNotebook}
             notesCount={notes.length}
-                      searchTerm={searchTerm}
+            searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             filterType={filterType}
-            setFilterType={setFilterType as (type: 'all' | 'title' | 'content' | 'date') => void}
+            setFilterType={setFilterType}
             notebookSearchTerm={notebookSearchTerm}
             setNotebookSearchTerm={setNotebookSearchTerm}
             notebookFilterType={notebookFilterType}
-            setNotebookFilterType={setNotebookFilterType as (type: 'all' | 'name' | 'date') => void}
+            setNotebookFilterType={setNotebookFilterType}
             onBackToNotebooks={handleBackToNotebooks}
+            onGlobalSearch={() => setShowGlobalSearch(true)}
+            isSearching={isGlobalSearching}
           />
           
           {/* Tabs styled like Settings - Show for both notebooks and notes */}
@@ -1123,6 +1210,12 @@ const Notes = () => {
           onClose={() => setToast(null)}
         />
       )}
+      
+      {/* Global Search Modal */}
+      <GlobalSearch
+        isOpen={showGlobalSearch}
+        onClose={() => setShowGlobalSearch(false)}
+      />
     </PageLayout>
   );
 };

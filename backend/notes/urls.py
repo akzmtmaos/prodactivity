@@ -8,6 +8,9 @@ urlpatterns = [
     path('', views.NoteListCreateView.as_view(), name='note-list-create'),
     path('<int:pk>/', views.NoteRetrieveUpdateDestroyView.as_view(), name='note-detail'),
     
+    # Global search endpoint
+    path('global-search/', views.global_search_notes, name='global-search-notes'),
+    
     # Notebook endpoints
     path('notebooks/', views.NotebookListCreateView.as_view(), name='notebook-list-create'),
     path('notebooks/<int:pk>/', views.NotebookRetrieveUpdateDestroyView.as_view(), name='notebook-detail'),

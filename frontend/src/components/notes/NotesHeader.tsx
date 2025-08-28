@@ -1,5 +1,6 @@
 import React from 'react';
 import SearchBar from './SearchBar';
+import { Search } from 'lucide-react';
 
 interface NotesHeaderProps {
   currentView: 'notebooks' | 'notes';
@@ -14,6 +15,8 @@ interface NotesHeaderProps {
   notebookFilterType: 'all' | 'name' | 'date';
   setNotebookFilterType: (type: 'all' | 'name' | 'date') => void;
   onBackToNotebooks?: () => void;
+  onGlobalSearch?: () => void;
+  isSearching?: boolean;
 }
 
 const NotesHeader: React.FC<NotesHeaderProps> = ({
@@ -29,6 +32,8 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
   notebookFilterType,
   setNotebookFilterType,
   onBackToNotebooks,
+  onGlobalSearch,
+  isSearching = false,
 }) => {
   return (
     <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -42,10 +47,11 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
             : `Notes in ${selectedNotebook?.name || ''}`}
         </p>
       </div>
-      {/* Search and Filter Bar - Show for both notebooks and notes */}
+      
+      {/* Filter Bar and Global Search - Show for both notebooks and notes */}
       {currentView === 'notebooks' && (
         <>
-          {/* Search and Filter Bar for Notebooks - Desktop */}
+          {/* Filter Bar for Notebooks - Desktop */}
           <div className="hidden sm:flex items-center gap-2 mt-4 sm:mt-0 justify-end w-full sm:w-auto">
             <select
               value={notebookFilterType}
@@ -57,28 +63,24 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
               <option value="name">Name</option>
               <option value="date">Date</option>
             </select>
-            <div className="w-64">
-              <SearchBar
-                searchTerm={notebookSearchTerm}
-                onSearchChange={setNotebookSearchTerm}
-                placeholder="Search notebooks..."
-                inputClassName="h-10"
-                noMargin
-              />
-            </div>
+            <button
+              onClick={onGlobalSearch}
+              className="h-10 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+            >
+              <Search size={16} />
+              <span className="font-medium">Search</span>
+            </button>
           </div>
-          {/* Search and Filter Bar for Notebooks - Mobile */}
+          {/* Filter Bar for Notebooks - Mobile */}
           <div className="sm:hidden mb-6">
             <div className="flex gap-3">
-              <div className="flex-1">
-                <SearchBar
-                  searchTerm={notebookSearchTerm}
-                  onSearchChange={setNotebookSearchTerm}
-                  placeholder="Search notebooks..."
-                  inputClassName="h-12 text-base"
-                  noMargin
-                />
-              </div>
+              <button
+                onClick={onGlobalSearch}
+                className="h-12 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+              >
+                <Search size={16} />
+                <span className="font-medium">Search</span>
+              </button>
               <div className="w-32">
                 <select
                   value={notebookFilterType}
@@ -94,9 +96,10 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
           </div>
         </>
       )}
+      
       {currentView === 'notes' && (
         <>
-          {/* Search and Filter Bar - Desktop */}
+          {/* Filter Bar for Notes - Desktop */}
           <div className="hidden sm:flex items-center gap-2 mt-4 sm:mt-0 justify-end w-full sm:w-auto">
             <select
               value={filterType}
@@ -109,28 +112,24 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
               <option value="content">Content</option>
               <option value="date">Date</option>
             </select>
-            <div className="w-64">
-              <SearchBar
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                placeholder="Search notes..."
-                inputClassName="h-10"
-                noMargin
-              />
-            </div>
+            <button
+              onClick={onGlobalSearch}
+              className="h-10 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+            >
+              <Search size={16} />
+              <span className="font-medium">Search</span>
+            </button>
           </div>
-          {/* Search and Filter Bar - Mobile */}
+          {/* Filter Bar for Notes - Mobile */}
           <div className="sm:hidden mb-6">
             <div className="flex gap-3">
-              <div className="flex-1">
-                <SearchBar
-                  searchTerm={searchTerm}
-                  onSearchChange={setSearchTerm}
-                  placeholder="Search notes..."
-                  inputClassName="h-12 text-base"
-                  noMargin
-                />
-              </div>
+              <button
+                onClick={onGlobalSearch}
+                className="h-12 px-4 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+              >
+                <Search size={16} />
+                <span className="font-medium">Search</span>
+              </button>
               <div className="w-32">
                 <select
                   value={filterType}
