@@ -10,6 +10,12 @@ interface Note {
   content: string;
   notebook: number;
   notebook_name: string;
+  notebook_type: string;
+  notebook_urgency: string;
+  note_type: 'lecture' | 'reading' | 'assignment' | 'exam' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  is_urgent: boolean;
+  tags: string;
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
@@ -56,6 +62,75 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
   const handleArchive = () => {
     setShowMenu(false);
     onArchive();
+  };
+
+  // Helper function to get priority color
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return 'bg-red-500 text-white';
+      case 'high':
+        return 'bg-orange-500 text-white';
+      case 'medium':
+        return 'bg-yellow-500 text-white';
+      case 'low':
+        return 'bg-green-500 text-white';
+      default:
+        return 'bg-gray-500 text-white';
+    }
+  };
+
+  const getPriorityLabel = (priority: string) => {
+    switch (priority) {
+      case 'urgent':
+        return 'URGENT';
+      case 'high':
+        return 'HIGH';
+      case 'medium':
+        return 'MED';
+      case 'low':
+        return 'LOW';
+      default:
+        return 'MED';
+    }
+  };
+
+  const getNoteTypeLabel = (noteType: string) => {
+    switch (noteType) {
+      case 'lecture':
+        return 'Lecture';
+      case 'reading':
+        return 'Reading';
+      case 'assignment':
+        return 'Assignment';
+      case 'exam':
+        return 'Exam';
+      case 'meeting':
+        return 'Meeting';
+      case 'personal':
+        return 'Personal';
+      case 'work':
+        return 'Work';
+      case 'project':
+        return 'Project';
+      case 'research':
+        return 'Research';
+      default:
+        return 'Other';
+    }
+  };
+
+  const getUrgencyColor = (urgency: string) => {
+    switch (urgency) {
+      case 'critical':
+        return 'bg-red-600 text-white';
+      case 'urgent':
+        return 'bg-orange-500 text-white';
+      case 'important':
+        return 'bg-yellow-500 text-white';
+      default:
+        return 'bg-gray-500 text-white';
+    }
   };
 
   const handleNoteClick = async () => {
@@ -105,13 +180,38 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
           }}
         />
         <div className="flex-1 flex flex-col justify-center ml-4">
-          <h3 className="text-base font-medium text-gray-900 dark:text-white truncate">
-            {note.title}
-          </h3>
-          <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            <span>Created: {formatDate(note.created_at)}</span>
-            <span className="mx-2">|</span>
-            <span>Updated: {formatDate(note.updated_at)}</span>
+          {/* First line: Note Title */}
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-medium text-gray-900 dark:text-white truncate">
+              {note.title}
+            </h3>
+          </div>
+          {/* Second line: URGENT tag, metadata, and timestamps */}
+          <div className="flex items-center gap-2 mt-1">
+            {note.is_urgent && (
+              <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-600 text-white">
+                URGENT
+              </span>
+            )}
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {getNoteTypeLabel(note.note_type)}
+            </span>
+            <span className="text-xs text-gray-400">•</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {note.notebook_name}
+            </span>
+            {note.notebook_urgency !== 'normal' && (
+              <>
+                <span className="text-xs text-gray-400">•</span>
+                <span className={`px-1 py-0.5 text-xs font-medium rounded ${getUrgencyColor(note.notebook_urgency)}`}>
+                  {note.notebook_urgency.toUpperCase()}
+                </span>
+              </>
+            )}
+            <span className="text-xs text-gray-400">•</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              Created: {formatDate(note.created_at)} | Updated: {formatDate(note.updated_at)}
+            </span>
           </div>
         </div>
         <div className="relative">

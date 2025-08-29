@@ -21,6 +21,12 @@ interface Note {
   content: string;
   notebook: number;
   notebook_name: string;
+  notebook_type: string;
+  notebook_urgency: string;
+  note_type: 'lecture' | 'reading' | 'assignment' | 'exam' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  is_urgent: boolean;
+  tags: string;
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
@@ -34,7 +40,7 @@ interface ChatMessage {
 interface NoteEditorProps {
   note: Note | null;
   isNewNote: boolean;
-  onSave: (title: string, content: string, closeAfterSave?: boolean) => void;
+  onSave: (title: string, content: string, priority: 'low' | 'medium' | 'high' | 'urgent', closeAfterSave?: boolean) => void;
   onDelete: (noteId: number) => void;
   onBack: () => void;
   isSaving?: boolean;
@@ -65,6 +71,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 }) => {
   const [title, setTitle] = useState(note?.title || '');
   const [content, setContent] = useState(note?.content || '');
+  const [priority, setPriority] = useState<'low' | 'medium' | 'high' | 'urgent'>(note?.priority || 'medium');
   const [hasChanges, setHasChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const autoSaveTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -126,6 +133,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       console.log('Note loaded:', note);
       setTitle(note.title || '');
       setContent(note.content || '');
+      setPriority(note.priority || 'medium');
       setHasChanges(false);
       
       // Update last_visited timestamp when note is loaded
@@ -172,7 +180,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     if (autoSaveTimeout.current) {
       clearTimeout(autoSaveTimeout.current);
     }
-    onSave(title.trim() || 'Untitled Note', content);
+            onSave(title.trim() || 'Untitled Note', content, priority);
     setHasChanges(false);
     setLastSaved(new Date());
     
@@ -191,14 +199,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         handleSave();
       }
     }, AUTO_SAVE_DELAY);
-  }, [title, content, hasChanges]);
+  }, [title, content, priority, hasChanges]);
 
   // Auto-save when content or title changes
   useEffect(() => {
     if (hasChanges) {
       debouncedSave();
     }
-  }, [content, title, hasChanges, debouncedSave]);
+  }, [content, title, priority, hasChanges, debouncedSave]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -699,6 +707,20 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 placeholder="Untitled Note"
                 className="text-xl font-semibold bg-transparent border-none focus:outline-none focus:ring-0 w-full text-gray-900 dark:text-white"
               />
+              {/* Priority selector */}
+              <select
+                value={priority}
+                onChange={(e) => {
+                  setPriority(e.target.value as 'low' | 'medium' | 'high' | 'urgent');
+                  setHasChanges(true);
+                }}
+                className="px-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              >
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="urgent">Urgent</option>
+              </select>
               {/* Save status indicator */}
               <div 
                 className={`w-3 h-3 rounded-full flex-shrink-0 ${

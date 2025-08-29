@@ -8,6 +8,9 @@ import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
 interface Notebook {
   id: number;
   name: string;
+  notebook_type: 'study' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
+  urgency_level: 'normal' | 'important' | 'urgent' | 'critical';
+  description: string;
   created_at: string;
   updated_at: string;
   notes_count: number;
@@ -21,6 +24,12 @@ interface Note {
   content: string;
   notebook: number;
   notebook_name: string;
+  notebook_type: string;
+  notebook_urgency: string;
+  note_type: 'lecture' | 'reading' | 'assignment' | 'exam' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  is_urgent: boolean;
+  tags: string;
   created_at: string;
   updated_at: string;
   is_deleted: boolean;

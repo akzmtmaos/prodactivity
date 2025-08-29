@@ -5,6 +5,9 @@ import { Plus, Edit, Trash2, Book, ChevronLeft, ChevronRight, Save, X, FileText 
 interface Notebook {
   id: number;
   name: string;
+  notebook_type: 'study' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
+  urgency_level: 'normal' | 'important' | 'urgent' | 'critical';
+  description: string;
   created_at: string;
   updated_at: string;
   notes_count: number;

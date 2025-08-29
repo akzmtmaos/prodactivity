@@ -9,13 +9,17 @@ import PageLayout from '../components/PageLayout';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
 import GlobalSearch from '../components/notes/GlobalSearch';
-import { ChevronLeft, Plus, Book, Archive, Search } from 'lucide-react';
+import UrgentItemsPanel from '../components/notes/UrgentItemsPanel';
+import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
 
 interface Notebook {
   id: number;
   name: string;
+  notebook_type: 'study' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
+  urgency_level: 'normal' | 'important' | 'urgent' | 'critical';
+  description: string;
   created_at: string;
   updated_at: string;
   notes_count: number;
@@ -29,6 +33,12 @@ interface Note {
   content: string;
   notebook: number;
   notebook_name: string;
+  notebook_type: string;
+  notebook_urgency: string;
+  note_type: 'lecture' | 'reading' | 'assignment' | 'exam' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  is_urgent: boolean;
+  tags: string;
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
@@ -69,7 +79,10 @@ const Notes = () => {
   // Search and filter state
   const [notebookSearchTerm, setNotebookSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'title' | 'content' | 'date'>('all');
+  const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'urgent'>('all');
   const [notebookFilterType, setNotebookFilterType] = useState<'all' | 'name' | 'date'>('all');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [notebookSortOrder, setNotebookSortOrder] = useState<'asc' | 'desc'>('asc');
 
   // Add tab state
   const [activeTab, setActiveTab] = useState<'notes' | 'logs' | 'archived'>('notes');
@@ -80,6 +93,9 @@ const Notes = () => {
 
   // Global search state
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
+  
+  // Urgent items panel state
+  const [showUrgentItemsPanel, setShowUrgentItemsPanel] = useState(false);
 
   // Hierarchical navigation state - NEW
   type ViewType = 'notebooks' | 'notes';
@@ -397,13 +413,14 @@ const Notes = () => {
   };
 
   // 3. Add handlers for saving and closing NoteEditor
-  const handleSaveNoteEditor = async (title: string, content: string, closeAfterSave = false) => {
+  const handleSaveNoteEditor = async (title: string, content: string, priority: 'low' | 'medium' | 'high' | 'urgent', closeAfterSave = false) => {
     setIsSavingNote(true);
     if (isNewNoteEditor && selectedNotebook) {
       try {
         const response = await axiosInstance.post(`/notes/`, {
           title: title.trim() || 'Untitled Note',
           content,
+          priority,
           notebook: selectedNotebook.id
         });
         setNotes([response.data, ...notes]);
@@ -429,6 +446,7 @@ const Notes = () => {
         const response = await axiosInstance.put(`/notes/${noteEditorNote.id}/`, {
           title: title.trim() || 'Untitled Note',
           content,
+          priority,
           notebook: noteEditorNote.notebook
         });
         
@@ -511,34 +529,86 @@ const Notes = () => {
     return () => clearTimeout(timeoutId);
   }, [searchTerm, notebookSearchTerm]);
 
-  // Local filtering logic
-  const filteredNotes = notes.filter(note => {
-    const term = searchTerm.toLowerCase();
-    if (!term) return true;
-    if (filterType === 'title') return note.title.toLowerCase().includes(term);
-    if (filterType === 'content') return note.content.toLowerCase().includes(term);
-    if (filterType === 'date') return note.created_at.toLowerCase().includes(term) || note.updated_at.toLowerCase().includes(term);
-    // 'all'
-    return (
-      note.title.toLowerCase().includes(term) ||
-      note.content.toLowerCase().includes(term) ||
-      note.created_at.toLowerCase().includes(term) ||
-      note.updated_at.toLowerCase().includes(term)
-    );
-  });
+  // Local filtering and sorting logic
+  const filteredNotes = notes
+    .filter(note => {
+      // Priority filter
+      if (priorityFilter !== 'all' && note.priority !== priorityFilter) {
+        return false;
+      }
+      
+      // Search term filter
+      const term = searchTerm.toLowerCase();
+      if (!term) return true; // If no search term, show all notes (filtered by priority only)
+      
+      // Apply search filter based on filterType
+      if (filterType === 'title') return note.title.toLowerCase().includes(term);
+      if (filterType === 'content') return note.content.toLowerCase().includes(term);
+      if (filterType === 'date') {
+        const createdDate = new Date(note.created_at).toLocaleDateString().toLowerCase();
+        const updatedDate = new Date(note.updated_at).toLocaleDateString().toLowerCase();
+        return createdDate.includes(term) || updatedDate.includes(term);
+      }
+      // 'all' - search in all fields
+      return (
+        note.title.toLowerCase().includes(term) ||
+        note.content.toLowerCase().includes(term) ||
+        new Date(note.created_at).toLocaleDateString().toLowerCase().includes(term) ||
+        new Date(note.updated_at).toLocaleDateString().toLowerCase().includes(term)
+      );
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      // Sort based on filterType
+      if (filterType === 'title') {
+        comparison = a.title.localeCompare(b.title);
+      } else if (filterType === 'content') {
+        comparison = a.content.localeCompare(b.content);
+      } else if (filterType === 'date') {
+        // Sort by date
+        comparison = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      } else {
+        // Default sort by most recent update
+        comparison = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      }
+      // Apply sort order
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
 
-  const filteredNotebooks = notebooks.filter(notebook => {
-    const term = notebookSearchTerm.toLowerCase();
-    if (!term) return true;
-    if (notebookFilterType === 'name') return notebook.name.toLowerCase().includes(term);
-    if (notebookFilterType === 'date') return notebook.created_at.toLowerCase().includes(term) || notebook.updated_at.toLowerCase().includes(term);
-    // 'all'
-    return (
-      notebook.name.toLowerCase().includes(term) ||
-      notebook.created_at.toLowerCase().includes(term) ||
-      notebook.updated_at.toLowerCase().includes(term)
-    );
-  });
+  const filteredNotebooks = notebooks
+    .filter(notebook => {
+      const term = notebookSearchTerm.toLowerCase();
+      if (!term) return true; // If no search term, show all notebooks
+      
+      // Apply search filter based on notebookFilterType
+      if (notebookFilterType === 'name') return notebook.name.toLowerCase().includes(term);
+      if (notebookFilterType === 'date') {
+        const createdDate = new Date(notebook.created_at).toLocaleDateString().toLowerCase();
+        const updatedDate = new Date(notebook.updated_at).toLocaleDateString().toLowerCase();
+        return createdDate.includes(term) || updatedDate.includes(term);
+      }
+      // 'all' - search in all fields
+      return (
+        notebook.name.toLowerCase().includes(term) ||
+        new Date(notebook.created_at).toLocaleDateString().toLowerCase().includes(term) ||
+        new Date(notebook.updated_at).toLocaleDateString().toLowerCase().includes(term)
+      );
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      // Sort based on notebookFilterType
+      if (notebookFilterType === 'name') {
+        comparison = a.name.localeCompare(b.name);
+      } else if (notebookFilterType === 'date') {
+        // Sort by date
+        comparison = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      } else {
+        // Default sort by name
+        comparison = a.name.localeCompare(b.name);
+      }
+      // Apply sort order
+      return notebookSortOrder === 'asc' ? comparison : -comparison;
+    });
 
   // Add handler to update note title
   const handleUpdateNoteTitle = async (noteId: number, newTitle: string) => {
@@ -896,12 +966,19 @@ const Notes = () => {
             setSearchTerm={setSearchTerm}
             filterType={filterType}
             setFilterType={setFilterType}
+            priorityFilter={priorityFilter}
+            setPriorityFilter={setPriorityFilter}
             notebookSearchTerm={notebookSearchTerm}
             setNotebookSearchTerm={setNotebookSearchTerm}
             notebookFilterType={notebookFilterType}
             setNotebookFilterType={setNotebookFilterType}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+            notebookSortOrder={notebookSortOrder}
+            setNotebookSortOrder={setNotebookSortOrder}
             onBackToNotebooks={handleBackToNotebooks}
             onGlobalSearch={() => setShowGlobalSearch(true)}
+            onUrgentItems={() => setShowUrgentItemsPanel(true)}
             isSearching={isGlobalSearching}
           />
           
@@ -1215,6 +1292,32 @@ const Notes = () => {
       <GlobalSearch
         isOpen={showGlobalSearch}
         onClose={() => setShowGlobalSearch(false)}
+      />
+      
+      {/* Urgent Items Panel */}
+      <UrgentItemsPanel
+        isOpen={showUrgentItemsPanel}
+        onClose={() => setShowUrgentItemsPanel(false)}
+        onNoteClick={(note) => {
+          // Find the notebook for this note and navigate to it
+          const notebook = notebooks.find(nb => nb.id === note.notebook);
+          if (notebook) {
+            setSelectedNotebook(notebook);
+            fetchNotes(notebook.id);
+            setCurrentView('notes');
+            // Open the note in editor
+            setNoteEditorNote(note);
+            setIsNewNoteEditor(false);
+            setShowNoteEditor(true);
+          }
+          setShowUrgentItemsPanel(false);
+        }}
+        onNotebookClick={(notebook) => {
+          setSelectedNotebook(notebook);
+          fetchNotes(notebook.id);
+          setCurrentView('notes');
+          setShowUrgentItemsPanel(false);
+        }}
       />
     </PageLayout>
   );
