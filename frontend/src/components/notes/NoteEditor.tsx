@@ -413,20 +413,33 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
           if (actualListItem.textContent?.trim() === '' || actualListItem.textContent?.trim() === '\u200B') {
             e.preventDefault();
             
-            // Create a new paragraph to replace the list item
+            // Store the position of the list item in the list
+            const listItems = Array.from(list.children);
+            const itemIndex = listItems.indexOf(actualListItem);
+            
+            // Create a new paragraph
             const paragraph = document.createElement('p');
             paragraph.innerHTML = '<br>';
             
-            // Insert the paragraph AFTER the list item, then remove the list item
+            // Insert the paragraph at the same position as the list item
             if (actualListItem.parentNode) {
-              actualListItem.parentNode.insertBefore(paragraph, actualListItem.nextSibling);
+              actualListItem.parentNode.insertBefore(paragraph, actualListItem);
+              
+              // Remove the list item
               actualListItem.remove();
               
-              // Move cursor to the new paragraph at the same position
-              const newRange = document.createRange();
-              newRange.setStart(paragraph, 0);
-              newRange.collapse(true);
-              restoreSelection(newRange);
+              // Use setTimeout to ensure DOM is updated before setting cursor
+              setTimeout(() => {
+                const newRange = document.createRange();
+                // Try to set cursor at the beginning of the paragraph content
+                if (paragraph.firstChild) {
+                  newRange.setStart(paragraph.firstChild, 0);
+                } else {
+                  newRange.setStart(paragraph, 0);
+                }
+                newRange.collapse(true);
+                restoreSelection(newRange);
+              }, 0);
               
               // If list is empty, remove it too
               if (list.children.length === 0) {
