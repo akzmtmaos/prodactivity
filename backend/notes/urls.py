@@ -36,4 +36,9 @@ urlpatterns = [
     # Archive endpoints
     path('archived/notes/', views.archived_notes, name='archived-notes'),
     path('archived/notebooks/', views.archived_notebooks, name='archived-notebooks'),
+    
+    # Urgency and categorization endpoints
+    path('urgent/', views.urgent_notes_and_notebooks, name='urgent-items'),
+    path('notes-by-type/', views.notes_by_type, name='notes-by-type'),
+    path('notebooks-by-type/', views.notebooks_by_type, name='notebooks-by-type'),
 ]

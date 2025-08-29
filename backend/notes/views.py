@@ -240,4 +240,111 @@ def global_search_notes(request):
     # Sort all results by updated_at (most recent first)
     results.sort(key=lambda x: x['updated_at'], reverse=True)
     
-    return Response({'results': results}) 
+    return Response({'results': results})
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def urgent_notes_and_notebooks(request):
+    """Get all urgent notes and notebooks that need immediate attention"""
+    try:
+        # Get urgent notes
+        urgent_notes = Note.objects.filter(
+            user=request.user,
+            is_deleted=False,
+            is_archived=False
+        ).filter(
+            Q(is_urgent=True) | Q(priority='urgent') | Q(priority='high')
+        ).select_related('notebook').order_by('-updated_at')
+        
+        # Get urgent notebooks
+        urgent_notebooks = Notebook.objects.filter(
+            user=request.user,
+            is_archived=False
+        ).filter(
+            Q(urgency_level='urgent') | Q(urgency_level='critical')
+        ).order_by('-updated_at')
+        
+        # Get notes from urgent notebooks
+        notes_from_urgent_notebooks = Note.objects.filter(
+            user=request.user,
+            is_deleted=False,
+            is_archived=False,
+            notebook__urgency_level__in=['urgent', 'critical']
+        ).select_related('notebook').order_by('-updated_at')
+        
+        # Combine and deduplicate
+        all_urgent_notes = list(urgent_notes) + list(notes_from_urgent_notebooks)
+        unique_urgent_notes = list({note.id: note for note in all_urgent_notes}.values())
+        
+        # Serialize the data
+        note_serializer = NoteSerializer(unique_urgent_notes, many=True)
+        notebook_serializer = NotebookSerializer(urgent_notebooks, many=True)
+        
+        return Response({
+            'urgent_notes': note_serializer.data,
+            'urgent_notebooks': notebook_serializer.data,
+            'total_urgent_items': len(unique_urgent_notes) + len(urgent_notebooks)
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to fetch urgent items: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def notes_by_type(request):
+    """Get notes filtered by type (study, meeting, etc.)"""
+    note_type = request.query_params.get('type', None)
+    if not note_type:
+        return Response({'error': 'Note type parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        notes = Note.objects.filter(
+            user=request.user,
+            is_deleted=False,
+            is_archived=False,
+            note_type=note_type
+        ).select_related('notebook').order_by('-updated_at')
+        
+        serializer = NoteSerializer(notes, many=True)
+        return Response({
+            'notes': serializer.data,
+            'type': note_type,
+            'count': len(notes)
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to fetch notes by type: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def notebooks_by_type(request):
+    """Get notebooks filtered by type (study, work, etc.)"""
+    notebook_type = request.query_params.get('type', None)
+    if not notebook_type:
+        return Response({'error': 'Notebook type parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        notebooks = Notebook.objects.filter(
+            user=request.user,
+            is_archived=False,
+            notebook_type=notebook_type
+        ).order_by('-updated_at')
+        
+        serializer = NotebookSerializer(notebooks, many=True)
+        return Response({
+            'notebooks': serializer.data,
+            'type': notebook_type,
+            'count': len(notebooks)
+        })
+        
+    except Exception as e:
+        return Response(
+            {'error': f'Failed to fetch notebooks by type: {str(e)}'}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        ) 
