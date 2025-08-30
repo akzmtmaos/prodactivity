@@ -429,3 +429,111 @@ class AIAutomaticReviewerView(APIView):
                 {"error": f"Failed to generate reviewer content. Internal error: {str(e)}"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class ConvertToFlashcardsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            text = request.data.get('text', '')
+            if not text:
+                return Response(
+                    {"error": "No text provided"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create a prompt for converting text to flashcards
+            flashcard_prompt = f"""Convert the following text into flashcards. Create 5-10 flashcards that cover the key concepts, definitions, and important points from the text.
+
+For each flashcard, provide:
+1. A clear question or concept on the front
+2. A concise answer or explanation on the back
+
+Format your response as JSON with this structure:
+{{
+  "flashcards": [
+    {{
+      "front": "Question or concept here",
+      "back": "Answer or explanation here"
+    }}
+  ]
+}}
+
+Text to convert:
+{text}
+
+Remember to:
+- Focus on the most important concepts
+- Make questions clear and specific
+- Keep answers concise but informative
+- Cover different aspects of the content
+- Use a variety of question types (definitions, concepts, examples)
+
+Respond only with valid JSON:"""
+
+            payload = {
+                "model": OLLAMA_MODEL,
+                "prompt": flashcard_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.3,
+                    "top_p": 0.7,
+                    "top_k": 40,
+                    "num_predict": 800,
+                    "repeat_penalty": 1.1
+                }
+            }
+            
+            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
+            
+            if response.status_code == 200:
+                try:
+                    result = response.json()
+                    response_text = result.get('response', '').strip()
+                    
+                    # Try to parse the JSON response
+                    import json
+                    import re
+                    
+                    # Extract JSON from the response (in case there's extra text)
+                    json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                    if json_match:
+                        flashcards_data = json.loads(json_match.group())
+                        return Response(flashcards_data)
+                    else:
+                        # If no JSON found, try to parse the entire response
+                        flashcards_data = json.loads(response_text)
+                        return Response(flashcards_data)
+                        
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse AI response as JSON: {e}")
+                    logger.error(f"Raw response: {response_text}")
+                    return Response(
+                        {'error': 'Failed to parse AI response. Please try again.'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+            else:
+                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+                return Response(
+                    {'error': 'Failed to get response from AI service. Make sure Ollama is running.'},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+                
+        except requests.exceptions.ConnectionError:
+            logger.error("Could not connect to Ollama. Make sure Ollama is running.")
+            return Response(
+                {'error': 'Could not connect to Ollama. Please make sure Ollama is running on your computer.'},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except requests.exceptions.Timeout:
+            logger.error("Ollama request timed out.")
+            return Response(
+                {'error': 'The AI is taking too long to respond. Please try again.'},
+                status=status.HTTP_408_REQUEST_TIMEOUT
+            )
+        except Exception as e:
+            logger.error(f"Error in convert to flashcards endpoint: {str(e)}")
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )

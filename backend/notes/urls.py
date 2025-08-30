@@ -1,7 +1,7 @@
 # notes/urls.py
 from django.urls import path
 from . import views
-from .ai_views import SummarizeView, chat, ReviewView, AIAutomaticReviewerView
+from .ai_views import SummarizeView, chat, ReviewView, AIAutomaticReviewerView, ConvertToFlashcardsView
 
 urlpatterns = [
     # Note endpoints
@@ -23,6 +23,9 @@ urlpatterns = [
 
     # AI Automatic Reviewer endpoint
     path('ai-reviewer/', AIAutomaticReviewerView.as_view(), name='ai-automatic-reviewer'),
+
+    # Convert to flashcards endpoint
+    path('convert-to-flashcards/', ConvertToFlashcardsView.as_view(), name='convert-to-flashcards'),
 
     # Document conversion endpoint
     path('convert-doc/', views.convert_doc, name='convert-doc'),

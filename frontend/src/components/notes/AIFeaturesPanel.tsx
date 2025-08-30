@@ -1,11 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { DocumentTextIcon, ChatBubbleLeftRightIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
-import { Sparkles, X } from 'lucide-react';
+import { Sparkles, X, CreditCard } from 'lucide-react';
 import axios from 'axios';
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
+}
+
+interface Flashcard {
+  front: string;
+  back: string;
 }
 
 interface AIFeaturesPanelProps {
@@ -94,6 +99,10 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ content, onApplySumma
   const [isReviewing, setIsReviewing] = useState(false);
   const [panelVisible, setPanelVisible] = useState(false);
   const [generatedReviewerId, setGeneratedReviewerId] = useState<number | null>(null);
+  const [flashcards, setFlashcards] = useState<Flashcard[]>([]);
+  const [isConvertingToFlashcards, setIsConvertingToFlashcards] = useState(false);
+  const [flashcardResult, setFlashcardResult] = useState<string>('');
+  const [createdDeckId, setCreatedDeckId] = useState<number | null>(null);
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 
@@ -337,6 +346,78 @@ Click "View Full Review" to see the complete reviewer with all features.`);
     }
   };
 
+  const handleConvertToFlashcards = async () => {
+    if (!content.trim()) return;
+    
+    setIsConvertingToFlashcards(true);
+    setFlashcardResult('');
+    setFlashcards([]);
+    
+    try {
+      // First, get flashcards from AI
+      const response = await axios.post(`${API_URL}/notes/convert-to-flashcards/`, {
+        text: content
+      }, {
+        headers: getAuthHeaders()
+      });
+      
+      if (response.data.error) {
+        throw new Error(response.data.error);
+      }
+      
+      const generatedFlashcards = response.data.flashcards || [];
+      if (!generatedFlashcards.length) {
+        throw new Error('No flashcards were generated');
+      }
+      
+      setFlashcards(generatedFlashcards);
+      
+      // Create a deck for the flashcards
+      const deckTitle = sourceTitle ? `${sourceTitle} - Flashcards` : 'Note Flashcards';
+      const deckResponse = await axios.post(`${API_URL}/decks/decks/`, {
+        title: deckTitle
+      }, {
+        headers: getAuthHeaders()
+      });
+      
+      const deckId = deckResponse.data.id;
+      setCreatedDeckId(deckId);
+      
+      // Create flashcards in the deck
+      const createdFlashcards = [];
+      for (const flashcard of generatedFlashcards) {
+        const flashcardResponse = await axios.post(`${API_URL}/decks/flashcards/`, {
+          deck: deckId,
+          front: flashcard.front,
+          back: flashcard.back
+        }, {
+          headers: getAuthHeaders()
+        });
+        createdFlashcards.push(flashcardResponse.data);
+      }
+      
+      setFlashcardResult(`✅ Successfully created ${createdFlashcards.length} flashcards!
+
+Deck: ${deckTitle}
+Flashcards: ${createdFlashcards.length}
+
+Click "View Deck" to see your flashcards in the Decks section.`);
+      
+    } catch (error: any) {
+      console.error('Failed to convert to flashcards:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to convert to flashcards. Please try again.';
+      setFlashcardResult(`❌ Error: ${errorMessage}`);
+    } finally {
+      setIsConvertingToFlashcards(false);
+    }
+  };
+
+  const handleViewDeck = () => {
+    if (createdDeckId) {
+      window.open(`/decks/${createdDeckId}`, '_blank');
+    }
+  };
+
   // Auto-scroll to bottom when new messages are added
   useEffect(() => {
     if (chatEndRef.current) {
@@ -355,7 +436,8 @@ Click "View Full Review" to see the complete reviewer with all features.`);
             <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {activeFeature === 'summarize' ? 'Smart Summarization' :
-                 activeFeature === 'review' ? 'AI Reviewer' : 'AI Chat'}
+                 activeFeature === 'review' ? 'AI Reviewer' : 
+                 activeFeature === 'flashcards' ? 'Convert to Flashcards' : 'AI Chat'}
               </h2>
               <div className="flex items-center space-x-2">
                 {activeFeature === 'chat' && chatMessages.length > 0 && (
@@ -382,6 +464,9 @@ Click "View Full Review" to see the complete reviewer with all features.`);
                     setChatInput('');
                     setGeneratedReviewerId(null);
                     setReviewResult('');
+                    setFlashcards([]);
+                    setFlashcardResult('');
+                    setCreatedDeckId(null);
                   }}
                   className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
                 >
@@ -460,6 +545,60 @@ Click "View Full Review" to see the complete reviewer with all features.`);
                             className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
                           >
                             View Full Review
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+                {activeFeature === 'flashcards' && (
+                  <div className="space-y-4 p-4">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Convert your note content into study flashcards automatically.
+                    </p>
+                    <button
+                      onClick={handleConvertToFlashcards}
+                      disabled={!content.trim() || isConvertingToFlashcards}
+                      className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                    >
+                      <Sparkles className="w-4 h-4 mr-2" />
+                      {isConvertingToFlashcards ? 'Converting...' : 'Convert to Flashcards'}
+                    </button>
+                    
+                    {flashcards.length > 0 && (
+                      <div className="space-y-3">
+                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                          Generated Flashcards ({flashcards.length})
+                        </h3>
+                        <div className="max-h-64 overflow-y-auto space-y-2">
+                          {flashcards.map((flashcard, index) => (
+                            <div key={index} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                              <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                                Card {index + 1}
+                              </div>
+                              <div className="text-sm font-medium text-gray-900 dark:text-white mb-1">
+                                {flashcard.front}
+                              </div>
+                              <div className="text-sm text-gray-600 dark:text-gray-300">
+                                {flashcard.back}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {flashcardResult && (
+                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mt-2">
+                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
+                          {flashcardResult}
+                        </p>
+                        {createdDeckId && (
+                          <button
+                            onClick={handleViewDeck}
+                            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                          >
+                            View Deck
                           </button>
                         )}
                       </div>
@@ -558,6 +697,23 @@ Click "View Full Review" to see the complete reviewer with all features.`);
           <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
             <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
               AI Reviewer
+            </div>
+            <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
+          </div>
+        </button>
+        
+        <button
+          onClick={() => handleFeatureClick('flashcards')}
+          className={`p-2 rounded-lg transition-colors group relative
+            ${activeFeature === 'flashcards' 
+              ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
+              : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'}`}
+          title="Convert to Flashcards"
+        >
+          <CreditCard className="h-6 w-6" />
+          <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
+            <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+              Convert to Flashcards
             </div>
             <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
           </div>
