@@ -34,17 +34,58 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       selectedYear: selectedDate.getFullYear()
     });
     
+    // Find the productivity data for the selected date
+    // Use local date formatting to avoid timezone issues
+    const selectedDateStr = selectedDate.toLocaleDateString('en-CA'); // Format as YYYY-MM-DD in local timezone
+    const selectedDateData = prodLogs.find(item => item.date === selectedDateStr);
+    
+    // Check if selected date is today
+    const today = new Date();
+    const isSelectedDateToday = selectedDate.toDateString() === today.toDateString();
+    
+    console.log('Debug info:', {
+      selectedDateStr,
+      isSelectedDateToday,
+      selectedDateData: selectedDateData ? 'Found' : 'Not found',
+      allDates: prodLogs.map(item => item.date).slice(0, 10), // Show first 10 dates for debugging
+      selectedDateISO: selectedDate.toISOString(),
+      selectedDateString: selectedDate.toString(),
+      todayISO: today.toISOString(),
+      todayString: today.toString(),
+      selectedDateLocal: selectedDate.toLocaleDateString('en-CA'),
+      todayLocal: today.toLocaleDateString('en-CA')
+    });
+    
     return (
     <>
-      {/* Today's productivity as topmost entry */}
-      {productivity && (
+      {/* Show productivity for the selected date (not always today) */}
+      {selectedDateData && (
         <ProductivityRow
-          date={new Date().toISOString()}
-          completionRate={productivity.completion_rate || 0}
-          status={productivity.status || 'No Tasks'}
-          isToday={true}
+          date={selectedDateData.date}
+          completionRate={selectedDateData.log.completion_rate}
+          status={selectedDateData.log.status}
+          isToday={isSelectedDateToday}
           getProductivityColor={getProductivityColor}
         />
+      )}
+      
+      {/* If no data found for selected date, show a message */}
+      {!selectedDateData && (
+        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8 mb-4">
+          <div className="text-center">
+            <p className="text-gray-500 dark:text-gray-400 mb-2">No data found for {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">This might be because:</p>
+            <ul className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+              <li>• No tasks were completed on this date</li>
+              <li>• Data is still being processed</li>
+              <li>• API is not returning data for this date</li>
+            </ul>
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Total logs received: {prodLogs.length}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Looking for date: {selectedDateStr}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Is today: {isSelectedDateToday ? 'Yes' : 'No'}</p>
+            <p className="text-xs text-gray-400 dark:text-gray-500">Available dates: {prodLogs.map(item => item.date).slice(0, 5).join(', ')}</p>
+          </div>
+        </div>
       )}
       
       {/* Historical logs */}
@@ -67,11 +108,6 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           today.setHours(0,0,0,0);
           // dayDate is already set to midnight UTC
           
-          if (dayDate.getTime() === today.getTime()) {
-            console.log('Skipping today:', dayDate.toISOString());
-            return false;
-          }
-          
           // Filter by selected month and year
           const selectedMonth = selectedDate.getMonth();
           const selectedYear = selectedDate.getFullYear();
@@ -79,7 +115,8 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           const itemYear = dayDate.getFullYear();
           
           const isInSelectedMonth = itemMonth === selectedMonth && itemYear === selectedYear;
-          const shouldShow = dayDate < today && isInSelectedMonth;
+          const isSelectedDate = item.date === selectedDateStr;
+          const shouldShow = dayDate < today && isInSelectedMonth && !isSelectedDate;
           console.log(`Date ${dayDate.toISOString()}: selectedMonth=${selectedMonth}, selectedYear=${selectedYear}, itemMonth=${itemMonth}, itemYear=${itemYear}, isInSelectedMonth=${isInSelectedMonth}, shouldShow=${shouldShow}, item:`, item);
           return shouldShow;
         })
@@ -102,8 +139,8 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           );
         })}
       
-      {/* Show message if no historical data found */}
-      {prodLogs.filter(item => {
+      {/* Show message if no historical data found - only for non-today dates */}
+      {!isSelectedDateToday && prodLogs.filter(item => {
         if (!item || !item.date) return false;
         // Parse date properly to avoid timezone issues
         const dayDate = new Date(item.date + 'T00:00:00.000Z');
@@ -119,8 +156,8 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
         const itemYear = dayDate.getFullYear();
         
         const isInSelectedMonth = itemMonth === selectedMonth && itemYear === selectedYear;
-        return dayDate.getTime() !== today.getTime() && dayDate < today && isInSelectedMonth;
-      }).length === 0 && (
+        return dayDate < today && isInSelectedMonth;
+      }).length === 0 && selectedDateData && (
         <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8">
           <div className="text-center">
             <p className="text-gray-500 dark:text-gray-400 mb-2">No historical daily data found</p>
