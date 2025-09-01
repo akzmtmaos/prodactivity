@@ -19,6 +19,9 @@ const getAuthHeaders = () => {
   
   if (token) {
     headers.Authorization = `Bearer ${token}`;
+    console.log('Auth token found:', token.substring(0, 20) + '...');
+  } else {
+    console.log('No auth token found');
   }
   
   // Add timezone offset for backend date handling
@@ -54,14 +57,35 @@ const Tasks = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
 
-
-
   // State for tabs
   const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed'>('tasks');
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalCount, setTotalCount] = useState(0);
+  const [pageSize] = useState(10); // Items per page
+
+  // Task statistics state
+  const [taskStats, setTaskStats] = useState({
+    total_tasks: 0,
+    completed_tasks: 0,
+    pending_tasks: 0,
+    due_today: 0
+  });
 
   // Initial user/greeting setup
   useEffect(() => {
     const userData = localStorage.getItem('user');
+    const accessToken = localStorage.getItem('accessToken');
+    const refreshToken = localStorage.getItem('refreshToken');
+    
+    console.log('Auth check:', {
+      hasUser: !!userData,
+      hasAccessToken: !!accessToken,
+      hasRefreshToken: !!refreshToken
+    });
+    
     if (userData) {
       try {
         const parsedUser = JSON.parse(userData);
@@ -84,13 +108,69 @@ const Tasks = () => {
     // else setGreeting('Good evening');
   }, []);
 
-  // Fetch tasks whenever filters/search change
+  // Reset to first page when filters change
   useEffect(() => {
-    fetchTasks();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    setCurrentPage(1);
   }, [searchTerm, filterCompleted, filterPriority, filterTaskCategory, sortField, sortDirection]);
 
+  // Fetch tasks and stats whenever filters/search change
+  useEffect(() => {
+    // Test backend connection first
+    testBackendConnection().then(isConnected => {
+      if (isConnected) {
+        fetchTasks();
+        fetchTaskStats();
+      } else {
+        setError('Cannot connect to backend server. Please check if the server is running.');
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filterCompleted, filterPriority, filterTaskCategory, sortField, sortDirection, currentPage, activeTab]);
 
+  // Test backend connectivity
+  const testBackendConnection = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/tasks/`, { 
+        headers: getAuthHeaders(),
+        timeout: 5000 
+      });
+      console.log('Backend connection test successful:', response.status);
+      return true;
+    } catch (err: any) {
+      console.error('Backend connection test failed:', err);
+      return false;
+    }
+  };
+
+  // Fetch task statistics
+  const fetchTaskStats = async () => {
+    try {
+      const headers = getAuthHeaders();
+      
+      // Build query params for filtering (always show overall stats, not tab-filtered)
+      const params = new URLSearchParams();
+      
+      // Apply filters but NOT tab-based completion filtering
+      if (filterCompleted !== null) {
+        params.append('completed', filterCompleted ? 'true' : 'false');
+      }
+      
+      if (filterPriority !== 'all') {
+        params.append('priority', filterPriority);
+      }
+      if (searchTerm) {
+        params.append('search', searchTerm);
+      }
+      if (filterTaskCategory) {
+        params.append('task_category', filterTaskCategory);
+      }
+      
+      const response = await axios.get(`${API_BASE_URL}/tasks/stats/?${params.toString()}`, { headers });
+      setTaskStats(response.data);
+    } catch (err: any) {
+      console.error('Error fetching task stats:', err);
+    }
+  };
 
   // Fetch tasks from backend
   const fetchTasks = async () => {
@@ -103,10 +183,43 @@ const Tasks = () => {
         navigate('/login');
         return;
       }
+      
       // Build query params for filtering and sorting
       const params = new URLSearchParams();
       
-      if (filterCompleted !== null) {
+      // Handle tab-based filtering
+      if (activeTab === 'tasks') {
+        // Show only incomplete tasks
+        params.append('completed', 'false');
+      } else if (activeTab === 'completed') {
+        // Show only completed tasks
+        params.append('completed', 'true');
+      } else if (activeTab === 'categories') {
+        // Show only incomplete tasks for categories tab
+        params.append('completed', 'false');
+      }
+      
+      // Apply additional filters if they don't conflict with tab filtering
+      if (filterCompleted !== null && activeTab === 'tasks') {
+        // Only apply if it's not already set by tab
+        if (filterCompleted === false) {
+          // Already set by tab, no need to add again
+        } else {
+          // Override tab setting
+          params.delete('completed');
+          params.append('completed', filterCompleted ? 'true' : 'false');
+        }
+      } else if (filterCompleted !== null && activeTab === 'completed') {
+        // Only apply if it's not already set by tab
+        if (filterCompleted === true) {
+          // Already set by tab, no need to add again
+        } else {
+          // Override tab setting
+          params.delete('completed');
+          params.append('completed', filterCompleted ? 'true' : 'false');
+        }
+      } else if (filterCompleted !== null) {
+        // No tab filtering, apply the filter
         params.append('completed', filterCompleted ? 'true' : 'false');
       }
       
@@ -124,15 +237,46 @@ const Tasks = () => {
       const orderingField = sortField === 'dueDate' ? 'due_date' : (sortField as string);
       params.append('ordering', `${sortDirection === 'desc' ? '-' : ''}${orderingField}`);
       
+      // Add pagination parameters
+      params.append('page', currentPage.toString());
+      params.append('page_size', pageSize.toString());
+      
       const headers = getAuthHeaders();
+      console.log('Fetching tasks with URL:', `${API_BASE_URL}/tasks/?${params.toString()}`);
       const response = await axios.get(`${API_BASE_URL}/tasks/?${params.toString()}`, { headers });
       
+      console.log('Tasks response:', response.data);
+      
       // Map due_date to dueDate for each task
-      const mappedTasks = response.data.map((task: any) => ({
+      const mappedTasks = response.data.results?.map((task: any) => ({
         ...task,
         dueDate: task.due_date,
-      }));
+      })) || [];
+      
+      console.log('Mapped tasks:', mappedTasks);
       setTasks(mappedTasks);
+      
+      // Set pagination info
+      if (response.data.count !== undefined) {
+        const newTotalCount = response.data.count;
+        const newTotalPages = Math.ceil(newTotalCount / pageSize);
+        
+        setTotalCount(newTotalCount);
+        setTotalPages(newTotalPages);
+        
+        // If current page is now invalid (e.g., we're on page 5 but only 3 pages exist), reset to last page
+        if (currentPage > newTotalPages && newTotalPages > 0) {
+          setCurrentPage(newTotalPages);
+        }
+        
+        console.log('Pagination info:', {
+          totalCount: newTotalCount,
+          totalPages: newTotalPages,
+          currentPage,
+          pageSize,
+          resultsCount: response.data.results?.length || 0
+        });
+      }
     } catch (err: any) {
       console.error('Error fetching tasks:', err);
       if (err?.response?.status === 401) {
@@ -156,18 +300,37 @@ const Tasks = () => {
       const { dueDate, ...rest } = taskData;
       const backendTaskData = { ...rest, due_date: dueDate };
       
-      // Debug logging removed
+      console.log('Sending task data:', backendTaskData);
       
       const headers = getAuthHeaders();
       const response = await axios.post(`${API_BASE_URL}/tasks/`, backendTaskData, { headers });
       
-      // Map due_date to dueDate for the new task
-      const newTask = { ...response.data, dueDate: response.data.due_date };
-      setTasks([...tasks, newTask]);
+      console.log('Task created successfully:', response.data);
+      
+      // Reset to first page and refetch tasks and stats to show the new task
+      setCurrentPage(1);
+      await fetchTasks();
+      await fetchTaskStats();
       setIsFormOpen(false);
     } catch (err: any) {
       console.error('Error adding task:', err);
-      setError('Failed to add task. Please try again.');
+      console.error('Error response:', err.response?.data);
+      console.error('Error status:', err.response?.status);
+      
+      // Show more specific error message
+      if (err.response?.data) {
+        const errorData = err.response.data;
+        if (typeof errorData === 'object') {
+          const errorMessages = Object.entries(errorData)
+            .map(([field, message]) => `${field}: ${message}`)
+            .join(', ');
+          setError(`Failed to add task: ${errorMessages}`);
+        } else {
+          setError(`Failed to add task: ${errorData}`);
+        }
+      } else {
+        setError('Failed to add task. Please try again.');
+      }
     }
   };
 
@@ -179,10 +342,11 @@ const Tasks = () => {
       // Map dueDate to due_date for backend compatibility (omit dueDate)
       const { dueDate, ...rest } = taskData;
       const backendTaskData = { ...rest, due_date: dueDate };
-      const response = await axios.put(`${API_BASE_URL}/tasks/${editingTask.id}/`, backendTaskData, { headers: getAuthHeaders() });
-      // Map due_date to dueDate for the updated task
-      const updatedTask = { ...response.data, dueDate: response.data.due_date };
-      setTasks(tasks.map(task => task.id === editingTask.id ? updatedTask : task));
+      await axios.put(`${API_BASE_URL}/tasks/${editingTask.id}/`, backendTaskData, { headers: getAuthHeaders() });
+      
+      // Refetch tasks and stats to ensure consistency with current pagination, filtering, and sorting
+      await fetchTasks();
+      await fetchTaskStats();
       setEditingTask(undefined);
       setIsFormOpen(false);
     } catch (err) {
@@ -202,7 +366,10 @@ const Tasks = () => {
     if (deleteTaskId === null) return;
     try {
       await axios.delete(`${API_BASE_URL}/tasks/${deleteTaskId}/`, { headers: getAuthHeaders() });
-      setTasks(tasks.filter(task => task.id !== deleteTaskId));
+      
+      // Refetch tasks and stats to ensure consistency with current pagination, filtering, and sorting
+      await fetchTasks();
+      await fetchTaskStats();
       setDeleteTaskId(null);
       setDeleteModalOpen(false);
     } catch (err) {
@@ -218,11 +385,13 @@ const Tasks = () => {
     if (!taskToToggle) return;
     
     try {
-      const response = await axios.patch(`${API_BASE_URL}/tasks/${id}/`, {
+      await axios.patch(`${API_BASE_URL}/tasks/${id}/`, {
         completed: !taskToToggle.completed
       }, { headers: getAuthHeaders() });
-      const updated = { ...response.data, dueDate: response.data.due_date };
-      setTasks(tasks.map(task => task.id === id ? updated : task));
+      
+      // Refetch tasks and stats to ensure consistency with current pagination, filtering, and sorting
+      await fetchTasks();
+      await fetchTaskStats();
     } catch (err: any) {
       console.error('Error toggling task completion:', err);
       
@@ -266,10 +435,23 @@ const Tasks = () => {
     }, 0);
   };
 
-  // Filtered tasks for tabs
-  const incompleteTasks = tasks.filter(task => !task.completed);
-  const completedTasks = tasks.filter(task => task.completed);
-  
+  // Pagination handlers
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
   // Function to generate consistent hash for category colors
   const getCategoryColorHash = (category: string) => {
     let hash = 0;
@@ -312,7 +494,7 @@ const Tasks = () => {
   };
   
   // Group tasks by category for the categories tab
-  const tasksByCategory = tasks.filter(task => !task.completed).reduce((acc, task) => {
+  const tasksByCategory = tasks.reduce((acc, task) => {
     const category = task.task_category || 'Uncategorized';
     if (!acc[category]) {
       acc[category] = [];
@@ -328,9 +510,7 @@ const Tasks = () => {
       .filter((category): category is string => category !== undefined && category.trim() !== '')
   )).sort();
   
-  const displayedTasks = activeTab === 'tasks' ? incompleteTasks : 
-                        activeTab === 'completed' ? completedTasks : 
-                        []; // Categories tab will handle its own display
+  const displayedTasks = activeTab === 'categories' ? [] : tasks; // Categories tab will handle its own display
 
   // Show loading state while waiting for user data
   if (!user) {
@@ -355,7 +535,7 @@ const Tasks = () => {
                 Manage and track your tasks
               </p>
             </div>
-            {/* Right side: TaskFilters and Add Task button horizontally aligned */}
+            {/* Right side: TaskFilters */}
             <div className="flex items-center gap-4">
               <TaskFilters
                 searchTerm={searchTerm}
@@ -373,55 +553,64 @@ const Tasks = () => {
                   setFilterTaskCategory('');
                 }}
               />
-              <button
-                className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                onClick={() => {
-                  setEditingTask(undefined);
-                  setIsFormOpen(true);
-                }}
-              >
-                <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-                Add Task
-              </button>
             </div>
           </div>
 
           {/* Task summary */}
-          <TaskSummary tasks={tasks} />
+          <TaskSummary 
+            tasks={tasks} 
+            totalCount={taskStats.total_tasks}
+            completedCount={taskStats.completed_tasks}
+            pendingCount={taskStats.pending_tasks}
+            dueTodayCount={taskStats.due_today}
+          />
 
-          {/* Tabs for Tasks and Completed (styled like Decks/Notes/Schedule) */}
-          <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-6">
+          {/* Tabs for Tasks and Completed with Add Task button */}
+          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-6">
+            <div className="flex space-x-4">
+              <button
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'tasks'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+                onClick={() => setActiveTab('tasks')}
+              >
+                Tasks
+              </button>
+              <button
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'categories'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+                onClick={() => setActiveTab('categories')}
+              >
+                Category
+              </button>
+              <button
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'completed'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+                onClick={() => setActiveTab('completed')}
+              >
+                Completed
+              </button>
+            </div>
+            {/* Add Task button on the right */}
             <button
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'tasks'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-              onClick={() => setActiveTab('tasks')}
+              className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              onClick={() => {
+                setEditingTask(undefined);
+                setIsFormOpen(true);
+              }}
             >
-              Tasks
-            </button>
-            <button
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'categories'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-              onClick={() => setActiveTab('categories')}
-            >
-              Category
-            </button>
-            <button
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'completed'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-              onClick={() => setActiveTab('completed')}
-            >
-              Completed
+              <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Add Task
             </button>
           </div>
 
@@ -555,23 +744,91 @@ const Tasks = () => {
                 )}
               </div>
             ) : (
-              <TaskList
-                tasks={displayedTasks}
-                onToggleComplete={toggleTaskCompletion}
-                onEdit={(task) => {
-                  setEditingTask(task);
-                  setIsFormOpen(true);
-                }}
-                onDelete={handleDeleteClick}
-                onTaskCompleted={handleTaskCompleted}
-                sortField={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-                onAddTask={() => {
-                  setEditingTask(undefined);
-                  setIsFormOpen(true);
-                }}
-              />
+              <>
+                <TaskList
+                  tasks={displayedTasks}
+                  onToggleComplete={toggleTaskCompletion}
+                  onEdit={(task) => {
+                    setEditingTask(task);
+                    setIsFormOpen(true);
+                  }}
+                  onDelete={handleDeleteClick}
+                  onTaskCompleted={handleTaskCompleted}
+                  sortField={sortField}
+                  sortDirection={sortDirection}
+                  onSort={handleSort}
+                  onAddTask={() => {
+                    setEditingTask(undefined);
+                    setIsFormOpen(true);
+                  }}
+                />
+                
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm text-gray-700 dark:text-gray-300">
+                        Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} results
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={handlePreviousPage}
+                          disabled={currentPage === 1}
+                          className={`px-3 py-1 text-sm font-medium rounded-md ${
+                            currentPage === 1
+                              ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          Previous
+                        </button>
+                        
+                        {/* Page numbers */}
+                        <div className="flex items-center space-x-1">
+                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                            let pageNum: number;
+                            if (totalPages <= 5) {
+                              pageNum = i + 1;
+                            } else if (currentPage <= 3) {
+                              pageNum = i + 1;
+                            } else if (currentPage >= totalPages - 2) {
+                              pageNum = totalPages - 4 + i;
+                            } else {
+                              pageNum = currentPage - 2 + i;
+                            }
+                            
+                            return (
+                              <button
+                                key={pageNum}
+                                onClick={() => handlePageChange(pageNum)}
+                                className={`px-3 py-1 text-sm font-medium rounded-md ${
+                                  currentPage === pageNum
+                                    ? 'bg-indigo-600 text-white'
+                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                                }`}
+                              >
+                                {pageNum}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        
+                        <button
+                          onClick={handleNextPage}
+                          disabled={currentPage === totalPages}
+                          className={`px-3 py-1 text-sm font-medium rounded-md ${
+                            currentPage === totalPages
+                              ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          Next
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>

@@ -58,8 +58,8 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     
     return (
     <>
-      {/* Show productivity for the selected date (not always today) */}
-      {selectedDateData && (
+      {/* Show productivity for the selected date ONLY if it's today */}
+      {selectedDateData && isSelectedDateToday && (
         <ProductivityRow
           date={selectedDateData.date}
           completionRate={selectedDateData.log.completion_rate}
@@ -69,8 +69,8 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
         />
       )}
       
-      {/* If no data found for selected date, show a message */}
-      {!selectedDateData && (
+      {/* If no data found for selected date and it's not today, show a message */}
+      {!selectedDateData && !isSelectedDateToday && (
         <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8 mb-4">
           <div className="text-center">
             <p className="text-gray-500 dark:text-gray-400 mb-2">No data found for {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
@@ -88,7 +88,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
         </div>
       )}
       
-      {/* Historical logs */}
+      {/* Historical logs - include selected date if it's not today */}
       {console.log('All prodLogs:', prodLogs)} {/* Debug log */}
       {prodLogs
         .filter(item => {
@@ -116,8 +116,13 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           
           const isInSelectedMonth = itemMonth === selectedMonth && itemYear === selectedYear;
           const isSelectedDate = item.date === selectedDateStr;
-          const shouldShow = dayDate < today && isInSelectedMonth && !isSelectedDate;
-          console.log(`Date ${dayDate.toISOString()}: selectedMonth=${selectedMonth}, selectedYear=${selectedYear}, itemMonth=${itemMonth}, itemYear=${itemYear}, isInSelectedMonth=${isInSelectedMonth}, shouldShow=${shouldShow}, item:`, item);
+          const isToday = dayDate.toDateString() === today.toDateString();
+          
+          // Show if it's in the selected month and either:
+          // 1. It's not the selected date (to avoid duplication), OR
+          // 2. It's the selected date but not today (include it in historical list)
+          const shouldShow = dayDate < today && isInSelectedMonth && (!isSelectedDate || !isToday);
+          console.log(`Date ${dayDate.toISOString()}: selectedMonth=${selectedMonth}, selectedYear=${selectedYear}, itemMonth=${itemMonth}, itemYear=${itemYear}, isInSelectedMonth=${isInSelectedMonth}, isSelectedDate=${isSelectedDate}, isToday=${isToday}, shouldShow=${shouldShow}, item:`, item);
           return shouldShow;
         })
         .sort((a, b) => {

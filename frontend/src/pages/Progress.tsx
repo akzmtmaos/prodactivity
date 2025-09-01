@@ -16,6 +16,8 @@ const Progress = () => {
   const [user, setUser] = useState<any | null>(null);
   const [greeting, setGreeting] = useState('');
   const [progressView, setProgressView] = useState('Daily');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<any>({
     totalTasksCompleted: 0,
     totalStudyTime: 0,
@@ -47,6 +49,18 @@ const Progress = () => {
     console.log('prodLogs changed to:', prodLogs.length, 'items');
   }, [prodLogs]);
 
+  // Centralized error handler
+  const handleError = (error: any, message: string) => {
+    console.error(message, error);
+    if (error?.response?.status === 401 || error?.status === 401) {
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    setError(message);
+  };
+
   useEffect(() => {
     // Get user data from localStorage
     const userData = localStorage.getItem('user');
@@ -72,22 +86,28 @@ const Progress = () => {
 
     // Fetch stats, level, streak, and chart data
     (async () => {
-      console.log('Fetching initial data...');
-      const statsData = await fetchUserStats();
-      console.log('Stats data:', statsData);
-      setStats(statsData);
-      
-      const levelData = await fetchUserLevel();
-      console.log('Level data:', levelData);
-      setUserLevel(levelData);
-      
-      const streakData = await fetchStreakData();
-      console.log('Streak data:', streakData);
-      setStreakData(streakData);
-      
-      const chartData = await fetchChartData(progressView);
-      console.log('Chart data:', chartData);
-      setChartData(chartData);
+      try {
+        console.log('Fetching initial data...');
+        const statsData = await fetchUserStats();
+        console.log('Stats data:', statsData);
+        setStats(statsData);
+        
+        const levelData = await fetchUserLevel();
+        console.log('Level data:', levelData);
+        setUserLevel(levelData);
+        
+        const streakData = await fetchStreakData();
+        console.log('Streak data:', streakData);
+        setStreakData(streakData);
+        
+        const chartData = await fetchChartData(progressView);
+        console.log('Chart data:', chartData);
+        setChartData(chartData);
+      } catch (error) {
+        handleError(error, 'Failed to fetch initial data');
+      } finally {
+        setLoading(false);
+      }
     })();
   }, []);
 
@@ -101,6 +121,10 @@ const Progress = () => {
         const res = await fetch(`${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
           ...(headers && { headers })
         });
+        if (res.status === 401) {
+          handle401();
+          return;
+        }
         if (!res.ok) throw new Error('Failed to fetch today productivity');
         const data = await res.json();
         console.log('Today\'s productivity data:', data); // Debug log
@@ -125,10 +149,14 @@ const Progress = () => {
       const headers = getAuthHeaders();
       const todayStr = getTodayDate(); // Use local timezone instead of UTC
       console.log('Refreshing productivity for date:', todayStr);
-      const res = await fetch(`${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
-        ...(headers && { headers })
-      });
-      if (!res.ok) throw new Error('Failed to fetch today productivity');
+              const res = await fetch(`${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
+          ...(headers && { headers })
+        });
+        if (res.status === 401) {
+          handle401();
+          return;
+        }
+        if (!res.ok) throw new Error('Failed to fetch today productivity');
       const data = await res.json();
       console.log('Refreshed productivity data:', data);
       setTodaysProductivity(data);
@@ -220,6 +248,10 @@ const Progress = () => {
         const timestamp = new Date().getTime();
         const urlWithTimestamp = `${url}&_t=${timestamp}`;
         const res = await fetch(urlWithTimestamp, { ...(headers && { headers }) });
+        if (res.status === 401) {
+          handle401();
+          return;
+        }
         if (!res.ok) throw new Error('Failed to fetch productivity logs');
         const data = await res.json();
         console.log('Received productivity logs:', data); // Debug log
@@ -345,6 +377,37 @@ const Progress = () => {
     );
   }
 
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-500"></div>
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <PageLayout>
+        <div className="space-y-6 relative">
+          <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
+            {error}
+            <button 
+              onClick={() => setError(null)}
+              className="ml-4 text-red-900 hover:text-red-700"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      </PageLayout>
+    );
+  }
+
   // Helper to get formatted date for Daily view
   function getFormattedDate(offset = 0) {
     const date = new Date();
@@ -440,7 +503,7 @@ async function fetchUserStats() {
     });
     if (res.status === 401) {
       handle401();
-      return;
+      return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0 };
     }
     if (!res.ok) throw new Error('Failed to fetch stats');
     return await res.json();
@@ -457,7 +520,7 @@ async function fetchUserLevel() {
     });
     if (res.status === 401) {
       handle401();
-      return;
+      return { currentLevel: 1, currentXP: 0, xpToNextLevel: 1000 };
     }
     if (!res.ok) throw new Error('Failed to fetch level');
     return await res.json();
@@ -474,7 +537,7 @@ async function fetchStreakData() {
     });
     if (res.status === 401) {
       handle401();
-      return;
+      return [];
     }
     if (!res.ok) throw new Error('Failed to fetch streaks');
     return await res.json();
@@ -491,7 +554,7 @@ async function fetchChartData(view: string) {
     });
     if (res.status === 401) {
       handle401();
-      return;
+      return {};
     }
     if (!res.ok) throw new Error('Failed to fetch chart data');
     return await res.json();

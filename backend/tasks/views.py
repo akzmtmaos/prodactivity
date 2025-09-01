@@ -9,6 +9,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import action
 from django.utils import timezone
 from datetime import timedelta
+from django.db import models
 
 logger = logging.getLogger(__name__)
 
@@ -18,7 +19,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     # filterset_fields = ['completed', 'priority', 'category']  # Temporarily disabled
     search_fields = ['title', 'description']
-    ordering_fields = ['due_date', 'priority', 'title', 'category']
+    ordering_fields = ['due_date', 'priority', 'title', 'task_category']
     ordering = ['due_date', 'priority']
 
     def get_queryset(self):
@@ -30,6 +31,18 @@ class TaskViewSet(viewsets.ModelViewSet):
         if task_category:
             queryset = queryset.filter(task_category__icontains=task_category)
         
+        # Custom filtering for completed status
+        completed = self.request.query_params.get('completed', None)
+        if completed is not None:
+            completed_bool = completed.lower() == 'true'
+            queryset = queryset.filter(completed=completed_bool)
+        
+        # Custom filtering for priority
+        priority = self.request.query_params.get('priority', None)
+        if priority:
+            queryset = queryset.filter(priority=priority)
+        
+        logger.debug(f"[TaskViewSet] Final queryset count: {queryset.count()}")
         return queryset
 
     def perform_create(self, serializer):
@@ -264,6 +277,54 @@ class TaskViewSet(viewsets.ModelViewSet):
             'has_evidence_description': bool(task.evidence_description and len(task.evidence_description.strip()) > 20),
             'can_be_completed': task.can_be_completed(),
             'missing_requirements': self._get_missing_requirements(task)
+        })
+
+    @action(detail=False, methods=['get'])
+    def stats(self, request):
+        """Get task statistics for the current user"""
+        user = request.user
+        
+        # Get query parameters for filtering
+        completed = request.query_params.get('completed', None)
+        priority = request.query_params.get('priority', None)
+        search = request.query_params.get('search', None)
+        task_category = request.query_params.get('task_category', None)
+        
+        # Build base queryset
+        queryset = Task.objects.filter(user=user)
+        
+        # Apply filters (same logic as get_queryset)
+        if completed is not None:
+            completed_bool = completed.lower() == 'true'
+            queryset = queryset.filter(completed=completed_bool)
+        
+        if priority:
+            queryset = queryset.filter(priority=priority)
+        
+        if search:
+            queryset = queryset.filter(
+                models.Q(title__icontains=search) | 
+                models.Q(description__icontains=search)
+            )
+        
+        if task_category:
+            queryset = queryset.filter(task_category__icontains=task_category)
+        
+        # Get counts based on filtered queryset
+        total_tasks = queryset.count()
+        completed_tasks = queryset.filter(completed=True).count()
+        pending_tasks = total_tasks - completed_tasks
+        
+        # Get tasks due today (only from filtered results)
+        from datetime import date
+        today = date.today()
+        due_today = queryset.filter(due_date=today, completed=False).count()
+        
+        return Response({
+            'total_tasks': total_tasks,
+            'completed_tasks': completed_tasks,
+            'pending_tasks': pending_tasks,
+            'due_today': due_today
         })
 
     def _get_missing_requirements(self, task):

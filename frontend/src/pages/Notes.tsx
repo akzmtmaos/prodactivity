@@ -114,15 +114,15 @@ const Notes = () => {
         return;
       }
 
-      console.log('Fetching notebooks...'); // Debug log
       const response = await axiosInstance.get(`/notes/notebooks/`);
       
-      console.log('Notebooks response:', response.data); // Debug log
+      // Handle paginated response
+      const notebooksData = response.data.results || response.data;
       
-      if (response.data) {
-        setNotebooks(response.data);
-        console.log('Notebooks set:', response.data); // Debug log
+      if (notebooksData) {
+        setNotebooks(notebooksData);
       } else {
+        setNotebooks([]);
         setError('No notebooks found');
       }
     } catch (error: any) {
@@ -142,8 +142,13 @@ const Notes = () => {
 
       const response = await axiosInstance.get(`/notes/archived/notebooks/`);
       
-      if (response.data) {
-        setArchivedNotebooks(response.data);
+      // Handle paginated response
+      const archivedNotebooksData = response.data.results || response.data;
+      
+      if (archivedNotebooksData) {
+        setArchivedNotebooks(archivedNotebooksData);
+      } else {
+        setArchivedNotebooks([]);
       }
     } catch (error: any) {
       console.error('Failed to fetch archived notebooks:', error);
@@ -160,7 +165,9 @@ const Notes = () => {
   const fetchNotes = async (notebookId: number) => {
     try {
       const response = await axiosInstance.get(`/notes/?notebook=${notebookId}`);
-      setNotes(response.data);
+      // Handle paginated response
+      const notesData = response.data.results || response.data;
+      setNotes(notesData || []);
     } catch (error) {
       handleError(error, 'Failed to fetch notes');
     }
@@ -170,7 +177,9 @@ const Notes = () => {
   const fetchArchivedNotes = async () => {
     try {
       const response = await axiosInstance.get(`/notes/archived/notes/`);
-      setArchivedNotes(response.data);
+      // Handle paginated response
+      const archivedNotesData = response.data.results || response.data;
+      setArchivedNotes(archivedNotesData || []);
     } catch (error) {
       handleError(error, 'Failed to fetch archived notes');
     }

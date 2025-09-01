@@ -135,8 +135,10 @@ const Decks = () => {
       const res = await fetch(`${API_BASE}/notes/notebooks/`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed to fetch notebooks');
       const data = await res.json();
-      setNotebooks(data);
-      if (data.length > 0) setModalSelectedNotebookId(data[0].id);
+      // Handle paginated response
+      const notebooksData = data.results || data;
+      setNotebooks(notebooksData);
+      if (notebooksData.length > 0) setModalSelectedNotebookId(notebooksData[0].id);
     } catch (e) {
       setToast({ message: 'Failed to load notebooks', type: 'error' });
     } finally {
@@ -151,7 +153,9 @@ const Decks = () => {
       const res = await fetch(`${API_BASE}/notes/?notebook=${notebookId}`, { headers: getAuthHeaders() });
       if (!res.ok) throw new Error('Failed to fetch notes');
       const data = await res.json();
-      setNotesByNotebook(prev => ({ ...prev, [notebookId]: data }));
+      // Handle paginated response
+      const notesData = data.results || data;
+      setNotesByNotebook(prev => ({ ...prev, [notebookId]: notesData }));
     } catch (e) {
       setToast({ message: 'Failed to load notes', type: 'error' });
     } finally {
@@ -522,7 +526,9 @@ const Decks = () => {
         });
         if (!activeRes.ok) throw new Error('Failed to fetch active decks');
         const activeData = await activeRes.json();
-        const topLevelDecks = activeData.filter((deck: any) => !deck.parent).map((deck: any) => {
+        // Handle paginated response
+        const activeDecks = activeData.results || activeData;
+        const topLevelDecks = activeDecks.filter((deck: any) => !deck.parent).map((deck: any) => {
           return {
             id: deck.id.toString(),
             title: deck.title,
@@ -561,7 +567,9 @@ const Decks = () => {
         });
         if (archivedRes.ok) {
           const archivedData = await archivedRes.json();
-          const archivedTopLevelDecks = archivedData.filter((deck: any) => !deck.parent).map((deck: any) => {
+          // Handle paginated response
+          const archivedDecks = archivedData.results || archivedData;
+          const archivedTopLevelDecks = archivedDecks.filter((deck: any) => !deck.parent).map((deck: any) => {
             return {
               id: deck.id.toString(),
               title: deck.title,
