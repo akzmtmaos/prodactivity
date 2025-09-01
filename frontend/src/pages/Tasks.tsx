@@ -74,6 +74,13 @@ const Tasks = () => {
     due_today: 0
   });
 
+  // Toast notification state
+  const [toast, setToast] = useState<{
+    message: string;
+    type: 'success' | 'error' | 'info';
+    visible: boolean;
+  } | null>(null);
+
   // Initial user/greeting setup
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -125,7 +132,26 @@ const Tasks = () => {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, filterCompleted, filterPriority, filterTaskCategory, sortField, sortDirection, currentPage, activeTab]);
+  }, [searchTerm, filterCompleted, filterPriority, filterTaskCategory, sortField, sortDirection, currentPage]);
+
+  // Fetch tasks when activeTab changes (but not during task completion)
+  useEffect(() => {
+    // Only fetch if we're not in the middle of a task completion operation
+    if (tasks.length > 0) {
+      fetchTasks();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Show toast notification
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    console.log('showToast called:', message, type);
+    setToast({ message, type, visible: true });
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
 
   // Test backend connectivity
   const testBackendConnection = async () => {
@@ -312,6 +338,7 @@ const Tasks = () => {
       await fetchTasks();
       await fetchTaskStats();
       setIsFormOpen(false);
+      showToast('Task created successfully! ✅', 'success');
     } catch (err: any) {
       console.error('Error adding task:', err);
       console.error('Error response:', err.response?.data);
@@ -349,6 +376,7 @@ const Tasks = () => {
       await fetchTaskStats();
       setEditingTask(undefined);
       setIsFormOpen(false);
+      showToast('Task updated successfully! ✅', 'success');
     } catch (err) {
       console.error('Error updating task:', err);
       setError('Failed to update task. Please try again.');
@@ -372,6 +400,7 @@ const Tasks = () => {
       await fetchTaskStats();
       setDeleteTaskId(null);
       setDeleteModalOpen(false);
+      showToast('Task deleted successfully! 🗑️', 'success');
     } catch (err) {
       console.error('Error deleting task:', err);
       setError('Failed to delete task. Please try again.');
@@ -381,17 +410,36 @@ const Tasks = () => {
 
   // Toggle task completion
   const toggleTaskCompletion = async (id: number) => {
+    console.log('toggleTaskCompletion called with id:', id);
     const taskToToggle = tasks.find(task => task.id === id);
-    if (!taskToToggle) return;
+    if (!taskToToggle) {
+      console.log('Task not found:', id);
+      return;
+    }
+    
+    console.log('Task to toggle:', taskToToggle.title, 'Current completed status:', taskToToggle.completed);
     
     try {
-      await axios.patch(`${API_BASE_URL}/tasks/${id}/`, {
+      const response = await axios.patch(`${API_BASE_URL}/tasks/${id}/`, {
         completed: !taskToToggle.completed
       }, { headers: getAuthHeaders() });
       
-      // Refetch tasks and stats to ensure consistency with current pagination, filtering, and sorting
+      console.log('Task completion response:', response.data);
+      
+      // If task was completed, show success message and refetch data
+      if (!taskToToggle.completed) {
+        console.log('Task was completed');
+        showToast(`Task "${taskToToggle.title}" completed! 🎉`, 'success');
+      } else {
+        console.log('Task was marked as pending');
+        showToast(`Task "${taskToToggle.title}" marked as pending`, 'info');
+      }
+      
+      // Refetch tasks and stats to update the UI
+      console.log('Refetching tasks and stats...');
       await fetchTasks();
       await fetchTaskStats();
+      console.log('Tasks and stats refetched successfully');
     } catch (err: any) {
       console.error('Error toggling task completion:', err);
       
@@ -408,7 +456,21 @@ const Tasks = () => {
 
   // Handle task completion from evidence submission
   const handleTaskCompleted = (completedTask: any) => {
+    console.log('Task completed through evidence modal:', completedTask.title);
+    
+    // Update the task in the current list
     setTasks(tasks.map(task => task.id === completedTask.id ? completedTask : task));
+    
+    // Show success message
+    showToast(`Task "${completedTask.title}" completed with evidence! 🎉`, 'success');
+    
+    // Refetch tasks and stats to update the UI
+    setTimeout(async () => {
+      console.log('Refetching tasks and stats after evidence completion...');
+      await fetchTasks();
+      await fetchTaskStats();
+      console.log('Tasks and stats refetched successfully after evidence completion');
+    }, 100);
   };
 
   // Handle form submission
@@ -842,9 +904,55 @@ const Tasks = () => {
         message="Are you sure you want to delete this task? This action cannot be undone."
         confirmLabel="Delete"
         cancelLabel="Cancel"
-      />
-    </PageLayout>
-  );
-};
+             />
+       
+       {/* Toast Notification */}
+       {toast && (
+         <div className="fixed bottom-4 right-4 z-50">
+           <div className={`px-6 py-4 rounded-lg shadow-lg max-w-sm transform transition-all duration-300 ${
+             toast.type === 'success' 
+               ? 'bg-green-500 text-white' 
+               : toast.type === 'error' 
+               ? 'bg-red-500 text-white' 
+               : 'bg-blue-500 text-white'
+           }`}>
+             <div className="flex items-center">
+               <div className="flex-shrink-0">
+                 {toast.type === 'success' && (
+                   <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                   </svg>
+                 )}
+                 {toast.type === 'error' && (
+                   <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                   </svg>
+                 )}
+                 {toast.type === 'info' && (
+                   <svg className="h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                   </svg>
+                 )}
+               </div>
+               <div className="ml-3">
+                 <p className="text-sm font-medium">{toast.message}</p>
+               </div>
+               <div className="ml-auto pl-3">
+                 <button
+                   onClick={() => setToast(null)}
+                   className="inline-flex text-white hover:text-gray-200 focus:outline-none"
+                 >
+                   <svg className="h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
+                     <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                   </svg>
+                 </button>
+               </div>
+             </div>
+           </div>
+         </div>
+       )}
+     </PageLayout>
+   );
+ };
 
 export default Tasks;

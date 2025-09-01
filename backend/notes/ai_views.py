@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
 
 # Ollama API configuration
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama2"  # Using llama2 with optimized configuration
+OLLAMA_MODEL = "llama2:latest"
 
 def format_chat_prompt(messages):
     # Get chat prompt from database configuration
@@ -89,7 +89,7 @@ def chat(request):
         
         formatted_prompt = format_chat_prompt(user_assistant_msgs)
         
-        # Call Ollama API with streaming - Llama2 optimized settings
+        # Call Ollama API with streaming - Llama2 optimized settings for 4GB GPU
         payload = {
             "model": OLLAMA_MODEL,
             "prompt": formatted_prompt,

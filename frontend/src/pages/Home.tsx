@@ -48,7 +48,7 @@ interface SearchResult {
   timestamp?: string;
 }
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api/notes';
+const API_BASE_URL = 'http://localhost:8000/api';
 
 const Home = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -127,12 +127,13 @@ const Home = () => {
 
       // Search Notes
       try {
-        const notesResponse = await axios.get(`${API_URL}/notes/?search=${encodeURIComponent(query)}`, {
+        const notesResponse = await axios.get(`${API_BASE_URL}/notes/?search=${encodeURIComponent(query)}`, {
           headers: getAuthHeaders()
         });
         
-        if (Array.isArray(notesResponse.data)) {
-          notesResponse.data.forEach((note: Note) => {
+        const notesData = notesResponse.data.results || notesResponse.data;
+        if (Array.isArray(notesData)) {
+          notesData.forEach((note: Note) => {
             results.push({
               id: note.id.toString(),
               type: 'note',
@@ -152,12 +153,13 @@ const Home = () => {
 
       // Search Decks
       try {
-        const decksResponse = await axios.get(`http://localhost:8000/api/decks/decks/?search=${encodeURIComponent(query)}`, {
+        const decksResponse = await axios.get(`${API_BASE_URL}/decks/decks/?search=${encodeURIComponent(query)}`, {
           headers: getAuthHeaders()
         });
         
-        if (Array.isArray(decksResponse.data)) {
-          decksResponse.data.forEach((deck: Deck) => {
+        const decksData = decksResponse.data.results || decksResponse.data;
+        if (Array.isArray(decksData)) {
+          decksData.forEach((deck: Deck) => {
             results.push({
               id: deck.id,
               type: 'deck',
@@ -176,12 +178,13 @@ const Home = () => {
 
       // Search Tasks
       try {
-        const tasksResponse = await axios.get(`http://localhost:8000/api/tasks/?search=${encodeURIComponent(query)}`, {
+        const tasksResponse = await axios.get(`${API_BASE_URL}/tasks/?search=${encodeURIComponent(query)}`, {
           headers: getAuthHeaders()
         });
         
-        if (Array.isArray(tasksResponse.data)) {
-          tasksResponse.data.forEach((task: Task) => {
+        const tasksData = tasksResponse.data.results || tasksResponse.data;
+        if (Array.isArray(tasksData)) {
+          tasksData.forEach((task: Task) => {
             results.push({
               id: task.id.toString(),
               type: 'task',
@@ -393,19 +396,23 @@ const Home = () => {
   const fetchRecentNotes = async () => {
     try {
       console.log('Fetching recent notes...');
-      const response = await axios.get(`${API_URL}/notes/`, {
+      console.log('Notes API URL:', `${API_BASE_URL}/notes/`);
+      const response = await axios.get(`${API_BASE_URL}/notes/`, {
         headers: getAuthHeaders()
       });
       
       console.log('Received notes:', response.data);
       
-      if (!Array.isArray(response.data)) {
-        console.error('Invalid response format:', response.data);
+      // Handle paginated response
+      const notesData = response.data.results || response.data;
+      
+      if (!Array.isArray(notesData)) {
+        console.error('Invalid response format:', notesData);
         return;
       }
 
       // Sort notes by the most recent of updated_at or last_visited
-      const sortedNotes = response.data
+      const sortedNotes = notesData
         .filter((note: Note) => !note.is_deleted) // Filter out deleted notes
         .sort((a: Note, b: Note) => {
           const updatedA = new Date(a.updated_at).getTime();
@@ -436,26 +443,50 @@ const Home = () => {
   const fetchTasks = async () => {
     setTasksLoading(true);
     try {
-      const API_BASE_URL = 'http://localhost:8000/api';
       const params = new URLSearchParams();
       params.append('completed', 'false');
-      params.append('ordering', 'dueDate');
+      params.append('ordering', 'due_date');
+      console.log('Fetching tasks with params:', params.toString());
       const response = await axios.get(`${API_BASE_URL}/tasks/?${params.toString()}`, { headers: getAuthHeaders() });
+      console.log('Tasks API response:', response.data);
+      
+      // Handle paginated response
+      const tasksData = response.data.results || response.data;
+      
       // Map due_date to dueDate for each task
-      const mappedTasks = response.data.map((task: any) => ({
+      const mappedTasks = tasksData.map((task: any) => ({
         ...task,
         dueDate: task.due_date,
       }));
+      console.log('Mapped tasks:', mappedTasks);
       // Sort by dueDate ascending, take top 5
       const sorted = mappedTasks
-        .filter((t: Task) => !t.completed)
         .sort((a: Task, b: Task) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
         .slice(0, 5);
+      console.log('Final sorted tasks:', sorted);
       setTasks(sorted);
     } catch (err) {
+      console.error('Error fetching tasks:', err);
       setTasks([]);
     } finally {
       setTasksLoading(false);
+    }
+  };
+
+  // Fetch completed tasks count
+  const fetchCompletedTasksCount = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.append('completed', 'true');
+      const response = await axios.get(`${API_BASE_URL}/tasks/?${params.toString()}`, { headers: getAuthHeaders() });
+      console.log('Completed tasks response:', response.data);
+      
+      // Handle paginated response
+      const tasksData = response.data.results || response.data;
+      setCompletedTasksCount(tasksData.length);
+    } catch (err) {
+      console.error('Error fetching completed tasks:', err);
+      setCompletedTasksCount(0);
     }
   };
 
@@ -492,13 +523,18 @@ const Home = () => {
   // Fetch total notes count for the user
   const fetchNotesCount = async () => {
     try {
-      const response = await axios.get(`${API_URL}/notes/`, {
+      console.log('Fetching notes count...');
+      const response = await axios.get(`${API_BASE_URL}/notes/`, {
         headers: getAuthHeaders()
       });
-      if (Array.isArray(response.data)) {
-        setNotesCount(response.data.length);
-      } else if (response.data && typeof response.data.count === 'number') {
+      
+      // Handle paginated response
+      if (response.data && typeof response.data.count === 'number') {
         setNotesCount(response.data.count);
+      } else if (Array.isArray(response.data)) {
+        setNotesCount(response.data.length);
+      } else if (response.data && Array.isArray(response.data.results)) {
+        setNotesCount(response.data.results.length);
       } else {
         setNotesCount(0);
       }
@@ -582,6 +618,7 @@ const Home = () => {
     // Initial fetch of recent notes
     fetchRecentNotes();
     fetchTasks();
+    fetchCompletedTasksCount();
     loadEvents();
     fetchNotesCount();
 
@@ -589,6 +626,7 @@ const Home = () => {
     const refreshInterval = setInterval(() => {
       fetchRecentNotes();
       fetchTasks();
+      fetchCompletedTasksCount();
       loadEvents();
       fetchNotesCount();
     }, 30000); // Refresh every 30 seconds
@@ -611,7 +649,7 @@ const Home = () => {
     try {
       console.log('Opening note:', noteId);
       // Update the last_visited timestamp
-      const response = await axios.patch(`${API_URL}/notes/${noteId}/`, {
+      const response = await axios.patch(`${API_BASE_URL}/notes/${noteId}/`, {
         last_visited: new Date().toISOString()
       }, {
         headers: getAuthHeaders()
@@ -659,9 +697,7 @@ const Home = () => {
       return sum;
     }, 0);
 
-  const tasksCompleted = tasks.length > 0
-    ? tasks.filter(t => t.completed).length
-    : 0;
+  const [completedTasksCount, setCompletedTasksCount] = useState<number>(0);
 
   // If we want all completed tasks, not just the top 5, we need to fetch all tasks. For now, use the available tasks array.
 
@@ -792,7 +828,7 @@ const Home = () => {
                   </div>
                   <div className="ml-3 sm:ml-5">
                     <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Tasks Completed</p>
-                    <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{tasksCompleted}</p>
+                    <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{completedTasksCount}</p>
                   </div>
                 </div>
               </div>

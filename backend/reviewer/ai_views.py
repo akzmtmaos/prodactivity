@@ -12,7 +12,7 @@ from core.utils import get_ai_config
 logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = 'http://localhost:11434/api/generate'
-OLLAMA_MODEL = 'llama2'
+OLLAMA_MODEL = 'llama2:latest'
 
 class AIAutomaticReviewerView(APIView):
     permission_classes = [IsAuthenticated]

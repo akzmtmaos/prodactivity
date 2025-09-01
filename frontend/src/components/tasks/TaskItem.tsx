@@ -64,13 +64,20 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
   };
 
   const handleToggleComplete = async () => {
+    console.log('TaskItem handleToggleComplete called for task:', task.title);
+    console.log('Task completed status:', task.completed);
+    console.log('Task can_be_completed:', task.can_be_completed);
+    console.log('Task evidence_uploaded:', task.evidence_uploaded);
+    
     // If task is not completed and cannot be completed, show activity modal
     if (!task.completed && (task.can_be_completed === false || !task.evidence_uploaded)) {
+      console.log('Showing activity modal instead of toggling');
       setIsActivityModalOpen(true);
       return;
     }
     
-    // Otherwise, proceed with normal toggle
+    // Proceed with normal toggle
+    console.log('Proceeding with normal toggle');
     onToggleComplete(task.id);
   };
 
