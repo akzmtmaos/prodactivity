@@ -1,2 +1,5 @@
-pip install djangorestframework djangorestframework-simplejwt
+djangorestframework
+djangorestframework-simplejwt
+reportlab
+python-docx
 

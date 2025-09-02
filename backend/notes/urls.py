@@ -1,7 +1,7 @@
 # notes/urls.py
 from django.urls import path
 from . import views
-from .ai_views import SummarizeView, chat, ReviewView, AIAutomaticReviewerView, ConvertToFlashcardsView
+from .ai_views import SummarizeView, chat, ReviewView, AIAutomaticReviewerView, ConvertToFlashcardsView, NotebookSummaryView, UrgencyDetectionView, SmartChunkingView
 
 urlpatterns = [
     # Note endpoints
@@ -33,6 +33,11 @@ urlpatterns = [
     # Chat endpoint
     path('chat/', chat, name='chat'),
 
+    # NEW AI Endpoints as suggested by professor
+    path('notebook-summary/', NotebookSummaryView.as_view(), name='notebook-summary'),
+    path('urgency-detection/', UrgencyDetectionView.as_view(), name='urgency-detection'),
+    path('smart-chunking/', SmartChunkingView.as_view(), name='smart-chunking'),
+
     # Deleted notes endpoint
     # path('trash/notes/', deleted_notes, name='deleted-notes'),
     
@@ -44,4 +49,7 @@ urlpatterns = [
     path('urgent/', views.urgent_notes_and_notebooks, name='urgent-items'),
     path('notes-by-type/', views.notes_by_type, name='notes-by-type'),
     path('notebooks-by-type/', views.notebooks_by_type, name='notebooks-by-type'),
+    
+    # Export endpoint
+    path('export/', views.export_notes, name='export-notes'),
 ]

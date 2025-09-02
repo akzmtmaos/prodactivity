@@ -3,7 +3,11 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   ArrowLeft, 
   Save, 
-  FileUp
+  FileUp,
+  Download,
+  X,
+  FileText,
+  FileDown
 } from 'lucide-react';
 import { DocumentTextIcon, ChatBubbleLeftRightIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
@@ -85,9 +89,75 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const [showImportModal, setShowImportModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
   
+  // Export functionality state
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportFormat, setExportFormat] = useState<'pdf' | 'doc'>('pdf');
+  const [isExporting, setIsExporting] = useState(false);
+  
   // Simple contentEditable ref
   const contentEditableRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Save and restore cursor position to prevent jumping
+  const saveCursorPosition = () => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      return selection.getRangeAt(0).cloneRange();
+    }
+    return null;
+  };
+
+  const restoreCursorPosition = (range: Range | null) => {
+    if (range && contentEditableRef.current) {
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+        contentEditableRef.current.focus();
+      }
+    }
+  };
+
+  // Export functionality
+  const handleExportNote = async (format: 'pdf' | 'doc') => {
+    if (!note) return;
+    
+    setIsExporting(true);
+    try {
+      const response = await axios.post(`/api/notes/export/`, {
+        note_id: note.id,
+        format: format
+      }, {
+        responseType: 'blob',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      
+      // Set filename based on format and note title
+      const timestamp = new Date().toISOString().split('T')[0];
+      const title = note.title.replace(/[^a-zA-Z0-9]/g, '_');
+      link.download = `${title}_${timestamp}.${format}`;
+      
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+      
+      setShowExportModal(false);
+    } catch (error) {
+      console.error('Export failed:', error);
+      setError('Failed to export note. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   // Add state for tracking active formatting
   const [activeFormatting, setActiveFormatting] = useState<{
@@ -207,6 +277,27 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       debouncedSave();
     }
   }, [content, title, priority, hasChanges, debouncedSave]);
+
+  // Maintain focus and cursor position when content changes
+  useEffect(() => {
+    if (contentEditableRef.current && document.activeElement !== contentEditableRef.current) {
+      // Only restore focus if the editor doesn't already have focus
+      const savedRange = saveCursorPosition();
+      if (savedRange) {
+        setTimeout(() => {
+          restoreCursorPosition(savedRange);
+        }, 0);
+      }
+    }
+  }, [content]);
+
+  // Focus the editor when it first loads
+  useEffect(() => {
+    if (contentEditableRef.current && !isInitialized) {
+      contentEditableRef.current.focus();
+      setIsInitialized(true);
+    }
+  }, [isInitialized]);
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -763,6 +854,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               <FileUp size={16} className="mr-2" />
               Import
             </button>
+            <button
+              onClick={() => setShowExportModal(true)}
+              className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 flex items-center flex-shrink-0"
+              title="Export Document"
+              type="button"
+            >
+              <Download size={16} className="mr-2" />
+              Export
+            </button>
           </div>
         </div>
       </div>
@@ -801,7 +901,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          max-width: 100% !important;
                          overflow-wrap: break-word !important;
                          word-wrap: break-word !important;
-                         word-break: break-all !important;
+                         word-break: normal !important;
                          white-space: normal !important;
                          box-sizing: border-box !important;
                          height: auto !important;
@@ -810,7 +910,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          max-width: 100% !important;
                          overflow-wrap: break-word !important;
                          word-wrap: break-word !important;
-                         word-break: break-all !important;
+                         word-break: normal !important;
                          box-sizing: border-box !important;
                        }
                                              .note-editor h1 {
@@ -848,7 +948,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          width: 100% !important;
                          white-space: normal !important;
                          box-sizing: border-box !important;
-                         word-break: break-all !important;
+                         word-break: normal !important;
                        }
                        .note-editor span {
                          max-width: 100% !important;
@@ -908,12 +1008,21 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                   <div
                     ref={contentEditableRef}
                     contentEditable
+                    key={`note-${note?.id || 'new'}-${isInitialized}`}
                     className="outline-none focus:outline-none note-editor w-full"
                     onInput={(e) => {
+                      // Save cursor position before updating content
+                      const savedRange = saveCursorPosition();
+                      
                       const newContent = e.currentTarget.innerHTML;
                       setContent(newContent);
                       setHasChanges(true);
                       handleFormattingChange();
+                      
+                      // Restore cursor position after a short delay to allow React to re-render
+                      setTimeout(() => {
+                        restoreCursorPosition(savedRange);
+                      }, 0);
                     }}
                     onBlur={handleFormattingChange}
                     onKeyUp={handleFormattingChange}
@@ -1079,6 +1188,90 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 onClick={handleConfirmSave}
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Export Modal */}
+      {showExportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Export Note
+              </h2>
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Export your note to your preferred format.
+              </p>
+
+              <div className="space-y-3">
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="pdf"
+                    checked={exportFormat === 'pdf'}
+                    onChange={(e) => setExportFormat(e.target.value as 'pdf' | 'doc')}
+                    className="text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div className="flex items-center space-x-2">
+                    <FileText className="text-red-500" size={20} />
+                    <span className="text-gray-900 dark:text-white">PDF Document</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center space-x-3 cursor-pointer">
+                  <input
+                    type="radio"
+                    name="format"
+                    value="doc"
+                    checked={exportFormat === 'doc'}
+                    onChange={(e) => setExportFormat(e.target.value as 'pdf' | 'doc')}
+                    className="text-indigo-600 focus:ring-indigo-500"
+                  />
+                  <div className="flex items-center space-x-2">
+                    <FileDown className="text-blue-500" size={20} />
+                    <span className="text-gray-900 dark:text-white">Word Document</span>
+                  </div>
+                </label>
+              </div>
+            </div>
+
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowExportModal(false)}
+                className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+                disabled={isExporting}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleExportNote(exportFormat)}
+                disabled={isExporting}
+                className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+              >
+                {isExporting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    <span>Exporting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download size={16} />
+                    <span>Export</span>
+                  </>
+                )}
               </button>
             </div>
           </div>

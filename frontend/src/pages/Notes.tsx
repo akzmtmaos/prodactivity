@@ -13,6 +13,8 @@ import UrgentItemsPanel from '../components/notes/UrgentItemsPanel';
 import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
+import AIFeaturesPanel from '../components/notes/AIFeaturesPanel';
+import NotebookAIInsights from '../components/notes/NotebookAIInsights';
 
 interface Notebook {
   id: number;
@@ -96,6 +98,9 @@ const Notes = () => {
   
   // Urgent items panel state
   const [showUrgentItemsPanel, setShowUrgentItemsPanel] = useState(false);
+
+  // AI Insights panel state
+  const [showAIInsights, setShowAIInsights] = useState(false);
 
   // Hierarchical navigation state - NEW
   type ViewType = 'notebooks' | 'notes';
@@ -797,6 +802,18 @@ const Notes = () => {
     }
   };
 
+  // Error handler
+  const handleError = (error: any, message: string) => {
+    console.error(message, error);
+    if (error.response?.status === 401) {
+      localStorage.removeItem('accessToken'); // Changed from 'token' to 'accessToken'
+      localStorage.removeItem('refreshToken'); // Also remove refresh token
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    setError(message);
+  };
+
   // Add useEffect to handle tab changes
   useEffect(() => {
     if (activeNotebookTab === 'archived') {
@@ -821,39 +838,6 @@ const Notes = () => {
         window.location.href = '/login';
         return;
       }
-
-      const getUserData = () => {
-        const userData = localStorage.getItem('user');
-        if (userData && userData !== "undefined") {
-          try {
-            const parsedUser = JSON.parse(userData);
-            
-            if (parsedUser && typeof parsedUser === 'object') {
-              if (parsedUser.username) {
-                // setUser(parsedUser); // This line was removed
-              } else if (parsedUser.user && parsedUser.user.username) {
-                // setUser(parsedUser.user); // This line was removed
-              } else {
-                // setUser({ username: 'User' }); // This line was removed
-              }
-            } else {
-              // setUser({ username: 'User' }); // This line was removed
-            }
-          } catch (e) {
-            console.error('Error parsing user data:', e);
-            // setUser({ username: 'User' }); // This line was removed
-          }
-        } else {
-          // setUser({ username: 'User' }); // This line was removed
-        }
-      };
-
-      // getUserData(); // This line was removed
-      
-      // const hour = new Date().getHours(); // This line was removed
-      // if (hour < 12) setGreeting('Good morning'); // This line was removed
-      // else if (hour < 18) setGreeting('Good afternoon'); // This line was removed
-      // else setGreeting('Good evening'); // This line was removed
       
       try {
         await fetchNotebooks();
@@ -872,18 +856,6 @@ const Notes = () => {
 
     initializeApp();
   }, []); // Only run once on mount
-
-  // Error handler
-  const handleError = (error: any, message: string) => {
-    console.error(message, error);
-    if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken'); // Changed from 'token' to 'accessToken'
-      localStorage.removeItem('refreshToken'); // Also remove refresh token
-      localStorage.removeItem('user');
-      window.location.href = '/login';
-    }
-    setError(message);
-  };
 
   // Archive/Unarchive note
   const handleArchiveNote = async (noteId: number, archive: boolean) => {
@@ -988,6 +960,7 @@ const Notes = () => {
             onBackToNotebooks={handleBackToNotebooks}
             onGlobalSearch={() => setShowGlobalSearch(true)}
             onUrgentItems={() => setShowUrgentItemsPanel(true)}
+            onAIInsights={() => setShowAIInsights(true)}
             isSearching={isGlobalSearching}
           />
           
@@ -1215,6 +1188,22 @@ const Notes = () => {
             </div>
           </div>
           
+          {/* AI Features Panel - Enhanced with new capabilities */}
+          {currentView === 'notes' && selectedNotebook && (
+            <AIFeaturesPanel
+              content={notes.map(n => `${n.title}\n${n.content}`).join('\n\n')}
+              onApplySummary={(summary: string) => {
+                // For notebook-level summaries, we could create a new summary note
+                setToast({ message: 'Notebook summary generated! Consider creating a summary note.', type: 'success' });
+              }}
+              sourceNoteId={noteEditorNote?.id}
+              sourceNotebookId={selectedNotebook?.id}
+              sourceTitle={selectedNotebook?.name}
+              noteType={selectedNotebook?.notebook_type || 'other'}
+              isNotebook={true}
+            />
+          )}
+          
           {/* NoteEditor Modal */}
           {showNoteEditor && (
             <NoteEditor
@@ -1328,6 +1317,16 @@ const Notes = () => {
           setShowUrgentItemsPanel(false);
         }}
       />
+
+      {/* AI Insights Panel */}
+      {selectedNotebook && (
+        <NotebookAIInsights
+          notebook={selectedNotebook}
+          notes={notes}
+          isOpen={showAIInsights}
+          onClose={() => setShowAIInsights(false)}
+        />
+      )}
     </PageLayout>
   );
 };

@@ -7,9 +7,10 @@ interface TaskFormProps {
   onSubmit: (task: Omit<Task, 'id'>) => void;
   onCancel: () => void;
   existingCategories?: string[];
+  preSelectedCategory?: string;
 }
 
-const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingCategories = [] }) => {
+const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingCategories = [], preSelectedCategory }) => {
   const [formData, setFormData] = React.useState<Omit<Task, 'id'>>({
     title: task?.title || '',
     description: task?.description || '',
@@ -17,7 +18,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingC
     priority: task?.priority || 'medium',
     completed: task?.completed || false,
     category: task?.category || 'other',
-    task_category: task?.task_category || ''
+    task_category: task?.task_category || preSelectedCategory || ''
   });
   const [formError, setFormError] = React.useState<string | null>(null);
   const [isNewCategory, setIsNewCategory] = React.useState(false);
@@ -133,71 +134,88 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingC
             </div>
           </div>
           
-          {/* Task Category */}
-          <div className="mb-4">
-            <label htmlFor="task_category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-              Task Category
-            </label>
-            <div className="mt-1">
-              <div className="flex space-x-2 mb-2">
-                <button
-                  type="button"
-                  onClick={() => setIsNewCategory(false)}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                    !isNewCategory
-                      ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
-                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  Select Existing
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setIsNewCategory(true)}
-                  className={`px-3 py-1 text-xs rounded-md transition-colors ${
-                    isNewCategory
-                      ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
-                      : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                  }`}
-                >
-                  Create New
-                </button>
-              </div>
-              
-              {!isNewCategory ? (
-                <div className="relative">
-                  <select
+          {/* Task Category - Only show if no category is pre-selected */}
+          {!preSelectedCategory && (
+            <div className="mb-4">
+              <label htmlFor="task_category" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Task Category
+              </label>
+              <div className="mt-1">
+                <div className="flex space-x-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsNewCategory(false)}
+                    className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                      !isNewCategory
+                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Select Existing
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsNewCategory(true)}
+                    className={`px-3 py-1 text-xs rounded-md transition-colors ${
+                      isNewCategory
+                        ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
+                        : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Create New
+                  </button>
+                </div>
+                
+                {!isNewCategory ? (
+                  <div className="relative">
+                    <select
+                      id="task_category"
+                      name="task_category"
+                      className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 py-3 px-4 pr-10 focus:shadow-indigo-200 dark:focus:shadow-indigo-900 appearance-none"
+                      value={formData.task_category}
+                      onChange={handleInputChange}
+                    >
+                      <option value="">Select a category...</option>
+                      {existingCategories.map((cat) => (
+                        <option key={cat} value={cat}>{cat}</option>
+                      ))}
+                    </select>
+                    {/* Chevron icon */}
+                    <div className="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
+                      <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.585l3.71-3.355a.75.75 0 111.02 1.1l-4 3.62a.75.75 0 01-1.02 0l-4-3.62a.75.75 0 01.02-1.1z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                  </div>
+                ) : (
+                  <input
+                    type="text"
                     id="task_category"
                     name="task_category"
-                    className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 py-3 px-4 pr-10 focus:shadow-indigo-200 dark:focus:shadow-indigo-900 appearance-none"
+                    placeholder="Enter new category (e.g., CAPSTONE, Math, ComProg2)"
+                    className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 py-3 px-4 focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
                     value={formData.task_category}
                     onChange={handleInputChange}
-                  >
-                    <option value="">Select a category...</option>
-                    {existingCategories.map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                  {/* Chevron icon */}
-                  <div className="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
-                    <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.585l3.71-3.355a.75.75 0 111.02 1.1l-4 3.62a.75.75 0 01-1.02 0l-4-3.62a.75.75 0 01.02-1.1z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                </div>
-              ) : (
-                <input
-                  type="text"
-                  id="task_category"
-                  name="task_category"
-                  placeholder="Enter new category (e.g., CAPSTONE, Math, ComProg2)"
-                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 py-3 px-4 focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
-                  value={formData.task_category}
-                  onChange={handleInputChange}
-                />
-              )}
+                  />
+                )}
+              </div>
             </div>
-          </div>
+          )}
+          
+          {/* Show pre-selected category info */}
+          {preSelectedCategory && (
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Category
+              </label>
+              <div className="mt-1 p-3 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-700 rounded-lg">
+                <span className="text-indigo-700 dark:text-indigo-300 font-medium">{preSelectedCategory}</span>
+                <p className="text-xs text-indigo-600 dark:text-indigo-400 mt-1">
+                  Task will be added to this category
+                </p>
+              </div>
+            </div>
+          )}
           
           {/* Completed (only show in edit mode) */}
           {task && (

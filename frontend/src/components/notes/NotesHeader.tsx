@@ -1,6 +1,6 @@
 import React from 'react';
 import SearchBar from './SearchBar';
-import { Search, AlertTriangle, ArrowUpDown } from 'lucide-react';
+import { Search, AlertTriangle, ArrowUpDown, Brain } from 'lucide-react';
 
 interface NotesHeaderProps {
   currentView: 'notebooks' | 'notes';
@@ -23,6 +23,7 @@ interface NotesHeaderProps {
   onBackToNotebooks?: () => void;
   onGlobalSearch?: () => void;
   onUrgentItems?: () => void;
+  onAIInsights?: () => void;
   isSearching?: boolean;
 }
 
@@ -47,6 +48,7 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
   onBackToNotebooks,
   onGlobalSearch,
   onUrgentItems,
+  onAIInsights,
   isSearching = false,
 }) => {
   return (
@@ -176,6 +178,17 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
               <AlertTriangle size={16} />
               <span className="font-medium">Urgent Items</span>
             </button>
+            {/* AI Insights Button - Show when viewing notes */}
+            {selectedNotebook && (
+              <button
+                onClick={onAIInsights}
+                className="h-10 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+                title="Get AI-powered insights and recommendations"
+              >
+                <Brain size={16} />
+                <span className="font-medium">AI Insights</span>
+              </button>
+            )}
           </div>
           {/* Filter Bar for Notes - Mobile */}
           <div className="sm:hidden mb-6">
@@ -227,6 +240,17 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
                 <AlertTriangle size={16} />
                 <span className="font-medium">Urgent</span>
               </button>
+              {/* AI Insights Button - Show when viewing notes */}
+              {selectedNotebook && (
+                <button
+                  onClick={onAIInsights}
+                  className="h-12 px-4 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+                  title="Get AI-powered insights and recommendations"
+                >
+                  <Brain size={16} />
+                  <span className="font-medium">AI Insights</span>
+                </button>
+              )}
             </div>
           </div>
         </>

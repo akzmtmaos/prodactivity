@@ -13,6 +13,16 @@ from django.core.files.base import ContentFile
 import docx
 import tempfile
 from django.utils import timezone
+import io
+import re
+from reportlab.pdfgen import canvas
+from reportlab.lib.pagesizes import letter, A4
+from reportlab.lib.units import inch
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.enums import TA_LEFT, TA_CENTER
+from docx import Document
+from docx.shared import Inches
 
 class NotebookListCreateView(generics.ListCreateAPIView):
     serializer_class = NotebookSerializer
@@ -347,4 +357,125 @@ def notebooks_by_type(request):
         return Response(
             {'error': f'Failed to fetch notebooks by type: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
-        ) 
+        )
+
+def clean_html_content(html_content):
+    """Clean HTML content for export by removing tags and entities"""
+    if not html_content:
+        return ""
+    
+    # Remove HTML tags
+    content = re.sub(r'<[^>]+>', '', html_content)
+    
+    # Replace HTML entities
+    content = content.replace('&nbsp;', ' ')
+    content = content.replace('&amp;', '&')
+    content = content.replace('&lt;', '<')
+    content = content.replace('&gt;', '>')
+    content = content.replace('&quot;', '"')
+    content = content.replace('&#39;', "'")
+    
+    # Clean up extra whitespace and line breaks
+    content = re.sub(r'\n\s*\n', '\n\n', content)  # Remove multiple empty lines
+    content = re.sub(r' +', ' ', content)  # Remove multiple spaces
+    content = content.strip()  # Remove leading/trailing whitespace
+    
+    return content
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def export_notes(request):
+    """Export notes to PDF or DOC format"""
+    try:
+        note_id = request.data.get('note_id')
+        format_type = request.data.get('format', 'pdf')
+        
+        if not note_id:
+            return Response({'error': 'Note ID is required'}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get the note
+        try:
+            note = Note.objects.get(id=note_id, user=request.user, is_deleted=False)
+        except Note.DoesNotExist:
+            return Response({'error': 'Note not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Clean the content
+        clean_content = clean_html_content(note.content)
+        
+        if format_type == 'pdf':
+            # Create PDF
+            buffer = io.BytesIO()
+            doc = SimpleDocTemplate(buffer, pagesize=A4)
+            story = []
+            
+            # Get styles
+            styles = getSampleStyleSheet()
+            title_style = ParagraphStyle(
+                'CustomTitle',
+                parent=styles['Heading1'],
+                fontSize=18,
+                spaceAfter=30,
+                alignment=TA_CENTER
+            )
+            content_style = ParagraphStyle(
+                'CustomContent',
+                parent=styles['Normal'],
+                fontSize=12,
+                spaceAfter=12,
+                alignment=TA_LEFT
+            )
+            
+            # Add title
+            story.append(Paragraph(note.title, title_style))
+            story.append(Spacer(1, 20))
+            
+            # Add content (split by lines to handle line breaks)
+            content_lines = clean_content.split('\n')
+            for line in content_lines:
+                if line.strip():
+                    story.append(Paragraph(line, content_style))
+                else:
+                    story.append(Spacer(1, 12))
+            
+            # Build PDF
+            doc.build(story)
+            buffer.seek(0)
+            
+            # Create response
+            from django.http import HttpResponse
+            response = HttpResponse(buffer.getvalue(), content_type='application/pdf')
+            response['Content-Disposition'] = f'attachment; filename="{note.title}_export.pdf"'
+            return response
+            
+        elif format_type == 'doc':
+            # Create DOCX
+            doc = Document()
+            
+            # Add title
+            doc.add_heading(note.title, 0)
+            
+            # Add content
+            content_lines = clean_content.split('\n')
+            for line in content_lines:
+                if line.strip():
+                    doc.add_paragraph(line)
+                else:
+                    doc.add_paragraph()  # Empty paragraph for spacing
+            
+            # Save to buffer
+            buffer = io.BytesIO()
+            doc.save(buffer)
+            buffer.seek(0)
+            
+            # Create response
+            from django.http import HttpResponse
+            response = HttpResponse(buffer.getvalue(), content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+            response['Content-Disposition'] = f'attachment; filename="{note.title}_export.docx"'
+            return response
+            
+        else:
+            return Response({'error': 'Unsupported format. Use "pdf" or "doc"'}, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        print(f"Export error: {str(e)}")
+        return Response({'error': f'Export failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 

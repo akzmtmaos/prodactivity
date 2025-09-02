@@ -60,6 +60,9 @@ const Tasks = () => {
 
   // State for tabs
   const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed'>('tasks');
+  
+  // State for pre-selected category when adding task from category tab
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -131,12 +134,9 @@ const Tasks = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, filterCompleted, filterPriority, filterTaskCategory, sortField, sortDirection, currentPage]);
 
-  // Fetch tasks when activeTab changes (but not during task completion)
+  // Fetch tasks when activeTab changes
   useEffect(() => {
-    // Only fetch if we're not in the middle of a task completion operation
-    if (tasks.length > 0) {
-      fetchTasks();
-    }
+    fetchTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
@@ -223,26 +223,9 @@ const Tasks = () => {
       }
       
       // Apply additional filters if they don't conflict with tab filtering
-      if (filterCompleted !== null && activeTab === 'tasks') {
-        // Only apply if it's not already set by tab
-        if (filterCompleted === false) {
-          // Already set by tab, no need to add again
-        } else {
-          // Override tab setting
-          params.delete('completed');
-          params.append('completed', filterCompleted ? 'true' : 'false');
-        }
-      } else if (filterCompleted !== null && activeTab === 'completed') {
-        // Only apply if it's not already set by tab
-        if (filterCompleted === true) {
-          // Already set by tab, no need to add again
-        } else {
-          // Override tab setting
-          params.delete('completed');
-          params.append('completed', filterCompleted ? 'true' : 'false');
-        }
-      } else if (filterCompleted !== null) {
-        // No tab filtering, apply the filter
+      if (filterCompleted !== null) {
+        // Override tab setting with user's filter preference
+        params.delete('completed');
         params.append('completed', filterCompleted ? 'true' : 'false');
       }
       
@@ -477,6 +460,8 @@ const Tasks = () => {
     } else {
       addTask(taskData);
     }
+    // Reset selected category after form submission
+    setSelectedCategory('');
   };
 
   // Handle sort
@@ -689,18 +674,20 @@ const Tasks = () => {
             </div>
           )}
 
-          {/* Task form modal */}
-          {isFormOpen && (
-            <TaskForm
-              task={editingTask}
-              onSubmit={handleSubmit}
-              onCancel={() => {
-                setIsFormOpen(false);
-                setEditingTask(undefined);
-              }}
-              existingCategories={existingCategories}
-            />
-          )}
+                     {/* Task form modal */}
+           {isFormOpen && (
+             <TaskForm
+               task={editingTask}
+               onSubmit={handleSubmit}
+               onCancel={() => {
+                 setIsFormOpen(false);
+                 setEditingTask(undefined);
+                 setSelectedCategory('');
+               }}
+               existingCategories={existingCategories}
+               preSelectedCategory={selectedCategory}
+             />
+           )}
 
           {/* Tasks list */}
           <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
@@ -745,9 +732,25 @@ const Tasks = () => {
                               <h3 className={`text-lg font-semibold ${colors.text}`}>
                                 {category}
                               </h3>
-                              <span className={`text-sm ${colors.count}`}>
-                                {categoryTasks.length} task{categoryTasks.length !== 1 ? 's' : ''}
-                              </span>
+                              <div className="flex items-center gap-3">
+                                <span className={`text-sm ${colors.count}`}>
+                                  {categoryTasks.length} task{categoryTasks.length !== 1 ? 's' : ''}
+                                </span>
+                                                                 <button
+                                   onClick={() => {
+                                     setEditingTask(undefined);
+                                     setIsFormOpen(true);
+                                     // Store the category to pass to the form
+                                     setSelectedCategory(category);
+                                   }}
+                                  className={`p-1.5 rounded-full transition-all duration-200 hover:scale-110 ${colors.text} hover:bg-white/20`}
+                                  title={`Add task to ${category}`}
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                                  </svg>
+                                </button>
+                              </div>
                             </div>
                           </div>
                           <div className="p-2 bg-white dark:bg-gray-800">

@@ -537,3 +537,323 @@ Respond only with valid JSON:"""
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
+
+class NotebookSummaryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            notebook_id = request.data.get('notebook_id')
+            if not notebook_id:
+                return Response(
+                    {"error": "No notebook ID provided"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get all notes from the notebook
+            from .models import Note
+            notes = Note.objects.filter(
+                notebook_id=notebook_id,
+                user=request.user,
+                is_deleted=False,
+                is_archived=False
+            ).order_by('created_at')
+            
+            if not notes.exists():
+                return Response(
+                    {"error": "No notes found in this notebook"},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+            
+            # Combine all note content
+            combined_content = "\n\n".join([
+                f"Note: {note.title}\n{note.content}"
+                for note in notes
+            ])
+            
+            # Get notebook summary prompt from database configuration
+            try:
+                summary_prompt = get_ai_config('notebook_summary_prompt', content=combined_content)
+            except ValueError:
+                # Fallback prompt if configuration not found
+                summary_prompt = f"""Please provide a comprehensive summary of the following notebook content. 
+                Organize the information into logical sections and highlight key concepts, important dates, and actionable items.
+                
+                Notebook Content:
+                {combined_content}
+                
+                Please provide:
+                1. Executive Summary
+                2. Key Topics Covered
+                3. Important Dates/Deadlines
+                4. Action Items
+                5. Related Concepts
+                6. Study Recommendations"""
+            
+            payload = {
+                "model": OLLAMA_MODEL,
+                "prompt": summary_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.3,
+                    "top_p": 0.8,
+                    "top_k": 40,
+                    "num_predict": 800,
+                    "repeat_penalty": 1.1
+                }
+            }
+            
+            response = requests.post(OLLAMA_API_URL, json=payload, timeout=300)
+            
+            if response.status_code == 200:
+                result = response.json()
+                summary = result.get('response', '').strip()
+                
+                if not summary:
+                    return Response(
+                        {"error": "Failed to generate notebook summary. Please try again."},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+                
+                return Response({
+                    "summary": summary,
+                    "notes_count": notes.count(),
+                    "total_content_length": len(combined_content)
+                })
+            else:
+                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+                return Response(
+                    {"error": "Failed to generate notebook summary. Please try again."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+        except requests.exceptions.ConnectionError:
+            logger.error("Could not connect to Ollama. Make sure Ollama is running.")
+            return Response(
+                {"error": "Could not connect to Ollama. Please make sure Ollama is running on your computer."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except requests.exceptions.Timeout:
+            logger.error("Ollama request timed out. The model is taking too long to respond.")
+            return Response(
+                {"error": "The AI is taking too long to respond. Please try again with a shorter notebook or wait a moment."},
+                status=status.HTTP_408_REQUEST_TIMEOUT
+            )
+        except Exception as e:
+            logger.error(f"Error in notebook summarization: {str(e)}")
+            return Response(
+                {"error": "Failed to generate notebook summary. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class UrgencyDetectionView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            text = request.data.get('text', '')
+            title = request.data.get('title', '')
+            note_type = request.data.get('note_type', 'other')
+            
+            if not text and not title:
+                return Response(
+                    {"error": "No text or title provided"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get urgency detection prompt from database configuration
+            try:
+                urgency_prompt = get_ai_config('urgency_detection_prompt', content=text)
+            except ValueError:
+                # Fallback prompt if configuration not found
+                urgency_prompt = f"""Analyze the following note content and determine its urgency level. Consider:
+
+1. Time-sensitive language (deadlines, due dates, exam dates, ASAP, urgent)
+2. Academic context (assignments, exams, presentations)
+3. Work context (meetings, project deadlines, client requests)
+4. Personal context (appointments, bills, important events)
+5. Content patterns that suggest immediate attention is needed
+
+Note Title: {title}
+Note Type: {note_type}
+Content: {text}
+
+Please respond with ONLY a JSON object in this exact format:
+{{
+    "urgency_level": "low|medium|high|urgent",
+    "confidence": 0.85,
+    "reasoning": "Brief explanation of why this level was chosen",
+    "suggested_priority": "low|medium|high|urgent",
+    "time_sensitive": true|false,
+    "deadlines_mentioned": ["list", "of", "deadlines"],
+    "action_required": true|false
+}}"""
+            
+            payload = {
+                "model": OLLAMA_MODEL,
+                "prompt": urgency_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.1,
+                    "top_p": 0.9,
+                    "top_k": 40,
+                    "num_predict": 300,
+                    "repeat_penalty": 1.1
+                }
+            }
+            
+            response = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
+            
+            if response.status_code == 200:
+                result = response.json()
+                ai_response = result.get('response', '').strip()
+                
+                try:
+                    # Try to parse JSON response
+                    import json
+                    urgency_data = json.loads(ai_response)
+                    
+                    return Response(urgency_data)
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, return a structured response
+                    logger.warning("AI response was not valid JSON, returning structured fallback")
+                    return Response({
+                        "urgency_level": "medium",
+                        "confidence": 0.5,
+                        "reasoning": "AI analysis completed but response format was unexpected",
+                        "suggested_priority": "medium",
+                        "time_sensitive": False,
+                        "deadlines_mentioned": [],
+                        "action_required": False,
+                        "raw_ai_response": ai_response
+                    })
+                
+            else:
+                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+                return Response(
+                    {"error": "Failed to analyze urgency. Please try again."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+        except requests.exceptions.ConnectionError:
+            logger.error("Could not connect to Ollama. Make sure Ollama is running.")
+            return Response(
+                {"error": "Could not connect to Ollama. Please make sure Ollama is running on your computer."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except Exception as e:
+            logger.error(f"Error in urgency detection: {str(e)}")
+            return Response(
+                {"error": "Failed to analyze urgency. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+class SmartChunkingView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        try:
+            text = request.data.get('text', '')
+            topic = request.data.get('topic', '')
+            
+            if not text:
+                return Response(
+                    {"error": "No text provided"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get smart chunking prompt from database configuration
+            try:
+                chunking_prompt = get_ai_config('smart_chunking_prompt', content=text)
+            except ValueError:
+                # Fallback prompt if configuration not found
+                chunking_prompt = f"""Analyze the following content and suggest how to break it down into multiple focused notes. Consider:
+
+1. Logical topic divisions
+2. Complexity of concepts
+3. Study efficiency (not too many small notes, not too few large ones)
+4. Related subtopics that could be grouped together
+5. Optimal note size for effective learning
+
+Topic: {topic}
+Content: {text}
+
+Please respond with ONLY a JSON object in this exact format:
+{{
+    "suggested_chunks": [
+        {{
+            "title": "Suggested note title",
+            "content_preview": "Brief preview of what this note would contain",
+            "key_concepts": ["concept1", "concept2"],
+            "estimated_length": "short|medium|long",
+            "priority": "low|medium|high"
+        }}
+    ],
+    "total_notes_suggested": 3,
+    "reasoning": "Explanation of why this chunking approach was chosen",
+    "study_recommendations": ["recommendation1", "recommendation2"]
+}}"""
+            
+            payload = {
+                "model": OLLAMA_MODEL,
+                "prompt": chunking_prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.3,
+                    "top_p": 0.8,
+                    "top_k": 40,
+                    "num_predict": 500,
+                    "repeat_penalty": 1.1
+                }
+            }
+            
+            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
+            
+            if response.status_code == 200:
+                result = response.json()
+                ai_response = result.get('response', '').strip()
+                
+                try:
+                    # Try to parse JSON response
+                    import json
+                    chunking_data = json.loads(ai_response)
+                    
+                    return Response(chunking_data)
+                except json.JSONDecodeError:
+                    # If JSON parsing fails, return a structured response
+                    logger.warning("AI response was not valid JSON, returning structured fallback")
+                    return Response({
+                        "suggested_chunks": [
+                            {
+                                "title": "Content Analysis",
+                                "content_preview": "AI analysis completed but response format was unexpected",
+                                "key_concepts": ["analysis"],
+                                "estimated_length": "medium",
+                                "priority": "medium"
+                            }
+                        ],
+                        "total_notes_suggested": 1,
+                        "reasoning": "AI analysis completed but response format was unexpected",
+                        "study_recommendations": ["Review the content manually"],
+                        "raw_ai_response": ai_response
+                    })
+                
+            else:
+                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+                return Response(
+                    {"error": "Failed to analyze content chunking. Please try again."},
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+            
+        except requests.exceptions.ConnectionError:
+            logger.error("Could not connect to Ollama. Make sure Ollama is running.")
+            return Response(
+                {"error": "Could not connect to Ollama. Please make sure Ollama is running on your computer."},
+                status=status.HTTP_503_SERVICE_UNAVAILABLE
+            )
+        except Exception as e:
+            logger.error(f"Error in smart chunking: {str(e)}")
+            return Response(
+                {"error": "Failed to analyze content chunking. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
