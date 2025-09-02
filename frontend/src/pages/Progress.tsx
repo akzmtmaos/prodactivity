@@ -7,6 +7,7 @@ import ProgressHeader from '../components/progress/ProgressHeader';
 import ProgressOverview from '../components/progress/ProgressOverview';
 import ProgressTabs from '../components/progress/ProgressTabs';
 import ProductivityHistory from '../components/progress/ProductivityHistory';
+import Achievements from '../components/progress/Achievements';
 import { format, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
 import { getTodayDate } from '../utils/dateUtils';
 
@@ -469,11 +470,11 @@ const Progress = () => {
           getProductivityColor={getProductivityColor}
         />
 
-        {/* Main Chart Placeholder */}
-        <MainChart view={progressView} data={chartData} />
+        {/* Main Chart */}
+        <MainChart view={progressView} data={chartData} prodLogs={prodLogs} />
 
         {/* Achievements */}
-        {/* <Achievements stats={stats} /> */}
+        <Achievements stats={stats} userLevel={userLevel} />
       </div>
     </PageLayout>
   );

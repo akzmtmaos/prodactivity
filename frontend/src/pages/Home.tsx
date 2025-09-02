@@ -176,9 +176,9 @@ const Home = () => {
         console.error('Error searching decks:', error);
       }
 
-      // Search Tasks
+      // Search Tasks (exclude completed tasks)
       try {
-        const tasksResponse = await axios.get(`${API_BASE_URL}/tasks/?search=${encodeURIComponent(query)}`, {
+        const tasksResponse = await axios.get(`${API_BASE_URL}/tasks/?search=${encodeURIComponent(query)}&completed=false`, {
           headers: getAuthHeaders()
         });
         
@@ -190,7 +190,7 @@ const Home = () => {
               type: 'task',
               title: task.title,
               content: task.description,
-              description: `${task.priority} priority • ${task.completed ? 'Completed' : 'Pending'}`,
+              description: `${task.priority} priority • Pending`,
               url: `/tasks`,
               icon: <CheckCircle className="w-4 h-4" />,
               category: 'Tasks',
@@ -276,13 +276,7 @@ const Home = () => {
     }
   };
 
-  // Handle search functionality
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchQuery.trim()) {
-      performSearch(searchQuery);
-    }
-  };
+
 
   // Handle search input changes with debouncing
   useEffect(() => {
@@ -358,7 +352,10 @@ const Home = () => {
         // Check if click is outside the search container
         const searchContainer = searchInputRef.current.closest('.relative');
         if (searchContainer && !searchContainer.contains(event.target as Node)) {
-          setShowSearchResults(false);
+          // Add a small delay to allow click events to complete
+          setTimeout(() => {
+            setShowSearchResults(false);
+          }, 100);
         }
       }
     };
@@ -381,8 +378,12 @@ const Home = () => {
     } else {
       navigate(result.url);
     }
-    setShowSearchResults(false);
-    setSearchQuery('');
+    
+    // Close dropdown and clear search after navigation
+    setTimeout(() => {
+      setShowSearchResults(false);
+      setSearchQuery('');
+    }, 50);
   };
 
   // Close search results
@@ -739,39 +740,40 @@ const Home = () => {
 
           {/* Search Bar */}
           <div className="max-w-2xl mx-auto mb-24 mt-16 relative">
-            <form onSubmit={handleSearch} className="relative">
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Search className="h-5 w-5 text-gray-400" />
-                </div>
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search Notes, System, Reviewer, and more... (Ctrl+K)"
-                  className="block w-full pl-10 pr-3 py-3 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 dark:focus:border-indigo-400 transition-colors"
-                />
-                <button
-                  type="submit"
-                  className="absolute inset-y-0 right-0 px-3 flex items-center bg-indigo-600 hover:bg-indigo-700 text-white rounded-r-lg transition-colors"
-                >
-                  <span className="text-sm font-medium">Search</span>
-                </button>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <Search className="h-5 w-5 text-gray-400" />
               </div>
-            </form>
+              <input
+                ref={searchInputRef}
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setShowSearchResults(true)}
+                placeholder="Search Notes, System, Reviewer, and more... (Ctrl+K)"
+                className="block w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 dark:focus:border-indigo-400 transition-colors"
+              />
+            </div>
 
             {/* Search Results Dropdown */}
             {showSearchResults && (
-              <div className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto z-50">
+              <div 
+                className="absolute top-full left-0 right-0 mt-2 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 max-h-96 overflow-y-auto z-50"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => e.stopPropagation()}
+              >
                 {isSearching ? (
                   <div className="p-4 text-center text-gray-500 dark:text-gray-400">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500 mx-auto mb-2"></div>
                     Searching...
                   </div>
-                ) : searchResults.length === 0 ? (
+                ) : searchResults.length === 0 && searchQuery.trim() ? (
                   <div className="p-4 text-center text-gray-500 dark:text-gray-400">
                     No results found for "{searchQuery}". Try a different search term.
+                  </div>
+                ) : searchResults.length === 0 ? (
+                  <div className="p-4 text-center text-gray-500 dark:text-gray-400">
+                    Start typing to search...
                   </div>
                 ) : (
                   <div className="py-2">
@@ -783,7 +785,11 @@ const Home = () => {
                             ? 'bg-indigo-50 dark:bg-indigo-900/20' 
                             : 'hover:bg-gray-50 dark:hover:bg-gray-700'
                         }`}
-                        onClick={() => handleResultClick(result)}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleResultClick(result);
+                        }}
                         onMouseEnter={() => setSelectedResultIndex(index)}
                       >
                         <div className="mr-3 text-indigo-600 dark:text-indigo-400">{result.icon}</div>
@@ -807,53 +813,65 @@ const Home = () => {
 
           {/* Dynamic Stats grid - 2x2 on mobile, 4 columns on desktop */}
           <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-5">
-            <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
+            <div 
+              className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer group"
+              onClick={() => navigate('/schedule')}
+            >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700">
+                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-900/30 transition-colors">
                     <Clock size={16} className="sm:w-5 sm:h-5 text-indigo-600 dark:text-indigo-400" />
                   </div>
                   <div className="ml-3 sm:ml-5">
-                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Study Hours</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Study Hours</p>
                     <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{studyHours.toFixed(1)}</p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
+            <div 
+              className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer group"
+              onClick={() => navigate('/tasks')}
+            >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700">
-                    <CheckSquare size={16} className="sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
+                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700 group-hover:bg-orange-100 dark:group-hover:bg-orange-900/30 transition-colors">
+                    <CheckSquare size={16} className="sm:w-5 sm:h-5 text-orange-600 dark:text-orange-400" />
                   </div>
                   <div className="ml-3 sm:ml-5">
-                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Tasks Completed</p>
-                    <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{completedTasksCount}</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">Tasks Incomplete</p>
+                    <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{tasks.length}</p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
+            <div 
+              className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer group"
+              onClick={() => navigate('/notes')}
+            >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700">
+                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700 group-hover:bg-blue-100 dark:group-hover:bg-blue-900/30 transition-colors">
                     <BookOpen size={16} className="sm:w-5 sm:h-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div className="ml-3 sm:ml-5">
-                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Notes Created</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">Notes Created</p>
                     <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{notesCount}</p>
                   </div>
                 </div>
               </div>
             </div>
-            <div className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition hover:shadow-md">
+            <div 
+              className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer group"
+              onClick={() => navigate('/schedule')}
+            >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                 <div className="flex items-center">
-                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700">
+                  <div className="flex-shrink-0 rounded-md p-2 sm:p-3 bg-gray-100 dark:bg-gray-700 group-hover:bg-purple-100 dark:group-hover:bg-purple-900/30 transition-colors">
                     <Calendar size={16} className="sm:w-5 sm:h-5 text-purple-600 dark:text-purple-400" />
                   </div>
                   <div className="ml-3 sm:ml-5">
-                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400">Upcoming Events</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors">Upcoming Events</p>
                     <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{upcomingEventsCount}</p>
                   </div>
                 </div>
@@ -867,24 +885,32 @@ const Home = () => {
               <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
                 Quick Notes History
               </h2>
-              {/* Show navigation only on mobile when there are more than 4 notes */}
-              <div className="md:hidden">
-                {recentNotes.length > 4 && (
-                  <div className="flex items-center space-x-2">
-                    <button
-                      onClick={prevSlide}
-                      className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
-                    >
-                      <ChevronLeft size={16} />
-                    </button>
-                    <button
-                      onClick={nextSlide}
-                      className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
-                    >
-                      <ChevronRight size={16} />
-                    </button>
-                  </div>
-                )}
+              <div className="flex items-center space-x-4">
+                <button 
+                  onClick={() => navigate('/notes')}
+                  className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium transition-colors hover:text-indigo-700 dark:hover:text-indigo-300"
+                >
+                  View All Notes
+                </button>
+                {/* Show navigation only on mobile when there are more than 4 notes */}
+                <div className="md:hidden">
+                  {recentNotes.length > 4 && (
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={prevSlide}
+                        className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+                      <button
+                        onClick={nextSlide}
+                        className="p-1 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 text-gray-600 dark:text-gray-300 transition-colors"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
             
@@ -898,11 +924,11 @@ const Home = () => {
                       className="flex-shrink-0 w-1/4 px-1"
                     >
                       <div 
-                        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px]"
+                        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group"
                         onClick={() => handleOpenNote(note.id)}
                       >
                         <div className="p-2 flex-1 flex flex-col items-center justify-center text-center">
-                          <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                          <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/50 transition-colors">
                             <BookOpen size={14} className="text-indigo-600 dark:text-indigo-400" />
                           </div>
                           <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 px-1">
@@ -923,10 +949,14 @@ const Home = () => {
                     </div>
                   ))
                 ) : (
-                  <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-1">
+                  <div 
+                    className="w-full bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-gray-700"
+                    onClick={() => navigate('/notes')}
+                  >
+                    <div className="flex flex-col items-center justify-center space-y-2">
                       <BookOpen size={16} className="text-gray-400 dark:text-gray-500" />
                       <p className="text-xs text-gray-500 dark:text-gray-400">No recent notes found</p>
+                      <p className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline">Click to create a new note</p>
                     </div>
                   </div>
                 )}
@@ -940,11 +970,11 @@ const Home = () => {
                   recentNotes.slice(0, 8).map((note) => (
                     <div 
                       key={note.id} 
-                      className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px]"
+                      className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group"
                       onClick={() => handleOpenNote(note.id)}
                     >
                       <div className="p-2 flex-1 flex flex-col items-center justify-center text-center">
-                        <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full">
+                        <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/50 transition-colors">
                           <BookOpen size={14} className="text-indigo-600 dark:text-indigo-400" />
                         </div>
                         <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 px-1">
@@ -964,10 +994,14 @@ const Home = () => {
                     </div>
                   ))
                 ) : (
-                  <div className="col-span-full bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 text-center">
-                    <div className="flex flex-col items-center justify-center space-y-1">
+                  <div 
+                    className="col-span-full bg-white dark:bg-gray-800 rounded-lg shadow-sm p-4 text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-gray-700"
+                    onClick={() => navigate('/notes')}
+                  >
+                    <div className="flex flex-col items-center justify-center space-y-2">
                       <BookOpen size={16} className="text-gray-400 dark:text-gray-500" />
                       <p className="text-xs text-gray-500 dark:text-gray-400">No recent notes found</p>
+                      <p className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline">Click to create a new note</p>
                     </div>
                   </div>
                 )}
@@ -1000,7 +1034,12 @@ const Home = () => {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Pending Tasks</h2>
-                <a href="/tasks" className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium">View Tasks</a>
+                <button 
+                  onClick={() => navigate('/tasks')}
+                  className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium transition-colors hover:text-indigo-700 dark:hover:text-indigo-300"
+                >
+                  View Tasks
+                </button>
               </div>
               <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg shadow flex flex-col p-4">
                 <div className="flex-1 overflow-y-auto">
@@ -1009,7 +1048,11 @@ const Home = () => {
                   ) : tasks.length > 0 ? (
                     <div className="grid grid-cols-1 gap-2">
                       {tasks.map((task) => (
-                        <div key={task.id} className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px]">
+                        <div 
+                          key={task.id} 
+                          className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px] cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-gray-800"
+                          onClick={() => navigate('/tasks')}
+                        >
                           <div className="flex items-center justify-between">
                             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                               task.priority === 'high'
@@ -1038,8 +1081,15 @@ const Home = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400">
-                      No pending tasks found
+                    <div 
+                      className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400 cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-gray-700"
+                      onClick={() => navigate('/tasks')}
+                    >
+                      <div className="flex flex-col items-center space-y-2">
+                        <CheckSquare size={24} className="text-gray-400 dark:text-gray-500" />
+                        <p>No pending tasks found</p>
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">Click to create a new task</p>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -1050,14 +1100,23 @@ const Home = () => {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Upcoming Events</h2>
-                <a href="/schedule" className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium">View Schedule</a>
+                <button 
+                  onClick={() => navigate('/schedule')}
+                  className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium transition-colors hover:text-indigo-700 dark:hover:text-indigo-300"
+                >
+                  View Schedule
+                </button>
               </div>
               <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg shadow flex flex-col p-4">
                 <div className="flex-1 overflow-y-auto">
                   {events.length > 0 ? (
                     <div className="grid grid-cols-1 gap-2">
                       {events.map((event) => (
-                        <div key={event.id} className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px]">
+                        <div 
+                          key={event.id} 
+                          className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px] cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-gray-800"
+                          onClick={() => navigate('/schedule')}
+                        >
                           <div className="flex items-center justify-between">
                             <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
                               event.category === 'study'
@@ -1088,8 +1147,15 @@ const Home = () => {
                       ))}
                     </div>
                   ) : (
-                    <div className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400">
-                      No upcoming events found
+                    <div 
+                      className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400 cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-gray-700"
+                      onClick={() => navigate('/schedule')}
+                    >
+                      <div className="flex flex-col items-center space-y-2">
+                        <Calendar size={24} className="text-gray-400 dark:text-gray-500" />
+                        <p>No upcoming events found</p>
+                        <p className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline">Click to create a new event</p>
+                      </div>
                     </div>
                   )}
                 </div>
