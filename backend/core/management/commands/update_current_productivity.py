@@ -40,7 +40,7 @@ class Command(BaseCommand):
                 elif completion_rate >= 70:
                     status = 'Productive'
                 elif completion_rate >= 40:
-                    status = 'Needs Improvement'
+                    status = 'Moderately Productive'
                 else:
                     status = 'Low Productivity'
             
@@ -95,7 +95,7 @@ class Command(BaseCommand):
                 elif completion_rate >= 70:
                     status = 'Productive'
                 elif completion_rate >= 40:
-                    status = 'Needs Improvement'
+                    status = 'Moderately Productive'
                 else:
                     status = 'Low Productivity'
             

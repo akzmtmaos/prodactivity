@@ -11,10 +11,26 @@ interface TaskFormProps {
 }
 
 const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingCategories = [], preSelectedCategory }) => {
+  // Helper function to ensure due date is not in the past
+  const getValidDueDate = (taskDueDate?: string) => {
+    if (!taskDueDate) return getTodayDate();
+    
+    const dueDate = new Date(taskDueDate);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    // If the task's due date is in the past, use today's date instead
+    if (dueDate < today) {
+      return getTodayDate();
+    }
+    
+    return taskDueDate;
+  };
+
   const [formData, setFormData] = React.useState<Omit<Task, 'id'>>({
     title: task?.title || '',
     description: task?.description || '',
-    dueDate: task?.dueDate || getTodayDate(),
+    dueDate: getValidDueDate(task?.dueDate),
     priority: task?.priority || 'medium',
     completed: task?.completed || false,
     category: task?.category || 'other',
@@ -45,6 +61,16 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingC
       setFormError('Due date is required.');
       return;
     }
+    
+    // Check if due date is in the past
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dueDate = new Date(formData.dueDate);
+    if (dueDate < today) {
+      setFormError('Cannot select a due date in the past.');
+      return;
+    }
+    
     onSubmit(formData);
   };
 
@@ -103,6 +129,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingC
                 id="dueDate"
                 name="dueDate"
                 required
+                min={getTodayDate()}
                 className="mt-1 block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 py-3 px-4 focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
                 value={formData.dueDate}
                 onChange={handleInputChange}

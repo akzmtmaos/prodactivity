@@ -21,6 +21,7 @@ class TaskViewSet(viewsets.ModelViewSet):
     search_fields = ['title', 'description']
     ordering_fields = ['due_date', 'priority', 'title', 'task_category']
     ordering = ['due_date', 'priority']
+    pagination_class = None  # Disable pagination for tasks
 
     def get_queryset(self):
         logger.debug(f"[TaskViewSet] get_queryset called by user: {self.request.user} (auth: {self.request.user.is_authenticated})")
@@ -132,7 +133,7 @@ class TaskViewSet(viewsets.ModelViewSet):
             elif completion_rate >= 70:
                 status = 'Productive'
             elif completion_rate >= 40:
-                status = 'Needs Improvement'
+                status = 'Moderately Productive'
             else:
                 status = 'Low Productivity'
         
@@ -349,6 +350,7 @@ class TaskViewSet(viewsets.ModelViewSet):
 class SubtaskViewSet(viewsets.ModelViewSet):
     serializer_class = SubtaskSerializer
     permission_classes = [IsAuthenticated]
+    pagination_class = None  # Disable pagination for subtasks
 
     def get_queryset(self):
         return Subtask.objects.filter(task__user=self.request.user)

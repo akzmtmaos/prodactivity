@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from './context/ThemeContext';
 import { NavbarProvider } from './context/NavbarContext';
+import { TimerProvider } from './context/TimerContext';
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import Notes from "./pages/Notes";
@@ -23,6 +24,7 @@ import Reviewer from "./pages/Reviewer";
 import LandingPage from "./pages/LandingPage";
 import QuizSessionPage from './pages/QuizSessionPage';
 import StudySessionPage from './pages/StudySessionPage';
+import TimerWidget from './components/studytimer/TimerWidget';
 // Import axios configuration to set up interceptors
 import './utils/axiosConfig';
 
@@ -43,6 +45,7 @@ const PrivateRoute = ({ isAuthenticated, children }: PrivateRouteProps) => {
       <main className="relative w-full transition-all duration-300 ease-in-out">
         {children}
       </main>
+      <TimerWidget />
     </div>
   );
 };
@@ -167,9 +170,10 @@ function App() {
 
   return (
     <ThemeProvider>
-      <NavbarProvider>
-        <Router>
-          <Routes>
+      <TimerProvider>
+        <NavbarProvider>
+          <Router>
+            <Routes>
                                <Route path="/login" element={<Login setIsAuthenticated={handleSetAuthenticated} />} />
                    <Route path="/register" element={<Register setIsAuthenticated={handleSetAuthenticated} />} />
                    <Route path="/verification" element={<Verification />} />
@@ -326,6 +330,7 @@ function App() {
           </Routes>
         </Router>
       </NavbarProvider>
+        </TimerProvider>
     </ThemeProvider>
   );
 }

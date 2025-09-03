@@ -99,6 +99,16 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
   const [flashcardResult, setFlashcardResult] = useState<string>('');
   const [createdDeckId, setCreatedDeckId] = useState<number | null>(null);
 
+  // Auto-scroll chat to bottom when new messages arrive
+  useEffect(() => {
+    if (activeFeature === 'chat' && chatMessages.length > 0) {
+      const chatContainer = document.querySelector('.chat-messages-container');
+      if (chatContainer) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      }
+    }
+  }, [chatMessages, activeFeature]);
+
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
     return {
@@ -385,22 +395,82 @@ Click "View Deck" to see your flashcards in the Decks section.`);
     setIsLoading(true);
 
     try {
-      const response = await axiosInstance.post('/notes/chat/', {
-        message: chatInput,
-        note_content: content,
-        note_title: sourceTitle || 'Untitled Note'
+      // Prepare messages array for the backend
+      const messages = [
+        { role: 'system', content: `You are a helpful AI assistant. You are helping with a note titled "${sourceTitle || 'Untitled Note'}". The note content is: ${content}` },
+        ...chatMessages,
+        userMessage
+      ];
+
+      // Create a temporary assistant message that we'll update
+      const tempAssistantMessage = { role: 'assistant' as const, content: '' };
+      setChatMessages(prev => [...prev, tempAssistantMessage]);
+
+      const response = await fetch('/api/notes/chat/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: JSON.stringify({ messages: messages })
       });
 
-      if (response.data.error) {
-        throw new Error(response.data.error);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const assistantMessage = { role: 'assistant' as const, content: response.data.response };
-      setChatMessages(prev => [...prev, assistantMessage]);
+      // Handle streaming response
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error('No response body');
+      }
+
+      let fullResponse = '';
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.chunk) {
+                fullResponse += data.chunk;
+                // Update the last message with accumulated content
+                setChatMessages(prev => {
+                  const newMessages = [...prev];
+                  if (newMessages.length > 0) {
+                    newMessages[newMessages.length - 1] = { ...newMessages[newMessages.length - 1], content: fullResponse };
+                  }
+                  return newMessages;
+                });
+              } else if (data.done && data.full_response) {
+                // Final update with cleaned response
+                setChatMessages(prev => {
+                  const newMessages = [...prev];
+                  if (newMessages.length > 0) {
+                    newMessages[newMessages.length - 1] = { ...newMessages[newMessages.length - 1], content: data.full_response };
+                  }
+                  return newMessages;
+                });
+              }
+            } catch (e) {
+              console.error('Error parsing SSE data:', e);
+            }
+          }
+        }
+      }
     } catch (error: any) {
       console.error('Chat failed:', error);
       const errorMessage = error.response?.data?.error || error.message || 'Chat failed. Please try again.';
       setError(errorMessage);
+      // Remove the temporary assistant message on error
+      setChatMessages(prev => prev.slice(0, -1));
     } finally {
       setIsLoading(false);
     }
@@ -851,7 +921,12 @@ Click "View Deck" to see your flashcards in the Decks section.`);
 
                 {activeFeature === 'chat' && (
                   <div className="flex flex-col h-full">
-                    <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-2">
+                    <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-2 chat-messages-container" ref={(el) => {
+                      // Auto-scroll to bottom when new messages arrive
+                      if (el) {
+                        el.scrollTop = el.scrollHeight;
+                      }
+                    }}>
                       {chatMessages.map((message, index) => (
                           <div
                             key={index}
@@ -917,27 +992,27 @@ Click "View Deck" to see your flashcards in the Decks section.`);
 
       {/* AI Features Sidebar (navbar at far right) */}
       <div className="w-16 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col items-center py-4 space-y-4">
-         {features.filter(f => f.show).map((feature) => (
-           <button
-             key={feature.id}
-             onClick={feature.action}
-             disabled={isLoading}
-             className={`p-2 rounded-lg transition-colors group relative
-               ${activeFeature === feature.id 
-                 ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
-                 : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'}`}
-             title={feature.label}
-           >
-             <feature.icon className="h-6 w-6" />
-             <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
-               <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
-                 {feature.label}
-               </div>
-               <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
-             </div>
-           </button>
-         ))}
-       </div>
+        {features.filter(f => f.show).map((feature) => (
+          <button
+            key={feature.id}
+            onClick={feature.action}
+            disabled={isLoading}
+            className={`p-2 rounded-lg transition-colors group relative
+              ${activeFeature === feature.id 
+                ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
+                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'}`}
+            title={feature.label}
+          >
+            <feature.icon className="h-6 w-6" />
+            <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
+              <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+                {feature.label}
+              </div>
+              <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
+            </div>
+          </button>
+        ))}
+      </div>
     </>
   );
 };

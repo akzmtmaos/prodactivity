@@ -14,6 +14,7 @@ import SubDeckModal from '../components/decks/SubDeckModal';
 import QuizSession from '../components/decks/QuizSession';
 import Toast from '../components/common/Toast';
 import type { SubDeck } from '../components/decks/SubDeckModal';
+import { truncateHtmlContent } from '../utils/htmlUtils';
 
 interface FlashcardData {
   id: string;
@@ -185,7 +186,7 @@ const Decks = () => {
       
       if (parseStrategy === 'qa') {
         // Strategy 1: Look for explicit Q:/A: lines
-        const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+        const lines = content.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
         let i = 0;
         while (i < lines.length) {
           const line = lines[i];
@@ -229,48 +230,87 @@ const Decks = () => {
           i++;
         }
         
-        // Strategy 2: If no Q/A patterns found, create cards from sentences with better logic
+        // Strategy 2: If no Q/A patterns found, create cards from distinct concepts
         if (cards.length === 0) {
-          const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 15);
-          for (let i = 0; i < sentences.length - 1; i++) {
-            const currentSentence = sentences[i].trim();
-            const nextSentence = sentences[i + 1].trim();
+          // Split content into distinct sections based on double line breaks or clear separators
+          const sections = content.split(/\n\s*\n/).filter((s: string) => s.trim().length > 20);
+          
+          for (let i = 0; i < sections.length; i++) {
+            const section = sections[i].trim();
             
-            // Skip if either sentence is too short or too long
-            if (currentSentence.length < 10 || currentSentence.length > 200 || 
-                nextSentence.length < 10 || nextSentence.length > 300) {
+            // Skip if section is too short or too long
+            if (section.length < 30 || section.length > 800) {
               continue;
             }
             
-            // Create a question from the current sentence
-            let question = currentSentence;
-            if (!question.endsWith('?')) {
-              // Try to make it a question if it's not already
-              if (question.toLowerCase().includes('is') || question.toLowerCase().includes('are') || 
-                  question.toLowerCase().includes('can') || question.toLowerCase().includes('will')) {
-                question = question + '?';
-              } else {
-                question = 'What is ' + question.toLowerCase() + '?';
+            // Try to identify the concept and its explanation within the section
+            const lines = section.split('\n').filter((l: string) => l.trim().length > 0);
+            
+            if (lines.length >= 2) {
+              // First line is often the concept/title
+              const conceptLine = lines[0].trim();
+              // Rest of the lines form the explanation
+              const explanationLines = lines.slice(1).map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+              
+              if (conceptLine.length > 5 && explanationLines.length > 0) {
+                // Create a clean question from the concept
+                let question = conceptLine;
+                
+                // If it's already a question, use it as is
+                if (question.endsWith('?')) {
+                  // Keep the question as is
+                } else {
+                  // Create a "What is..." question, filtering out filler words
+                  const words = conceptLine.split(' ').filter((w: string) => 
+                    w.length > 2 && 
+                    !['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'].includes(w.toLowerCase())
+                  );
+                  
+                  if (words.length >= 2) {
+                    const keyConcept = words.slice(0, Math.min(5, words.length)).join(' ');
+                    question = `What is ${keyConcept}?`;
+                  } else {
+                    // Fallback: use the first few words
+                    const firstWords = conceptLine.split(' ').slice(0, 4).join(' ');
+                    question = `What is ${firstWords}?`;
+                  }
+                }
+                
+                // Create the answer from the explanation lines
+                const answer = explanationLines.join(' ').trim();
+                
+                // Only create the card if we have both a good question and answer
+                if (question.length > 10 && answer.length > 20) {
+                  // Clean up the question
+                  question = question
+                    .replace(/\s+/g, ' ') // Normalize whitespace
+                    .replace(/\s+\?$/, '?') // Clean up question mark spacing
+                    .trim();
+                  
+                  cards.push({ question, answer });
+                  console.log('Created from section:', question.substring(0, 50), '->', answer.substring(0, 50));
+                }
               }
             }
-            
-            cards.push({ question, answer: nextSentence });
-            console.log('Created from sentences:', question.substring(0, 50), '->', nextSentence.substring(0, 50));
           }
         }
         
-        // Strategy 3: If still no cards, create from key concepts
+        // Strategy 3: If still no cards, create from the note title and content
         if (cards.length === 0) {
-          const lines = content.split('\n').filter(line => line.trim().length > 20);
-          for (let i = 0; i < lines.length - 1; i++) {
-            const concept = lines[i].trim();
-            const explanation = lines[i + 1].trim();
-            
-            if (concept && explanation && concept.length > 10 && explanation.length > 10) {
-              const question = `What is ${concept.split(' ').slice(0, 3).join(' ')}?`;
-              cards.push({ question, answer: explanation });
-              console.log('Created from concepts:', question, '->', explanation.substring(0, 50));
+          const title = note.title.trim();
+          if (title && content.length > 30) {
+            // Create a question from the title
+            let question = title;
+            if (!question.endsWith('?')) {
+              question = `What is ${title}?`;
             }
+            
+            // Use the first meaningful paragraph as the answer
+            const paragraphs = content.split(/\n\s*\n/).filter((p: string) => p.trim().length > 30);
+            const answer = paragraphs.length > 0 ? paragraphs[0].trim() : content.substring(0, 300).trim();
+            
+            cards.push({ question, answer });
+            console.log('Created from title:', question, '->', answer.substring(0, 50));
           }
         }
         
@@ -302,45 +342,6 @@ const Decks = () => {
             continue;
           }
           i++;
-        }
-        
-        // Fallback: If no headings found, create from paragraphs
-        if (cards.length === 0) {
-          const paragraphs = content.split('\n\n').filter(p => p.trim().length > 10);
-          for (let i = 0; i < paragraphs.length - 1; i += 2) {
-            const question = paragraphs[i].trim();
-            const answer = paragraphs[i + 1].trim();
-            if (question && answer && question.length > 5 && answer.length > 5) {
-              cards.push({ question, answer });
-              console.log('Created from paragraphs (heading strategy):', question.substring(0, 50), '->', answer.substring(0, 50));
-            }
-          }
-        }
-      }
-      
-      // Final fallback: If still no cards, create better cards from content chunks
-      if (cards.length === 0 && content.trim().length > 20) {
-        const chunks = content.split(/[.!?]+/).filter(chunk => chunk.trim().length > 20);
-        
-        if (chunks.length >= 2) {
-          // Create multiple cards from content chunks
-          for (let i = 0; i < chunks.length - 1; i++) {
-            const chunk = chunks[i].trim();
-            const nextChunk = chunks[i + 1].trim();
-            
-            if (chunk.length > 15 && nextChunk.length > 15) {
-              const question = `What is ${chunk.split(' ').slice(0, 4).join(' ')}?`;
-              const answer = nextChunk;
-              cards.push({ question, answer });
-              console.log('Created fallback card:', question, '->', answer.substring(0, 50));
-            }
-          }
-        } else {
-          // Single card from title and content
-          const question = note.title || 'What is this note about?';
-          const answer = content.substring(0, 300) + (content.length > 300 ? '...' : '');
-          cards.push({ question, answer });
-          console.log('Created single fallback card:', question, '->', answer.substring(0, 50));
         }
       }
     }
@@ -777,22 +778,38 @@ const Decks = () => {
 
   const handleAddSubDeck = (deckId: string, subDeck: Omit<SubDeck, 'id' | 'created_at' | 'updated_at'>) => {
     const now = new Date().toISOString();
+    console.log('Adding subdeck:', { deckId, subDeck });
+    
     const newSubDeck: SubDeck = {
       id: Date.now().toString(),
       ...subDeck,
       description: subDeck.description || '',
+      parentDeckId: deckId,
       created_at: now,
       updated_at: now
     };
+    
     setDecks(decks.map(deck => 
       deck.id === deckId 
         ? { ...deck, subDecks: [...(deck.subDecks || []), newSubDeck] }
         : deck
     ));
+    
+    // Also update the selectedDeck if it's currently selected
+    if (selectedDeck && selectedDeck.id === deckId) {
+      setSelectedDeck(prev => prev ? {
+        ...prev,
+        subDecks: [...(prev.subDecks || []), newSubDeck]
+      } : null);
+    }
+    
+    setToast({ message: 'SubDeck created successfully!', type: 'success' });
   };
 
   const handleUpdateSubDeck = (deckId: string, subDeckId: string, subDeck: Omit<SubDeck, 'id' | 'created_at' | 'updated_at'>) => {
     const now = new Date().toISOString();
+    console.log('Updating subdeck:', { deckId, subDeckId, subDeck });
+    
     setDecks(decks.map(deck => 
       deck.id === deckId 
         ? { 
@@ -805,9 +822,25 @@ const Decks = () => {
           }
         : deck
     ));
+    
+    // Also update the selectedDeck if it's currently selected
+    if (selectedDeck && selectedDeck.id === deckId) {
+      setSelectedDeck(prev => prev ? {
+        ...prev,
+        subDecks: (prev.subDecks || []).map((sd: SubDeck) => 
+          sd.id === subDeckId 
+            ? { ...sd, ...subDeck, description: subDeck.description || '', updated_at: now }
+            : sd
+        )
+      } : null);
+    }
+    
+    setToast({ message: 'SubDeck updated successfully!', type: 'success' });
   };
 
   const handleDeleteSubDeck = (deckId: string, subDeckId: string) => {
+    console.log('Deleting subdeck:', { deckId, subDeckId });
+    
     setDecks(decks.map(deck => 
       deck.id === deckId 
         ? { 
@@ -816,13 +849,87 @@ const Decks = () => {
           }
         : deck
     ));
+    
+    // Also update the selectedDeck if it's currently selected
+    if (selectedDeck && selectedDeck.id === deckId) {
+      setSelectedDeck(prev => prev ? {
+        ...prev,
+        subDecks: (prev.subDecks || []).filter((sd: SubDeck) => sd.id !== subDeckId)
+      } : null);
+    }
+    
+    setToast({ message: 'SubDeck deleted successfully!', type: 'success' });
+  };
+
+  // New function to handle editing the SubDeck itself
+  const handleEditSubDeck = (updatedSubDeck: SubDeck) => {
+    console.log('Editing SubDeck itself:', updatedSubDeck);
+    
+    // Find the parent deck that contains this SubDeck
+    const parentDeck = decks.find(deck => 
+      deck.subDecks?.some(sd => sd.id === updatedSubDeck.id)
+    );
+    
+    if (parentDeck) {
+      setDecks(decks.map(deck => 
+        deck.id === parentDeck.id 
+          ? { 
+              ...deck, 
+              subDecks: (deck.subDecks || []).map((sd: SubDeck) => 
+                sd.id === updatedSubDeck.id 
+                  ? { ...sd, ...updatedSubDeck, updated_at: new Date().toISOString() }
+                  : sd
+              )
+            }
+          : deck
+      ));
+      
+      // Also update the selectedDeck if it's currently selected
+      if (selectedDeck && selectedDeck.id === parentDeck.id) {
+        setSelectedDeck(prev => prev ? {
+          ...prev,
+          subDecks: (prev.subDecks || []).map((sd: SubDeck) => 
+            sd.id === updatedSubDeck.id 
+              ? { ...sd, ...updatedSubDeck, updated_at: new Date().toISOString() }
+              : sd
+          )
+        } : null);
+      }
+      
+      setToast({ message: 'SubDeck updated successfully!', type: 'success' });
+    } else {
+      console.error('Parent deck not found for SubDeck:', updatedSubDeck);
+      setToast({ message: 'Failed to update SubDeck', type: 'error' });
+    }
+  };
+
+  // New function to open a SubDeck for editing/viewing
+  const handleOpenSubDeck = (subDeck: SubDeck) => {
+    console.log('Opening SubDeck for editing/viewing:', subDeck);
+    
+    // For now, we'll just show a toast with the SubDeck info
+    // In the future, this could open a dedicated SubDeck view/edit modal
+    setToast({ 
+      message: `Opening SubDeck: ${subDeck.title}`, 
+      type: 'success' 
+    });
+    
+    // TODO: Implement proper SubDeck viewing/editing interface
+    // This could involve:
+    // 1. Opening a dedicated SubDeck modal
+    // 2. Navigating to a SubDeck-specific page
+    // 3. Opening the SubDeck in edit mode
   };
 
   const handleManageSubDecks = (deckId: string) => {
     const deck = decks.find(d => d.id === deckId);
     if (deck) {
+      console.log('Opening SubDeck modal for deck:', deck.title, 'with subdecks:', deck.subDecks);
+      console.log('Deck data structure:', deck);
       setSelectedDeck(deck);
       setShowSubDeckModal(true);
+    } else {
+      console.error('Deck not found for ID:', deckId);
     }
   };
 
@@ -1217,6 +1324,7 @@ const Decks = () => {
                       onViewStats={handleViewStats}
                       onOpen={handleOpenDeck}
                       onArchive={handleArchive}
+                      onManageSubDecks={handleManageSubDecks}
                     />
                     {/* Subdecks display */}
                     {deck.subDecks && deck.subDecks.length > 0 && (
@@ -1317,6 +1425,7 @@ const Decks = () => {
           onAddSubDeck={(subDeckData) => handleAddSubDeck(selectedDeck.id, subDeckData)}
           onUpdateSubDeck={(id, subDeckData) => handleUpdateSubDeck(selectedDeck.id, id, subDeckData)}
           onDeleteSubDeck={(id) => handleDeleteSubDeck(selectedDeck.id, id)}
+          onEditSubDeck={handleEditSubDeck}
         />
       )}
       {/* No Flashcards Error Modal */}
@@ -1439,7 +1548,7 @@ const Decks = () => {
                                   />
                                   <div>
                                     <div className="text-sm font-medium text-gray-900 dark:text-white">{note.title}</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xl">{note.content?.slice(0, 140)}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xl">{truncateHtmlContent(note.content || '', 140)}</div>
                                   </div>
                                 </li>
                               ))}
@@ -1532,6 +1641,7 @@ const Decks = () => {
                           onViewStats={handleViewStats}
                           onOpen={handleOpenDeck}
                           onArchive={handleArchive}
+                          onManageSubDecks={handleManageSubDecks}
                         />
                         {/* Subdecks display */}
                         {deck.subDecks && deck.subDecks.length > 0 && (

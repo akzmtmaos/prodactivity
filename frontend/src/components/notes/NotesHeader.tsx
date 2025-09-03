@@ -176,7 +176,7 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
               className="h-10 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
             >
               <AlertTriangle size={16} />
-              <span className="font-medium">Urgent Items</span>
+              <span className="font-medium">Urgent</span>
             </button>
             {/* AI Insights Button - Show when viewing notes */}
             {selectedNotebook && (
@@ -186,7 +186,7 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
                 title="Get AI-powered insights and recommendations"
               >
                 <Brain size={16} />
-                <span className="font-medium">AI Insights</span>
+                <span className="font-medium">Insights</span>
               </button>
             )}
           </div>

@@ -42,11 +42,11 @@ def create_sample_data():
         # Yesterday - 75% completion (6/8 tasks completed)
         (today - timedelta(days=1), 8, 6, 'Productive'),
         # 2 days ago - 60% completion (3/5 tasks completed)
-        (today - timedelta(days=2), 5, 3, 'Needs Improvement'),
+        (today - timedelta(days=2), 5, 3, 'Moderately Productive'),
         # 3 days ago - 100% completion (5/5 tasks completed)
         (today - timedelta(days=3), 5, 5, 'Highly Productive'),
         # 4 days ago - 40% completion (2/5 tasks completed)
-        (today - timedelta(days=4), 5, 2, 'Needs Improvement'),
+        (today - timedelta(days=4), 5, 2, 'Moderately Productive'),
         # 5 days ago - 80% completion (4/5 tasks completed)
         (today - timedelta(days=5), 5, 4, 'Productive'),
         # 6 days ago - 20% completion (1/5 tasks completed)
@@ -88,7 +88,7 @@ def create_sample_data():
         elif completion_rate >= 70:
             status = 'Productive'
         elif completion_rate >= 40:
-            status = 'Needs Improvement'
+            status = 'Moderately Productive'
         else:
             status = 'Low Productivity'
         

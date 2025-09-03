@@ -9,7 +9,7 @@ The system evaluates productivity based on the following criteria:
 1. **Task Completion Rate**
    - The percentage of planned tasks that the user completes within a given period (e.g., daily, weekly, monthly).
 2. **Consistency**
-   - The user’s regular engagement with tasks (e.g., working on tasks daily or on most days).
+   - The user's regular engagement with tasks (e.g., working on tasks daily or on most days).
 3. **Meeting Deadlines**
    - Completing tasks on or before their due dates.
 4. **Time Spent on Productive Activities**
@@ -23,12 +23,12 @@ The system uses a four-level productivity scale based on the user's task complet
 |----------------------|--------------------|
 | Highly Productive    | 90–100             |
 | Productive           | 70–89.99           |
-| Needs Improvement    | 40–69.99           |
+| Moderately Productive| 40–69.99           |
 | Low Productivity     | 0–39.99            |
 
 - **Highly Productive:** Completion rate is 90% or higher.
 - **Productive:** Completion rate is between 70% and 89.99%.
-- **Needs Improvement:** Completion rate is between 40% and 69.99%.
+- **Moderately Productive:** Completion rate is between 40% and 69.99%.
 - **Low Productivity:** Completion rate is below 40%.
 
 ## Example Calculation
@@ -43,7 +43,7 @@ The system uses a four-level productivity scale based on the user's task complet
 
 - If a user plans 20 tasks and completes 10:
   - Task Completion Rate = 10 / 20 = 50%
-  - The user **Needs Improvement**.
+  - The user is **Moderately Productive**.
 
 - If a user plans 20 tasks and completes 5:
   - Task Completion Rate = 5 / 20 = 25%

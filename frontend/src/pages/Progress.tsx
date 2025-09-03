@@ -423,7 +423,7 @@ const Progress = () => {
         return 'text-green-700 dark:text-green-400';
       case 'Productive':
         return 'text-green-600 dark:text-green-300';
-      case 'Needs Improvement':
+      case 'Moderately Productive':
         return 'text-yellow-600 dark:text-yellow-400';
       case 'Low Productivity':
         return 'text-red-600 dark:text-red-400';

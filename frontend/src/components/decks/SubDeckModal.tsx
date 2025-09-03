@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Plus, Edit, Trash2, Save } from 'lucide-react';
+import { X, Plus, Edit, Trash2, Save, Settings } from 'lucide-react';
 
 export interface SubDeck {
   id: string;
@@ -18,6 +18,7 @@ interface SubDeckModalProps {
   onAddSubDeck: (subDeck: Omit<SubDeck, 'id' | 'created_at' | 'updated_at'>) => void;
   onUpdateSubDeck: (id: string, subDeck: Omit<SubDeck, 'id' | 'created_at' | 'updated_at'>) => void;
   onDeleteSubDeck: (id: string) => void;
+  onEditSubDeck: (subDeck: SubDeck) => void;
 }
 
 const SubDeckModal: React.FC<SubDeckModalProps> = ({
@@ -27,12 +28,17 @@ const SubDeckModal: React.FC<SubDeckModalProps> = ({
   subDecks,
   onAddSubDeck,
   onUpdateSubDeck,
-  onDeleteSubDeck
+  onDeleteSubDeck,
+  onEditSubDeck
 }) => {
   const [editingSubDeck, setEditingSubDeck] = useState<string | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newSubDeck, setNewSubDeck] = useState({ title: '', description: '' });
   const [editForm, setEditForm] = useState({ title: '', description: '' });
+  
+  // New state for editing the SubDeck itself
+  const [editingSubDeckSelf, setEditingSubDeckSelf] = useState(false);
+  const [subDeckEditForm, setSubDeckEditForm] = useState({ title: '', description: '' });
 
   const handleAddSubDeck = () => {
     if (newSubDeck.title.trim()) {
@@ -47,6 +53,7 @@ const SubDeckModal: React.FC<SubDeckModalProps> = ({
   };
 
   const handleEditSubDeck = (subDeck: SubDeck) => {
+    console.log('Editing subdeck:', subDeck);
     setEditingSubDeck(subDeck.id);
     setEditForm({
       title: subDeck.title,
@@ -56,13 +63,52 @@ const SubDeckModal: React.FC<SubDeckModalProps> = ({
 
   const handleSaveEdit = () => {
     if (editingSubDeck && editForm.title.trim()) {
+      console.log('Saving subdeck edit:', { editingSubDeck, editForm });
+      
       onUpdateSubDeck(editingSubDeck, {
         title: editForm.title.trim(),
         description: editForm.description.trim(),
         parentDeckId: ''
       });
+      
       setEditingSubDeck(null);
       setEditForm({ title: '', description: '' });
+    } else {
+      console.log('Cannot save: invalid data', { editingSubDeck, editForm });
+    }
+  };
+
+  // New function for editing the SubDeck itself
+  const handleEditSubDeckSelf = () => {
+    setEditingSubDeckSelf(true);
+    setSubDeckEditForm({
+      title: deckTitle,
+      description: '' // You can add description support for decks if needed
+    });
+  };
+
+  const handleSaveSubDeckSelf = () => {
+    if (subDeckEditForm.title.trim() && onEditSubDeck) {
+      console.log('Saving SubDeck self edit:', { subDeckEditForm, deckTitle, subDecks });
+      
+      // Since we're editing the SubDeck itself (which is what deckTitle represents),
+      // we need to create a SubDeck object with the updated information
+      const updatedSubDeck: SubDeck = {
+        id: Date.now().toString(), // Generate a new ID for the SubDeck
+        title: subDeckEditForm.title.trim(),
+        description: subDeckEditForm.description.trim(),
+        parentDeckId: '', // This will be set by the parent component
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('Calling onEditSubDeck with:', updatedSubDeck);
+      onEditSubDeck(updatedSubDeck);
+      
+      setEditingSubDeckSelf(false);
+      setSubDeckEditForm({ title: '', description: '' });
+    } else {
+      console.log('Cannot save SubDeck self edit:', { subDeckEditForm, onEditSubDeck });
     }
   };
 
@@ -73,20 +119,78 @@ const SubDeckModal: React.FC<SubDeckModalProps> = ({
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Manage Subdecks
-            </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {deckTitle} • {subDecks.length} subdecks
-            </p>
+          <div className="flex-1">
+            {editingSubDeckSelf ? (
+              // Edit mode for SubDeck itself
+              <div className="space-y-2">
+                <input
+                  type="text"
+                  value={subDeckEditForm.title}
+                  onChange={(e) => setSubDeckEditForm({ ...subDeckEditForm, title: e.target.value })}
+                  className="text-xl font-semibold text-gray-900 dark:text-white bg-transparent border-b border-gray-300 dark:border-gray-600 focus:outline-none focus:border-indigo-500 px-2 py-1"
+                  placeholder="Enter SubDeck title..."
+                />
+                <textarea
+                  value={subDeckEditForm.description}
+                  onChange={(e) => setSubDeckEditForm({ ...subDeckEditForm, description: e.target.value })}
+                  className="text-sm text-gray-600 dark:text-gray-400 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:outline-none focus:border-indigo-500 px-2 py-1 resize-none"
+                  placeholder="Enter SubDeck description..."
+                  rows={2}
+                />
+              </div>
+            ) : (
+              // View mode
+              <div>
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                  {deckTitle}
+                </h2>
+                <p className="text-sm text-gray-600 dark:text-gray-400">
+                  {subDecks.length} subdecks
+                </p>
+              </div>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center space-x-2">
+            {!editingSubDeckSelf && (
+              <button
+                onClick={handleEditSubDeckSelf}
+                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-lg transition-colors"
+                title="Edit SubDeck"
+              >
+                <Settings size={20} />
+              </button>
+            )}
+            {editingSubDeckSelf && (
+              <>
+                <button
+                  onClick={handleSaveSubDeckSelf}
+                  disabled={!subDeckEditForm.title.trim()}
+                  className={`p-2 text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 rounded-lg transition-colors ${
+                    !subDeckEditForm.title.trim() ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                  title="Save changes"
+                >
+                  <Save size={20} />
+                </button>
+                <button
+                  onClick={() => {
+                    setEditingSubDeckSelf(false);
+                    setSubDeckEditForm({ title: deckTitle, description: '' });
+                  }}
+                  className="p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  title="Cancel edit"
+                >
+                  <X size={20} />
+                </button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         {/* Content */}

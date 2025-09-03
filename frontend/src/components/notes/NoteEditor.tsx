@@ -7,7 +7,8 @@ import {
   Download,
   X,
   FileText,
-  FileDown
+  FileDown,
+  Table
 } from 'lucide-react';
 import { DocumentTextIcon, ChatBubbleLeftRightIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
@@ -298,6 +299,240 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       setIsInitialized(true);
     }
   }, [isInitialized]);
+
+  // Table functionality
+  const createTable = (rows: number = 3, cols: number = 3) => {
+    const table = document.createElement('table');
+    table.className = 'note-table';
+    table.setAttribute('data-rows', rows.toString());
+    table.setAttribute('data-cols', cols.toString());
+    
+    // Create table header
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    for (let i = 0; i < cols; i++) {
+      const th = document.createElement('th');
+      th.contentEditable = 'true';
+      th.textContent = `Header ${i + 1}`;
+      th.className = 'table-header';
+      headerRow.appendChild(th);
+    }
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+    
+    // Create table body
+    const tbody = document.createElement('tbody');
+    for (let i = 0; i < rows - 1; i++) {
+      const tr = document.createElement('tr');
+      for (let j = 0; j < cols; j++) {
+        const td = document.createElement('td');
+        td.contentEditable = 'true';
+        td.textContent = '';
+        td.className = 'table-cell';
+        tr.appendChild(td);
+      }
+      tbody.appendChild(tr);
+    }
+    table.appendChild(tbody);
+    
+    return table;
+  };
+
+  const insertTable = () => {
+    const selection = window.getSelection();
+    if (!selection || !contentEditableRef.current) return;
+    
+    const range = selection.getRangeAt(0);
+    const table = createTable(3, 3);
+    
+    // Insert table at cursor position
+    range.deleteContents();
+    range.insertNode(table);
+    
+    // Add table controls
+    addTableControls(table);
+    
+    // Update content
+    setContent(contentEditableRef.current.innerHTML);
+    setHasChanges(true);
+    
+          // Focus on first cell
+      const firstCell = table.querySelector('td, th') as HTMLElement;
+      if (firstCell) {
+        const newRange = document.createRange();
+        newRange.setStart(firstCell, 0);
+        newRange.collapse(true);
+        selection.removeAllRanges();
+        selection.addRange(newRange);
+        firstCell.focus();
+      }
+  };
+
+  const addTableControls = (table: HTMLTableElement) => {
+    // Create table wrapper for hover effects
+    const wrapper = document.createElement('div');
+    wrapper.className = 'table-wrapper';
+    wrapper.style.position = 'relative';
+    
+    // Insert wrapper before table and move table into it
+    table.parentNode?.insertBefore(wrapper, table);
+    wrapper.appendChild(table);
+    
+    // Add delete button (top-right corner)
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'table-delete-btn';
+    deleteBtn.innerHTML = '×';
+    deleteBtn.title = 'Delete Table';
+    deleteBtn.onclick = () => deleteTable(table);
+    wrapper.appendChild(deleteBtn);
+    
+    // Add column add button (right edge)
+    const addColBtn = document.createElement('div');
+    addColBtn.className = 'table-add-col-btn';
+    addColBtn.innerHTML = '+';
+    addColBtn.title = 'Add Column';
+    addColBtn.onclick = () => addTableColumn(table);
+    wrapper.appendChild(addColBtn);
+    
+    // Add row add button (bottom edge)
+    const addRowBtn = document.createElement('div');
+    addRowBtn.className = 'table-add-row-btn';
+    addRowBtn.innerHTML = '+';
+    addRowBtn.title = 'Add Row';
+    addRowBtn.onclick = () => addTableRow(table);
+    wrapper.appendChild(addRowBtn);
+    
+    // Make columns resizable
+    makeTableResizable(table);
+    
+    // Show/hide add buttons on hover
+    wrapper.addEventListener('mouseenter', () => {
+      addColBtn.style.opacity = '1';
+      addRowBtn.style.opacity = '1';
+    });
+    
+    wrapper.addEventListener('mouseleave', () => {
+      addColBtn.style.opacity = '0';
+      addRowBtn.style.opacity = '0';
+    });
+  };
+
+  const addTableRow = (table: HTMLTableElement) => {
+    const tbody = table.querySelector('tbody');
+    if (!tbody) return;
+    
+    const cols = parseInt(table.getAttribute('data-cols') || '3');
+    const newRow = document.createElement('tr');
+    
+    for (let i = 0; i < cols; i++) {
+      const td = document.createElement('td');
+      td.contentEditable = 'true';
+      td.textContent = '';
+      td.className = 'table-cell';
+      newRow.appendChild(td);
+    }
+    
+    tbody.appendChild(newRow);
+    table.setAttribute('data-rows', String(tbody.children.length + 1));
+    
+    // Update content
+    if (contentEditableRef.current) {
+      setContent(contentEditableRef.current.innerHTML);
+      setHasChanges(true);
+    }
+  };
+
+  const addTableColumn = (table: HTMLTableElement) => {
+    const headerRow = table.querySelector('thead tr');
+    const bodyRows = table.querySelectorAll('tbody tr');
+    
+    if (!headerRow) return;
+    
+    // Add header cell
+          const th = document.createElement('th');
+      th.contentEditable = 'true';
+      th.textContent = `Header ${headerRow.children.length + 1}`;
+      th.className = 'table-header';
+      headerRow.appendChild(th);
+    
+    // Add body cells
+    bodyRows.forEach(row => {
+      const td = document.createElement('td');
+      td.contentEditable = 'true';
+      td.textContent = '';
+      td.className = 'table-cell';
+      row.appendChild(td);
+    });
+    
+    table.setAttribute('data-cols', String(headerRow.children.length));
+    
+    // Update content
+    if (contentEditableRef.current) {
+      setContent(contentEditableRef.current.innerHTML);
+      setHasChanges(true);
+    }
+  };
+
+  const deleteTable = (table: HTMLTableElement) => {
+    const wrapper = table.parentElement;
+    if (wrapper && wrapper.classList.contains('table-wrapper')) {
+      wrapper.remove();
+    } else {
+      table.remove();
+    }
+    
+    // Update content
+    if (contentEditableRef.current) {
+      setContent(contentEditableRef.current.innerHTML);
+      setHasChanges(true);
+    }
+  };
+
+  const makeTableResizable = (table: HTMLTableElement) => {
+    const headers = table.querySelectorAll('th');
+    headers.forEach((header, index) => {
+      const resizer = document.createElement('div');
+      resizer.className = 'table-resizer';
+      resizer.style.position = 'absolute';
+      resizer.style.right = '0';
+      resizer.style.top = '0';
+      resizer.style.bottom = '0';
+      resizer.style.width = '4px';
+      resizer.style.cursor = 'col-resize';
+      resizer.style.backgroundColor = 'transparent';
+      
+      header.style.position = 'relative';
+      header.appendChild(resizer);
+      
+      let startX: number;
+      let startWidth: number;
+      
+      resizer.addEventListener('mousedown', (e) => {
+        startX = e.clientX;
+        startWidth = header.offsetWidth;
+        
+        const mouseMoveHandler = (e: MouseEvent) => {
+          const diff = e.clientX - startX;
+          const newWidth = Math.max(50, startWidth + diff);
+          header.style.width = `${newWidth}px`;
+          
+          // Update all cells in this column
+          const cells = table.querySelectorAll(`td:nth-child(${index + 1}), th:nth-child(${index + 1})`);
+          cells.forEach(cell => {
+            (cell as HTMLElement).style.width = `${newWidth}px`;
+          });
+        };
+        
+        const mouseUpHandler = () => {
+          document.removeEventListener('mousemove', mouseMoveHandler);
+          document.removeEventListener('mouseup', mouseUpHandler);
+        };
+        
+        document.addEventListener('mousemove', mouseMoveHandler);
+        document.addEventListener('mouseup', mouseUpHandler);
+      });
+    });
+  };
 
   // Cleanup timeout on unmount
   useEffect(() => {
@@ -847,21 +1082,27 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             </div>
             <button
               onClick={handleImportPDF}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center flex-shrink-0"
+              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center justify-center flex-shrink-0"
               title="Import Document"
               type="button"
             >
-              <FileUp size={16} className="mr-2" />
-              Import
+              <FileUp size={16} />
             </button>
             <button
               onClick={() => setShowExportModal(true)}
-              className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 flex items-center flex-shrink-0"
+              className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 flex items-center justify-center flex-shrink-0"
               title="Export Document"
               type="button"
             >
-              <Download size={16} className="mr-2" />
-              Export
+              <Download size={16} />
+            </button>
+            <button
+              onClick={insertTable}
+              className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center justify-center flex-shrink-0"
+              title="Insert Table"
+              type="button"
+            >
+              <Table size={16} />
             </button>
           </div>
         </div>
@@ -1002,6 +1243,133 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                        .note-editor ol li::marker {
                          color: #6b7280 !important;
                          font-size: 0.875rem !important;
+                       }
+                       
+                       /* Table Styles */
+                       .note-editor .table-wrapper {
+                         position: relative !important;
+                         margin: 1rem 0 !important;
+                         display: inline-block !important;
+                       }
+                       
+                       .note-editor .note-table {
+                         border-collapse: collapse !important;
+                         border: 1px solid #d1d5db !important;
+                         border-radius: 0.375rem !important;
+                         overflow: hidden !important;
+                         background: white !important;
+                         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+                       }
+                       
+                       .note-editor .note-table th,
+                       .note-editor .note-table td {
+                         border: 1px solid #e5e7eb !important;
+                         padding: 0.75rem !important;
+                         text-align: left !important;
+                         vertical-align: top !important;
+                         min-width: 120px !important;
+                         position: relative !important;
+                       }
+                       
+                       .note-editor .note-table th {
+                         background-color: #f8fafc !important;
+                         font-weight: 600 !important;
+                         color: #1e293b !important;
+                         border-bottom: 2px solid #e2e8f0 !important;
+                       }
+                       
+                       .note-editor .note-table td {
+                         background-color: #ffffff !important;
+                       }
+                       
+                       .note-editor .note-table td:hover {
+                         background-color: #f8fafc !important;
+                       }
+                       
+                       /* Notion-style add buttons */
+                       .note-editor .table-add-col-btn,
+                       .note-editor .table-add-row-btn {
+                         position: absolute !important;
+                         width: 24px !important;
+                         height: 24px !important;
+                         background: #3b82f6 !important;
+                         color: white !important;
+                         border-radius: 50% !important;
+                         display: flex !important;
+                         align-items: center !important;
+                         justify-content: center !important;
+                         cursor: pointer !important;
+                         font-size: 16px !important;
+                         font-weight: bold !important;
+                         opacity: 0 !important;
+                         transition: all 0.2s ease !important;
+                         z-index: 10 !important;
+                         box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3) !important;
+                       }
+                       
+                       .note-editor .table-add-col-btn {
+                         top: 50% !important;
+                         right: -12px !important;
+                         transform: translateY(-50%) !important;
+                       }
+                       
+                       .note-editor .table-add-row-btn {
+                         bottom: -12px !important;
+                         left: 50% !important;
+                         transform: translateX(-50%) !important;
+                       }
+                       
+                       .note-editor .table-add-col-btn:hover,
+                       .note-editor .table-add-row-btn:hover {
+                         background: #2563eb !important;
+                         transform: scale(1.1) !important;
+                         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
+                       }
+                       
+                       /* Delete button */
+                       .note-editor .table-delete-btn {
+                         position: absolute !important;
+                         top: -8px !important;
+                         right: -8px !important;
+                         width: 20px !important;
+                         height: 20px !important;
+                         background: #ef4444 !important;
+                         color: white !important;
+                         border: none !important;
+                         border-radius: 50% !important;
+                         cursor: pointer !important;
+                         font-size: 14px !important;
+                         font-weight: bold !important;
+                         opacity: 0 !important;
+                         transition: all 0.2s ease !important;
+                         z-index: 10 !important;
+                         box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3) !important;
+                       }
+                       
+                       .note-editor .table-delete-btn:hover {
+                         background: #dc2626 !important;
+                         transform: scale(1.1) !important;
+                         box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4) !important;
+                       }
+                       
+                       .note-editor .table-wrapper:hover .table-delete-btn {
+                         opacity: 1 !important;
+                       }
+                       
+                       /* Column resizer */
+                       .note-editor .table-resizer {
+                         position: absolute !important;
+                         right: 0 !important;
+                         top: 0 !important;
+                         bottom: 0 !important;
+                         width: 4px !important;
+                         cursor: col-resize !important;
+                         background-color: transparent !important;
+                         transition: background-color 0.2s !important;
+                       }
+                       
+                       .note-editor .table-resizer:hover {
+                         background-color: #3b82f6 !important;
                        }
                     `}
                   </style>

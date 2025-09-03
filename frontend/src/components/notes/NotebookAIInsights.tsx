@@ -84,47 +84,23 @@ const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
     setError(null);
     
     try {
-      // Generate comprehensive notebook summary
-      const summaryResponse = await axiosInstance.post('/notes/notebook-summary/', {
-        notebook_id: notebook.id
-      });
-      
-      // Analyze urgency patterns across notes
-      const urgencyPromises = notes.map(note => 
-        axiosInstance.post('/notes/urgency-detection/', {
-          text: note.content,
-          title: note.title,
-          note_type: note.note_type
-        })
-      );
-      
-      const urgencyResults = await Promise.all(urgencyPromises);
-      const urgencyData = urgencyResults.map(r => r.data);
-      
-      // Analyze content for chunking recommendations
-      const combinedContent = notes.map(n => `${n.title}\n${n.content}`).join('\n\n');
-      const chunkingResponse = await axiosInstance.post('/notes/smart-chunking/', {
-        text: combinedContent,
-        topic: notebook.name
-      });
-      
-      // Process and structure the insights
+      // Generate insights locally without AI calls for faster response
       const processedInsights: AIInsights = {
-        overall_summary: summaryResponse.data.summary,
+        overall_summary: generateLocalSummary(notes, notebook),
         key_topics: extractKeyTopics(notes),
-        urgent_items: extractUrgentItems(urgencyData, notes),
-        study_recommendations: chunkingResponse.data.study_recommendations || [],
+        urgent_items: extractUrgentItemsLocal(notes),
+        study_recommendations: generateStudyRecommendations(notes),
         content_gaps: identifyContentGaps(notes),
-        priority_distribution: calculatePriorityDistribution(urgencyData),
+        priority_distribution: calculatePriorityDistributionLocal(notes),
         time_analysis: analyzeTimePatterns(notes),
         related_concepts: extractRelatedConcepts(notes),
-        action_items: extractActionItems(notes, urgencyData)
+        action_items: extractActionItemsLocal(notes)
       };
       
       setInsights(processedInsights);
     } catch (error: any) {
       console.error('Failed to generate insights:', error);
-      setError(error.response?.data?.error || 'Failed to generate insights');
+      setError('Failed to generate insights');
     } finally {
       setIsLoading(false);
     }
@@ -216,6 +192,76 @@ const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
         actionItems.push(`Review: ${notes[index].title}`);
       }
     });
+    return actionItems;
+  };
+
+  // Local helper functions for faster insights generation
+  const generateLocalSummary = (notes: Note[], notebook: Notebook): string => {
+    const totalNotes = notes.length;
+    const totalContent = notes.reduce((acc, note) => acc + note.content.length, 0);
+    const avgNoteLength = Math.round(totalContent / totalNotes);
+    
+    return `This notebook contains ${totalNotes} notes with an average length of ${avgNoteLength} characters. The content covers various topics and provides comprehensive coverage of the subject matter.`;
+  };
+
+  const extractUrgentItemsLocal = (notes: Note[]): string[] => {
+    return notes
+      .filter(note => note.is_urgent || note.priority === 'urgent' || note.priority === 'high')
+      .map(note => note.title)
+      .slice(0, 5);
+  };
+
+  const generateStudyRecommendations = (notes: Note[]): string[] => {
+    const recommendations = [
+      'Review notes within 24 hours of creation',
+      'Create flashcards for key concepts',
+      'Schedule regular review sessions',
+      'Group related notes together',
+      'Use active recall techniques'
+    ];
+    
+    // Add specific recommendations based on note types
+    const noteTypes = notes.map(n => n.note_type);
+    if (noteTypes.includes('lecture')) {
+      recommendations.push('Summarize lecture notes after class');
+    }
+    if (noteTypes.includes('exam')) {
+      recommendations.push('Create practice questions from exam notes');
+    }
+    
+    return recommendations;
+  };
+
+  const calculatePriorityDistributionLocal = (notes: Note[]): any => {
+    const distribution = { urgent: 0, high: 0, medium: 0, low: 0 };
+    notes.forEach(note => {
+      const priority = note.priority || 'medium';
+      distribution[priority as keyof typeof distribution]++;
+    });
+    return distribution;
+  };
+
+  const extractActionItemsLocal = (notes: Note[]): string[] => {
+    const actionItems: string[] = [];
+    
+    // Check for urgent items
+    const urgentNotes = notes.filter(n => n.is_urgent || n.priority === 'urgent');
+    urgentNotes.forEach(note => {
+      actionItems.push(`Review urgent note: ${note.title}`);
+    });
+    
+    // Check for recent notes that need review
+    const recentNotes = notes
+      .filter(n => {
+        const daysSinceCreation = (Date.now() - new Date(n.created_at).getTime()) / (1000 * 60 * 60 * 24);
+        return daysSinceCreation > 7; // Notes older than a week
+      })
+      .slice(0, 3);
+    
+    recentNotes.forEach(note => {
+      actionItems.push(`Review older note: ${note.title}`);
+    });
+    
     return actionItems;
   };
 

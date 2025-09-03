@@ -8,6 +8,7 @@ import DeleteConfirmationModal from '../components/decks/DeleteConfirmationModal
 import StudySession from '../components/decks/StudySession';
 import QuizSession from '../components/decks/QuizSession';
 import DeckCard from '../components/decks/DeckCard';
+import { truncateHtmlContent } from '../utils/htmlUtils';
 
 interface Flashcard {
   id: string;
@@ -831,7 +832,7 @@ const DeckDetails: React.FC = () => {
                                   />
                                   <div>
                                     <div className="text-sm font-medium text-gray-900 dark:text-white">{note.title}</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xl">{note.content?.slice(0, 140)}</div>
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xl">{truncateHtmlContent(note.content || '', 140)}</div>
                                   </div>
                                 </li>
                               ))}

@@ -41,13 +41,30 @@ const Reviewer = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
+        console.log('Fetching data from:', `${API_URL}/notes/notebooks/` + ' and ' + `${API_URL}/notes/`);
+        // Test authentication first
+        console.log('Auth headers:', getAuthHeaders());
+        
         const [notebooksRes, notesRes] = await Promise.all([
           axios.get(`${API_URL}/notes/notebooks/`, { headers: getAuthHeaders() }),
-          axios.get(`${API_URL}/notes/`, { headers: getAuthHeaders() }),
+          axios.get(`${API_URL}/notes/`, { 
+            headers: getAuthHeaders(),
+            params: { archived: 'false' } // Explicitly request non-archived notes
+          }),
         ]);
+        console.log('Notebooks response:', notebooksRes.data);
+        console.log('Notes response:', notesRes.data);
+        console.log('Notes count:', notesRes.data?.length || 0);
+        
+        // Check if notes have the expected structure
+        if (notesRes.data && Array.isArray(notesRes.data) && notesRes.data.length > 0) {
+          console.log('First note structure:', notesRes.data[0]);
+        }
+        
         setNotebooks(notebooksRes.data);
         setNotes(notesRes.data);
       } catch (err) {
+        console.error('Failed to fetch data:', err);
         setError('Failed to load data');
       } finally {
         setLoading(false);
@@ -56,10 +73,10 @@ const Reviewer = () => {
     fetchData();
   }, []);
 
-  // Fetch reviewer by id if reviewerId param exists
+  // Fetch reviewer by id if reviewerId param exists (but not for special tabs)
   useEffect(() => {
     const fetchReviewer = async () => {
-      if (reviewerId) {
+      if (reviewerId && reviewerId !== 'q' && reviewerId !== 'r') {
         try {
           const token = localStorage.getItem('accessToken');
           const response = await axios.get(`${API_URL}/reviewers/${reviewerId}/`, {

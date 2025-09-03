@@ -3,15 +3,22 @@ import { isValid } from 'date-fns';
 import PageLayout from '../components/PageLayout';
 import Calendar from '../components/schedules/Calendar';
 import UpcomingEvents from '../components/schedules/UpcomingEvents';
+import RecurringSchedules from '../components/schedules/RecurringSchedules';
+import PastEvents from '../components/schedules/PastEvents';
 import AddEventModal from '../components/schedules/AddEventModal';
-import { ScheduleEvent } from '../types/schedule';
+import AddRecurringScheduleModal from '../components/schedules/AddRecurringScheduleModal';
+import { ScheduleEvent, RecurringSchedule, PastEvent } from '../types/schedule';
 
 const Schedule = () => {
   const [user, setUser] = useState<any | null>(null);
   const [greeting, setGreeting] = useState('');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
+  const [recurringSchedules, setRecurringSchedules] = useState<RecurringSchedule[]>([]);
+  const [pastEvents, setPastEvents] = useState<PastEvent[]>([]);
   const [showAddEvent, setShowAddEvent] = useState(false);
+  const [showAddRecurringSchedule, setShowAddRecurringSchedule] = useState(false);
+  const [editingSchedule, setEditingSchedule] = useState<RecurringSchedule | null>(null);
   const [activeTab, setActiveTab] = useState('calendar');
   const [error, setError] = useState<string | null>(null);
 
@@ -40,19 +47,23 @@ const Schedule = () => {
     else if (hour < 18) setGreeting('Good afternoon');
     else setGreeting('Good evening');
     
-    // Load events from localStorage
-    loadEvents();
+    // Load all data from localStorage
+    loadAllData();
   }, []);
 
-  const loadEvents = () => {
+  const loadAllData = () => {
     try {
       const userData = localStorage.getItem('user');
       if (!userData) {
         setEvents([]);
+        setRecurringSchedules([]);
+        setPastEvents([]);
         return;
       }
 
       const { username } = JSON.parse(userData);
+      
+      // Load events
       const savedEvents = localStorage.getItem(`scheduleEvents_${username}`);
       if (savedEvents) {
         const parsedEvents = JSON.parse(savedEvents).map((event: any) => {
@@ -66,18 +77,48 @@ const Schedule = () => {
           };
         });
         setEvents(parsedEvents);
-        setError(null);
       } else {
         setEvents([]);
       }
+
+      // Load recurring schedules
+      const savedRecurringSchedules = localStorage.getItem(`recurringSchedules_${username}`);
+      if (savedRecurringSchedules) {
+        const parsedRecurringSchedules = JSON.parse(savedRecurringSchedules).map((schedule: any) => ({
+          ...schedule,
+          startDate: new Date(schedule.startDate),
+          endDate: schedule.endDate ? new Date(schedule.endDate) : undefined,
+          lastGenerated: schedule.lastGenerated ? new Date(schedule.lastGenerated) : undefined,
+        }));
+        setRecurringSchedules(parsedRecurringSchedules);
+      } else {
+        setRecurringSchedules([]);
+      }
+
+      // Load past events
+      const savedPastEvents = localStorage.getItem(`pastEvents_${username}`);
+      if (savedPastEvents) {
+        const parsedPastEvents = JSON.parse(savedPastEvents).map((event: any) => ({
+          ...event,
+          date: new Date(event.date),
+          completedAt: event.completedAt ? new Date(event.completedAt) : undefined,
+        }));
+        setPastEvents(parsedPastEvents);
+      } else {
+        setPastEvents([]);
+      }
+
+      setError(null);
     } catch (e) {
-      console.error('Error loading events:', e);
-      setError('Failed to load events. Some data may be corrupted.');
+      console.error('Error loading data:', e);
+      setError('Failed to load data. Some data may be corrupted.');
       setEvents([]);
+      setRecurringSchedules([]);
+      setPastEvents([]);
     }
   };
 
-  const saveEvents = (updatedEvents: ScheduleEvent[]) => {
+  const saveAllData = () => {
     try {
       const userData = localStorage.getItem('user');
       if (!userData) {
@@ -86,12 +127,14 @@ const Schedule = () => {
       }
 
       const { username } = JSON.parse(userData);
-      localStorage.setItem(`scheduleEvents_${username}`, JSON.stringify(updatedEvents));
-      setEvents(updatedEvents);
+      
+      localStorage.setItem(`scheduleEvents_${username}`, JSON.stringify(events));
+      localStorage.setItem(`recurringSchedules_${username}`, JSON.stringify(recurringSchedules));
+      localStorage.setItem(`pastEvents_${username}`, JSON.stringify(pastEvents));
       setError(null);
     } catch (e) {
-      console.error('Error saving events:', e);
-      setError('Failed to save events. Please try again.');
+      console.error('Error saving data:', e);
+      setError('Failed to save data. Please try again.');
     }
   };
 
@@ -103,20 +146,106 @@ const Schedule = () => {
       };
 
       const updatedEvents = [...events, eventToAdd];
-      saveEvents(updatedEvents);
+      setEvents(updatedEvents);
+      saveAllData();
     } catch (e) {
       console.error('Error adding event:', e);
       setError('Failed to add event. Please try again.');
     }
   };
 
+  const handleAddRecurringSchedule = (scheduleData: Omit<RecurringSchedule, 'id'>) => {
+    try {
+      if (editingSchedule) {
+        // Update existing schedule
+        const updatedSchedules = recurringSchedules.map(schedule =>
+          schedule.id === editingSchedule.id
+            ? { ...scheduleData, id: editingSchedule.id }
+            : schedule
+        );
+        setRecurringSchedules(updatedSchedules);
+        setEditingSchedule(null);
+      } else {
+        // Add new schedule
+        const scheduleToAdd: RecurringSchedule = {
+          id: Date.now().toString(),
+          ...scheduleData
+        };
+        const updatedSchedules = [...recurringSchedules, scheduleToAdd];
+        setRecurringSchedules(updatedSchedules);
+      }
+      saveAllData();
+    } catch (e) {
+      console.error('Error adding/updating recurring schedule:', e);
+      setError('Failed to save recurring schedule. Please try again.');
+    }
+  };
+
   const deleteEvent = (id: string) => {
     try {
       const updatedEvents = events.filter(event => event.id !== id);
-      saveEvents(updatedEvents);
+      setEvents(updatedEvents);
+      saveAllData();
     } catch (e) {
       console.error('Error deleting event:', e);
       setError('Failed to delete event. Please try again.');
+    }
+  };
+
+  const deleteRecurringSchedule = (id: string) => {
+    try {
+      const updatedSchedules = recurringSchedules.filter(schedule => schedule.id !== id);
+      setRecurringSchedules(updatedSchedules);
+      saveAllData();
+    } catch (e) {
+      console.error('Error deleting recurring schedule:', e);
+      setError('Failed to delete recurring schedule. Please try again.');
+    }
+  };
+
+  const toggleRecurringScheduleActive = (id: string) => {
+    try {
+      const updatedSchedules = recurringSchedules.map(schedule =>
+        schedule.id === id
+          ? { ...schedule, isActive: !schedule.isActive }
+          : schedule
+      );
+      setRecurringSchedules(updatedSchedules);
+      saveAllData();
+    } catch (e) {
+      console.error('Error toggling schedule active status:', e);
+      setError('Failed to update schedule status. Please try again.');
+    }
+  };
+
+  const editRecurringSchedule = (schedule: RecurringSchedule) => {
+    setEditingSchedule(schedule);
+    setShowAddRecurringSchedule(true);
+  };
+
+  const handleViewPastEvent = (event: PastEvent) => {
+    // For now, just log the event. You could open a modal with more details
+    console.log('Viewing past event:', event);
+  };
+
+  const moveEventToPast = (event: ScheduleEvent, completed: boolean = true) => {
+    try {
+      const pastEvent: PastEvent = {
+        ...event,
+        completedAt: completed ? new Date() : undefined,
+        notes: completed ? 'Marked as completed' : 'Marked as not completed',
+        wasRecurring: false,
+      };
+
+      const updatedPastEvents = [...pastEvents, pastEvent];
+      const updatedEvents = events.filter(e => e.id !== event.id);
+      
+      setPastEvents(updatedPastEvents);
+      setEvents(updatedEvents);
+      saveAllData();
+    } catch (e) {
+      console.error('Error moving event to past:', e);
+      setError('Failed to update event status. Please try again.');
     }
   };
 
@@ -143,12 +272,20 @@ const Schedule = () => {
                 Here's your upcoming schedule.
               </p>
             </div>
-            <button
-              onClick={() => setShowAddEvent(true)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
-            >
-              Add Event
-            </button>
+            <div className="flex space-x-3">
+              <button
+                onClick={() => setShowAddEvent(true)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+              >
+                Add Event
+              </button>
+              <button
+                onClick={() => setShowAddRecurringSchedule(true)}
+                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition"
+              >
+                Add Recurring
+              </button>
+            </div>
           </div>
 
           {/* Error message */}
@@ -190,6 +327,26 @@ const Schedule = () => {
               >
                 Upcoming Events
               </button>
+              <button
+                onClick={() => setActiveTab('recurring')}
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'recurring'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                Recurring Schedules
+              </button>
+              <button
+                onClick={() => setActiveTab('past')}
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'past'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                Past Events
+              </button>
             </div>
             <div className="mt-4 flex-1 overflow-auto">
               {/* Tab content */}
@@ -207,6 +364,20 @@ const Schedule = () => {
                   onDeleteEvent={deleteEvent}
                 />
               )}
+              {activeTab === 'recurring' && (
+                <RecurringSchedules
+                  recurringSchedules={recurringSchedules}
+                  onDeleteSchedule={deleteRecurringSchedule}
+                  onToggleActive={toggleRecurringScheduleActive}
+                  onEditSchedule={editRecurringSchedule}
+                />
+              )}
+              {activeTab === 'past' && (
+                <PastEvents
+                  pastEvents={pastEvents}
+                  onViewEvent={handleViewPastEvent}
+                />
+              )}
             </div>
           </div>
 
@@ -215,6 +386,17 @@ const Schedule = () => {
             isOpen={showAddEvent}
             onClose={() => setShowAddEvent(false)}
             onAddEvent={handleAddEvent}
+          />
+
+          {/* Add/Edit Recurring Schedule Modal */}
+          <AddRecurringScheduleModal
+            isOpen={showAddRecurringSchedule}
+            onClose={() => {
+              setShowAddRecurringSchedule(false);
+              setEditingSchedule(null);
+            }}
+            onAddSchedule={handleAddRecurringSchedule}
+            editingSchedule={editingSchedule}
           />
         </div>
       </div>

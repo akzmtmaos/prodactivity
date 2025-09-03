@@ -162,7 +162,7 @@ def user_productivity(request):
         elif completion_rate >= 70:
             status = 'Productive'
         elif completion_rate >= 40:
-            status = 'Needs Improvement'
+            status = 'Moderately Productive'
         else:
             status = 'Low Productivity'
     
@@ -281,7 +281,7 @@ def productivity_log_list(request):
                     elif completion_rate >= 70:
                         status = 'Productive'
                     elif completion_rate >= 40:
-                        status = 'Needs Improvement'
+                        status = 'Moderately Productive'
                     else:
                         status = 'Low Productivity'
                 
@@ -359,7 +359,7 @@ def productivity_log_list(request):
                         elif completion_rate >= 70:
                             status = 'Productive'
                         elif completion_rate >= 40:
-                            status = 'Needs Improvement'
+                            status = 'Moderately Productive'
                         else:
                             status = 'Low Productivity'
                     
@@ -456,7 +456,7 @@ def productivity_log_list(request):
                         elif completion_rate >= 70:
                             status = 'Productive'
                         elif completion_rate >= 40:
-                            status = 'Needs Improvement'
+                            status = 'Moderately Productive'
                         else:
                             status = 'Low Productivity'
                     

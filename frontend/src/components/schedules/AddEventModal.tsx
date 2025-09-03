@@ -39,13 +39,27 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
     // Date validation
     if (!newEvent.date || !isValid(newEvent.date)) {
       newErrors.date = 'Please enter a valid date';
+    } else {
+      // Check if date is in the past
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (newEvent.date < today) {
+        newErrors.date = 'Cannot select a date in the past';
+      }
     }
 
     // End Date validation
     if (!newEvent.endDate || !isValid(newEvent.endDate)) {
       newErrors.endDate = 'Please enter a valid end date';
-    } else if (newEvent.endDate < newEvent.date) {
-      newErrors.endDate = 'End date cannot be before start date';
+    } else {
+      // Check if end date is in the past
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (newEvent.endDate < today) {
+        newErrors.endDate = 'Cannot select a date in the past';
+      } else if (newEvent.endDate < newEvent.date) {
+        newErrors.endDate = 'End date cannot be before start date';
+      }
     }
 
     // Time validation
@@ -179,6 +193,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
                   errors.date ? 'border-red-500' : 'border-gray-300'
                 } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
                 required
+                min={format(new Date(), 'yyyy-MM-dd')}
               />
               {errors.date && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.date}</p>
@@ -194,6 +209,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
                   errors.endDate ? 'border-red-500' : 'border-gray-300'
                 } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
                 required
+                min={format(new Date(), 'yyyy-MM-dd')}
               />
               {errors.endDate && (
                 <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.endDate}</p>

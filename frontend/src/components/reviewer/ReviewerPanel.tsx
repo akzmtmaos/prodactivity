@@ -40,6 +40,8 @@ interface Reviewer {
   tags: string[];
 }
 
+
+
 interface ReviewerPanelProps {
   notes: Array<{ id: number; title: string; content: string; notebook_name: string }>;
   notebooks: Array<{ id: number; name: string }>;
@@ -48,6 +50,9 @@ interface ReviewerPanelProps {
 }
 
 const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeTab, setActiveTab }) => {
+  // Debug props
+  console.log('ReviewerPanel props:', { notes, notebooks, activeTab });
+  
   const [reviewers, setReviewers] = useState<Reviewer[]>([]);
   const [loading, setLoading] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -67,6 +72,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
+    console.log('Auth token:', token ? `${token.substring(0, 20)}...` : 'No token');
     return {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json'
@@ -75,24 +81,43 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
 
   const navigate = useNavigate();
 
+
+
   // Fetch existing reviewers
   const fetchReviewers = async () => {
     try {
       setLoading(true);
+      setError(null);
+      console.log('Fetching reviewers from:', REVIEWERS_URL);
       const response = await axios.get(REVIEWERS_URL, {
         headers: getAuthHeaders()
       });
-      setReviewers(response.data);
+      console.log('Reviewers response:', response.data);
+      setReviewers(response.data || []);
     } catch (error: any) {
       console.error('Failed to fetch reviewers:', error);
+      console.error('Error details:', error.response?.data);
       setError('Failed to load reviewers');
+      setReviewers([]); // Set empty array on error
     } finally {
       setLoading(false);
+      console.log('Fetch reviewers completed, loading set to false');
     }
   };
 
   useEffect(() => {
     fetchReviewers();
+    
+    // Add timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log('Loading timeout reached, forcing loading to false');
+        setLoading(false);
+        setError('Loading timeout - please refresh the page');
+      }
+    }, 10000); // 10 second timeout
+    
+    return () => clearTimeout(timeout);
   }, []);
 
   // Generate AI reviewer
@@ -113,13 +138,13 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       let sourceContent = '';
       let sourceTitle = '';
 
-      if (selectedSource === 'note' && selectedNote) {
+      if (selectedSource === 'note' && selectedNote && notes && Array.isArray(notes)) {
         const note = notes.find(n => n.id === selectedNote);
         if (note) {
           sourceContent = note.content;
           sourceTitle = note.title;
         }
-      } else if (selectedSource === 'notebook' && selectedNotebook) {
+      } else if (selectedSource === 'notebook' && selectedNotebook && notebooks && Array.isArray(notebooks) && notes && Array.isArray(notes)) {
         const notebook = notebooks.find(n => n.id === selectedNotebook);
         if (notebook) {
           const notebookNotes = notes.filter(n => n.notebook_name === notebook.name);
@@ -221,20 +246,20 @@ ${sourceContent}`;
   };
 
   // Filter reviewers
-  const filteredReviewers = reviewers.filter(reviewer => {
+  const filteredReviewers = reviewers && Array.isArray(reviewers) ? reviewers.filter(reviewer => {
     const matchesSearch = reviewer.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          reviewer.content.toLowerCase().includes(searchTerm.toLowerCase());
     const isQuiz = (reviewer.tags && reviewer.tags.includes('quiz')) || (reviewer.title && reviewer.title.toLowerCase().startsWith('quiz:'));
     return matchesSearch && !isQuiz;
-  });
+  }) : [];
 
   // Filter quizzes
-  const filteredQuizzes = reviewers.filter(reviewer => {
+  const filteredQuizzes = reviewers && Array.isArray(reviewers) ? reviewers.filter(reviewer => {
     const matchesSearch = reviewer.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          reviewer.content.toLowerCase().includes(searchTerm.toLowerCase());
     const isQuiz = (reviewer.tags && reviewer.tags.includes('quiz')) || (reviewer.title && reviewer.title.toLowerCase().startsWith('quiz:'));
     return matchesSearch && isQuiz;
-  });
+  }) : [];
 
   // Add per-reviewer quiz generation state
   const generateQuizForReviewer = async (reviewer: Reviewer) => {
@@ -256,13 +281,55 @@ ${sourceContent}`;
       }, {
         headers: getAuthHeaders()
       });
-      setReviewers(prev => [saveResponse.data, ...prev]);
+            setReviewers(prev => [saveResponse.data, ...prev]);
     } catch (error: any) {
       setError(error.response?.data?.error || 'Failed to generate quiz');
     } finally {
       setQuizLoadingId(null);
     }
   };
+
+  // Debug loading state
+  console.log('Loading state:', {
+    loading,
+    hasNotes: notes && Array.isArray(notes) && notes.length > 0,
+    hasNotebooks: notebooks && Array.isArray(notebooks) && notebooks.length > 0,
+    hasReviewers: reviewers && Array.isArray(reviewers) && reviewers.length > 0,
+    notesLength: notes?.length || 0,
+    notebooksLength: notebooks?.length || 0,
+    reviewersLength: reviewers?.length || 0
+  });
+  
+  // Debug data content
+  if (notes && Array.isArray(notes) && notes.length > 0) {
+    console.log('First note sample:', notes[0]);
+  } else {
+    console.log('Notes data:', notes);
+  }
+  if (notebooks && Array.isArray(notebooks) && notebooks.length > 0) {
+    console.log('First notebook sample:', notebooks[0]);
+  } else {
+    console.log('Notebooks data:', notebooks);
+  }
+  if (reviewers && Array.isArray(reviewers) && reviewers.length > 0) {
+    console.log('First reviewer sample:', reviewers[0]);
+  } else {
+    console.log('Reviewers data:', reviewers);
+  }
+
+  // Don't render until reviewers are loaded (notes/notebooks are optional for display)
+  if (loading) {
+    return (
+      <div className="space-y-6 h-full">
+        <div className="text-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
+          <p className="mt-2 text-gray-600 dark:text-gray-400">
+            Loading reviewers... (Notes: {notes?.length || 0}, Notebooks: {notebooks?.length || 0}, Reviewers: {reviewers?.length || 0})
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 h-full">
@@ -401,17 +468,23 @@ ${sourceContent}`;
                         className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                       >
                         <option value="">Select {selectedSource === 'note' ? 'a note' : 'a notebook'}</option>
-                        {selectedSource === 'note' 
-                          ? notes.map(note => (
-                              <option key={note.id} value={note.id}>
-                                {note.title} ({note.notebook_name})
-                              </option>
-                            ))
-                          : notebooks.map(notebook => (
-                              <option key={notebook.id} value={notebook.id}>
-                                {notebook.name}
-                              </option>
-                            ))
+                                                {selectedSource === 'note' 
+                          ? (notes && Array.isArray(notes) ? notes.map(note => {
+                              console.log('Note option:', note);
+                              return (
+                                <option key={note.id} value={note.id}>
+                                  {note.title} ({note.notebook_name || 'No notebook'})
+                                </option>
+                              );
+                            }) : [])
+                          : (notebooks && Array.isArray(notebooks) ? notebooks.map(notebook => { 
+                              console.log('Notebook option:', notebook);
+                              return (
+                                <option key={notebook.id} value={notebook.id}>
+                                  {notebook.name}
+                                </option>
+                              );
+                            }) : [])
                         }
                       </select>
                     </div>

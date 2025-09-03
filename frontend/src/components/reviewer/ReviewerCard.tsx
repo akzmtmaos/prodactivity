@@ -1,5 +1,6 @@
 import React from 'react';
 import { Star, StarOff, Trash2, Download, Share2 } from 'lucide-react';
+import { truncateHtmlContent } from '../../utils/htmlUtils';
 
 interface Reviewer {
   id: number;
@@ -103,7 +104,7 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
       </div>
       <div className="prose prose-sm max-w-none dark:prose-invert">
         <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap" style={{ maxHeight: '200px', overflow: 'hidden' }}>
-          {reviewer.content.length > 300 ? reviewer.content.slice(0, 300) + '...' : reviewer.content}
+          {truncateHtmlContent(reviewer.content, 300)}
         </div>
       </div>
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">

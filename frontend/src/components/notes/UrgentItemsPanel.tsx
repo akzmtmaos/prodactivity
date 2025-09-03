@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertTriangle, BookOpen, FileText, Clock } from 'lucide-react';
 import axiosInstance from '../../utils/axiosConfig';
+import { stripHtmlTags } from '../../utils/htmlUtils';
 
 interface UrgentNote {
   id: number;
@@ -206,7 +207,7 @@ const UrgentItemsPanel: React.FC<UrgentItemsPanelProps> = ({
                               {note.title}
                             </h4>
                             <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
-                              {note.content.substring(0, 150)}...
+                              {stripHtmlTags(note.content).substring(0, 150)}...
                             </p>
                             <div className="flex items-center gap-2 mt-2">
                               <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(note.priority)}`}>

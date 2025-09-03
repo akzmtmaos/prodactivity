@@ -13,7 +13,7 @@ import UrgentItemsPanel from '../components/notes/UrgentItemsPanel';
 import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
-import AIFeaturesPanel from '../components/notes/AIFeaturesPanel';
+
 import NotebookAIInsights from '../components/notes/NotebookAIInsights';
 
 interface Notebook {
@@ -1188,21 +1188,7 @@ const Notes = () => {
             </div>
           </div>
           
-          {/* AI Features Panel - Enhanced with new capabilities */}
-          {currentView === 'notes' && selectedNotebook && (
-            <AIFeaturesPanel
-              content={notes.map(n => `${n.title}\n${n.content}`).join('\n\n')}
-              onApplySummary={(summary: string) => {
-                // For notebook-level summaries, we could create a new summary note
-                setToast({ message: 'Notebook summary generated! Consider creating a summary note.', type: 'success' });
-              }}
-              sourceNoteId={noteEditorNote?.id}
-              sourceNotebookId={selectedNotebook?.id}
-              sourceTitle={selectedNotebook?.name}
-              noteType={selectedNotebook?.notebook_type || 'other'}
-              isNotebook={true}
-            />
-          )}
+
           
           {/* NoteEditor Modal */}
           {showNoteEditor && (
@@ -1292,7 +1278,7 @@ const Notes = () => {
         onClose={() => setShowGlobalSearch(false)}
       />
       
-      {/* Urgent Items Panel */}
+      {/*  Items Panel */}
       <UrgentItemsPanel
         isOpen={showUrgentItemsPanel}
         onClose={() => setShowUrgentItemsPanel(false)}

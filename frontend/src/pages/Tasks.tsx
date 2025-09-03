@@ -243,9 +243,7 @@ const Tasks = () => {
       const orderingField = sortField === 'dueDate' ? 'due_date' : (sortField as string);
       params.append('ordering', `${sortDirection === 'desc' ? '-' : ''}${orderingField}`);
       
-      // Add pagination parameters
-      params.append('page', currentPage.toString());
-      params.append('page_size', pageSize.toString());
+
       
       const headers = getAuthHeaders();
       console.log('Fetching tasks with URL:', `${API_BASE_URL}/tasks/?${params.toString()}`);
@@ -254,7 +252,7 @@ const Tasks = () => {
       console.log('Tasks response:', response.data);
       
       // Map due_date to dueDate for each task
-      const mappedTasks = response.data.results?.map((task: any) => ({
+      const mappedTasks = response.data.map((task: any) => ({
         ...task,
         dueDate: task.due_date,
       })) || [];
@@ -262,27 +260,20 @@ const Tasks = () => {
       console.log('Mapped tasks:', mappedTasks);
       setTasks(mappedTasks);
       
-      // Set pagination info
-      if (response.data.count !== undefined) {
-        const newTotalCount = response.data.count;
-        const newTotalPages = Math.ceil(newTotalCount / pageSize);
-        
-        setTotalCount(newTotalCount);
-        setTotalPages(newTotalPages);
-        
-        // If current page is now invalid (e.g., we're on page 5 but only 3 pages exist), reset to last page
-        if (currentPage > newTotalPages && newTotalPages > 0) {
-          setCurrentPage(newTotalPages);
-        }
-        
-        console.log('Pagination info:', {
-          totalCount: newTotalCount,
-          totalPages: newTotalPages,
-          currentPage,
-          pageSize,
-          resultsCount: response.data.results?.length || 0
-        });
-      }
+      // Set pagination info for direct array
+      const newTotalCount = mappedTasks.length;
+      const newTotalPages = Math.ceil(newTotalCount / pageSize);
+      
+      setTotalCount(newTotalCount);
+      setTotalPages(newTotalPages);
+      
+      console.log('Tasks info:', {
+        totalCount: newTotalCount,
+        totalPages: newTotalPages,
+        currentPage,
+        pageSize,
+        resultsCount: mappedTasks.length
+      });
     } catch (err: any) {
       console.error('Error fetching tasks:', err);
       if (err?.response?.status === 401) {
