@@ -38,7 +38,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
     setMessage(null);
 
     try {
-      const res = await fetch('http://localhost:8000/api/login/', {
+      const res = await fetch('/api/login/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -84,7 +84,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
     if (!forgotEmail) return;
     setForgotStatus('sending');
     try {
-      await fetch('http://localhost:8000/api/password-reset/', {
+      await fetch('http://192.168.56.1:8000/api/password-reset/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail })

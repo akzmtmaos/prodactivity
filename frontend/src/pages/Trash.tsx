@@ -43,7 +43,7 @@ const Trash = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.56.1:8000/api';
 
   // Sync activeTab with URL param
   useEffect(() => {

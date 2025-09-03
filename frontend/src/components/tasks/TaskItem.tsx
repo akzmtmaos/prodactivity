@@ -92,14 +92,14 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
 
   const toggleSubtask = async (s: Subtask) => {
     try {
-      const res = await axios.patch(`http://localhost:8000/api/subtasks/${s.id}/`, { completed: !s.completed }, { headers: getAuthHeaders() });
+              const res = await axios.patch(`http://192.168.56.1:8000/api/subtasks/${s.id}/`, { completed: !s.completed }, { headers: getAuthHeaders() });
       setLocalSubtasks(prev => prev.map(x => (x.id === s.id ? res.data : x)));
     } catch (e) {}
   };
 
   const deleteSubtask = async (id: number) => {
     try {
-      await axios.delete(`http://localhost:8000/api/subtasks/${id}/`, { headers: getAuthHeaders() });
+              await axios.delete(`http://192.168.56.1:8000/api/subtasks/${id}/`, { headers: getAuthHeaders() });
       setLocalSubtasks(prev => prev.filter(x => x.id !== id));
     } catch (e) {}
   };

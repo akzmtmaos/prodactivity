@@ -111,18 +111,33 @@ def login_view(request):
     email = request.data.get('email')
     password = request.data.get('password')
 
+    print(f"Login attempt - Email: {email}")
+    print(f"Request data: {request.data}")
+
     if email is None or password is None:
         return Response({'message': 'Email and password required.'}, status=400)
 
     try:
         # Get the first user with this email (in case of duplicates)
         user = User.objects.filter(email=email).first()
+        print(f"User found: {user}")
         if not user:
+            print("No user found with this email")
             return Response({'message': 'Invalid credentials'}, status=401)
-    except Exception:
+    except Exception as e:
+        print(f"Exception finding user: {e}")
         return Response({'message': 'Invalid credentials'}, status=401)
 
+    print(f"Checking password for user: {user.username}")
+    print(f"Password received: '{password}'")
+    print(f"Password length: {len(password)}")
+    print(f"User is_active: {user.is_active}")
+    print(f"User has profile: {hasattr(user, 'profile')}")
+    if hasattr(user, 'profile'):
+        print(f"Profile email_verified: {user.profile.email_verified}")
+    
     if user.check_password(password):
+        print("Password is correct!")
         # Check if email verification is required and user is not verified
         if settings.EMAIL_VERIFICATION_REQUIRED and not user.profile.email_verified:
             return Response({
@@ -148,6 +163,7 @@ def login_view(request):
             },
         })
     else:
+        print("Password is incorrect!")
         return Response({'message': 'Invalid credentials'}, status=401)
 
 @api_view(['PATCH', 'PUT'])

@@ -47,7 +47,7 @@ const TaskActivityModal: React.FC<TaskActivityModalProps> = ({
       }
       
       const response = await axios.post(
-        `http://localhost:8000/api/tasks/${taskId}/upload_evidence/`,
+        `http://192.168.56.1:8000/api/tasks/${taskId}/upload_evidence/`,
         formData,
         { 
           headers: {
@@ -63,7 +63,7 @@ const TaskActivityModal: React.FC<TaskActivityModalProps> = ({
         // Automatically mark the task as complete after evidence is uploaded
         try {
           const completeResponse = await axios.patch(
-            `http://localhost:8000/api/tasks/${taskId}/`,
+            `http://192.168.56.1:8000/api/tasks/${taskId}/`,
             { completed: true },
             { headers: getAuthHeaders() }
           );

@@ -186,7 +186,7 @@ const Decks = () => {
       
       if (parseStrategy === 'qa') {
         // Strategy 1: Look for explicit Q:/A: lines
-        const lines = content.split('\n').map((l: string) => l.trim()).filter((l: string) => l.length > 0);
+        const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
         let i = 0;
         while (i < lines.length) {
           const line = lines[i];
@@ -230,87 +230,53 @@ const Decks = () => {
           i++;
         }
         
-        // Strategy 2: If no Q/A patterns found, create cards from distinct concepts
+        // Strategy 2: If no Q/A patterns found, create cards from sentences with better logic
         if (cards.length === 0) {
-          // Split content into distinct sections based on double line breaks or clear separators
-          const sections = content.split(/\n\s*\n/).filter((s: string) => s.trim().length > 20);
-          
-          for (let i = 0; i < sections.length; i++) {
-            const section = sections[i].trim();
+          const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 15);
+          for (let i = 0; i < sentences.length - 1; i++) {
+            const currentSentence = sentences[i].trim();
+            const nextSentence = sentences[i + 1].trim();
             
-            // Skip if section is too short or too long
-            if (section.length < 30 || section.length > 800) {
+            // Skip if either sentence is too short or too long
+            if (currentSentence.length < 10 || currentSentence.length > 200 || 
+                nextSentence.length < 10 || nextSentence.length > 300) {
               continue;
             }
             
-            // Try to identify the concept and its explanation within the section
-            const lines = section.split('\n').filter((l: string) => l.trim().length > 0);
-            
-            if (lines.length >= 2) {
-              // First line is often the concept/title
-              const conceptLine = lines[0].trim();
-              // Rest of the lines form the explanation
-              const explanationLines = lines.slice(1).map((l: string) => l.trim()).filter((l: string) => l.length > 0);
-              
-              if (conceptLine.length > 5 && explanationLines.length > 0) {
-                // Create a clean question from the concept
-                let question = conceptLine;
-                
-                // If it's already a question, use it as is
-                if (question.endsWith('?')) {
-                  // Keep the question as is
-                } else {
-                  // Create a "What is..." question, filtering out filler words
-                  const words = conceptLine.split(' ').filter((w: string) => 
-                    w.length > 2 && 
-                    !['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'].includes(w.toLowerCase())
-                  );
-                  
-                  if (words.length >= 2) {
-                    const keyConcept = words.slice(0, Math.min(5, words.length)).join(' ');
-                    question = `What is ${keyConcept}?`;
-                  } else {
-                    // Fallback: use the first few words
-                    const firstWords = conceptLine.split(' ').slice(0, 4).join(' ');
-                    question = `What is ${firstWords}?`;
-                  }
-                }
-                
-                // Create the answer from the explanation lines
-                const answer = explanationLines.join(' ').trim();
-                
-                // Only create the card if we have both a good question and answer
-                if (question.length > 10 && answer.length > 20) {
-                  // Clean up the question
-                  question = question
-                    .replace(/\s+/g, ' ') // Normalize whitespace
-                    .replace(/\s+\?$/, '?') // Clean up question mark spacing
-                    .trim();
-                  
-                  cards.push({ question, answer });
-                  console.log('Created from section:', question.substring(0, 50), '->', answer.substring(0, 50));
-                }
+            // Create a question from the current sentence
+            let question = currentSentence;
+            if (!question.endsWith('?')) {
+              // Try to make it a question if it's not already
+              if (question.toLowerCase().includes('is') || question.toLowerCase().includes('are') || 
+                  question.toLowerCase().includes('can') || question.toLowerCase().includes('will')) {
+                question = question + '?';
+              } else {
+                question = 'What is ' + question.toLowerCase() + '?';
               }
             }
+            
+            cards.push({ question, answer: nextSentence });
+            console.log('Created from sentences:', question.substring(0, 50), '->', nextSentence.substring(0, 50));
           }
         }
         
-        // Strategy 3: If still no cards, create from the note title and content
+        // Strategy 3: If still no cards, create from key concepts
         if (cards.length === 0) {
-          const title = note.title.trim();
-          if (title && content.length > 30) {
-            // Create a question from the title
-            let question = title;
-            if (!question.endsWith('?')) {
-              question = `What is ${title}?`;
+          const lines = content.split('\n').filter(line => line.trim().length > 20);
+          for (let i = 0; i < lines.length - 1; i++) {
+            const concept = lines[i].trim();
+            const explanation = lines[i + 1].trim();
+            
+            if (concept && explanation && concept.length > 10 && explanation.length > 10) {
+                             // Create a better question by filtering out common filler words
+               const words = concept.split(' ').filter(w => 
+                 !['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'].includes(w.toLowerCase())
+               );
+               const keyConcept = words.slice(0, Math.min(4, words.length)).join(' ');
+               const question = `What is ${keyConcept}?`;
+              cards.push({ question, answer: explanation });
+              console.log('Created from concepts:', question, '->', explanation.substring(0, 50));
             }
-            
-            // Use the first meaningful paragraph as the answer
-            const paragraphs = content.split(/\n\s*\n/).filter((p: string) => p.trim().length > 30);
-            const answer = paragraphs.length > 0 ? paragraphs[0].trim() : content.substring(0, 300).trim();
-            
-            cards.push({ question, answer });
-            console.log('Created from title:', question, '->', answer.substring(0, 50));
           }
         }
         
@@ -342,6 +308,50 @@ const Decks = () => {
             continue;
           }
           i++;
+        }
+        
+        // Fallback: If no headings found, create from paragraphs
+        if (cards.length === 0) {
+          const paragraphs = content.split('\n\n').filter(p => p.trim().length > 10);
+          for (let i = 0; i < paragraphs.length - 1; i += 2) {
+            const question = paragraphs[i].trim();
+            const answer = paragraphs[i + 1].trim();
+            if (question && answer && question.length > 5 && answer.length > 5) {
+              cards.push({ question, answer });
+              console.log('Created from paragraphs (heading strategy):', question.substring(0, 50), '->', answer.substring(0, 50));
+            }
+          }
+        }
+      }
+      
+      // Final fallback: If still no cards, create better cards from content chunks
+      if (cards.length === 0 && content.trim().length > 20) {
+        const chunks = content.split(/[.!?]+/).filter(chunk => chunk.trim().length > 20);
+        
+        if (chunks.length >= 2) {
+          // Create multiple cards from content chunks
+          for (let i = 0; i < chunks.length - 1; i++) {
+            const chunk = chunks[i].trim();
+            const nextChunk = chunks[i + 1].trim();
+            
+            if (chunk.length > 15 && nextChunk.length > 15) {
+                             // Create a better question by filtering out common filler words
+               const words = chunk.split(' ').filter(w => 
+                 !['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'].includes(w.toLowerCase())
+               );
+               const keyConcept = words.slice(0, Math.min(4, words.length)).join(' ');
+               const question = `What is ${keyConcept}?`;
+              const answer = nextChunk;
+              cards.push({ question, answer });
+              console.log('Created fallback card:', question, '->', answer.substring(0, 50));
+            }
+          }
+        } else {
+          // Single card from title and content
+          const question = note.title || 'What is this note about?';
+          const answer = truncateHtmlContent(content, 300);
+          cards.push({ question, answer });
+          console.log('Created single fallback card:', question, '->', answer.substring(0, 50));
         }
       }
     }
@@ -402,7 +412,7 @@ const Decks = () => {
       
       if (deckStrategy === 'single') {
         // Create single deck
-        const res = await fetch('http://localhost:8000/api/decks/decks/', {
+        const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
           body: JSON.stringify({ title: singleDeckName.trim() || 'Converted Notes' })
@@ -414,7 +424,7 @@ const Decks = () => {
         // Create flashcards with proper error handling
         const createdFlashcards = [];
         for (const card of allCards) {
-          const flashcardRes = await fetch('http://localhost:8000/api/decks/flashcards/', {
+          const flashcardRes = await fetch('http://192.168.56.1:8000/api/decks/flashcards/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
             body: JSON.stringify({ deck: deckData.id, front: card.question, back: card.answer })
@@ -451,7 +461,7 @@ const Decks = () => {
       } else {
         // Create a deck per note
         for (const note of selectedNotes) {
-          const res = await fetch('http://localhost:8000/api/decks/decks/', {
+          const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
             body: JSON.stringify({ title: note.title || `Note ${note.id}` })
@@ -463,7 +473,7 @@ const Decks = () => {
           // Create flashcards with proper error handling
           const createdFlashcards = [];
           for (const card of cards) {
-            const flashcardRes = await fetch('http://localhost:8000/api/decks/flashcards/', {
+            const flashcardRes = await fetch('http://192.168.56.1:8000/api/decks/flashcards/', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
               body: JSON.stringify({ deck: deckData.id, front: card.question, back: card.answer })
@@ -520,7 +530,7 @@ const Decks = () => {
         const token = localStorage.getItem('accessToken');
         
         // Fetch active decks
-        const activeRes = await fetch('http://localhost:8000/api/decks/decks/', {
+        const activeRes = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },
@@ -561,7 +571,7 @@ const Decks = () => {
         setDecks(topLevelDecks);
 
         // Fetch archived decks
-        const archivedRes = await fetch('http://localhost:8000/api/decks/archived/decks/', {
+        const archivedRes = await fetch('http://192.168.56.1:8000/api/decks/archived/decks/', {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },
@@ -613,7 +623,7 @@ const Decks = () => {
   const handleCreateDeck = async (deckData: { title: string }) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:8000/api/decks/decks/', {
+              const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -657,7 +667,7 @@ const Decks = () => {
   const handleDeleteDeck = async (deck: Deck) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:8000/api/decks/decks/${deck.id}/`, {
+      const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${deck.id}/`, {
         method: 'DELETE',
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
@@ -675,7 +685,7 @@ const Decks = () => {
   const handleArchiveDeck = async (deck: Deck, archive: boolean) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://localhost:8000/api/decks/decks/${deck.id}/`, {
+      const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${deck.id}/`, {
         method: 'PATCH',
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
@@ -937,7 +947,7 @@ const Decks = () => {
     if (!selectedDeck) return;
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://localhost:8000/api/decks/flashcards/', {
+      const res = await fetch('http://192.168.56.1:8000/api/decks/flashcards/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -1073,7 +1083,7 @@ const Decks = () => {
             ));
             // Persist progress to backend
             const token = localStorage.getItem('accessToken');
-            fetch(`http://localhost:8000/api/decks/decks/${selectedDeck.id}/`, {
+            fetch(`http://192.168.56.1:8000/api/decks/decks/${selectedDeck.id}/`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
@@ -1105,7 +1115,7 @@ const Decks = () => {
           onComplete={async (results) => {
             // Refetch deck from backend for updated progress
             const token = localStorage.getItem('accessToken');
-            const res = await fetch(`http://localhost:8000/api/decks/decks/${selectedDeck.id}/`, {
+            const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${selectedDeck.id}/`, {
               headers: {
                 'Authorization': token ? `Bearer ${token}` : '',
               },

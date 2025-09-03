@@ -102,7 +102,7 @@ const Settings: React.FC = () => {
     setIsChangingPassword(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:8000/api/change-password/', {
+      const response = await fetch('http://192.168.56.1:8000/api/change-password/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -227,7 +227,7 @@ const Settings: React.FC = () => {
       formData.append('avatar', file);
       const token = localStorage.getItem('accessToken');
       try {
-        const res = await fetch('http://localhost:8000/api/avatar/', {
+        const res = await fetch('http://192.168.56.1:8000/api/avatar/', {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${token}`,

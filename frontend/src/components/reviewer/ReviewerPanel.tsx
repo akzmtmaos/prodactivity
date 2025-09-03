@@ -67,7 +67,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
   const [filterType, setFilterType] = useState('all');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
+  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.56.1:8000/api';
   const REVIEWERS_URL = `${API_URL}/reviewers/`;
 
   const getAuthHeaders = () => {

@@ -27,7 +27,7 @@ const StudySessionPage: React.FC = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('accessToken');
-        const res = await fetch(`http://localhost:8000/api/decks/decks/${id}/`, {
+        const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${id}/`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },

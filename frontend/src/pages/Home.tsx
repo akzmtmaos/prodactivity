@@ -48,7 +48,7 @@ interface SearchResult {
   timestamp?: string;
 }
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://192.168.56.1:8000/api';
 
 const Home = () => {
   const [user, setUser] = useState<User | null>(null);

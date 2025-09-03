@@ -10,7 +10,7 @@ interface SubtaskModalProps {
   onChange?: (subtasks: Subtask[]) => void;
 }
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://192.168.56.1:8000/api';
 
 const SubtaskModal: React.FC<SubtaskModalProps> = ({ taskId, isOpen, initialSubtasks = [], onClose, onChange }) => {
   const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks);

@@ -21,7 +21,7 @@ const VerifyEmail: React.FC = () => {
 
   const verifyEmail = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/verify-email/', {
+      const response = await fetch('http://192.168.56.1:8000/api/verify-email/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

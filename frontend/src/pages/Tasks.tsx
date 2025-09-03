@@ -11,7 +11,7 @@ import DeleteConfirmationModal from '../components/common/DeleteConfirmationModa
 import Toast from '../components/common/Toast';
 // import { getTimezoneOffset } from '../utils/dateUtils';
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://192.168.56.1:8000/api';
 
 // Add getAuthHeaders function for JWT authentication
 const getAuthHeaders = () => {

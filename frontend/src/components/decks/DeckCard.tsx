@@ -45,6 +45,7 @@ const DeckCard: React.FC<DeckCardProps> = ({
   onEditSubDeck
 }) => {
   const [showMenu, setShowMenu] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu when clicking outside
@@ -62,14 +63,27 @@ const DeckCard: React.FC<DeckCardProps> = ({
       }
     };
 
+    // Update menu position when window resizes
+    const handleResize = () => {
+      if (showMenu && menuRef.current) {
+        const rect = menuRef.current.getBoundingClientRect();
+        setMenuPosition({
+          top: rect.bottom + 8,
+          right: window.innerWidth - rect.right
+        });
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleEscapeKey);
+    window.addEventListener('resize', handleResize);
     
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscapeKey);
+      window.removeEventListener('resize', handleResize);
     };
-  }, []);
+  }, [showMenu]);
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -126,6 +140,13 @@ const DeckCard: React.FC<DeckCardProps> = ({
             <button
               onClick={(e) => {
                 e.stopPropagation();
+                if (menuRef.current) {
+                  const rect = menuRef.current.getBoundingClientRect();
+                  setMenuPosition({
+                    top: rect.bottom + 8,
+                    right: window.innerWidth - rect.right
+                  });
+                }
                 setShowMenu(!showMenu);
               }}
               className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
@@ -136,7 +157,11 @@ const DeckCard: React.FC<DeckCardProps> = ({
             {/* Dropdown Menu */}
             {showMenu && (
               <div 
-                className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-20"
+                className="fixed z-[9999] w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700"
+                style={{
+                  top: menuPosition.top,
+                  right: menuPosition.right,
+                }}
                 onClick={(e) => e.stopPropagation()}
               >
                 <button

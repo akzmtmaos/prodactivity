@@ -24,7 +24,7 @@ const ResendVerificationModal: React.FC<ResendVerificationModalProps> = ({
     setMessage('');
 
     try {
-      const response = await fetch('http://localhost:8000/api/resend-verification/', {
+      const response = await fetch('http://192.168.56.1:8000/api/resend-verification/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

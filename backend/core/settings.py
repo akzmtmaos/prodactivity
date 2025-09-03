@@ -17,7 +17,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-i$uch6xcxz80fiq6td7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.56.1',]
 
 # Hugging Face API Key
 HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
@@ -141,6 +141,8 @@ MIDDLEWARE = [
 
 CORS_ALLOW_ALL_ORIGINS = True
 
+CORS_ALLOW_CREDENTIALS = True
+
 # CORS Headers configuration
 CORS_ALLOW_HEADERS = [
     'accept',
@@ -251,6 +253,7 @@ EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')  # App password from 
 
 # Email verification settings
 EMAIL_VERIFICATION_REQUIRED = os.getenv('EMAIL_VERIFICATION_REQUIRED', 'True').lower() == 'true'
+# EMAIL_VERIFICATION_REQUIRED = os.getenv('EMAIL_VERIFICATION_REQUIRED', 'False').lower() == 'true'
 
 # Handle invalid EMAIL_VERIFICATION_TOKEN_EXPIRE_HOURS values
 try:
@@ -277,3 +280,9 @@ CACHES = {
         'LOCATION': 'prodactivity-cache',
     }
 }
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.56.1:3000",
+]

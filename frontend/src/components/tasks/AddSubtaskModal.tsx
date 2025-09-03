@@ -9,7 +9,7 @@ interface AddSubtaskModalProps {
   onAdded: (subtask: Subtask) => void;
 }
 
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'http://192.168.56.1:8000/api';
 
 const AddSubtaskModal: React.FC<AddSubtaskModalProps> = ({ taskId, isOpen, onClose, onAdded }) => {
   const [title, setTitle] = useState('');
