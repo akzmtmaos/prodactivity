@@ -406,7 +406,7 @@ const LandingPage = () => {
               onClick={() => navigate('/register')}
               className="px-8 py-4 bg-indigo-600 text-white rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-700 hover:scale-105 transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:ring-offset-2"
             >
-              Start Now
+              Start Nowt
             </button>
             <button
               onClick={() => navigate('/login')}

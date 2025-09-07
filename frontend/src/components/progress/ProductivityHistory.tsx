@@ -1,5 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ProductivityRow from './ProductivityRow';
+import WeeklyBreakdownModal from './WeeklyBreakdownModal';
+import MonthlyBreakdownModal from './MonthlyBreakdownModal';
+import ProductivityLegend from './ProductivityLegend';
 
 interface ProductivityHistoryProps {
   progressView: string;
@@ -26,6 +29,38 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
   getDateDisplay,
   getProductivityColor
 }) => {
+  const [weeklyModalOpen, setWeeklyModalOpen] = useState(false);
+  const [monthlyModalOpen, setMonthlyModalOpen] = useState(false);
+  const [selectedWeek, setSelectedWeek] = useState<{
+    weekStart: string;
+    weekEnd: string;
+    percentage: number;
+  } | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<{
+    month: number;
+    year: number;
+    percentage: number;
+  } | null>(null);
+
+  const handleWeekClick = (weekStart: string, weekEnd: string, percentage: number) => {
+    setSelectedWeek({ weekStart, weekEnd, percentage });
+    setWeeklyModalOpen(true);
+  };
+
+  const handleMonthClick = (month: number, year: number, percentage: number) => {
+    setSelectedMonth({ month, year, percentage });
+    setMonthlyModalOpen(true);
+  };
+
+  const closeWeeklyModal = () => {
+    setWeeklyModalOpen(false);
+    setSelectedWeek(null);
+  };
+
+  const closeMonthlyModal = () => {
+    setMonthlyModalOpen(false);
+    setSelectedMonth(null);
+  };
   const renderDailyView = () => {
     console.log('renderDailyView called with:', {
       prodLogsLength: prodLogs.length,
@@ -196,10 +231,17 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           return null;
         }
         return (
-          <div key={item.week_start} className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2">
+          <div 
+            key={item.week_start} 
+            className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors duration-200"
+            onClick={() => handleWeekClick(item.week_start, item.week_end, item.log.completion_rate)}
+          >
             <div className="text-left">
               <div className="text-sm font-semibold text-gray-900 dark:text-white">
                 {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Click to view daily breakdown
               </div>
             </div>
             <div className="flex justify-center">
@@ -262,10 +304,17 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
         const monthDate = new Date(selectedDate.getFullYear(), item.month - 1, 1);
         if (isNaN(monthDate.getTime())) return null;
         return (
-          <div key={item.month} className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2">
+          <div 
+            key={item.month} 
+            className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors duration-200"
+            onClick={() => handleMonthClick(item.month, selectedDate.getFullYear(), item.log.completion_rate)}
+          >
             <div className="text-left">
               <div className="text-sm font-semibold text-gray-900 dark:text-white">
                 {monthDate.toLocaleDateString('en-US', { month: 'long' })}
+              </div>
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Click to view daily breakdown
               </div>
             </div>
             <div className="flex justify-center">
@@ -313,36 +362,65 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
   };
 
   return (
-    <div className="w-full mb-4">
-      <div className="bg-white dark:bg-gray-800 shadow-md border border-gray-200 dark:border-gray-700 rounded-xl w-full flex flex-col" style={{ height: 440 }}>
-        <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 rounded-t-xl px-12 py-2 border-b border-gray-200 dark:border-gray-600">
-          <span className="text-base font-semibold text-gray-900 dark:text-white">Productivity Scale History</span>
-          <div className="flex items-center space-x-2">
-            <button 
-              onClick={handlePrev} 
-              className={`px-2 py-1 rounded ${isPrevDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-              disabled={isPrevDisabled}
-            >
-              &#60;
-            </button>
-            <span className="text-sm font-semibold text-gray-900 dark:text-white">{getDateDisplay()}</span>
-            <button
-              onClick={handleNext}
-              className={`px-2 py-1 rounded ${isNextDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
-              disabled={isNextDisabled}
-            >
-              &#62;
-            </button>
+    <>
+      {/* Productivity Legend - Outside Container */}
+      <ProductivityLegend getProductivityColor={getProductivityColor} />
+      
+      <div className="w-full mb-4">
+        <div className="bg-white dark:bg-gray-800 shadow-md border border-gray-200 dark:border-gray-700 rounded-xl w-full flex flex-col" style={{ height: 520 }}>
+          <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 rounded-t-xl px-12 py-2 border-b border-gray-200 dark:border-gray-600">
+            <span className="text-base font-semibold text-gray-900 dark:text-white">Productivity Scale History</span>
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={handlePrev} 
+                className={`px-2 py-1 rounded ${isPrevDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                disabled={isPrevDisabled}
+              >
+                &#60;
+              </button>
+              <span className="text-sm font-semibold text-gray-900 dark:text-white">{getDateDisplay()}</span>
+              <button
+                onClick={handleNext}
+                className={`px-2 py-1 rounded ${isNextDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                disabled={isNextDisabled}
+              >
+                &#62;
+              </button>
+            </div>
+          </div>
+          {/* Scrollable list of productivity logs */}
+          <div className="flex-1 overflow-y-scroll px-12 py-4">
+            {progressView === 'Daily' && renderDailyView()}
+            {progressView === 'Weekly' && renderWeeklyView()}
+            {progressView === 'Monthly' && renderMonthlyView()}
           </div>
         </div>
-        {/* Scrollable list of productivity logs */}
-        <div className="flex-1 overflow-y-scroll px-12 py-4">
-          {progressView === 'Daily' && renderDailyView()}
-          {progressView === 'Weekly' && renderWeeklyView()}
-          {progressView === 'Monthly' && renderMonthlyView()}
-        </div>
       </div>
-    </div>
+
+      {/* Weekly Breakdown Modal */}
+      {selectedWeek && (
+        <WeeklyBreakdownModal
+          isOpen={weeklyModalOpen}
+          onClose={closeWeeklyModal}
+          weekStart={selectedWeek.weekStart}
+          weekEnd={selectedWeek.weekEnd}
+          weekPercentage={selectedWeek.percentage}
+          getProductivityColor={getProductivityColor}
+        />
+      )}
+
+      {/* Monthly Breakdown Modal */}
+      {selectedMonth && (
+        <MonthlyBreakdownModal
+          isOpen={monthlyModalOpen}
+          onClose={closeMonthlyModal}
+          month={selectedMonth.month}
+          year={selectedMonth.year}
+          monthPercentage={selectedMonth.percentage}
+          getProductivityColor={getProductivityColor}
+        />
+      )}
+    </>
   );
 };
 

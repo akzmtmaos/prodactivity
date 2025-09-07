@@ -44,6 +44,8 @@ const Settings: React.FC = () => {
     password: '',
     avatar: ''
   });
+  const [selectedAvatarFile, setSelectedAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string>('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [passwordFields, setPasswordFields] = useState({ current: '', new: '', confirm: '' });
@@ -193,6 +195,15 @@ const Settings: React.FC = () => {
     }
   }, []);
 
+  // Cleanup effect for avatar preview URL
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview);
+      }
+    };
+  }, [avatarPreview]);
+
   const handleSettingChange = (key: keyof UserSettings, value: any) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
@@ -220,54 +231,136 @@ const Settings: React.FC = () => {
     setProfile({ ...profile, [key]: value });
   };
 
-  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const formData = new FormData();
-      formData.append('avatar', file);
-      const token = localStorage.getItem('accessToken');
-      try {
-        const res = await fetch('http://192.168.56.1:8000/api/avatar/', {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-          body: formData,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setProfile((prev) => {
-            const updated = { ...prev, avatar: data.avatar };
-            console.log('Avatar URL after upload:', updated.avatar);
-            return updated;
-          });
-          // Also update user in localStorage if needed
-          const userData = localStorage.getItem('user');
-          if (userData) {
-            const userObj = JSON.parse(userData);
-            userObj.avatar = data.avatar;
-            localStorage.setItem('user', JSON.stringify(userObj));
+  // Image optimization function
+  const optimizeImage = (file: File, maxWidth: number = 300, maxHeight: number = 300, quality: number = 0.8): Promise<File> => {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = () => {
+        // Calculate new dimensions while maintaining aspect ratio
+        let { width, height } = img;
+        
+        if (width > height) {
+          if (width > maxWidth) {
+            height = (height * maxWidth) / width;
+            width = maxWidth;
           }
         } else {
-          // handle error
+          if (height > maxHeight) {
+            width = (width * maxHeight) / height;
+            height = maxHeight;
+          }
         }
-      } catch (err) {
-        // handle error
-      }
+        
+        canvas.width = width;
+        canvas.height = height;
+        
+        // Draw and compress the image
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const optimizedFile = new File([blob], file.name, {
+              type: 'image/jpeg',
+              lastModified: Date.now(),
+            });
+            resolve(optimizedFile);
+          } else {
+            resolve(file); // Fallback to original file
+          }
+        }, 'image/jpeg', quality);
+      };
+      
+      img.src = URL.createObjectURL(file);
+    });
+  };
+
+  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      setProfileMessage({ type: 'error', text: 'Please select a valid image file.' });
+      return;
     }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setProfileMessage({ type: 'error', text: 'Image size must be less than 5MB.' });
+      return;
+    }
+
+    // Clear any previous messages
+    setProfileMessage(null);
+
+    // Clean up previous preview URL
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview);
+    }
+
+    // Store the selected file
+    setSelectedAvatarFile(file);
+
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
   };
 
   const saveProfile = async () => {
     setIsProfileSaving(true);
     setProfileMessage(null);
+    
     try {
-      // Save to localStorage (simulate API call)
-      const updatedUser = { ...user, ...profile };
+      let updatedProfile = { ...profile };
+
+      // Handle avatar upload if a new file was selected
+      if (selectedAvatarFile) {
+        try {
+          // Optimize the image before upload
+          const optimizedFile = await optimizeImage(selectedAvatarFile, 300, 300, 0.8);
+          
+          const formData = new FormData();
+          formData.append('avatar', optimizedFile);
+          const token = localStorage.getItem('accessToken');
+          
+          const res = await fetch('http://192.168.56.1:8000/api/avatar/', {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+            },
+            body: formData,
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            updatedProfile.avatar = data.avatar;
+            
+            // Clear the selected file and preview since it's now saved
+            setSelectedAvatarFile(null);
+            setAvatarPreview('');
+          } else {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Failed to update profile picture.');
+          }
+        } catch (avatarError) {
+          console.error('Avatar upload error:', avatarError);
+          throw new Error('Failed to upload profile picture. Please try again.');
+        }
+      }
+
+      // Save profile data to localStorage (simulate API call)
+      const updatedUser = { ...user, ...updatedProfile };
       localStorage.setItem('user', JSON.stringify(updatedUser));
       setUser(updatedUser);
+      setProfile(updatedProfile);
+      
       setProfileMessage({ type: 'success', text: 'Profile updated successfully!' });
     } catch (error) {
-      setProfileMessage({ type: 'error', text: 'Failed to update profile. Please try again.' });
+      console.error('Save profile error:', error);
+      setProfileMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to update profile. Please try again.' });
     } finally {
       setIsProfileSaving(false);
       setTimeout(() => setProfileMessage(null), 3000);
@@ -344,15 +437,22 @@ const Settings: React.FC = () => {
                       {/* Avatar */}
                       <div className="flex flex-col items-center gap-2">
                         <div className="relative">
-                          {profile.avatar ? (
+                          {avatarPreview ? (
+                            <img src={avatarPreview} alt="Avatar Preview" className="w-24 h-24 rounded-full object-cover border-2 border-indigo-500" />
+                          ) : profile.avatar ? (
                             <img src={profile.avatar} alt="Avatar" className="w-24 h-24 rounded-full object-cover border-2 border-indigo-500" />
                           ) : (
                             <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-2 border-indigo-500">
                               <UserIcon size={40} className="text-gray-400 dark:text-gray-500" />
                             </div>
                           )}
-                          <label className="absolute bottom-0 right-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2 cursor-pointer shadow-lg">
-                            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                          <label className="absolute bottom-0 right-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2 cursor-pointer shadow-lg transition-colors">
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              className="hidden" 
+                              onChange={handleAvatarChange}
+                            />
                             <UserIcon size={16} />
                           </label>
                         </div>

@@ -23,7 +23,7 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
   const progressPercentage = Math.min(userLevel.currentXP / userLevel.xpToNextLevel, 1) * 100;
 
   return (
-    <div className="flex flex-col md:flex-row md:space-x-8 items-start justify-center mb-4">
+    <div className="flex flex-col md:flex-row md:space-x-8 items-center mb-4">
       {/* Left column: LevelProgressRing, XP Bar, Today's Productivity Bar */}
       <div className="flex flex-col w-full md:w-1/2 mb-6 md:mb-0">
         {/* LevelProgressRing */}
@@ -86,8 +86,8 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
         </div>
       </div>
       {/* Right column: Streaks Calendar */}
-      <div className="w-full md:w-1/2 flex justify-center">
-        <div className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 w-full max-w-md flex flex-col items-center">
+      <div className="w-full md:w-1/2 flex justify-center items-center">
+        <div className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 w-full flex flex-col items-center">
           <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Streaks</h3>
           <StreaksCalendar streakData={streakData} />
         </div>

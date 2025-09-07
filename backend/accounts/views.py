@@ -173,7 +173,18 @@ def update_avatar(request):
     if 'avatar' in request.FILES:
         user.profile.avatar = request.FILES['avatar']
         user.profile.save()
-        return Response({'message': 'Avatar updated successfully'})
+        
+        # Return the avatar URL
+        avatar_url = None
+        if user.profile.avatar:
+            request_scheme = request.scheme
+            request_host = request.get_host()
+            avatar_url = f"{request_scheme}://{request_host}{user.profile.avatar.url}"
+        
+        return Response({
+            'message': 'Avatar updated successfully',
+            'avatar': avatar_url
+        })
     return Response({'message': 'No avatar file provided'}, status=400)
 
 # Email verification endpoint

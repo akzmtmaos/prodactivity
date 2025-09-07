@@ -11,6 +11,7 @@ import Toast from '../components/common/Toast';
 import GlobalSearch from '../components/notes/GlobalSearch';
 import ImportantItemsPanel from '../components/notes/ImportantItemsPanel';
 import ColorPickerModal from '../components/notes/ColorPickerModal';
+import CreateNotebookModal from '../components/notes/CreateNotebookModal';
 import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
@@ -107,6 +108,9 @@ const Notes = () => {
   // Color picker modal state
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [notebookToColor, setNotebookToColor] = useState<Notebook | null>(null);
+
+  // Create notebook modal state
+  const [showCreateNotebookModal, setShowCreateNotebookModal] = useState(false);
 
   // Hierarchical navigation state - NEW
   type ViewType = 'notebooks' | 'notes';
@@ -1178,7 +1182,7 @@ const Notes = () => {
                               Create your first notebook to get started
                             </p>
                             <button
-                              onClick={() => {/* This will be handled by the NotebookList component */}}
+                              onClick={() => setShowCreateNotebookModal(true)}
                               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                             >
                               Create Notebook
@@ -1442,6 +1446,16 @@ const Notes = () => {
         onColorSelect={handleColorSelect}
         currentColor={notebookToColor?.color || '#3b82f6'}
         title={`Choose color for "${notebookToColor?.name || 'Notebook'}"`}
+      />
+
+      {/* Create Notebook Modal */}
+      <CreateNotebookModal
+        isOpen={showCreateNotebookModal}
+        onClose={() => setShowCreateNotebookModal(false)}
+        onCreateNotebook={(data) => {
+          handleCreateNotebookDirect(data.name);
+          setShowCreateNotebookModal(false);
+        }}
       />
     </PageLayout>
   );

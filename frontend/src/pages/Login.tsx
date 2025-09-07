@@ -219,6 +219,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
                   value={formData.email}
                   onChange={handleChange}
                   maxLength={50}
+                  autoComplete="email"
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
                   required
                 />
@@ -239,6 +240,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
                   placeholder="Password"
                   value={formData.password}
                   onChange={handleChange}
+                  autoComplete="current-password"
                   className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
                   required
                 />

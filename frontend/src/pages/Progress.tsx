@@ -434,17 +434,27 @@ const Progress = () => {
 
   return (
     <PageLayout>
-      <div className="space-y-6 relative">
+      <div className="min-h-screen flex flex-col">
         {/* Header */}
         <ProgressHeader greeting={greeting} username={user?.username || 'User'} />
 
-        {/* Overview Section */}
-        <ProgressOverview
-          userLevel={userLevel}
-          todaysProductivity={todaysProductivity}
-          streakData={streakData}
-          refreshProductivity={refreshProductivity}
-        />
+        {/* Main Content - Vertically Centered */}
+        <div className="flex-1 flex flex-col justify-center">
+          {/* Overview Section - Horizontally Centered */}
+          <div className="w-full flex justify-center">
+            <div className="w-full max-w-7xl">
+              <ProgressOverview
+                userLevel={userLevel}
+                todaysProductivity={todaysProductivity}
+                streakData={streakData}
+                refreshProductivity={refreshProductivity}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Content */}
+        <div className="space-y-6">
 
         {/* Stats Cards */}
         <StatsCards stats={stats} />
@@ -475,6 +485,7 @@ const Progress = () => {
 
         {/* Achievements */}
         <Achievements stats={stats} userLevel={userLevel} />
+        </div>
       </div>
     </PageLayout>
   );
@@ -533,8 +544,11 @@ async function fetchUserLevel() {
 async function fetchStreakData() {
   try {
     const headers = getAuthHeaders();
-    const res = await fetch(`${API_BASE_URL}/progress/streaks/`, {
-      ...(headers && { headers })
+    // Add cache-busting parameter to force fresh data
+    const timestamp = new Date().getTime();
+    const res = await fetch(`${API_BASE_URL}/progress/streaks/?t=${timestamp}`, {
+      ...(headers && { headers }),
+      cache: 'no-cache'
     });
     if (res.status === 401) {
       handle401();

@@ -24,12 +24,21 @@ def user_stats(request):
     total_tasks = tasks.count()
     average_productivity = int((total_tasks_completed / total_tasks) * 100) if total_tasks > 0 else 0
 
-    # Calculate streak: consecutive days with at least one completed task
+    # Calculate streak: consecutive days with tasks and at least one completed task
     streak = 0
     today = timezone.localdate()
     day = today
     while True:
-        if completed_tasks.filter(due_date=day).exists():
+        # Only count past and current dates, not future dates
+        if day > today:
+            day -= timedelta(days=1)
+            continue
+            
+        # Check if there were tasks on this day AND at least one was completed
+        daily_tasks = tasks.filter(due_date=day)
+        daily_completed = completed_tasks.filter(due_date=day)
+        
+        if daily_tasks.exists() and daily_completed.exists():
             streak += 1
             day -= timedelta(days=1)
         else:
@@ -79,12 +88,50 @@ def user_level(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def user_streaks(request):
-    # TODO: Implement real streak calendar data
-    data = [
-        {'date': '2024-06-01', 'completed': True},
-        # ...
-    ]
-    return Response(data)
+    user = request.user
+    
+    # Get the last 365 days of productivity data
+    from datetime import datetime, timedelta
+    from tasks.models import Task
+    
+    end_date = timezone.now().date()
+    start_date = end_date - timedelta(days=365)
+    
+    streak_data = []
+    current_date = start_date
+    
+    while current_date <= end_date:
+        # Check if user had productive day (completed tasks)
+        daily_tasks = Task.all_objects.filter(user=user, due_date=current_date)
+        daily_non_deleted = daily_tasks.filter(is_deleted=False)
+        daily_deleted_completed = daily_tasks.filter(is_deleted=True, was_completed_on_delete=True)
+        
+        daily_total = daily_non_deleted.count() + daily_deleted_completed.count()
+        daily_completed = daily_non_deleted.filter(completed=True).count() + daily_deleted_completed.count()
+        
+        # Consider it a streak day if there were tasks and at least one was completed
+        # But only for past and current dates, not future dates
+        today = timezone.now().date()
+        is_future_date = current_date > today
+        
+        if is_future_date:
+            has_streak = False
+            productivity_rate = 0
+        else:
+            has_streak = daily_total > 0 and daily_completed > 0
+            productivity_rate = (daily_completed / daily_total * 100) if daily_total > 0 else 0
+        
+        streak_data.append({
+            'date': current_date.isoformat(),
+            'streak': has_streak,
+            'productivity': round(productivity_rate, 2) if has_streak else 0,
+            'total_tasks': daily_total,
+            'completed_tasks': daily_completed
+        })
+        
+        current_date += timedelta(days=1)
+    
+    return Response(streak_data)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
