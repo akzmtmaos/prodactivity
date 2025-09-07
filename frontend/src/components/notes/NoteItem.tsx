@@ -1,6 +1,6 @@
 // frontend/src/components/NoteItem.tsx
 import React from 'react';
-import { Edit, Trash2, MoreVertical, Archive, RotateCcw } from 'lucide-react';
+import { Edit, Trash2, MoreVertical, Archive, RotateCcw, AlertTriangle } from 'lucide-react';
 import EditTitleModal from './EditTitleModal';
 import axios from 'axios';
 
@@ -12,6 +12,7 @@ interface Note {
   notebook_name: string;
   notebook_type: string;
   notebook_urgency: string;
+  notebook_color: string;
   note_type: 'lecture' | 'reading' | 'assignment' | 'exam' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   is_urgent: boolean;
@@ -29,13 +30,14 @@ interface NoteItemProps {
   onEditTitle: (note: Note) => void;
   onDelete: (noteId: number) => void;
   onArchive: () => void;
+  onToggleImportant: (noteId: number) => void;
   deletingNoteId?: number | null;
 }
 
-const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete, onArchive, deletingNoteId }) => {
+const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete, onArchive, onToggleImportant, deletingNoteId }) => {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showEditModal, setShowEditModal] = React.useState(false);
-  const API_URL = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api/notes';
+  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.56.1:8000/api/notes';
 
   // Helper function to format dates
   const formatDate = (dateString: string) => {
@@ -62,6 +64,11 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
   const handleArchive = () => {
     setShowMenu(false);
     onArchive();
+  };
+
+  const handleToggleImportant = () => {
+    setShowMenu(false);
+    onToggleImportant(note.id);
   };
 
   // Helper function to get priority color
@@ -176,7 +183,7 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
         <div
           className="absolute left-0 top-0 bottom-0 w-2.5 min-w-[12px] rounded-l-md"
           style={{
-            backgroundColor: `hsl(${(note.notebook * 137.5) % 360}, 70%, 85%)`,
+            backgroundColor: note.notebook_color || `hsl(${(note.notebook * 137.5) % 360}, 70%, 85%)`,
           }}
         />
         <div className="flex-1 flex flex-col justify-center ml-4">
@@ -186,11 +193,11 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
               {note.title}
             </h3>
           </div>
-          {/* Second line: URGENT tag, metadata, and timestamps */}
+          {/* Second line: IMPORTANT tag, metadata, and timestamps */}
           <div className="flex items-center gap-2 mt-1">
             {note.is_urgent && (
-              <span className="px-2 py-1 text-xs font-medium rounded-full bg-red-600 text-white">
-                URGENT
+              <span className="px-2 py-1 text-xs font-medium rounded-full bg-orange-600 text-white">
+                IMPORTANT
               </span>
             )}
             <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -229,6 +236,17 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 <Edit size={14} className="inline mr-2" /> Edit Title
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleToggleImportant(); }}
+                className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
+                  note.is_urgent 
+                    ? 'text-orange-600 dark:text-orange-400' 
+                    : 'text-gray-700 dark:text-gray-300'
+                }`}
+              >
+                <AlertTriangle size={14} className="inline mr-2" /> 
+                {note.is_urgent ? 'Remove Important' : 'Mark Important'}
               </button>
               {note.is_archived ? (
                 <button

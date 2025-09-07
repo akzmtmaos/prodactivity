@@ -26,6 +26,7 @@ interface Note {
   notebook_name: string;
   notebook_type: string;
   notebook_urgency: string;
+  notebook_color: string;
   note_type: 'lecture' | 'reading' | 'assignment' | 'exam' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   is_urgent: boolean;
@@ -56,6 +57,7 @@ interface NotesListProps {
   onUpdateNoteTitle: (noteId: number, newTitle: string) => void;
   onBulkDelete: (noteIds: number[]) => void;
   onArchiveNote: (noteId: number, archive: boolean) => void;
+  onToggleImportant: (noteId: number) => void;
   deletingNoteId?: number | null;
 }
 
@@ -78,6 +80,7 @@ const NotesList: React.FC<NotesListProps> = ({
   onUpdateNoteTitle,
   onBulkDelete,
   onArchiveNote,
+  onToggleImportant,
   deletingNoteId,
 }) => {
   const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
@@ -200,6 +203,7 @@ const NotesList: React.FC<NotesListProps> = ({
                       onEditTitle={(updatedNote) => onUpdateNoteTitle(updatedNote.id, updatedNote.title)}
                       onDelete={() => onDeleteNote(note.id)}
                       onArchive={() => onArchiveNote(note.id, !note.is_archived)}
+                      onToggleImportant={() => onToggleImportant(note.id)}
                     />
                   </div>
                 </div>

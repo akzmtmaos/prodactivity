@@ -139,24 +139,119 @@ def user_productivity(request):
                        (view == 'monthly' and start.month == today.month and start.year == today.year)
 
     # Always calculate current data (live calculation)
-    tasks = Task.all_objects.filter(user=user, due_date__range=(start, end))
-    non_deleted = tasks.filter(is_deleted=False)
-    deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
-    
-    total_tasks = non_deleted.count() + deleted_completed.count()
-    completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+    if view == 'daily':
+        # For daily view, count tasks due on that specific day
+        tasks = Task.all_objects.filter(user=user, due_date__range=(start, end))
+        non_deleted = tasks.filter(is_deleted=False)
+        deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
+        
+        total_tasks = non_deleted.count() + deleted_completed.count()
+        completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+    else:
+        # For weekly and monthly views, aggregate daily productivity data
+        # This gives a more accurate picture by using daily completion rates
+        if view == 'weekly':
+            # Calculate weekly percentage as average of daily percentages
+            daily_percentages = []
+            current_date = start
+            while current_date <= end:
+                daily_tasks = Task.all_objects.filter(user=user, due_date=current_date)
+                daily_non_deleted = daily_tasks.filter(is_deleted=False)
+                daily_deleted_completed = daily_tasks.filter(is_deleted=True, was_completed_on_delete=True)
+                
+                daily_total = daily_non_deleted.count() + daily_deleted_completed.count()
+                daily_completed = daily_non_deleted.filter(completed=True).count() + daily_deleted_completed.count()
+                
+                if daily_total > 0:
+                    daily_percentage = (daily_completed / daily_total) * 100
+                else:
+                    daily_percentage = 0  # No tasks = 0% productivity
+                
+                daily_percentages.append(daily_percentage)
+                current_date += timedelta(days=1)
+            
+            # Calculate average of daily percentages
+            if daily_percentages:
+                completion_rate = sum(daily_percentages) / len(daily_percentages)
+                # For display purposes, we'll show the average percentage
+                # but we need to calculate total tasks for the response
+                total_tasks = 0
+                completed_tasks = 0
+                current_date = start
+                while current_date <= end:
+                    daily_tasks = Task.all_objects.filter(user=user, due_date=current_date)
+                    daily_non_deleted = daily_tasks.filter(is_deleted=False)
+                    daily_deleted_completed = daily_tasks.filter(is_deleted=True, was_completed_on_delete=True)
+                    
+                    total_tasks += daily_non_deleted.count() + daily_deleted_completed.count()
+                    completed_tasks += daily_non_deleted.filter(completed=True).count() + daily_deleted_completed.count()
+                    current_date += timedelta(days=1)
+            else:
+                completion_rate = 0
+                total_tasks = 0
+                completed_tasks = 0
+        
+        elif view == 'monthly':
+            # Calculate monthly percentage as average of daily percentages
+            daily_percentages = []
+            current_date = start
+            while current_date <= end:
+                daily_tasks = Task.all_objects.filter(user=user, due_date=current_date)
+                daily_non_deleted = daily_tasks.filter(is_deleted=False)
+                daily_deleted_completed = daily_tasks.filter(is_deleted=True, was_completed_on_delete=True)
+                
+                daily_total = daily_non_deleted.count() + daily_deleted_completed.count()
+                daily_completed = daily_non_deleted.filter(completed=True).count() + daily_deleted_completed.count()
+                
+                if daily_total > 0:
+                    daily_percentage = (daily_completed / daily_total) * 100
+                else:
+                    daily_percentage = 0  # No tasks = 0% productivity
+                
+                daily_percentages.append(daily_percentage)
+                current_date += timedelta(days=1)
+            
+            # Calculate average of daily percentages
+            if daily_percentages:
+                completion_rate = sum(daily_percentages) / len(daily_percentages)
+                # For display purposes, we'll show the average percentage
+                # but we need to calculate total tasks for the response
+                total_tasks = 0
+                completed_tasks = 0
+                current_date = start
+                while current_date <= end:
+                    daily_tasks = Task.all_objects.filter(user=user, due_date=current_date)
+                    daily_non_deleted = daily_tasks.filter(is_deleted=False)
+                    daily_deleted_completed = daily_tasks.filter(is_deleted=True, was_completed_on_delete=True)
+                    
+                    total_tasks += daily_non_deleted.count() + daily_deleted_completed.count()
+                    completed_tasks += daily_non_deleted.filter(completed=True).count() + daily_deleted_completed.count()
+                    current_date += timedelta(days=1)
+            else:
+                completion_rate = 0
+                total_tasks = 0
+                completed_tasks = 0
     
     print(f"[DEBUG] Productivity endpoint - Today (Philippine): {today}")
     print(f"[DEBUG] Productivity endpoint - Start: {start}, End: {end}")
-    print(f"[DEBUG] Productivity endpoint - Total tasks found: {tasks.count()}")
-    print(f"[DEBUG] Productivity endpoint - Non-deleted tasks: {non_deleted.count()}")
+    print(f"[DEBUG] Productivity endpoint - View: {view}")
+    print(f"[DEBUG] Productivity endpoint - Total tasks found: {total_tasks}")
+    print(f"[DEBUG] Productivity endpoint - Completed tasks: {completed_tasks}")
     print(f"[DEBUG] Productivity endpoint - Is current period: {is_current_period}")
     
     if total_tasks == 0:
         completion_rate = 0
         status = 'No Tasks'
     else:
-        completion_rate = completed_tasks / total_tasks * 100
+        # For weekly and monthly views, use the average of daily percentages
+        # For daily view, use the traditional calculation
+        if view in ['weekly', 'monthly']:
+            # completion_rate is already calculated as average of daily percentages above
+            pass
+        else:
+            # For daily view, use traditional calculation
+            completion_rate = completed_tasks / total_tasks * 100
+        
         if completion_rate >= 90:
             status = 'Highly Productive'
         elif completion_rate >= 70:
@@ -334,47 +429,59 @@ def productivity_log_list(request):
                 period_end=week_end
             ).first()
             
-            # If no log exists for this week, create one from daily logs
+            # If no log exists for this week, create one using average of daily percentages
             if not log:
-                # Get all daily logs for this week
-                daily_logs = ProductivityLog.objects.filter(
-                    user=user,
-                    period_type='daily',
-                    period_start__gte=week_start,
-                    period_start__lte=week_end
-                )
+                # Calculate weekly percentage as average of daily percentages
+                daily_percentages = []
+                total_tasks = 0
+                completed_tasks = 0
+                current_date = week_start
                 
-                if daily_logs.exists():
-                    # Calculate weekly totals from daily logs
-                    total_tasks = sum(log.total_tasks for log in daily_logs)
-                    completed_tasks = sum(log.completed_tasks for log in daily_logs)
+                while current_date <= week_end:
+                    daily_tasks = Task.all_objects.filter(user=user, due_date=current_date)
+                    daily_non_deleted = daily_tasks.filter(is_deleted=False)
+                    daily_deleted_completed = daily_tasks.filter(is_deleted=True, was_completed_on_delete=True)
                     
-                    if total_tasks == 0:
-                        completion_rate = 0
-                        status = 'No Tasks'
+                    daily_total = daily_non_deleted.count() + daily_deleted_completed.count()
+                    daily_completed = daily_non_deleted.filter(completed=True).count() + daily_deleted_completed.count()
+                    
+                    if daily_total > 0:
+                        daily_percentage = (daily_completed / daily_total) * 100
                     else:
-                        completion_rate = completed_tasks / total_tasks * 100
-                        if completion_rate >= 90:
-                            status = 'Highly Productive'
-                        elif completion_rate >= 70:
-                            status = 'Productive'
-                        elif completion_rate >= 40:
-                            status = 'Moderately Productive'
-                        else:
-                            status = 'Low Productivity'
+                        daily_percentage = 0  # No tasks = 0% productivity
                     
-                    # Create the weekly log
-                    log = ProductivityLog.objects.create(
-                        user=user,
-                        period_type='weekly',
-                        period_start=week_start,
-                        period_end=week_end,
-                        completion_rate=completion_rate,
-                        total_tasks=total_tasks,
-                        completed_tasks=completed_tasks,
-                        status=status
-                    )
-                    print(f"[DEBUG] Created weekly log for {week_start} to {week_end}: {completion_rate}%")
+                    daily_percentages.append(daily_percentage)
+                    total_tasks += daily_total
+                    completed_tasks += daily_completed
+                    current_date += timedelta(days=1)
+                
+                # Calculate average of daily percentages
+                if daily_percentages:
+                    completion_rate = sum(daily_percentages) / len(daily_percentages)
+                else:
+                    completion_rate = 0
+                
+                if completion_rate >= 90:
+                    status = 'Highly Productive'
+                elif completion_rate >= 70:
+                    status = 'Productive'
+                elif completion_rate >= 40:
+                    status = 'Moderately Productive'
+                else:
+                    status = 'Low Productivity'
+                
+                # Create the weekly log
+                log = ProductivityLog.objects.create(
+                    user=user,
+                    period_type='weekly',
+                    period_start=week_start,
+                    period_end=week_end,
+                    completion_rate=completion_rate,
+                    total_tasks=total_tasks,
+                    completed_tasks=completed_tasks,
+                    status=status
+                )
+                print(f"[DEBUG] Created weekly log for {week_start} to {week_end}: {completion_rate:.2f}% (average of daily percentages)")
             
             # Move to next week
             current_date = week_end + timedelta(days=1)
@@ -431,47 +538,59 @@ def productivity_log_list(request):
                 period_end=month_end
             ).first()
             
-            # If no log exists for this month, create one from daily logs
+            # If no log exists for this month, create one using average of daily percentages
             if not log:
-                # Get all daily logs for this month
-                daily_logs = ProductivityLog.objects.filter(
-                    user=user,
-                    period_type='daily',
-                    period_start__gte=month_start,
-                    period_start__lte=month_end
-                )
+                # Calculate monthly percentage as average of daily percentages
+                daily_percentages = []
+                total_tasks = 0
+                completed_tasks = 0
+                current_date = month_start
                 
-                if daily_logs.exists():
-                    # Calculate monthly totals from daily logs
-                    total_tasks = sum(log.total_tasks for log in daily_logs)
-                    completed_tasks = sum(log.completed_tasks for log in daily_logs)
+                while current_date <= month_end:
+                    daily_tasks = Task.all_objects.filter(user=user, due_date=current_date)
+                    daily_non_deleted = daily_tasks.filter(is_deleted=False)
+                    daily_deleted_completed = daily_tasks.filter(is_deleted=True, was_completed_on_delete=True)
                     
-                    if total_tasks == 0:
-                        completion_rate = 0
-                        status = 'No Tasks'
+                    daily_total = daily_non_deleted.count() + daily_deleted_completed.count()
+                    daily_completed = daily_non_deleted.filter(completed=True).count() + daily_deleted_completed.count()
+                    
+                    if daily_total > 0:
+                        daily_percentage = (daily_completed / daily_total) * 100
                     else:
-                        completion_rate = completed_tasks / total_tasks * 100
-                        if completion_rate >= 90:
-                            status = 'Highly Productive'
-                        elif completion_rate >= 70:
-                            status = 'Productive'
-                        elif completion_rate >= 40:
-                            status = 'Moderately Productive'
-                        else:
-                            status = 'Low Productivity'
+                        daily_percentage = 0  # No tasks = 0% productivity
                     
-                    # Create the monthly log
-                    log = ProductivityLog.objects.create(
-                        user=user,
-                        period_type='monthly',
-                        period_start=month_start,
-                        period_end=month_end,
-                        completion_rate=completion_rate,
-                        total_tasks=total_tasks,
-                        completed_tasks=completed_tasks,
-                        status=status
-                    )
-                    print(f"[DEBUG] Created monthly log for {month_start.strftime('%B %Y')}: {completion_rate}%")
+                    daily_percentages.append(daily_percentage)
+                    total_tasks += daily_total
+                    completed_tasks += daily_completed
+                    current_date += timedelta(days=1)
+                
+                # Calculate average of daily percentages
+                if daily_percentages:
+                    completion_rate = sum(daily_percentages) / len(daily_percentages)
+                else:
+                    completion_rate = 0
+                
+                if completion_rate >= 90:
+                    status = 'Highly Productive'
+                elif completion_rate >= 70:
+                    status = 'Productive'
+                elif completion_rate >= 40:
+                    status = 'Moderately Productive'
+                else:
+                    status = 'Low Productivity'
+                
+                # Create the monthly log
+                log = ProductivityLog.objects.create(
+                    user=user,
+                    period_type='monthly',
+                    period_start=month_start,
+                    period_end=month_end,
+                    completion_rate=completion_rate,
+                    total_tasks=total_tasks,
+                    completed_tasks=completed_tasks,
+                    status=status
+                )
+                print(f"[DEBUG] Created monthly log for {month_start.strftime('%B %Y')}: {completion_rate:.2f}% (average of daily percentages)")
         
         # Get all monthly logs for this year (including newly created ones)
         all_logs = ProductivityLog.objects.filter(

@@ -9,7 +9,8 @@ import PageLayout from '../components/PageLayout';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
 import GlobalSearch from '../components/notes/GlobalSearch';
-import UrgentItemsPanel from '../components/notes/UrgentItemsPanel';
+import ImportantItemsPanel from '../components/notes/ImportantItemsPanel';
+import ColorPickerModal from '../components/notes/ColorPickerModal';
 import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
@@ -22,6 +23,7 @@ interface Notebook {
   notebook_type: 'study' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
   urgency_level: 'normal' | 'important' | 'urgent' | 'critical';
   description: string;
+  color: string;
   created_at: string;
   updated_at: string;
   notes_count: number;
@@ -37,6 +39,7 @@ interface Note {
   notebook_name: string;
   notebook_type: string;
   notebook_urgency: string;
+  notebook_color: string;
   note_type: 'lecture' | 'reading' | 'assignment' | 'exam' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   is_urgent: boolean;
@@ -81,7 +84,6 @@ const Notes = () => {
   // Search and filter state
   const [notebookSearchTerm, setNotebookSearchTerm] = useState('');
   const [filterType, setFilterType] = useState<'all' | 'title' | 'content' | 'date'>('all');
-  const [priorityFilter, setPriorityFilter] = useState<'all' | 'low' | 'medium' | 'high' | 'urgent'>('all');
   const [notebookFilterType, setNotebookFilterType] = useState<'all' | 'name' | 'date'>('all');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [notebookSortOrder, setNotebookSortOrder] = useState<'asc' | 'desc'>('asc');
@@ -96,11 +98,15 @@ const Notes = () => {
   // Global search state
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
   
-  // Urgent items panel state
-  const [showUrgentItemsPanel, setShowUrgentItemsPanel] = useState(false);
+  // Important items panel state
+  const [showImportantItemsPanel, setShowImportantItemsPanel] = useState(false);
 
   // AI Insights panel state
   const [showAIInsights, setShowAIInsights] = useState(false);
+
+  // Color picker modal state
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [notebookToColor, setNotebookToColor] = useState<Notebook | null>(null);
 
   // Hierarchical navigation state - NEW
   type ViewType = 'notebooks' | 'notes';
@@ -124,8 +130,20 @@ const Notes = () => {
       // Handle paginated response
       const notebooksData = response.data.results || response.data;
       
+      console.log('Fetched notebooks data:', notebooksData);
+      
       if (notebooksData) {
-        setNotebooks(notebooksData);
+        // Get saved colors from localStorage
+        const savedColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+        
+        // Ensure each notebook has a color field with a default value
+        const notebooksWithColors = notebooksData.map((notebook: any) => ({
+          ...notebook,
+          color: notebook.color || savedColors[notebook.id] || `hsl(${(notebook.id * 137.5) % 360}, 70%, 85%)`
+        }));
+        
+        console.log('Notebooks with colors:', notebooksWithColors);
+        setNotebooks(notebooksWithColors);
       } else {
         setNotebooks([]);
         setError('No notebooks found');
@@ -151,7 +169,16 @@ const Notes = () => {
       const archivedNotebooksData = response.data.results || response.data;
       
       if (archivedNotebooksData) {
-        setArchivedNotebooks(archivedNotebooksData);
+        // Get saved colors from localStorage
+        const savedColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+        
+        // Ensure each archived notebook has a color field with a default value
+        const archivedNotebooksWithColors = archivedNotebooksData.map((notebook: any) => ({
+          ...notebook,
+          color: notebook.color || savedColors[notebook.id] || `hsl(${(notebook.id * 137.5) % 360}, 70%, 85%)`
+        }));
+        
+        setArchivedNotebooks(archivedNotebooksWithColors);
       } else {
         setArchivedNotebooks([]);
       }
@@ -172,7 +199,17 @@ const Notes = () => {
       const response = await axiosInstance.get(`/notes/?notebook=${notebookId}`);
       // Handle paginated response
       const notesData = response.data.results || response.data;
-      setNotes(notesData || []);
+      
+      // Get saved colors from localStorage
+      const savedColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+      
+      // Ensure each note has the notebook_color field
+      const notesWithColors = (notesData || []).map((note: any) => ({
+        ...note,
+        notebook_color: note.notebook_color || savedColors[note.notebook] || `hsl(${(note.notebook * 137.5) % 360}, 70%, 85%)`
+      }));
+      
+      setNotes(notesWithColors);
     } catch (error) {
       handleError(error, 'Failed to fetch notes');
     }
@@ -184,7 +221,17 @@ const Notes = () => {
       const response = await axiosInstance.get(`/notes/archived/notes/`);
       // Handle paginated response
       const archivedNotesData = response.data.results || response.data;
-      setArchivedNotes(archivedNotesData || []);
+      
+      // Get saved colors from localStorage
+      const savedColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+      
+      // Ensure each archived note has the notebook_color field
+      const archivedNotesWithColors = (archivedNotesData || []).map((note: any) => ({
+        ...note,
+        notebook_color: note.notebook_color || savedColors[note.notebook] || `hsl(${(note.notebook * 137.5) % 360}, 70%, 85%)`
+      }));
+      
+      setArchivedNotes(archivedNotesWithColors);
     } catch (error) {
       handleError(error, 'Failed to fetch archived notes');
     }
@@ -546,14 +593,9 @@ const Notes = () => {
   // Local filtering and sorting logic
   const filteredNotes = notes
     .filter(note => {
-      // Priority filter
-      if (priorityFilter !== 'all' && note.priority !== priorityFilter) {
-        return false;
-      }
-      
       // Search term filter
       const term = searchTerm.toLowerCase();
-      if (!term) return true; // If no search term, show all notes (filtered by priority only)
+      if (!term) return true; // If no search term, show all notes
       
       // Apply search filter based on filterType
       if (filterType === 'title') return note.title.toLowerCase().includes(term);
@@ -857,6 +899,84 @@ const Notes = () => {
     initializeApp();
   }, []); // Only run once on mount
 
+  // Handle color picker for notebooks
+  const handleOpenColorPicker = (notebook: Notebook) => {
+    setNotebookToColor(notebook);
+    setShowColorPicker(true);
+  };
+
+  const handleCloseColorPicker = () => {
+    setShowColorPicker(false);
+    setNotebookToColor(null);
+  };
+
+  const handleColorSelect = async (color: string) => {
+    if (!notebookToColor) return;
+
+    try {
+      console.log('Saving color:', color, 'for notebook:', notebookToColor.id);
+      
+      // Try to save to backend first
+      try {
+        const response = await axiosInstance.patch(`/notes/notebooks/${notebookToColor.id}/`, {
+          color: color
+        });
+        console.log('Color save response:', response.data);
+      } catch (backendError) {
+        console.warn('Backend color save failed, using localStorage fallback:', backendError);
+      }
+      
+      // Always save to localStorage as fallback
+      const notebookColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+      notebookColors[notebookToColor.id] = color;
+      localStorage.setItem('notebookColors', JSON.stringify(notebookColors));
+      
+      // Update the notebook in the local state
+      const updatedNotebooks = notebooks.map(nb => 
+        nb.id === notebookToColor.id ? { ...nb, color: color } : nb
+      );
+      setNotebooks(updatedNotebooks);
+      
+      // Update selected notebook if it's the one being colored
+      if (selectedNotebook?.id === notebookToColor.id) {
+        setSelectedNotebook({ ...selectedNotebook, color: color });
+      }
+      
+      setToast({ 
+        message: 'Notebook color updated successfully.', 
+        type: 'success' 
+      });
+    } catch (error) {
+      console.error('Color save error:', error);
+      handleError(error, 'Failed to update notebook color');
+    }
+  };
+
+  // Toggle Important status for note
+  const handleToggleImportant = async (noteId: number) => {
+    try {
+      const note = notes.find(n => n.id === noteId);
+      if (!note) return;
+
+      await axiosInstance.patch(`/notes/${noteId}/`, {
+        is_urgent: !note.is_urgent
+      });
+      
+      // Update the note in the local state
+      const updatedNotes = notes.map(n => 
+        n.id === noteId ? { ...n, is_urgent: !n.is_urgent } : n
+      );
+      setNotes(updatedNotes);
+      
+      setToast({ 
+        message: `Note ${!note.is_urgent ? 'marked as important' : 'removed from important'}.`, 
+        type: 'success' 
+      });
+    } catch (error) {
+      handleError(error, 'Failed to update note importance');
+    }
+  };
+
   // Archive/Unarchive note
   const handleArchiveNote = async (noteId: number, archive: boolean) => {
     try {
@@ -947,8 +1067,6 @@ const Notes = () => {
             setSearchTerm={setSearchTerm}
             filterType={filterType}
             setFilterType={setFilterType}
-            priorityFilter={priorityFilter}
-            setPriorityFilter={setPriorityFilter}
             notebookSearchTerm={notebookSearchTerm}
             setNotebookSearchTerm={setNotebookSearchTerm}
             notebookFilterType={notebookFilterType}
@@ -959,7 +1077,6 @@ const Notes = () => {
             setNotebookSortOrder={setNotebookSortOrder}
             onBackToNotebooks={handleBackToNotebooks}
             onGlobalSearch={() => setShowGlobalSearch(true)}
-            onUrgentItems={() => setShowUrgentItemsPanel(true)}
             onAIInsights={() => setShowAIInsights(true)}
             isSearching={isGlobalSearching}
           />
@@ -1103,6 +1220,7 @@ const Notes = () => {
                           onNotebookNameChange={setNewNotebookName}
                           onCreateNotebook={handleCreateNotebookDirect}
                           onArchiveNotebook={handleArchiveNotebook}
+                          onColorChange={handleOpenColorPicker}
                           showAddButton={true}
                         />
                       )}
@@ -1139,6 +1257,7 @@ const Notes = () => {
                           onNotebookNameChange={setNewNotebookName}
                           onCreateNotebook={handleCreateNotebookDirect}
                           onArchiveNotebook={handleArchiveNotebook}
+                          onColorChange={handleOpenColorPicker}
                           showAddButton={false}
                         />
                       )}
@@ -1169,6 +1288,7 @@ const Notes = () => {
                   onUpdateNoteTitle={handleUpdateNoteTitle}
                   onBulkDelete={handleBulkDeleteNotes}
                   onArchiveNote={handleArchiveNote}
+                  onToggleImportant={handleToggleImportant}
                   deletingNoteId={noteToDelete?.id || null}
                 />
               )}
@@ -1257,6 +1377,7 @@ const Notes = () => {
                   onUpdateNoteTitle={handleUpdateNoteTitle}
                   onBulkDelete={handleBulkDeleteNotes}
                   onArchiveNote={handleArchiveNote}
+                  onToggleImportant={handleToggleImportant}
                   deletingNoteId={noteToDelete?.id || null}
                 />
               )}
@@ -1278,10 +1399,10 @@ const Notes = () => {
         onClose={() => setShowGlobalSearch(false)}
       />
       
-      {/*  Items Panel */}
-      <UrgentItemsPanel
-        isOpen={showUrgentItemsPanel}
-        onClose={() => setShowUrgentItemsPanel(false)}
+      {/* Important Items Panel */}
+      <ImportantItemsPanel
+        isOpen={showImportantItemsPanel}
+        onClose={() => setShowImportantItemsPanel(false)}
         onNoteClick={(note) => {
           // Find the notebook for this note and navigate to it
           const notebook = notebooks.find(nb => nb.id === note.notebook);
@@ -1294,13 +1415,13 @@ const Notes = () => {
             setIsNewNoteEditor(false);
             setShowNoteEditor(true);
           }
-          setShowUrgentItemsPanel(false);
+          setShowImportantItemsPanel(false);
         }}
         onNotebookClick={(notebook) => {
           setSelectedNotebook(notebook);
           fetchNotes(notebook.id);
           setCurrentView('notes');
-          setShowUrgentItemsPanel(false);
+          setShowImportantItemsPanel(false);
         }}
       />
 
@@ -1313,6 +1434,15 @@ const Notes = () => {
           onClose={() => setShowAIInsights(false)}
         />
       )}
+
+      {/* Color Picker Modal */}
+      <ColorPickerModal
+        isOpen={showColorPicker}
+        onClose={handleCloseColorPicker}
+        onColorSelect={handleColorSelect}
+        currentColor={notebookToColor?.color || '#3b82f6'}
+        title={`Choose color for "${notebookToColor?.name || 'Notebook'}"`}
+      />
     </PageLayout>
   );
 };

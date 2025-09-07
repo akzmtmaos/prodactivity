@@ -20,6 +20,7 @@ interface Notebook {
   notebook_type: string;
   urgency_level: string;
   description: string;
+  color: string;
   notes_count: number;
 }
 
@@ -30,6 +31,7 @@ interface Note {
   priority: string;
   is_urgent: boolean;
   note_type: string;
+  notebook_color: string;
   created_at: string;
   updated_at: string;
 }
@@ -44,7 +46,7 @@ interface NotebookAIInsightsProps {
 interface AIInsights {
   overall_summary: string;
   key_topics: string[];
-  urgent_items: string[];
+  important_items: string[];
   study_recommendations: string[];
   content_gaps: string[];
   priority_distribution: {
@@ -88,7 +90,7 @@ const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
       const processedInsights: AIInsights = {
         overall_summary: generateLocalSummary(notes, notebook),
         key_topics: extractKeyTopics(notes),
-        urgent_items: extractUrgentItemsLocal(notes),
+        important_items: extractImportantItemsLocal(notes),
         study_recommendations: generateStudyRecommendations(notes),
         content_gaps: identifyContentGaps(notes),
         priority_distribution: calculatePriorityDistributionLocal(notes),
@@ -204,7 +206,7 @@ const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
     return `This notebook contains ${totalNotes} notes with an average length of ${avgNoteLength} characters. The content covers various topics and provides comprehensive coverage of the subject matter.`;
   };
 
-  const extractUrgentItemsLocal = (notes: Note[]): string[] => {
+  const extractImportantItemsLocal = (notes: Note[]): string[] => {
     return notes
       .filter(note => note.is_urgent || note.priority === 'urgent' || note.priority === 'high')
       .map(note => note.title)
@@ -244,10 +246,10 @@ const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
   const extractActionItemsLocal = (notes: Note[]): string[] => {
     const actionItems: string[] = [];
     
-    // Check for urgent items
-    const urgentNotes = notes.filter(n => n.is_urgent || n.priority === 'urgent');
-    urgentNotes.forEach(note => {
-      actionItems.push(`Review urgent note: ${note.title}`);
+    // Check for important items
+    const importantNotes = notes.filter(n => n.is_urgent || n.priority === 'urgent');
+    importantNotes.forEach(note => {
+      actionItems.push(`Review important note: ${note.title}`);
     });
     
     // Check for recent notes that need review
@@ -369,19 +371,19 @@ const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
 
                     <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600">
                       <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-red-600" />
-                        Urgent Items
+                        <AlertTriangle className="h-5 w-5 text-orange-600" />
+                        Important Items
                       </h4>
                       <div className="space-y-2">
-                        {insights.urgent_items.length > 0 ? (
-                          insights.urgent_items.map((item, index) => (
-                            <div key={index} className="flex items-center gap-2 text-sm text-red-600 dark:text-red-400">
-                              <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                        {insights.important_items.length > 0 ? (
+                          insights.important_items.map((item, index) => (
+                            <div key={index} className="flex items-center gap-2 text-sm text-orange-600 dark:text-orange-400">
+                              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                               {item}
                             </div>
                           ))
                         ) : (
-                          <p className="text-gray-500 dark:text-gray-400">No urgent items detected</p>
+                          <p className="text-gray-500 dark:text-gray-400">No important items detected</p>
                         )}
                       </div>
                     </div>

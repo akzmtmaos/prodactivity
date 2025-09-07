@@ -486,9 +486,9 @@ Click "View Deck" to see your flashcards in the Decks section.`);
     }
   };
 
-  const getUrgencyColor = (urgency: string) => {
-    switch (urgency) {
-      case 'urgent': return 'bg-red-600 text-white';
+  const getImportanceColor = (importance: string) => {
+    switch (importance) {
+      case 'urgent': return 'bg-orange-600 text-white';
       case 'high': return 'bg-orange-500 text-white';
       case 'medium': return 'bg-yellow-500 text-white';
       case 'low': return 'bg-green-500 text-white';
@@ -516,8 +516,8 @@ Click "View Deck" to see your flashcards in the Decks section.`);
     {
       id: 'urgency',
       icon: AlertTriangle,
-      label: 'Detect Urgency',
-      description: 'AI-powered urgency and priority analysis',
+      label: 'Detect Importance',
+      description: 'AI-powered importance and priority analysis',
       action: () => handleFeatureClick('urgency'),
       show: true
     },
@@ -723,7 +723,7 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                           <div className="space-y-3">
                             <div className="flex items-center gap-2">
                               <span className="text-sm text-gray-600 dark:text-gray-400">Urgency:</span>
-                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getUrgencyColor(urgencyAnalysis.urgency_level)}`}>
+                                                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getImportanceColor(urgencyAnalysis.urgency_level)}`}>
                                 {urgencyAnalysis.urgency_level.toUpperCase()}
                               </span>
                             </div>

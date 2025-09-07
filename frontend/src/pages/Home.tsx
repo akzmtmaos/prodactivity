@@ -48,7 +48,7 @@ interface SearchResult {
   timestamp?: string;
 }
 
-const API_BASE_URL = 'http://192.168.56.1:8000/api';
+const API_BASE_URL = '/api';
 
 const Home = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -67,6 +67,7 @@ const Home = () => {
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
+  const [activeFilter, setActiveFilter] = useState<string>('all');
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
   // Function to generate consistent hash for category colors
@@ -99,6 +100,27 @@ const Home = () => {
     const hash = getCategoryColorHash(category);
     const colorIndex = hash % colorCombinations.length;
     return colorCombinations[colorIndex];
+  };
+
+  // Get available filter options based on search results
+  const getAvailableFilters = () => {
+    const categories = new Set(searchResults.map(result => result.category));
+    return [
+      { key: 'all', label: 'All', count: searchResults.length },
+      ...Array.from(categories).map(category => ({
+        key: category.toLowerCase(),
+        label: category,
+        count: searchResults.filter(result => result.category === category).length
+      }))
+    ];
+  };
+
+  // Filter search results based on active filter
+  const getFilteredResults = () => {
+    if (activeFilter === 'all') {
+      return searchResults;
+    }
+    return searchResults.filter(result => result.category.toLowerCase() === activeFilter);
   };
 
   // Get auth headers for API calls
@@ -297,23 +319,25 @@ const Home = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (!showSearchResults) return;
 
+      const filteredResults = getFilteredResults();
+
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
           setSelectedResultIndex(prev => 
-            prev < searchResults.length - 1 ? prev + 1 : 0
+            prev < filteredResults.length - 1 ? prev + 1 : 0
           );
           break;
         case 'ArrowUp':
           e.preventDefault();
           setSelectedResultIndex(prev => 
-            prev > 0 ? prev - 1 : searchResults.length - 1
+            prev > 0 ? prev - 1 : filteredResults.length - 1
           );
           break;
         case 'Enter':
           e.preventDefault();
-          if (selectedResultIndex >= 0 && selectedResultIndex < searchResults.length) {
-            handleResultClick(searchResults[selectedResultIndex]);
+          if (selectedResultIndex >= 0 && selectedResultIndex < filteredResults.length) {
+            handleResultClick(filteredResults[selectedResultIndex]);
           }
           break;
         case 'Escape':
@@ -325,11 +349,16 @@ const Home = () => {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [showSearchResults, searchResults, selectedResultIndex]);
+  }, [showSearchResults, searchResults, selectedResultIndex, activeFilter]);
 
   // Reset selected index when search results change
   useEffect(() => {
     setSelectedResultIndex(-1);
+  }, [searchResults]);
+
+  // Reset filter when search results change
+  useEffect(() => {
+    setActiveFilter('all');
   }, [searchResults]);
 
   // Handle global search shortcut (Ctrl+K / Cmd+K)
@@ -352,10 +381,15 @@ const Home = () => {
         // Check if click is outside the search container
         const searchContainer = searchInputRef.current.closest('.relative');
         if (searchContainer && !searchContainer.contains(event.target as Node)) {
-          // Add a small delay to allow click events to complete
-          setTimeout(() => {
+          // Check if the click is on a filter button or search result
+          const target = event.target as HTMLElement;
+          const isFilterButton = target.closest('[data-filter-button]');
+          const isSearchResult = target.closest('[data-search-result]');
+          
+          // Only close if it's not a filter button or search result
+          if (!isFilterButton && !isSearchResult) {
             setShowSearchResults(false);
-          }, 100);
+          }
         }
       }
     };
@@ -391,6 +425,7 @@ const Home = () => {
     setShowSearchResults(false);
     setSearchQuery('');
     setSearchResults([]);
+    setActiveFilter('all');
   };
 
   // Fetch recent notes function
@@ -699,9 +734,6 @@ const Home = () => {
     }, 0);
 
   const [completedTasksCount, setCompletedTasksCount] = useState<number>(0);
-
-  // If we want all completed tasks, not just the top 5, we need to fetch all tasks. For now, use the available tasks array.
-
   const upcomingEventsCount = events.length;
 
   // Show loading state while waiting for user data
@@ -731,7 +763,7 @@ const Home = () => {
           {/* Centered Greeting section */}
           <div className="text-center mb-16 mt-16">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              {greeting}, <span className="text-indigo-600 dark:text-indigo-400">{user?.username}</span>
+              {greeting}, <span className="text-indigo-600 dark:text-indigo-400">{user?.username}</span>!
             </h1>
             <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">
               Here's your productivity overview for today
@@ -750,7 +782,7 @@ const Home = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setShowSearchResults(true)}
-                placeholder="Search Notes, System, Reviewer, and more... (Ctrl+K)"
+                placeholder="Search"
                 className="block w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 dark:focus:border-indigo-400 transition-colors"
               />
             </div>
@@ -776,36 +808,85 @@ const Home = () => {
                     Start typing to search...
                   </div>
                 ) : (
-                  <div className="py-2">
-                    {searchResults.map((result, index) => (
-                      <div
-                        key={result.id}
-                        className={`flex items-center px-4 py-3 cursor-pointer transition-colors ${
-                          index === selectedResultIndex 
-                            ? 'bg-indigo-50 dark:bg-indigo-900/20' 
-                            : 'hover:bg-gray-50 dark:hover:bg-gray-700'
-                        }`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          handleResultClick(result);
-                        }}
-                        onMouseEnter={() => setSelectedResultIndex(index)}
-                      >
-                        <div className="mr-3 text-indigo-600 dark:text-indigo-400">{result.icon}</div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">{result.title}</h4>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{result.description}</p>
-                          {result.timestamp && (
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{format(new Date(result.timestamp), 'MMM d, yyyy')}</p>
-                          )}
-                        </div>
-                        <div className="text-xs text-gray-400 dark:text-gray-500 ml-2 flex-shrink-0">
-                          {result.category}
+                  <>
+                    {/* Filter Buttons */}
+                    {getAvailableFilters().length > 1 && (
+                      <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+                        <div className="flex flex-wrap gap-2">
+                          {getAvailableFilters().map((filter) => (
+                            <button
+                              key={filter.key}
+                              data-filter-button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setActiveFilter(filter.key);
+                                setSelectedResultIndex(-1);
+                              }}
+                              className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                                activeFilter === filter.key
+                                  ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
+                                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                              }`}
+                            >
+                              {filter.label} ({filter.count})
+                            </button>
+                          ))}
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    )}
+                    
+                    {/* Search Results */}
+                    <div className="py-2">
+                      {getFilteredResults().map((result, index) => (
+                        <div
+                          key={result.id}
+                          data-search-result
+                          className={`flex items-center px-4 py-3 cursor-pointer transition-colors ${
+                            index === selectedResultIndex 
+                              ? 'bg-indigo-50 dark:bg-indigo-900/20' 
+                              : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                          }`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleResultClick(result);
+                          }}
+                          onMouseEnter={() => setSelectedResultIndex(index)}
+                        >
+                          <div className="mr-3 text-indigo-600 dark:text-indigo-400">{result.icon}</div>
+                          <div className="flex-1 min-w-0">
+                            <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">{result.title}</h4>
+                            <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{result.description}</p>
+                            {result.timestamp && (
+                              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{format(new Date(result.timestamp), 'MMM d, yyyy')}</p>
+                            )}
+                          </div>
+                          <div className="text-xs text-gray-400 dark:text-gray-500 ml-2 flex-shrink-0">
+                            {result.category}
+                          </div>
+                        </div>
+                      ))}
+                      
+                      {/* No results for current filter */}
+                      {getFilteredResults().length === 0 && searchResults.length > 0 && (
+                        <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
+                          <p>No results found for the selected filter.</p>
+                          <button
+                            data-filter-button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              setActiveFilter('all');
+                            }}
+                            className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                          >
+                            Show all results
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </>
                 )}
               </div>
             )}
@@ -1042,7 +1123,7 @@ const Home = () => {
                 </button>
               </div>
               <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg shadow flex flex-col p-4">
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden">
                   {tasksLoading ? (
                     <div className="text-gray-500 dark:text-gray-400">Loading tasks...</div>
                   ) : tasks.length > 0 ? (
@@ -1050,7 +1131,7 @@ const Home = () => {
                       {tasks.map((task) => (
                         <div 
                           key={task.id} 
-                          className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px] cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-gray-800"
+                          className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px] cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-800 dark:hover:border dark:hover:border-gray-600"
                           onClick={() => navigate('/tasks')}
                         >
                           <div className="flex items-center justify-between">
@@ -1082,7 +1163,7 @@ const Home = () => {
                     </div>
                   ) : (
                     <div 
-                      className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400 cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400 cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:border dark:hover:border-gray-600"
                       onClick={() => navigate('/tasks')}
                     >
                       <div className="flex flex-col items-center space-y-2">
@@ -1108,13 +1189,13 @@ const Home = () => {
                 </button>
               </div>
               <div className="h-96 bg-gray-100 dark:bg-gray-800 rounded-lg shadow flex flex-col p-4">
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden">
                   {events.length > 0 ? (
                     <div className="grid grid-cols-1 gap-2">
                       {events.map((event) => (
                         <div 
                           key={event.id} 
-                          className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px] cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-gray-800"
+                          className="bg-white dark:bg-gray-900 rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px] cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-800 dark:hover:border dark:hover:border-gray-600"
                           onClick={() => navigate('/schedule')}
                         >
                           <div className="flex items-center justify-between">
@@ -1148,7 +1229,7 @@ const Home = () => {
                     </div>
                   ) : (
                     <div 
-                      className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400 cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-gray-700"
+                      className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400 cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-700 dark:hover:border dark:hover:border-gray-600"
                       onClick={() => navigate('/schedule')}
                     >
                       <div className="flex flex-col items-center space-y-2">

@@ -47,6 +47,21 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     return { isValid: true, message: '' };
   };
 
+  const validateEmail = (email: string): { isValid: boolean; message: string } => {
+    if (email.length === 0) {
+      return { isValid: false, message: 'Email is required' };
+    }
+    if (email.length > 50) {
+      return { isValid: false, message: 'Email must be 50 characters or less' };
+    }
+    // Basic email format validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return { isValid: false, message: 'Please enter a valid email address' };
+    }
+    return { isValid: true, message: '' };
+  };
+
   const validatePassword = (password: string): { isValid: boolean; message: string } => {
     if (password.length < 8) {
       return { isValid: false, message: 'Password must be at least 8 characters long' };
@@ -77,6 +92,15 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    
+    // Apply character limits
+    if (name === 'username' && value.length > 50) {
+      return; // Prevent typing beyond 50 characters
+    }
+    if (name === 'email' && value.length > 50) {
+      return; // Prevent typing beyond 50 characters
+    }
+    
     setForm({ ...form, [name]: value });
     
     // Clear validation errors when user starts typing
@@ -91,6 +115,16 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
         setValidationErrors(prev => ({ ...prev, username: validation.message }));
       } else {
         setValidationErrors(prev => ({ ...prev, username: undefined }));
+      }
+    }
+    
+    // Real-time validation for email
+    if (name === 'email') {
+      const validation = validateEmail(value);
+      if (!validation.isValid && value.length > 0) {
+        setValidationErrors(prev => ({ ...prev, email: validation.message }));
+      } else {
+        setValidationErrors(prev => ({ ...prev, email: undefined }));
       }
     }
     
@@ -115,6 +149,17 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     if (!usernameValidation.isValid) {
       setMessage({
         text: usernameValidation.message,
+        type: 'error'
+      });
+      setLoading(false);
+      return;
+    }
+
+    // Validate email
+    const emailValidation = validateEmail(form.email);
+    if (!emailValidation.isValid) {
+      setMessage({
+        text: emailValidation.message,
         type: 'error'
       });
       setLoading(false);
@@ -267,6 +312,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
                  placeholder="Username"
                  value={form.username}
                  onChange={handleChange}
+                 maxLength={50}
                  className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm ${
                    validationErrors.username 
                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
@@ -299,6 +345,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
                  placeholder="Email address"
                  value={form.email}
                  onChange={handleChange}
+                 maxLength={50}
                  className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm ${
                    validationErrors.email 
                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 

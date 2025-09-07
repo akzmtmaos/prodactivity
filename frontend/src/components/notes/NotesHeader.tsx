@@ -10,8 +10,6 @@ interface NotesHeaderProps {
   setSearchTerm: (term: string) => void;
   filterType: 'all' | 'title' | 'content' | 'date';
   setFilterType: (type: 'all' | 'title' | 'content' | 'date') => void;
-  priorityFilter: 'all' | 'low' | 'medium' | 'high' | 'urgent';
-  setPriorityFilter: (priority: 'all' | 'low' | 'medium' | 'high' | 'urgent') => void;
   notebookSearchTerm: string;
   setNotebookSearchTerm: (term: string) => void;
   notebookFilterType: 'all' | 'name' | 'date';
@@ -22,7 +20,6 @@ interface NotesHeaderProps {
   setNotebookSortOrder: (order: 'asc' | 'desc') => void;
   onBackToNotebooks?: () => void;
   onGlobalSearch?: () => void;
-  onUrgentItems?: () => void;
   onAIInsights?: () => void;
   isSearching?: boolean;
 }
@@ -35,8 +32,6 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
   setSearchTerm,
   filterType,
   setFilterType,
-  priorityFilter,
-  setPriorityFilter,
   notebookSearchTerm,
   setNotebookSearchTerm,
   notebookFilterType,
@@ -47,7 +42,6 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
   setNotebookSortOrder,
   onBackToNotebooks,
   onGlobalSearch,
-  onUrgentItems,
   onAIInsights,
   isSearching = false,
 }) => {
@@ -144,18 +138,6 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
               <option value="content">Content</option>
               <option value="date">Date</option>
             </select>
-            <select
-              value={priorityFilter}
-              onChange={e => setPriorityFilter(e.target.value as 'all' | 'low' | 'medium' | 'high' | 'urgent')}
-              className="h-10 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              style={{ minWidth: '100px' }}
-            >
-              <option value="all">All Priorities</option>
-              <option value="urgent">Urgent</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
               className="h-10 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"
@@ -170,13 +152,6 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
             >
               <Search size={16} />
               <span className="font-medium">Search</span>
-            </button>
-            <button
-              onClick={onUrgentItems}
-              className="h-10 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
-            >
-              <AlertTriangle size={16} />
-              <span className="font-medium">Urgent</span>
             </button>
             {/* AI Insights Button - Show when viewing notes */}
             {selectedNotebook && (
@@ -212,19 +187,6 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
                   <option value="date">Date</option>
                 </select>
               </div>
-              <div className="w-32">
-                <select
-                  value={priorityFilter}
-                  onChange={e => setPriorityFilter(e.target.value as 'all' | 'low' | 'medium' | 'high' | 'urgent')}
-                  className="w-full h-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="all">All Priorities</option>
-                  <option value="urgent">Urgent</option>
-                  <option value="high">High</option>
-                  <option value="medium">Medium</option>
-                  <option value="low">Low</option>
-                </select>
-              </div>
               <button
                 onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
                 className="h-12 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"
@@ -232,13 +194,6 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
               >
                 <ArrowUpDown size={16} />
                 <span className="text-xs font-medium">{sortOrder.toUpperCase()}</span>
-              </button>
-              <button
-                onClick={onUrgentItems}
-                className="h-12 px-4 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
-              >
-                <AlertTriangle size={16} />
-                <span className="font-medium">Urgent</span>
               </button>
               {/* AI Insights Button - Show when viewing notes */}
               {selectedNotebook && (

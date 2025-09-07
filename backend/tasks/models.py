@@ -27,6 +27,7 @@ class Task(models.Model):
     due_date = models.DateField()
     priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
     completed = models.BooleanField(default=False)
+    completed_at = models.DateTimeField(null=True, blank=True, help_text="When the task was actually completed")
     category = models.CharField(max_length=20, choices=CATEGORY_CHOICES, default='other')
     task_category = models.CharField(max_length=50, blank=True, help_text="Custom task category (e.g., CAPSTONE, Math, ComProg2)")
     created_at = models.DateTimeField(auto_now_add=True)
@@ -71,6 +72,20 @@ class Task(models.Model):
         # )
         # return has_evidence
 
+    def mark_completed(self):
+        """Mark the task as completed and set the completion timestamp"""
+        if not self.completed:
+            self.completed = True
+            self.completed_at = timezone.now()
+            self.save()
+
+    def mark_incomplete(self):
+        """Mark the task as incomplete and clear the completion timestamp"""
+        if self.completed:
+            self.completed = False
+            self.completed_at = None
+            self.save()
+
     def delete(self, using=None, keep_parents=False):
         if self.completed:
             self.was_completed_on_delete = True
@@ -87,9 +102,21 @@ class Task(models.Model):
         start_of_week = today - timedelta(days=today.weekday())  # Monday
         end_of_week = start_of_week + timedelta(days=6)          # Sunday
 
-        tasks = Task.all_objects.filter(user=user, due_date__range=(start_of_week, end_of_week), is_deleted=False)
-        total_tasks = tasks.count()
-        completed_tasks = tasks.filter(completed=True).count()
+        # Calculate productivity for this week by aggregating daily data
+        total_tasks = 0
+        completed_tasks = 0
+        current_date = start_of_week
+        while current_date <= end_of_week:
+            daily_tasks = Task.all_objects.filter(user=user, due_date=current_date)
+            daily_non_deleted = daily_tasks.filter(is_deleted=False)
+            daily_deleted_completed = daily_tasks.filter(is_deleted=True, was_completed_on_delete=True)
+            
+            daily_total = daily_non_deleted.count() + daily_deleted_completed.count()
+            daily_completed = daily_non_deleted.filter(completed=True).count() + daily_deleted_completed.count()
+            
+            total_tasks += daily_total
+            completed_tasks += daily_completed
+            current_date += timedelta(days=1)
 
         if total_tasks == 0:
             return {
@@ -99,6 +126,7 @@ class Task(models.Model):
                 'completed_tasks': 0
             }
 
+        # Calculate completion rate based on actual task completion
         completion_rate = completed_tasks / total_tasks
         completion_pct = completion_rate * 100
         if completion_pct >= 90:
@@ -109,6 +137,7 @@ class Task(models.Model):
             status = 'Moderately Productive'
         else:
             status = 'Low Productivity'
+            
         return {
             'status': status,
             'completion_rate': round(completion_pct, 2),

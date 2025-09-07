@@ -22,13 +22,21 @@ class Command(BaseCommand):
             
             self.stdout.write(f'Current week: {current_week_start} to {current_week_end}')
             
-            # Get tasks for current week
-            tasks = Task.all_objects.filter(user=user, due_date__range=(current_week_start, current_week_end))
-            non_deleted = tasks.filter(is_deleted=False)
-            deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
-            
-            total_tasks = non_deleted.count() + deleted_completed.count()
-            completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+            # Calculate productivity for current week by aggregating daily data
+            total_tasks = 0
+            completed_tasks = 0
+            current_date = current_week_start
+            while current_date <= current_week_end:
+                daily_tasks = Task.all_objects.filter(user=user, due_date=current_date)
+                daily_non_deleted = daily_tasks.filter(is_deleted=False)
+                daily_deleted_completed = daily_tasks.filter(is_deleted=True, was_completed_on_delete=True)
+                
+                daily_total = daily_non_deleted.count() + daily_deleted_completed.count()
+                daily_completed = daily_non_deleted.filter(completed=True).count() + daily_deleted_completed.count()
+                
+                total_tasks += daily_total
+                completed_tasks += daily_completed
+                current_date += timedelta(days=1)
             
             if total_tasks == 0:
                 completion_rate = 0
@@ -77,13 +85,21 @@ class Command(BaseCommand):
             
             self.stdout.write(f'Current month: {current_month_start} to {current_month_end}')
             
-            # Get tasks for current month
-            tasks = Task.all_objects.filter(user=user, due_date__range=(current_month_start, current_month_end))
-            non_deleted = tasks.filter(is_deleted=False)
-            deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
-            
-            total_tasks = non_deleted.count() + deleted_completed.count()
-            completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+            # Calculate productivity for current month by aggregating daily data
+            total_tasks = 0
+            completed_tasks = 0
+            current_date = current_month_start
+            while current_date <= current_month_end:
+                daily_tasks = Task.all_objects.filter(user=user, due_date=current_date)
+                daily_non_deleted = daily_tasks.filter(is_deleted=False)
+                daily_deleted_completed = daily_tasks.filter(is_deleted=True, was_completed_on_delete=True)
+                
+                daily_total = daily_non_deleted.count() + daily_deleted_completed.count()
+                daily_completed = daily_non_deleted.filter(completed=True).count() + daily_deleted_completed.count()
+                
+                total_tasks += daily_total
+                completed_tasks += daily_completed
+                current_date += timedelta(days=1)
             
             if total_tasks == 0:
                 completion_rate = 0

@@ -26,6 +26,12 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
+    
+    // Prevent typing beyond 50 characters for email
+    if (name === 'email' && value.length > 50) {
+      return;
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
@@ -212,6 +218,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
                   placeholder="Email address"
                   value={formData.email}
                   onChange={handleChange}
+                  maxLength={50}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
                   required
                 />
@@ -283,7 +290,12 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
                   type="email"
                   placeholder="you@example.com"
                   value={forgotEmail}
-                  onChange={(e) => setForgotEmail(e.target.value)}
+                  onChange={(e) => {
+                    if (e.target.value.length <= 50) {
+                      setForgotEmail(e.target.value);
+                    }
+                  }}
+                  maxLength={50}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                 />
               </div>
@@ -331,24 +343,26 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
                   Create Account
                 </Link>
               </p>
-              <div className="mt-3 space-y-2">
+              <div className="mt-4 text-center">
                 <button
                   type="button"
-                  className="block text-sm text-indigo-600 dark:text-indigo-300 hover:underline"
+                  className="text-sm text-indigo-600 dark:text-indigo-300 hover:underline transition-colors duration-200"
                   onClick={() => setForgotOpen(true)}
                 >
                   Forgot your password?
                 </button>
-                {emailVerificationRequired && (
+              </div>
+              {emailVerificationRequired && (
+                <div className="mt-3 text-center">
                   <button
                     type="button"
-                    className="block text-sm text-indigo-600 dark:text-indigo-300 hover:underline"
+                    className="text-sm text-indigo-600 dark:text-indigo-300 hover:underline transition-colors duration-200"
                     onClick={() => setShowResendVerification(true)}
                   >
                     Resend verification email
                   </button>
-                )}
-              </div>
+                </div>
+              )}
             </>
           ) : null}
         </motion.div>

@@ -1,6 +1,6 @@
 // frontend/src/components/NotebookList.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw } from 'lucide-react';
+import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette } from 'lucide-react';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
 import CreateNotebookModal from './CreateNotebookModal';
 
@@ -10,6 +10,7 @@ interface Notebook {
   notebook_type: 'study' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
   urgency_level: 'normal' | 'important' | 'urgent' | 'critical';
   description: string;
+  color: string;
   created_at: string;
   updated_at: string;
   notes_count: number;
@@ -31,6 +32,7 @@ interface NotebookListProps {
   onNotebookNameChange: (name: string) => void;
   onCreateNotebook: (name: string) => void;
   onArchiveNotebook: (notebookId: number, archive: boolean) => void;
+  onColorChange: (notebook: Notebook) => void;
   showAddButton?: boolean;
 }
 
@@ -48,6 +50,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
   onNotebookNameChange,
   onCreateNotebook,
   onArchiveNotebook,
+  onColorChange,
   showAddButton = true,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -138,7 +141,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
                 <div 
                   className={`h-16 flex items-center justify-center`}
                   style={{
-                    backgroundColor: `hsl(${(notebook.id * 137.5) % 360}, 70%, 85%)`,
+                    backgroundColor: notebook.color || `hsl(${(notebook.id * 137.5) % 360}, 70%, 85%)`,
                   }}
                 >
                   <Book className={`${
@@ -172,6 +175,16 @@ const NotebookList: React.FC<NotebookListProps> = ({
                       title="Edit notebook"
                     >
                       <Edit size={14} />
+                    </button>
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        onColorChange(notebook);
+                      }}
+                      className="p-1.5 text-gray-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition-colors"
+                      title="Change color"
+                    >
+                      <Palette size={14} />
                     </button>
                     {notebook.is_archived ? (
                       <button

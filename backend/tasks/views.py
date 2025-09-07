@@ -74,7 +74,7 @@ class TaskViewSet(viewsets.ModelViewSet):
         instance = serializer.save()
         
         # Check if task is being marked as completed
-        if instance.completed:
+        if instance.completed and not instance.completed_at:
             # Validate that the task can be completed
             if not instance.can_be_completed():
                 # Revert the completion status
@@ -89,12 +89,18 @@ class TaskViewSet(viewsets.ModelViewSet):
                     'completed': error_message
                 })
             
+            # Use the new mark_completed method to set completion timestamp
+            instance.mark_completed()
+            
             # Award XP if task is completed and not already logged
             if not XPLog.objects.filter(user=instance.user, task=instance).exists():
                 XPLog.objects.create(user=instance.user, task=instance, xp=10)
             
             # Update productivity for today
             self._update_today_productivity(instance.user)
+        elif not instance.completed and instance.completed_at:
+            # Task is being marked as incomplete
+            instance.mark_incomplete()
         
         return instance
     

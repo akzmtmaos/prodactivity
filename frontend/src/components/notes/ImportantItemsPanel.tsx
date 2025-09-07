@@ -12,6 +12,7 @@ interface ImportantNote {
   notebook_name: string;
   notebook_type: string;
   notebook_urgency: string;
+  notebook_color: string;
   note_type: 'lecture' | 'reading' | 'assignment' | 'exam' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   is_urgent: boolean;
@@ -29,6 +30,7 @@ interface ImportantNotebook {
   notebook_type: 'study' | 'meeting' | 'personal' | 'work' | 'project' | 'research' | 'other';
   urgency_level: 'normal' | 'important' | 'urgent' | 'critical';
   description: string;
+  color: string;
   notes_count: number;
   created_at: string;
   updated_at: string;
