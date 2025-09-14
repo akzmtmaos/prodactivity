@@ -1,6 +1,9 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+from .supabase_sync import sync_subtask_to_supabase, update_subtask_in_supabase, sync_productivity_log_to_supabase, update_productivity_log_in_supabase
 
 class TaskManager(models.Manager):
     def get_queryset(self):
@@ -185,4 +188,91 @@ class ProductivityLog(models.Model):
 
     class Meta:
         unique_together = ('user', 'period_type', 'period_start', 'period_end')
-        ordering = ['-period_start'] 
+        ordering = ['-period_start']
+
+
+# =============================================
+# DJANGO SIGNALS FOR REAL-TIME SYNC
+# =============================================
+
+@receiver(post_save, sender=Subtask)
+def sync_subtask_on_save(sender, instance, created, **kwargs):
+    """Sync subtask to Supabase when created or updated"""
+    try:
+        if created:
+            sync_subtask_to_supabase(instance)
+        else:
+            update_subtask_in_supabase(instance)
+    except Exception as e:
+        print(f"❌ Error in subtask sync signal: {e}")
+
+@receiver(post_delete, sender=Subtask)
+def delete_subtask_from_supabase(sender, instance, **kwargs):
+    """Delete subtask from Supabase when deleted from Django"""
+    try:
+        import requests
+        from django.conf import settings
+        
+        SUPABASE_URL = getattr(settings, 'SUPABASE_URL', 'https://tyuiugbvqmeatyjpenzg.supabase.co')
+        SUPABASE_ANON_KEY = getattr(settings, 'SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5dWl1Z2J2cW1lYXR5anBlbnpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyOTQ1MjcsImV4cCI6MjA3Mjg3MDUyN30.Kb8tj1jaBIm8XxLQuaVQr-8I-v4JhrPjKAD_jv_yp30')
+        
+        headers = {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        }
+        
+        response = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/subtasks?id=eq.{instance.id}",
+            headers=headers
+        )
+        
+        if response.status_code == 204:
+            print(f"✅ Deleted subtask from Supabase: {instance.title} (ID: {instance.id})")
+        else:
+            print(f"❌ Failed to delete subtask from Supabase: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"❌ Error deleting subtask from Supabase: {e}")
+
+@receiver(post_save, sender=ProductivityLog)
+def sync_productivity_log_on_save(sender, instance, created, **kwargs):
+    """Sync productivity log to Supabase when created or updated"""
+    try:
+        if created:
+            sync_productivity_log_to_supabase(instance)
+        else:
+            update_productivity_log_in_supabase(instance)
+    except Exception as e:
+        print(f"❌ Error in productivity log sync signal: {e}")
+
+@receiver(post_delete, sender=ProductivityLog)
+def delete_productivity_log_from_supabase(sender, instance, **kwargs):
+    """Delete productivity log from Supabase when deleted from Django"""
+    try:
+        import requests
+        from django.conf import settings
+        
+        SUPABASE_URL = getattr(settings, 'SUPABASE_URL', 'https://tyuiugbvqmeatyjpenzg.supabase.co')
+        SUPABASE_ANON_KEY = getattr(settings, 'SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5dWl1Z2J2cW1lYXR5anBlbnpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyOTQ1MjcsImV4cCI6MjA3Mjg3MDUyN30.Kb8tj1jaBIm8XxLQuaVQr-8I-v4JhrPjKAD_jv_yp30')
+        
+        headers = {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        }
+        
+        response = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/productivity_logs?id=eq.{instance.id}",
+            headers=headers
+        )
+        
+        if response.status_code == 204:
+            print(f"✅ Deleted productivity log from Supabase: {instance.period_type} (ID: {instance.id})")
+        else:
+            print(f"❌ Failed to delete productivity log from Supabase: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"❌ Error deleting productivity log from Supabase: {e}") 

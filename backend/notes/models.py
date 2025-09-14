@@ -2,6 +2,9 @@
 from django.db import models
 from django.contrib.auth.models import User
 from django.utils import timezone
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+from .supabase_sync import sync_notebook_to_supabase, update_notebook_in_supabase, sync_note_to_supabase, update_note_in_supabase
 
 class Notebook(models.Model):
     NOTEBOOK_TYPE_CHOICES = [
@@ -85,3 +88,90 @@ class Note(models.Model):
     
     def __str__(self):
         return f"{self.title} ({self.user.username})"
+
+
+# =============================================
+# DJANGO SIGNALS FOR REAL-TIME SYNC
+# =============================================
+
+@receiver(post_save, sender=Notebook)
+def sync_notebook_on_save(sender, instance, created, **kwargs):
+    """Sync notebook to Supabase when created or updated"""
+    try:
+        if created:
+            sync_notebook_to_supabase(instance)
+        else:
+            update_notebook_in_supabase(instance)
+    except Exception as e:
+        print(f"❌ Error in notebook sync signal: {e}")
+
+@receiver(post_save, sender=Note)
+def sync_note_on_save(sender, instance, created, **kwargs):
+    """Sync note to Supabase when created or updated"""
+    try:
+        if created:
+            sync_note_to_supabase(instance)
+        else:
+            update_note_in_supabase(instance)
+    except Exception as e:
+        print(f"❌ Error in note sync signal: {e}")
+
+@receiver(post_delete, sender=Notebook)
+def delete_notebook_from_supabase(sender, instance, **kwargs):
+    """Delete notebook from Supabase when deleted from Django"""
+    try:
+        import requests
+        from django.conf import settings
+        
+        SUPABASE_URL = getattr(settings, 'SUPABASE_URL', 'https://tyuiugbvqmeatyjpenzg.supabase.co')
+        SUPABASE_ANON_KEY = getattr(settings, 'SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5dWl1Z2J2cW1lYXR5anBlbnpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyOTQ1MjcsImV4cCI6MjA3Mjg3MDUyN30.Kb8tj1jaBIm8XxLQuaVQr-8I-v4JhrPjKAD_jv_yp30')
+        
+        headers = {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        }
+        
+        response = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/notebooks?id=eq.{instance.id}",
+            headers=headers
+        )
+        
+        if response.status_code == 204:
+            print(f"✅ Deleted notebook from Supabase: {instance.name} (ID: {instance.id})")
+        else:
+            print(f"❌ Failed to delete notebook from Supabase: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"❌ Error deleting notebook from Supabase: {e}")
+
+@receiver(post_delete, sender=Note)
+def delete_note_from_supabase(sender, instance, **kwargs):
+    """Delete note from Supabase when deleted from Django"""
+    try:
+        import requests
+        from django.conf import settings
+        
+        SUPABASE_URL = getattr(settings, 'SUPABASE_URL', 'https://tyuiugbvqmeatyjpenzg.supabase.co')
+        SUPABASE_ANON_KEY = getattr(settings, 'SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5dWl1Z2J2cW1lYXR5anBlbnpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyOTQ1MjcsImV4cCI6MjA3Mjg3MDUyN30.Kb8tj1jaBIm8XxLQuaVQr-8I-v4JhrPjKAD_jv_yp30')
+        
+        headers = {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        }
+        
+        response = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/notes?id=eq.{instance.id}",
+            headers=headers
+        )
+        
+        if response.status_code == 204:
+            print(f"✅ Deleted note from Supabase: {instance.title} (ID: {instance.id})")
+        else:
+            print(f"❌ Failed to delete note from Supabase: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"❌ Error deleting note from Supabase: {e}")

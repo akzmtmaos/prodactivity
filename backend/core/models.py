@@ -1,6 +1,9 @@
 # This file contains models for core app, including TermsAndConditions for CMS management via admin.
 from django.db import models
 from django.contrib.auth.models import User
+from django.db.models.signals import post_save, post_delete
+from django.dispatch import receiver
+from .supabase_sync import sync_notification_to_supabase, update_notification_in_supabase, sync_terms_and_conditions_to_supabase, update_terms_and_conditions_in_supabase, sync_ai_configuration_to_supabase, update_ai_configuration_in_supabase
 
 class TermsAndConditions(models.Model):
     content = models.TextField(verbose_name="Terms and Conditions Content", help_text="The content of the Terms and Conditions shown to users.")
@@ -88,4 +91,132 @@ class AIConfiguration(models.Model):
         try:
             return self.prompt_template.format(**kwargs)
         except KeyError as e:
-            raise ValueError(f"Missing required parameter in prompt template: {e}") 
+            raise ValueError(f"Missing required parameter in prompt template: {e}")
+
+
+# =============================================
+# DJANGO SIGNALS FOR REAL-TIME SYNC
+# =============================================
+
+@receiver(post_save, sender=Notification)
+def sync_notification_on_save(sender, instance, created, **kwargs):
+    """Sync notification to Supabase when created or updated"""
+    try:
+        if created:
+            sync_notification_to_supabase(instance)
+        else:
+            update_notification_in_supabase(instance)
+    except Exception as e:
+        print(f"❌ Error in notification sync signal: {e}")
+
+@receiver(post_save, sender=TermsAndConditions)
+def sync_terms_and_conditions_on_save(sender, instance, created, **kwargs):
+    """Sync terms and conditions to Supabase when created or updated"""
+    try:
+        if created:
+            sync_terms_and_conditions_to_supabase(instance)
+        else:
+            update_terms_and_conditions_in_supabase(instance)
+    except Exception as e:
+        print(f"❌ Error in terms and conditions sync signal: {e}")
+
+@receiver(post_save, sender=AIConfiguration)
+def sync_ai_configuration_on_save(sender, instance, created, **kwargs):
+    """Sync AI configuration to Supabase when created or updated"""
+    try:
+        if created:
+            sync_ai_configuration_to_supabase(instance)
+        else:
+            update_ai_configuration_in_supabase(instance)
+    except Exception as e:
+        print(f"❌ Error in AI configuration sync signal: {e}")
+
+@receiver(post_delete, sender=Notification)
+def delete_notification_from_supabase(sender, instance, **kwargs):
+    """Delete notification from Supabase when deleted from Django"""
+    try:
+        import requests
+        from django.conf import settings
+        
+        SUPABASE_URL = getattr(settings, 'SUPABASE_URL', 'https://tyuiugbvqmeatyjpenzg.supabase.co')
+        SUPABASE_ANON_KEY = getattr(settings, 'SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5dWl1Z2J2cW1lYXR5anBlbnpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyOTQ1MjcsImV4cCI6MjA3Mjg3MDUyN30.Kb8tj1jaBIm8XxLQuaVQr-8I-v4JhrPjKAD_jv_yp30')
+        
+        headers = {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        }
+        
+        response = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/notifications?id=eq.{instance.id}",
+            headers=headers
+        )
+        
+        if response.status_code == 204:
+            print(f"✅ Deleted notification from Supabase: {instance.title} (ID: {instance.id})")
+        else:
+            print(f"❌ Failed to delete notification from Supabase: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"❌ Error deleting notification from Supabase: {e}")
+
+@receiver(post_delete, sender=TermsAndConditions)
+def delete_terms_and_conditions_from_supabase(sender, instance, **kwargs):
+    """Delete terms and conditions from Supabase when deleted from Django"""
+    try:
+        import requests
+        from django.conf import settings
+        
+        SUPABASE_URL = getattr(settings, 'SUPABASE_URL', 'https://tyuiugbvqmeatyjpenzg.supabase.co')
+        SUPABASE_ANON_KEY = getattr(settings, 'SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5dWl1Z2J2cW1lYXR5anBlbnpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyOTQ1MjcsImV4cCI6MjA3Mjg3MDUyN30.Kb8tj1jaBIm8XxLQuaVQr-8I-v4JhrPjKAD_jv_yp30')
+        
+        headers = {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        }
+        
+        response = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/terms_and_conditions?id=eq.{instance.id}",
+            headers=headers
+        )
+        
+        if response.status_code == 204:
+            print(f"✅ Deleted terms and conditions from Supabase (ID: {instance.id})")
+        else:
+            print(f"❌ Failed to delete terms and conditions from Supabase: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"❌ Error deleting terms and conditions from Supabase: {e}")
+
+@receiver(post_delete, sender=AIConfiguration)
+def delete_ai_configuration_from_supabase(sender, instance, **kwargs):
+    """Delete AI configuration from Supabase when deleted from Django"""
+    try:
+        import requests
+        from django.conf import settings
+        
+        SUPABASE_URL = getattr(settings, 'SUPABASE_URL', 'https://tyuiugbvqmeatyjpenzg.supabase.co')
+        SUPABASE_ANON_KEY = getattr(settings, 'SUPABASE_ANON_KEY', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR5dWl1Z2J2cW1lYXR5anBlbnpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcyOTQ1MjcsImV4cCI6MjA3Mjg3MDUyN30.Kb8tj1jaBIm8XxLQuaVQr-8I-v4JhrPjKAD_jv_yp30')
+        
+        headers = {
+            'apikey': SUPABASE_ANON_KEY,
+            'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+            'Content-Type': 'application/json',
+            'Prefer': 'return=minimal'
+        }
+        
+        response = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/ai_configurations?id=eq.{instance.id}",
+            headers=headers
+        )
+        
+        if response.status_code == 204:
+            print(f"✅ Deleted AI configuration from Supabase: {instance.title} (ID: {instance.id})")
+        else:
+            print(f"❌ Failed to delete AI configuration from Supabase: {response.status_code} - {response.text}")
+            
+    except Exception as e:
+        print(f"❌ Error deleting AI configuration from Supabase: {e}") 
