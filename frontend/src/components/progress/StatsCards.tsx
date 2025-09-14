@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Flame, Target, Clock, TrendingUp } from 'lucide-react';
 
 interface WeeklyStats {
@@ -13,6 +13,12 @@ interface StatsCardsProps {
 }
 
 const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
+  // Debug: Log the stats received
+  useEffect(() => {
+    console.log('📊 StatsCards received stats:', stats);
+    console.log('🔥 Day Streak value:', stats.streak);
+  }, [stats]);
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
       {/* Streak Card */}

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { supabase } from '../../lib/supabase';
 
 interface TaskActivityModalProps {
   isOpen: boolean;
@@ -38,63 +39,79 @@ const TaskActivityModal: React.FC<TaskActivityModalProps> = ({
     setError('');
     
     try {
-      const formData = new FormData();
+      let evidenceFileUrl = null;
+      
+      // Upload file to Supabase Storage if provided
       if (evidenceFile) {
-        formData.append('evidence_file', evidenceFile);
-      }
-      if (evidenceDescription.trim()) {
-        formData.append('evidence_description', evidenceDescription.trim());
-      }
-      
-      const response = await axios.post(
-        `http://192.168.56.1:8000/api/tasks/${taskId}/upload_evidence/`,
-        formData,
-        { 
-          headers: {
-            ...getAuthHeaders(),
-            'Content-Type': 'multipart/form-data'
-          }
+        console.log('📁 Uploading evidence file to Supabase Storage:', evidenceFile.name);
+        
+        // Get current user ID
+        const userData = localStorage.getItem('user');
+        const user = userData ? JSON.parse(userData) : null;
+        const userId = user?.id || 11;
+        
+        // Create a unique filename
+        const fileExt = evidenceFile.name.split('.').pop();
+        const fileName = `evidence_${taskId}_${Date.now()}.${fileExt}`;
+        const filePath = `task_evidence/${userId}/${fileName}`;
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('task_evidence')
+          .upload(filePath, evidenceFile);
+        
+        if (uploadError) {
+          console.error('Supabase storage error:', uploadError);
+          setError(`Failed to upload file: ${uploadError.message}`);
+          return;
         }
-      );
-      
-      console.log('Evidence upload response:', response.data);
-      
-      if (response.data.message) {
-        // Automatically mark the task as complete after evidence is uploaded
-        try {
-          const completeResponse = await axios.patch(
-            `http://192.168.56.1:8000/api/tasks/${taskId}/`,
-            { completed: true },
-            { headers: getAuthHeaders() }
-          );
-          
-          console.log('Task marked as complete:', completeResponse.data);
-          
-          // Update the task state in the parent component
-          const completedTask = { ...completeResponse.data, dueDate: completeResponse.data.due_date };
-          if (onTaskCompleted) {
-            onTaskCompleted(completedTask);
-          }
-          
-          onActivityLogged();
-          onClose();
-        } catch (completeError: any) {
-          console.error('Error marking task as complete:', completeError);
-          // Even if completion fails, evidence was uploaded successfully
-          setError('Evidence uploaded successfully, but failed to mark task as complete. Please try marking it complete manually.');
-        }
-      } else {
-        setError('Unexpected response from server');
+        
+        // Get the public URL
+        const { data: urlData } = supabase.storage
+          .from('task_evidence')
+          .getPublicUrl(filePath);
+        
+        evidenceFileUrl = urlData.publicUrl;
+        console.log('✅ Evidence file uploaded successfully:', evidenceFileUrl);
       }
+      
+      // Update task in Supabase with evidence information
+      console.log('📝 Updating task with evidence in Supabase:', taskId);
+      
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({
+          completed: true,
+          completed_at: new Date().toISOString(),
+          evidence_uploaded: true,
+          evidence_description: evidenceDescription.trim() || null,
+          evidence_file: evidenceFileUrl,
+          evidence_uploaded_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', taskId)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        setError(`Failed to update task: ${error.message}`);
+        return;
+      }
+      
+      console.log('✅ Task completed with evidence successfully:', data);
+      
+      // Update the task state in the parent component
+      const completedTask = { ...data, dueDate: data.due_date };
+      if (onTaskCompleted) {
+        onTaskCompleted(completedTask);
+      }
+      
+      onActivityLogged();
+      onClose();
+      
     } catch (err: any) {
       console.error('Evidence upload error:', err);
-      if (err.response?.data?.error) {
-        setError(err.response.data.error);
-      } else if (err.response?.status === 500) {
-        setError('Server error. Please try again.');
-      } else {
-        setError('Failed to upload evidence. Please check your connection and try again.');
-      }
+      setError('Failed to upload evidence. Please check your connection and try again.');
     } finally {
       setLoading(false);
     }

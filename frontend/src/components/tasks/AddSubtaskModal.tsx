@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { Subtask } from '../../types/task';
+import { supabase } from '../../lib/supabase';
 
 interface AddSubtaskModalProps {
   taskId: number;
@@ -32,11 +33,37 @@ const AddSubtaskModal: React.FC<AddSubtaskModalProps> = ({ taskId, isOpen, onClo
     try {
       setLoading(true);
       setError(null);
-      const res = await axios.post(`${API_BASE_URL}/subtasks/`, { task: taskId, title: trimmed }, { headers: getAuthHeaders() });
-      onAdded(res.data);
+      
+      // Get current user ID
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+      const userId = user?.id || 11; // Fallback to your user ID
+      
+      const { data, error } = await supabase
+        .from('subtasks')
+        .insert([{
+          task_id: taskId,
+          title: trimmed,
+          completed: false,
+          user_id: userId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        setError(`Failed to create subtask: ${error.message}`);
+        return;
+      }
+      
+      console.log('Subtask created successfully in Supabase:', data);
+      onAdded(data);
       setTitle('');
       onClose();
     } catch (e: any) {
+      console.error('Error creating subtask:', e);
       setError('Failed to create subtask');
     } finally {
       setLoading(false);

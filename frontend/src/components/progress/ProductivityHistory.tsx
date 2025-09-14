@@ -156,7 +156,8 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           // Show if it's in the selected month and either:
           // 1. It's not the selected date (to avoid duplication), OR
           // 2. It's the selected date but not today (include it in historical list)
-          const shouldShow = dayDate < today && isInSelectedMonth && (!isSelectedDate || !isToday);
+          // 3. It's today (include today's data in the history)
+          const shouldShow = isInSelectedMonth && (!isSelectedDate || !isToday);
           console.log(`Date ${dayDate.toISOString()}: selectedMonth=${selectedMonth}, selectedYear=${selectedYear}, itemMonth=${itemMonth}, itemYear=${itemYear}, isInSelectedMonth=${isInSelectedMonth}, isSelectedDate=${isSelectedDate}, isToday=${isToday}, shouldShow=${shouldShow}, item:`, item);
           return shouldShow;
         })

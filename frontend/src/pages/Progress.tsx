@@ -10,8 +10,139 @@ import ProductivityHistory from '../components/progress/ProductivityHistory';
 import Achievements from '../components/progress/Achievements';
 import { format, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
 import { getTodayDate } from '../utils/dateUtils';
+import { supabase } from '../lib/supabase';
 
 const TABS = ['Daily', 'Weekly', 'Monthly'];
+
+// Helper function to aggregate daily logs into weekly data
+function aggregateDailyToWeekly(dailyLogs: any[]) {
+  // Early return if no data
+  if (!dailyLogs || dailyLogs.length === 0) {
+    return [];
+  }
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔄 Starting weekly aggregation with', dailyLogs.length, 'daily logs');
+  }
+  
+  const weeklyData: { [key: string]: any } = {};
+  
+  dailyLogs.forEach(log => {
+    const date = new Date(log.period_start);
+    // Get the Monday of the week (week starts on Monday)
+    const monday = new Date(date);
+    monday.setDate(date.getDate() - date.getDay() + 1);
+    const weekKey = monday.toISOString().split('T')[0];
+    
+    if (!weeklyData[weekKey]) {
+      weeklyData[weekKey] = {
+        period_start: weekKey,
+        period_end: new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        period_type: 'weekly',
+        user_id: log.user_id,
+        total_tasks: 0,
+        completed_tasks: 0,
+        completion_rate: 0,
+        status: 'Low Productivity',
+        logged_at: log.logged_at
+      };
+    }
+    
+    weeklyData[weekKey].total_tasks += log.total_tasks || 0;
+    weeklyData[weekKey].completed_tasks += log.completed_tasks || 0;
+  });
+  
+  // Calculate completion rates and statuses for each week
+  Object.values(weeklyData).forEach((week: any) => {
+    if (week.total_tasks > 0) {
+      week.completion_rate = Math.round((week.completed_tasks / week.total_tasks) * 100);
+      
+      if (week.completion_rate >= 80) {
+        week.status = 'Highly Productive';
+      } else if (week.completion_rate >= 60) {
+        week.status = 'Productive';
+      } else if (week.completion_rate >= 40) {
+        week.status = 'Moderately Productive';
+      } else {
+        week.status = 'Low Productivity';
+      }
+    }
+  });
+  
+  const result = Object.values(weeklyData).sort((a: any, b: any) => 
+    new Date(a.period_start).getTime() - new Date(b.period_start).getTime()
+  );
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔄 Weekly aggregation result:', result);
+  }
+  
+  return result;
+}
+
+// Helper function to aggregate daily logs into monthly data
+function aggregateDailyToMonthly(dailyLogs: any[]) {
+  // Early return if no data
+  if (!dailyLogs || dailyLogs.length === 0) {
+    return [];
+  }
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔄 Starting monthly aggregation with', dailyLogs.length, 'daily logs');
+  }
+  
+  const monthlyData: { [key: string]: any } = {};
+  
+  dailyLogs.forEach(log => {
+    const date = new Date(log.period_start);
+    const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-01`;
+    
+    if (!monthlyData[monthKey]) {
+      const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+      monthlyData[monthKey] = {
+        period_start: monthKey,
+        period_end: `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`,
+        period_type: 'monthly',
+        user_id: log.user_id,
+        total_tasks: 0,
+        completed_tasks: 0,
+        completion_rate: 0,
+        status: 'Low Productivity',
+        logged_at: log.logged_at
+      };
+    }
+    
+    monthlyData[monthKey].total_tasks += log.total_tasks || 0;
+    monthlyData[monthKey].completed_tasks += log.completed_tasks || 0;
+  });
+  
+  // Calculate completion rates and statuses for each month
+  Object.values(monthlyData).forEach((month: any) => {
+    if (month.total_tasks > 0) {
+      month.completion_rate = Math.round((month.completed_tasks / month.total_tasks) * 100);
+      
+      if (month.completion_rate >= 80) {
+        month.status = 'Highly Productive';
+      } else if (month.completion_rate >= 60) {
+        month.status = 'Productive';
+      } else if (month.completion_rate >= 40) {
+        month.status = 'Moderately Productive';
+      } else {
+        month.status = 'Low Productivity';
+      }
+    }
+  });
+  
+  const result = Object.values(monthlyData).sort((a: any, b: any) => 
+    new Date(a.period_start).getTime() - new Date(b.period_start).getTime()
+  );
+  
+  if (process.env.NODE_ENV === 'development') {
+    console.log('🔄 Monthly aggregation result:', result);
+  }
+  
+  return result;
+}
 
 const Progress = () => {
   const [user, setUser] = useState<any | null>(null);
@@ -34,20 +165,37 @@ const Progress = () => {
   const [productivity, setProductivity] = useState<{ status: string; completion_rate: number; total_tasks: number; completed_tasks: number } | null>(null);
   const [yesterdayProductivity, setYesterdayProductivity] = useState<{ status: string; completion_rate: number; total_tasks: number; completed_tasks: number } | null>(null);
   const [todaysProductivity, setTodaysProductivity] = useState<any | null>(null);
+  const [currentDate, setCurrentDate] = useState(new Date().toLocaleDateString('en-CA'));
+  const [refreshKey, setRefreshKey] = useState(0);
 
   // Add state for selected date/period
   const [selectedDate, setSelectedDate] = useState(new Date());
   
-  // Debug: Track selectedDate changes
+  // Debug: Track selectedDate changes (only in development)
   useEffect(() => {
-    console.log('selectedDate changed to:', selectedDate.toISOString());
+    if (process.env.NODE_ENV === 'development') {
+      console.log('selectedDate changed to:', selectedDate.toISOString());
+    }
   }, [selectedDate]);
+  
+  // Auto-set selectedDate to 2025 when switching to Weekly/Monthly tabs (where data exists)
+  useEffect(() => {
+    if (progressView === 'Weekly' || progressView === 'Monthly') {
+      const currentYear = selectedDate.getFullYear();
+      if (currentYear !== 2025) {
+        console.log('📅 Auto-setting selectedDate to 2025 for', progressView, 'view');
+        setSelectedDate(new Date(2025, 8, 1)); // Set to September 2025 (month 8 = September)
+      }
+    }
+  }, [progressView]); // Remove selectedDate from dependencies to avoid infinite loop
   // Add state for productivity logs list
   const [prodLogs, setProdLogs] = useState<any[]>([]);
   
-  // Debug: Track prodLogs changes
+  // Debug: Track prodLogs changes (only in development)
   useEffect(() => {
-    console.log('prodLogs changed to:', prodLogs.length, 'items');
+    if (process.env.NODE_ENV === 'development') {
+      console.log('prodLogs changed to:', prodLogs.length, 'items');
+    }
   }, [prodLogs]);
 
   // Centralized error handler
@@ -85,51 +233,209 @@ const Progress = () => {
     else if (hour < 18) setGreeting('Good afternoon');
     else setGreeting('Good evening');
 
-    // Fetch stats, level, streak, and chart data
+    // Fetch all data in parallel for faster loading
     (async () => {
       try {
         console.log('Fetching initial data...');
-        const statsData = await fetchUserStats();
-        console.log('Stats data:', statsData);
-        setStats(statsData);
         
-        const levelData = await fetchUserLevel();
-        console.log('Level data:', levelData);
+        // Run all API calls in parallel
+        const [statsData, levelData, streakData, chartData] = await Promise.all([
+          fetchUserStats(),
+          fetchUserLevel(),
+          fetchStreakData(),
+          fetchChartData(progressView)
+        ]);
+        
+        // Calculate current streak from backend data for consistency
+        const currentStreak = calculateCurrentStreakFromData(streakData);
+        console.log('🔥 Current streak calculated from backend data:', currentStreak);
+        
+        // Update stats with the consistent streak value
+        const updatedStats = { ...statsData, streak: currentStreak };
+        
+        // Update all state at once
+        setStats(updatedStats);
         setUserLevel(levelData);
-        
-        const streakData = await fetchStreakData();
-        console.log('Streak data:', streakData);
         setStreakData(streakData);
-        
-        const chartData = await fetchChartData(progressView);
-        console.log('Chart data:', chartData);
         setChartData(chartData);
+        
+        console.log('Initial data loaded successfully');
+        console.log('📊 Stats data received:', updatedStats);
+        console.log('📅 Streak data received:', streakData.length, 'days');
       } catch (error) {
         handleError(error, 'Failed to fetch initial data');
       } finally {
         setLoading(false);
       }
     })();
+    
+    // Listen for task completion events to refresh progress data
+    const handleTaskCompleted = async () => {
+      console.log('🔄 Task completion event received, refreshing progress data...');
+      try {
+        // Run stats and level updates in parallel
+        const [statsData, levelData] = await Promise.all([
+          fetchUserStats(),
+          fetchUserLevel()
+        ]);
+        
+        // Refresh productivity data separately
+        await refreshProductivity();
+        
+        setStats(statsData);
+        setUserLevel(levelData);
+      } catch (error) {
+        console.error('Error refreshing progress data:', error);
+      }
+    };
+    
+    // Listen for task creation events to refresh productivity data
+    const handleTaskCreated = async () => {
+      console.log('🔄 Task creation event received, refreshing productivity data...');
+      try {
+        const statsData = await fetchUserStats();
+        
+        // Refresh productivity data separately
+        await refreshProductivity();
+        setStats(statsData);
+      } catch (error) {
+        console.error('Error refreshing progress data after task creation:', error);
+      }
+    };
+    
+    window.addEventListener('taskCompleted', handleTaskCompleted);
+    window.addEventListener('taskCreated', handleTaskCreated);
+    
+    return () => {
+      window.removeEventListener('taskCompleted', handleTaskCompleted);
+      window.removeEventListener('taskCreated', handleTaskCreated);
+    };
+  }, []);
+
+  // Check for date changes and refresh productivity data
+  useEffect(() => {
+    const checkDateChange = () => {
+      const today = new Date().toLocaleDateString('en-CA');
+      if (today !== currentDate) {
+        console.log('🔄 Date changed from', currentDate, 'to', today, '- refreshing productivity data');
+        setCurrentDate(today);
+        // Trigger productivity refresh by dispatching a custom event
+        window.dispatchEvent(new CustomEvent('dateChanged'));
+      }
+    };
+    
+    // Check immediately on mount
+    checkDateChange();
+    
+    // Check for date changes every minute
+    const dateCheckInterval = setInterval(checkDateChange, 60000);
+    
+    return () => {
+      clearInterval(dateCheckInterval);
+    };
+  }, [currentDate]);
+
+  // Force refresh on component mount to ensure we have the latest data
+  useEffect(() => {
+    console.log('🔄 Component mounted - forcing productivity refresh');
+    
+    // Immediately clear the state to force fresh data
+    console.log('🔄 Clearing todaysProductivity state on mount');
+    setTodaysProductivity(null);
+    
+    // Trigger a manual refresh when component mounts
+    setTimeout(() => {
+      console.log('🔄 Triggering dateChanged event on mount');
+      window.dispatchEvent(new CustomEvent('dateChanged'));
+    }, 500); // Reduced delay
+    
+    // Also trigger a manual refresh immediately
+    setTimeout(() => {
+      console.log('🔄 Triggering manual refresh on mount');
+      refreshProductivity();
+    }, 1000); // Reduced delay
+    
+    // Force another refresh after a longer delay
+    setTimeout(() => {
+      console.log('🔄 Final forced refresh on mount');
+      refreshProductivity();
+    }, 3000);
+    
+    // Force a complete component refresh
+    setTimeout(() => {
+      console.log('🔄 Force component refresh with new key');
+      setRefreshKey(prev => prev + 1);
+    }, 4000);
   }, []);
 
   // Fetch today's productivity (daily) for the bar below XP bar
   useEffect(() => {
     const fetchTodaysProductivity = async () => {
       try {
-        const headers = getAuthHeaders();
-        const todayStr = getTodayDate(); // Use local timezone instead of UTC
-        // Add cache-busting parameter to ensure fresh data
-        const res = await fetch(`${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
-          ...(headers && { headers })
-        });
-        if (res.status === 401) {
+        // Get current user ID
+        const userData = localStorage.getItem('user');
+        if (!userData) {
           handle401();
           return;
         }
-        if (!res.ok) throw new Error('Failed to fetch today productivity');
-        const data = await res.json();
-        console.log('Today\'s productivity data:', data); // Debug log
-        setTodaysProductivity(data);
+        
+        const user = JSON.parse(userData);
+        const userId = user.id || 11;
+        
+        const todayStr = new Date().toLocaleDateString('en-CA'); // Use local date to match database
+        
+        console.log('📊 Fetching today\'s productivity from Supabase for user:', userId, 'date:', todayStr);
+        console.log('📊 Current date state:', currentDate);
+        console.log('📊 Date comparison - todayStr:', todayStr, 'currentDate:', currentDate);
+        
+        // Get today's productivity log from Supabase
+        console.log('🔍 Supabase query parameters:', {
+          user_id: userId,
+          period_type: 'daily',
+          period_start: todayStr,
+          period_end: todayStr
+        });
+        
+        // Add cache-busting parameter to ensure fresh data
+        const cacheBuster = Date.now();
+        console.log('🔍 Cache buster:', cacheBuster);
+        
+        // Force fresh data by adding a timestamp parameter
+        const { data: productivityData, error: productivityError } = await supabase
+          .from('productivity_logs')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('period_type', 'daily')
+          .eq('period_start', todayStr)
+          .eq('period_end', todayStr)
+          .single();
+          
+        console.log('🔍 Supabase query result:', { productivityData, productivityError });
+        
+        if (productivityError && productivityError.code !== 'PGRST116') { // PGRST116 = no rows found
+          console.error('Error fetching today\'s productivity:', productivityError);
+          setTodaysProductivity(null);
+          return;
+        }
+        
+        if (productivityData) {
+          console.log('Today\'s productivity data from Supabase:', productivityData);
+          console.log('🔄 Setting todaysProductivity state with fresh data:', {
+            status: productivityData.status,
+            completion_rate: productivityData.completion_rate,
+            total_tasks: productivityData.total_tasks,
+            completed_tasks: productivityData.completed_tasks
+          });
+          setTodaysProductivity({
+            status: productivityData.status,
+            completion_rate: productivityData.completion_rate,
+            total_tasks: productivityData.total_tasks,
+            completed_tasks: productivityData.completed_tasks
+          });
+        } else {
+          console.log('No productivity data found for today');
+          setTodaysProductivity(null);
+        }
       } catch (e) {
         console.error('Error fetching today productivity:', e);
         setTodaysProductivity(null);
@@ -141,26 +447,85 @@ const Progress = () => {
     // Set up periodic refresh every 30 seconds
     const interval = setInterval(fetchTodaysProductivity, 30000);
     
-    return () => clearInterval(interval);
+    // Listen for date change events
+    const handleDateChanged = () => {
+      console.log('🔄 Date change event received, refreshing productivity data...');
+      fetchTodaysProductivity();
+    };
+    
+    window.addEventListener('dateChanged', handleDateChanged);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('dateChanged', handleDateChanged);
+    };
   }, []);
 
   // Manual refresh function for debugging
   const refreshProductivity = async () => {
     try {
-      const headers = getAuthHeaders();
-      const todayStr = getTodayDate(); // Use local timezone instead of UTC
-      console.log('Refreshing productivity for date:', todayStr);
-              const res = await fetch(`${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}&t=${Date.now()}`, {
-          ...(headers && { headers })
+      // Get current user ID
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        handle401();
+        return;
+      }
+      
+      const user = JSON.parse(userData);
+      const userId = user.id || 11;
+      
+      const todayStr = new Date().toLocaleDateString('en-CA'); // Use local date to match database
+      console.log('🔄 Manual refresh - Refreshing productivity for date:', todayStr);
+      console.log('🔄 Manual refresh - Current date state:', currentDate);
+      console.log('🔄 Manual refresh - Force clearing todaysProductivity state');
+      
+      // Force clear the state first
+      console.log('🔄 Manual refresh - Clearing todaysProductivity state');
+      setTodaysProductivity(null);
+      
+      // Force component refresh
+      setRefreshKey(prev => prev + 1);
+      
+      // Add a small delay to ensure state is cleared
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Get today's productivity log from Supabase with cache-busting
+      const cacheBuster = Date.now();
+      console.log('🔄 Manual refresh - Cache buster:', cacheBuster);
+      
+      const { data: productivityData, error: productivityError } = await supabase
+        .from('productivity_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('period_type', 'daily')
+        .eq('period_start', todayStr)
+        .eq('period_end', todayStr)
+        .single();
+      
+      if (productivityError && productivityError.code !== 'PGRST116') { // PGRST116 = no rows found
+        console.error('Error refreshing productivity:', productivityError);
+        setTodaysProductivity(null);
+        return;
+      }
+      
+      if (productivityData) {
+        console.log('Refreshed productivity data from Supabase:', productivityData);
+        console.log('🔄 Manual refresh - Setting todaysProductivity state with fresh data:', {
+          status: productivityData.status,
+          completion_rate: productivityData.completion_rate,
+          total_tasks: productivityData.total_tasks,
+          completed_tasks: productivityData.completed_tasks
         });
-        if (res.status === 401) {
-          handle401();
-          return;
-        }
-        if (!res.ok) throw new Error('Failed to fetch today productivity');
-      const data = await res.json();
-      console.log('Refreshed productivity data:', data);
-      setTodaysProductivity(data);
+        setTodaysProductivity({
+          status: productivityData.status,
+          completion_rate: productivityData.completion_rate,
+          total_tasks: productivityData.total_tasks,
+          completed_tasks: productivityData.completed_tasks
+        });
+      } else {
+        console.log('No productivity data found for today');
+        setTodaysProductivity(null);
+      }
     } catch (e) {
       console.error('Error refreshing productivity:', e);
     }
@@ -221,56 +586,150 @@ const Progress = () => {
     fetchProductivity();
   }, [progressView, selectedDate]);
 
-  // Fetch productivity logs for the selected period
+  // Fetch productivity logs for the selected period from Supabase
   useEffect(() => {
     const fetchProdLogs = async () => {
       try {
-        const headers = getAuthHeaders();
-        let url: string | undefined;
-              if (progressView === 'Daily') {
-        // For daily view, fetch logs for the specific month being viewed
-        const year = selectedDate.getFullYear();
-        const month = selectedDate.getMonth() + 1; // getMonth() returns 0-11, we need 1-12
-        const monthStr = `${year}-${month.toString().padStart(2, '0')}-01`;
-        url = `${API_BASE_URL}/progress/productivity_logs/?view=daily&date=${monthStr}`;
-      } else if (progressView === 'Weekly') {
-        // For weekly view, use the selected date to determine which year's weeks to fetch
-        const yearStr = selectedDate.getFullYear();
-        url = `${API_BASE_URL}/progress/productivity_logs/?view=weekly&date=${yearStr}-01-01`;
-      } else if (progressView === 'Monthly') {
-        // For monthly view, use the selected date to determine which year's months to fetch
-        const yearStr = selectedDate.getFullYear();
-        url = `${API_BASE_URL}/progress/productivity_logs/?view=monthly&date=${yearStr}-01-01`;
-      } else {
-        throw new Error('Invalid progressView');
-      }
-        console.log('Fetching productivity logs from:', url, 'for selectedDate:', selectedDate.toISOString()); // Debug log
-        // Add timestamp to prevent caching
-        const timestamp = new Date().getTime();
-        const urlWithTimestamp = `${url}&_t=${timestamp}`;
-        const res = await fetch(urlWithTimestamp, { ...(headers && { headers }) });
-        if (res.status === 401) {
+        // Get current user ID
+        const userData = localStorage.getItem('user');
+        if (!userData) {
           handle401();
           return;
         }
-        if (!res.ok) throw new Error('Failed to fetch productivity logs');
-        const data = await res.json();
-        console.log('Received productivity logs:', data); // Debug log
-        console.log('Total items received:', data.length); // Debug log
-        console.log('Date range:', data.length > 0 ? `${data[0]?.date} to ${data[data.length-1]?.date}` : 'No data'); // Debug log
-        console.log('Response status:', res.status); // Debug log
-        console.log('Response headers:', Object.fromEntries(res.headers.entries())); // Debug log
-        // Debug: Log specific weekly data
-        if (progressView === 'Weekly' && data.length > 0) {
-          console.log('Weekly data details:');
-          data.forEach((item: any, index: number) => {
-            console.log(`  Week ${index + 1}: ${item.week_start} to ${item.week_end} - ${item.log.completion_rate}%`);
-          });
+        
+        const user = JSON.parse(userData);
+        const userId = user.id || 11;
+        
+        // Only log in development mode to reduce console noise
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📊 Fetching productivity logs from Supabase for user:', userId, 'view:', progressView, 'date:', selectedDate.toISOString());
+          console.log('📊 Current year being queried:', selectedDate.getFullYear());
         }
-        console.log('Setting prodLogs to:', data); // Debug log
-        setProdLogs(data);
+        
+        let data: any[] = [];
+        
+        if (progressView === 'Daily') {
+          // For daily view, fetch logs for the specific month being viewed
+          const year = selectedDate.getFullYear();
+          const month = selectedDate.getMonth() + 1; // getMonth() returns 0-11, we need 1-12
+          const monthStart = `${year}-${month.toString().padStart(2, '0')}-01`;
+          // Get the last day of the month properly
+          const lastDay = new Date(year, month, 0).getDate(); // month is 1-based, so this gets last day
+          const monthEnd = `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
+          
+          const { data: logs, error } = await supabase
+            .from('productivity_logs')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('period_type', 'daily')
+            .gte('period_start', monthStart)
+            .lte('period_start', monthEnd)
+            .order('period_start', { ascending: true });
+          
+          if (error) {
+            console.error('Error fetching daily productivity logs:', error);
+          } else {
+            data = logs || [];
+          }
+        } else if (progressView === 'Weekly') {
+          // For weekly view, fetch daily logs and aggregate them into weeks
+          const year = selectedDate.getFullYear();
+          const yearStart = `${year}-01-01`;
+          const yearEnd = `${year}-12-31`;
+          console.log('📊 Weekly view: fetching data for year', year, 'from', yearStart, 'to', yearEnd);
+          
+          const { data: dailyLogs, error } = await supabase
+            .from('productivity_logs')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('period_type', 'daily')
+            .gte('period_start', yearStart)
+            .lte('period_start', yearEnd)
+            .order('period_start', { ascending: true });
+          
+          if (error) {
+            console.error('Error fetching daily logs for weekly aggregation:', error);
+          } else {
+            console.log('📊 Daily logs for weekly aggregation:', dailyLogs);
+            // Aggregate daily logs into weekly data
+            data = aggregateDailyToWeekly(dailyLogs || []);
+            console.log('📊 Aggregated weekly data:', data);
+          }
+        } else if (progressView === 'Monthly') {
+          // For monthly view, fetch daily logs and aggregate them into months
+          const year = selectedDate.getFullYear();
+          const yearStart = `${year}-01-01`;
+          const yearEnd = `${year}-12-31`;
+          console.log('📊 Monthly view: fetching data for year', year, 'from', yearStart, 'to', yearEnd);
+          
+          const { data: dailyLogs, error } = await supabase
+            .from('productivity_logs')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('period_type', 'daily')
+            .gte('period_start', yearStart)
+            .lte('period_start', yearEnd)
+            .order('period_start', { ascending: true });
+          
+          if (error) {
+            console.error('Error fetching daily logs for monthly aggregation:', error);
+          } else {
+            console.log('📊 Daily logs for monthly aggregation:', dailyLogs);
+            // Aggregate daily logs into monthly data
+            data = aggregateDailyToMonthly(dailyLogs || []);
+            console.log('📊 Aggregated monthly data:', data);
+          }
+        }
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📊 Received productivity logs from Supabase:', data);
+          console.log('📊 Total items received:', data.length);
+        }
+        
+        // Transform the data to match what ProductivityHistory component expects
+        const transformedData = data.map(log => {
+          if (progressView === 'Daily') {
+            return {
+              date: log.period_start, // Map period_start to date field
+              log: {
+                completion_rate: log.completion_rate,
+                status: log.status,
+                total_tasks: log.total_tasks,
+                completed_tasks: log.completed_tasks
+              }
+            };
+          } else if (progressView === 'Weekly') {
+            return {
+              week_start: log.period_start, // Map period_start to week_start
+              week_end: log.period_end, // Map period_end to week_end
+              log: {
+                completion_rate: log.completion_rate,
+                status: log.status,
+                total_tasks: log.total_tasks,
+                completed_tasks: log.completed_tasks
+              }
+            };
+          } else if (progressView === 'Monthly') {
+            const date = new Date(log.period_start);
+            return {
+              month: date.getMonth() + 1, // Convert to 1-12 month format
+              log: {
+                completion_rate: log.completion_rate,
+                status: log.status,
+                total_tasks: log.total_tasks,
+                completed_tasks: log.completed_tasks
+              }
+            };
+          }
+          return log; // Fallback
+        });
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('📊 Transformed data for ProductivityHistory:', transformedData);
+        }
+        setProdLogs(transformedData);
       } catch (e) {
-        console.error('Error fetching productivity logs:', e);
+        console.error('Error fetching productivity logs from Supabase:', e);
         setProdLogs([]);
       }
     };
@@ -378,14 +837,11 @@ const Progress = () => {
     );
   }
 
-  // Show loading state
+  // Show loading state with spinner
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-indigo-500"></div>
-          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading...</p>
-        </div>
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
       </div>
     );
   }
@@ -444,6 +900,7 @@ const Progress = () => {
           <div className="w-full flex justify-center">
             <div className="w-full max-w-7xl">
               <ProgressOverview
+                key={`progress-overview-${refreshKey}`}
                 userLevel={userLevel}
                 todaysProductivity={todaysProductivity}
                 streakData={streakData}
@@ -507,56 +964,213 @@ function handle401() {
   window.location.href = '/login';
 }
 
+// Calculate current streak from backend streak data (same logic as StreaksCalendar)
+function calculateCurrentStreakFromData(streakData: any[]) {
+  // Sort by date (most recent first)
+  const sortedData = [...streakData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  
+  let currentStreak = 0;
+  for (const day of sortedData) {
+    if (day.streak) {
+      currentStreak++;
+    } else {
+      break; // Streak broken
+    }
+  }
+  return currentStreak;
+}
+
 async function fetchUserStats() {
   try {
-    const headers = getAuthHeaders();
-    const res = await fetch(`${API_BASE_URL}/progress/stats/`, {
-      ...(headers && { headers })
-    });
-    if (res.status === 401) {
+    // Get current user ID
+    const userData = localStorage.getItem('user');
+    if (!userData) {
       handle401();
       return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0 };
     }
-    if (!res.ok) throw new Error('Failed to fetch stats');
-    return await res.json();
+    
+    const user = JSON.parse(userData);
+    const userId = user.id || 11; // Fallback to your user ID
+    
+    console.log('📊 Fetching user stats from Supabase for user:', userId);
+    
+    // Get total tasks completed
+    const { data: tasksData, error: tasksError } = await supabase
+      .from('tasks')
+      .select('id, completed, time_spent_minutes')
+      .eq('user_id', userId)
+      .eq('is_deleted', false);
+    
+    if (tasksError) {
+      console.error('Supabase error fetching tasks:', tasksError);
+      return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0 };
+    }
+    
+    const totalTasksCompleted = tasksData?.filter(task => task.completed).length || 0;
+    const totalStudyTime = tasksData?.reduce((sum, task) => sum + (task.time_spent_minutes || 0), 0) || 0;
+    
+    // Get average productivity from productivity logs
+    const { data: productivityData, error: productivityError } = await supabase
+      .from('productivity_logs')
+      .select('completion_rate')
+      .eq('user_id', userId)
+      .order('logged_at', { ascending: false })
+      .limit(30); // Last 30 entries for average
+    
+    let averageProductivity = 0;
+    if (!productivityError && productivityData && productivityData.length > 0) {
+      const totalRate = productivityData.reduce((sum, log) => sum + log.completion_rate, 0);
+      averageProductivity = Math.round(totalRate / productivityData.length);
+    }
+    
+    // Note: Streak calculation is now done from backend data in calculateCurrentStreakFromData()
+    // This ensures consistency between StatsCards and StreaksCalendar
+    
+    const stats = {
+      totalTasksCompleted,
+      totalStudyTime,
+      averageProductivity,
+      streak: 0 // Will be overridden by calculateCurrentStreakFromData() for consistency
+    };
+    
+    console.log('📊 User stats from Supabase:', stats);
+    return stats;
   } catch (e) {
+    console.error('Error fetching user stats from Supabase:', e);
     return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0 };
   }
 }
 
 async function fetchUserLevel() {
   try {
-    const headers = getAuthHeaders();
-    const res = await fetch(`${API_BASE_URL}/progress/level/`, {
-      ...(headers && { headers })
-    });
-    if (res.status === 401) {
+    // Get current user ID
+    const userData = localStorage.getItem('user');
+    if (!userData) {
       handle401();
-      return { currentLevel: 1, currentXP: 0, xpToNextLevel: 1000 };
+      return { currentLevel: 1, currentXP: 0, xpToNextLevel: 100, xpNeededForCurrentLevel: 100 };
     }
-    if (!res.ok) throw new Error('Failed to fetch level');
-    return await res.json();
+    
+    const user = JSON.parse(userData);
+    const userId = user.id || 11; // Fallback to your user ID
+    
+    console.log('🎮 Fetching user level from Supabase for user:', userId);
+    
+    // Get total XP from xp_logs
+    const { data: xpData, error: xpError } = await supabase
+      .from('xp_logs')
+      .select('xp_amount')
+      .eq('user_id', userId);
+    
+    if (xpError) {
+      console.error('Supabase error fetching XP logs:', xpError);
+      return { currentLevel: 1, currentXP: 0, xpToNextLevel: 100, xpNeededForCurrentLevel: 100 };
+    }
+    
+    const totalXP = xpData?.reduce((sum, log) => sum + log.xp_amount, 0) || 0;
+    
+    // Calculate level based on progressive XP system
+    // Level 1: 0-100 XP, Level 2: 100-300 XP, Level 3: 300-600 XP, etc.
+    // Each level requires: Level 1 = 100 XP, Level 2 = 200 XP, Level 3 = 300 XP, etc.
+    let currentLevel = 1;
+    let xpForCurrentLevel = 0;
+    let xpToNextLevel = 100;
+    let xpNeededForCurrentLevel = 100;
+    
+    // Calculate cumulative XP needed for each level
+    let cumulativeXP = 0;
+    for (let level = 1; level <= 100; level++) { // Cap at level 100
+      const xpNeededForThisLevel = level * 100;
+      cumulativeXP += xpNeededForThisLevel;
+      
+      if (totalXP < cumulativeXP) {
+        currentLevel = level;
+        xpForCurrentLevel = totalXP - (cumulativeXP - xpNeededForThisLevel);
+        xpToNextLevel = xpNeededForThisLevel; // XP needed for this level
+        xpNeededForCurrentLevel = xpNeededForThisLevel;
+        break;
+      } else if (totalXP === cumulativeXP) {
+        // Exactly at level boundary
+        currentLevel = level + 1;
+        xpForCurrentLevel = 0;
+        xpToNextLevel = (level + 1) * 100;
+        xpNeededForCurrentLevel = (level + 1) * 100;
+        break;
+      }
+    }
+    
+    // If totalXP is higher than any level, cap at level 100
+    if (totalXP >= 100 * 100 * 50) { // 100 levels * 100 XP * 50 = 500,000 XP
+      currentLevel = 100;
+      xpForCurrentLevel = totalXP - (99 * 100 * 50);
+      xpToNextLevel = 100 * 100;
+      xpNeededForCurrentLevel = 100 * 100;
+    }
+    
+    const levelData = {
+      currentLevel,
+      currentXP: xpForCurrentLevel,
+      xpToNextLevel,
+      xpNeededForCurrentLevel
+    };
+    
+    console.log('🎮 XP Calculation Debug:');
+    console.log('  Total XP:', totalXP);
+    console.log('  Current Level:', currentLevel);
+    console.log('  XP in Current Level:', xpForCurrentLevel);
+    console.log('  XP to Next Level:', xpToNextLevel);
+    console.log('  XP Needed for Current Level:', xpNeededForCurrentLevel);
+    console.log('🎮 User level from Supabase:', levelData);
+    return levelData;
   } catch (e) {
-    return { currentLevel: 1, currentXP: 0, xpToNextLevel: 1000 };
+    console.error('Error fetching user level from Supabase:', e);
+    return { currentLevel: 1, currentXP: 0, xpToNextLevel: 100, xpNeededForCurrentLevel: 100 };
   }
 }
 
 async function fetchStreakData() {
   try {
-    const headers = getAuthHeaders();
-    // Add cache-busting parameter to force fresh data
-    const timestamp = new Date().getTime();
-    const res = await fetch(`${API_BASE_URL}/progress/streaks/?t=${timestamp}`, {
-      ...(headers && { headers }),
-      cache: 'no-cache'
-    });
-    if (res.status === 401) {
+    // Get current user ID
+    const userData = localStorage.getItem('user');
+    if (!userData) {
       handle401();
       return [];
     }
-    if (!res.ok) throw new Error('Failed to fetch streaks');
-    return await res.json();
+    
+    const user = JSON.parse(userData);
+    const userId = user.id || 11;
+    
+    console.log('🔄 Fetching streak data from Supabase for user:', userId);
+    
+    // Get productivity logs from Supabase (same source as ProductivityHistory)
+    const { data: productivityLogs, error } = await supabase
+      .from('productivity_logs')
+      .select('period_start, completion_rate, total_tasks, completed_tasks')
+      .eq('user_id', userId)
+      .eq('period_type', 'daily')
+      .gte('period_start', '2025-01-01') // Get data for current year
+      .lte('period_start', '2025-12-31')
+      .order('period_start', { ascending: true });
+    
+    if (error) {
+      console.error('❌ Error fetching productivity logs from Supabase:', error);
+      return [];
+    }
+    
+    // Convert productivity logs to streak data format
+    const streakData = productivityLogs?.map(log => ({
+      date: log.period_start,
+      streak: log.total_tasks > 0 && log.completed_tasks > 0, // Same logic as backend
+      productivity: log.completion_rate,
+      total_tasks: log.total_tasks,
+      completed_tasks: log.completed_tasks
+    })) || [];
+    
+    console.log('✅ Streak data from Supabase:', streakData.length, 'days');
+    console.log('🔍 Streak days:', streakData.filter((d: any) => d.streak).length);
+    
+    return streakData;
   } catch (e) {
+    console.error('❌ Error fetching streak data from Supabase:', e);
     return [];
   }
 }

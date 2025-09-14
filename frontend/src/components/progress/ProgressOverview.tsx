@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import LevelProgressRing from './LevelProgressRing';
 import StreaksCalendar from './StreaksCalendar';
 
@@ -19,6 +19,19 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
   streakData,
   refreshProductivity
 }) => {
+  // Debug: Log the props received
+  console.log('🔍 ProgressOverview received props:', {
+    userLevel,
+    todaysProductivity,
+    streakData: streakData?.length || 0,
+    refreshProductivity: typeof refreshProductivity
+  });
+  
+  // Force re-render when todaysProductivity changes
+  useEffect(() => {
+    console.log('🔄 ProgressOverview: todaysProductivity changed:', todaysProductivity);
+  }, [todaysProductivity]);
+  
   // Progress bar for LevelProgress
   const progressPercentage = Math.min(userLevel.currentXP / userLevel.xpToNextLevel, 1) * 100;
 
@@ -66,9 +79,12 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
           <div className="flex items-center justify-between w-full mb-1">
             <span className="text-sm font-medium text-gray-700 dark:text-gray-200">Status:</span>
             <span className="text-sm font-bold">
-              {(todaysProductivity && todaysProductivity.status !== undefined) ? todaysProductivity.status : 'No Tasks'}
-              {' '}
-              ({(todaysProductivity && todaysProductivity.completion_rate !== undefined) ? todaysProductivity.completion_rate : 0}%)
+              {(() => {
+                const status = (todaysProductivity && todaysProductivity.status !== undefined) ? todaysProductivity.status : 'No Tasks';
+                const rate = (todaysProductivity && todaysProductivity.completion_rate !== undefined) ? todaysProductivity.completion_rate : 0;
+                console.log('🔍 ProgressOverview displaying productivity:', { status, rate, todaysProductivity });
+                return `${status} (${rate}%)`;
+              })()}
             </span>
           </div>
           <div className="w-full h-6 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">

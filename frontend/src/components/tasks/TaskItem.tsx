@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import axios from 'axios';
 import { Task, Subtask } from '../../types/task';
 import AddSubtaskModal from './AddSubtaskModal';
 import TaskActivityModal from './TaskActivityModal';
+import { supabase } from '../../lib/supabase';
 
 interface TaskItemProps {
   task: Task;
@@ -58,6 +59,34 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
   const totalSubtasks = useMemo(() => localSubtasks.length, [localSubtasks]);
   const completedSubtasks = useMemo(() => localSubtasks.filter(s => s.completed).length, [localSubtasks]);
 
+  // Fetch subtasks from Supabase when component mounts
+  useEffect(() => {
+    const fetchSubtasks = async () => {
+      try {
+        console.log('📋 TaskItem: Fetching subtasks for task:', task.id);
+        
+        const { data, error } = await supabase
+          .from('subtasks')
+          .select('*')
+          .eq('task_id', task.id)
+          .eq('is_deleted', false)
+          .order('created_at', { ascending: true });
+        
+        if (error) {
+          console.error('Supabase error:', error);
+          return;
+        }
+        
+        console.log('📋 TaskItem: Subtasks loaded from Supabase:', data);
+        setLocalSubtasks(data || []);
+      } catch (err) {
+        console.error('Error fetching subtasks in TaskItem:', err);
+      }
+    };
+
+    fetchSubtasks();
+  }, [task.id]);
+
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
     return token ? { Authorization: `Bearer ${token}` } : {};
@@ -92,16 +121,53 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
 
   const toggleSubtask = async (s: Subtask) => {
     try {
-              const res = await axios.patch(`http://192.168.56.1:8000/api/subtasks/${s.id}/`, { completed: !s.completed }, { headers: getAuthHeaders() });
-      setLocalSubtasks(prev => prev.map(x => (x.id === s.id ? res.data : x)));
-    } catch (e) {}
+      console.log('🔄 TaskItem: Toggling subtask:', s.id, s.title, 'from', s.completed, 'to', !s.completed);
+      
+      const { data, error } = await supabase
+        .from('subtasks')
+        .update({ 
+          completed: !s.completed,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', s.id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        return;
+      }
+      
+      console.log('✅ TaskItem: Subtask toggled successfully:', data);
+      setLocalSubtasks(prev => prev.map(x => (x.id === s.id ? data : x)));
+    } catch (e) {
+      console.error('Error toggling subtask in TaskItem:', e);
+    }
   };
 
   const deleteSubtask = async (id: number) => {
     try {
-              await axios.delete(`http://192.168.56.1:8000/api/subtasks/${id}/`, { headers: getAuthHeaders() });
+      console.log('🗑️ TaskItem: Deleting subtask:', id);
+      
+      const { error } = await supabase
+        .from('subtasks')
+        .update({ 
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        return;
+      }
+      
+      console.log('✅ TaskItem: Subtask deleted successfully');
       setLocalSubtasks(prev => prev.filter(x => x.id !== id));
-    } catch (e) {}
+    } catch (e) {
+      console.error('Error deleting subtask in TaskItem:', e);
+    }
   };
 
   return (

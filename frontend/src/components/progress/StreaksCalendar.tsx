@@ -64,6 +64,16 @@ const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData }) => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const matrix = getMonthMatrix(displayedYear, displayedMonth);
 
+  // Debug: Log streak data
+  useEffect(() => {
+    console.log('📅 StreaksCalendar received data:', streakData.length, 'days');
+    const streakDays = streakData.filter(d => d.streak);
+    console.log('📅 Streak days in calendar:', streakDays.length);
+    if (streakDays.length > 0) {
+      console.log('📅 Recent streak days:', streakDays.slice(-5));
+    }
+  }, [streakData]);
+
   // Calculate streak statistics
   const calculateCurrentStreak = () => {
     // Sort by date (most recent first)
@@ -81,20 +91,57 @@ const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData }) => {
   };
 
   const calculateLongestStreak = () => {
-    let longestStreak = 0;
-    let currentStreak = 0;
-    
-    // Sort by date (oldest first)
-    const sortedData = [...streakData].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    
-    for (const day of sortedData) {
+    // Create a set of productive dates for quick lookup
+    const productiveDates = new Set();
+    streakData.forEach(day => {
       if (day.streak) {
-        currentStreak++;
-        longestStreak = Math.max(longestStreak, currentStreak);
-      } else {
-        currentStreak = 0;
+        productiveDates.add(day.date);
       }
+    });
+    
+    if (productiveDates.size === 0) return 0;
+    
+    // Find all consecutive streaks by checking every day
+    const streaks = [];
+    let currentStreak = [];
+    
+    // Get date range from streak data
+    const dates = Array.from(productiveDates).sort() as string[];
+    const startDate = new Date(dates[0]);
+    const endDate = new Date(dates[dates.length - 1]);
+    
+    // Check every day in the range
+    const currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
+      const dateStr = currentDate.toISOString().split('T')[0];
+      
+      if (productiveDates.has(dateStr)) {
+        currentStreak.push(dateStr);
+      } else {
+        if (currentStreak.length > 0) {
+          streaks.push(currentStreak);
+          currentStreak = [];
+        }
+      }
+      
+      currentDate.setDate(currentDate.getDate() + 1);
     }
+    
+    // Don't forget the last streak
+    if (currentStreak.length > 0) {
+      streaks.push(currentStreak);
+    }
+    
+    // Find the longest streak
+    const longestStreak = Math.max(...streaks.map(streak => streak.length), 0);
+    
+    console.log('🔥 Streak calculation:', {
+      totalProductiveDays: productiveDates.size,
+      consecutiveStreaks: streaks.length,
+      streakLengths: streaks.map(s => s.length),
+      longestStreak
+    });
+    
     return longestStreak;
   };
 

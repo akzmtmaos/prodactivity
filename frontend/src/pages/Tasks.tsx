@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import PageLayout from '../components/PageLayout';
@@ -9,6 +9,10 @@ import TaskSummary from '../components/tasks/TaskSummary';
 import { Task } from '../types/task';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
+import RealtimeStatus from '../components/common/RealtimeStatus';
+import SupabaseConnectionTest from '../components/common/SupabaseConnectionTest';
+import { RealtimeProvider, useRealtime } from '../context/RealtimeContext';
+import { supabase } from '../lib/supabase';
 // import { getTimezoneOffset } from '../utils/dateUtils';
 
 const API_BASE_URL = 'http://192.168.56.1:8000/api';
@@ -33,11 +37,49 @@ const getAuthHeaders = () => {
   return headers;
 };
 
+// Main Tasks component with real-time provider
 const Tasks = () => {
-  const navigate = useNavigate();
   const [user, setUser] = useState<any | null>(null);
-  // Remove greeting state
-  // const [greeting, setGreeting] = useState('');
+
+  // Get user data for real-time provider
+  useEffect(() => {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        if (parsedUser && parsedUser.username) {
+          setUser(parsedUser);
+        } else {
+          setUser({ username: 'User' });
+        }
+      } catch (e) {
+        console.error('Error parsing user data:', e);
+        setUser({ username: 'User' });
+      }
+    } else {
+      setUser({ username: 'User' });
+    }
+  }, []);
+
+  if (!user) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <RealtimeProvider userId={user.id}>
+      <TasksContent user={user} />
+    </RealtimeProvider>
+  );
+};
+
+// Tasks content component that uses real-time features
+const TasksContent = ({ user }: { user: any }) => {
+  const navigate = useNavigate();
+  const { setRefreshCallbacks } = useRealtime();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,39 +123,6 @@ const Tasks = () => {
   // Toast notification state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
-  // Initial user/greeting setup
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
-    const accessToken = localStorage.getItem('accessToken');
-    const refreshToken = localStorage.getItem('refreshToken');
-    
-    console.log('Auth check:', {
-      hasUser: !!userData,
-      hasAccessToken: !!accessToken,
-      hasRefreshToken: !!refreshToken
-    });
-    
-    if (userData) {
-      try {
-        const parsedUser = JSON.parse(userData);
-        if (parsedUser && parsedUser.username) {
-          setUser(parsedUser);
-        } else {
-          setUser({ username: 'User' });
-        }
-      } catch (e) {
-        console.error('Error parsing user data:', e);
-        setUser({ username: 'User' });
-      }
-    } else {
-      setUser({ username: 'User' });
-    }
-    // Remove greeting logic
-    // const hour = new Date().getHours();
-    // if (hour < 12) setGreeting('Good morning');
-    // else if (hour < 18) setGreeting('Good afternoon');
-    // else setGreeting('Good evening');
-  }, []);
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -165,102 +174,157 @@ const Tasks = () => {
     }
   };
 
-  // Fetch task statistics
-  const fetchTaskStats = async () => {
+  // Fetch task statistics from Supabase
+  const fetchTaskStats = useCallback(async () => {
     try {
-      const headers = getAuthHeaders();
+      // Get current user ID
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        return;
+      }
       
-      // Build query params for filtering (always show overall stats, not tab-filtered)
-      const params = new URLSearchParams();
+      const user = JSON.parse(userData);
+      const userId = user.id || 11; // Fallback to your user ID
+      
+      console.log('📊 Fetching task stats from Supabase for user:', userId);
+      
+      // Build Supabase query for all user's tasks
+      let query = supabase
+        .from('tasks')
+        .select('id, completed, due_date')
+        .eq('user_id', userId)
+        .eq('is_deleted', false);
       
       // Apply filters but NOT tab-based completion filtering
       if (filterCompleted !== null) {
-        params.append('completed', filterCompleted ? 'true' : 'false');
+        query = query.eq('completed', filterCompleted);
       }
       
       if (filterPriority !== 'all') {
-        params.append('priority', filterPriority);
-      }
-      if (searchTerm) {
-        params.append('search', searchTerm);
-      }
-      if (filterTaskCategory) {
-        params.append('task_category', filterTaskCategory);
+        query = query.eq('priority', filterPriority);
       }
       
-      const response = await axios.get(`${API_BASE_URL}/tasks/stats/?${params.toString()}`, { headers });
-      setTaskStats(response.data);
+      if (searchTerm) {
+        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+      }
+      
+      if (filterTaskCategory) {
+        query = query.eq('task_category', filterTaskCategory);
+      }
+      
+      const { data, error } = await query;
+      
+      if (error) {
+        console.error('Supabase error fetching task stats:', error);
+        return;
+      }
+      
+      console.log('📊 Task stats data from Supabase:', data);
+      
+      // Calculate statistics
+      const totalTasks = data?.length || 0;
+      const completedTasks = data?.filter(task => task.completed).length || 0;
+      const pendingTasks = totalTasks - completedTasks;
+      
+      // Calculate tasks due today
+      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format (local date)
+      const dueToday = data?.filter(task => 
+        task.due_date === today && !task.completed
+      ).length || 0;
+      
+      const stats = {
+        total_tasks: totalTasks,
+        completed_tasks: completedTasks,
+        pending_tasks: pendingTasks,
+        due_today: dueToday
+      };
+      
+      console.log('📊 Calculated task stats:', stats);
+      setTaskStats(stats);
     } catch (err: any) {
-      console.error('Error fetching task stats:', err);
+      console.error('Error fetching task stats from Supabase:', err);
     }
-  };
+  }, [filterCompleted, filterPriority, searchTerm, filterTaskCategory]);
 
-  // Fetch tasks from backend
-  const fetchTasks = async () => {
+  // Fetch tasks from Supabase
+  const fetchTasks = useCallback(async () => {
     setLoading(true);
     setError(null);
     
     try {
-      const token = localStorage.getItem('accessToken');
-      if (!token) {
+      // Get current user ID from localStorage (assuming it's stored there)
+      const userData = localStorage.getItem('user');
+      if (!userData) {
         navigate('/login');
         return;
       }
       
-      // Build query params for filtering and sorting
-      const params = new URLSearchParams();
+      const user = JSON.parse(userData);
+      const userId = user.id || 11; // Fallback to your user ID
+      
+      console.log('Fetching tasks from Supabase for user:', userId);
+      
+      // Build Supabase query
+      let query = supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_deleted', false);
       
       // Handle tab-based filtering
       if (activeTab === 'tasks') {
         // Show only incomplete tasks
-        params.append('completed', 'false');
+        query = query.eq('completed', false);
       } else if (activeTab === 'completed') {
         // Show only completed tasks
-        params.append('completed', 'true');
+        query = query.eq('completed', true);
       } else if (activeTab === 'categories') {
         // Show only incomplete tasks for categories tab
-        params.append('completed', 'false');
+        query = query.eq('completed', false);
       }
       
       // Apply additional filters if they don't conflict with tab filtering
       if (filterCompleted !== null) {
         // Override tab setting with user's filter preference
-        params.delete('completed');
-        params.append('completed', filterCompleted ? 'true' : 'false');
+        query = query.eq('completed', filterCompleted);
       }
       
       if (filterPriority !== 'all') {
-        params.append('priority', filterPriority);
+        query = query.eq('priority', filterPriority);
       }
+      
       if (searchTerm) {
-        params.append('search', searchTerm);
+        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
       }
+      
       if (filterTaskCategory) {
-        params.append('task_category', filterTaskCategory);
+        query = query.eq('task_category', filterTaskCategory);
       }
       
-      // Map frontend field names to backend field names for ordering
+      // Apply sorting
       const orderingField = sortField === 'dueDate' ? 'due_date' : (sortField as string);
-      params.append('ordering', `${sortDirection === 'desc' ? '-' : ''}${orderingField}`);
+      query = query.order(orderingField, { ascending: sortDirection === 'asc' });
       
-
+      const { data, error } = await query;
       
-      const headers = getAuthHeaders();
-      console.log('Fetching tasks with URL:', `${API_BASE_URL}/tasks/?${params.toString()}`);
-      const response = await axios.get(`${API_BASE_URL}/tasks/?${params.toString()}`, { headers });
+      if (error) {
+        console.error('Supabase error:', error);
+        setError('Failed to load tasks from Supabase.');
+        return;
+      }
       
-      console.log('Tasks response:', response.data);
+      console.log('Supabase tasks response:', data);
       
-      // Map due_date to dueDate for each task
-      const mappedTasks = response.data.map((task: any) => ({
+      // Map due_date to dueDate for each task to match frontend expectations
+      const mappedTasks = (data || []).map((task: any) => ({
         ...task,
         dueDate: task.due_date,
-      })) || [];
+      }));
       
       console.log('Mapped tasks:', mappedTasks);
       setTasks(mappedTasks);
       
-      // Set pagination info for direct array
+      // Set pagination info
       const newTotalCount = mappedTasks.length;
       const newTotalPages = Math.ceil(newTotalCount / pageSize);
       
@@ -275,34 +339,71 @@ const Tasks = () => {
         resultsCount: mappedTasks.length
       });
     } catch (err: any) {
-      console.error('Error fetching tasks:', err);
-      if (err?.response?.status === 401) {
-        setError('Your session has expired. Please log in again.');
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        setTimeout(() => navigate('/login'), 500);
-      } else {
+      console.error('Error fetching tasks from Supabase:', err);
         setError('Failed to load tasks. Please try again later.');
-      }
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate, activeTab, filterCompleted, filterPriority, searchTerm, filterTaskCategory, sortField, sortDirection, currentPage, pageSize]);
 
-  // Add new task
+  // Real-time refresh callbacks
+  const handleTasksRefresh = useCallback(() => {
+    console.log('🔄 Real-time triggered tasks refresh');
+    fetchTasks();
+    fetchTaskStats();
+  }, [fetchTasks, fetchTaskStats]);
+
+  const handleProgressRefresh = useCallback(() => {
+    console.log('📊 Real-time triggered progress refresh');
+    fetchTaskStats();
+  }, [fetchTaskStats]);
+
+  // Set up real-time refresh callbacks
+  React.useEffect(() => {
+    setRefreshCallbacks({
+      onTasksRefresh: handleTasksRefresh,
+      onProgressRefresh: handleProgressRefresh,
+    });
+  }, [setRefreshCallbacks, handleTasksRefresh, handleProgressRefresh]);
+
+  // Add new task to Supabase
   const addTask = async (taskData: Omit<Task, 'id'>) => {
     try {
-      // Map dueDate to due_date for backend compatibility (omit dueDate)
+      // Get current user ID
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        navigate('/login');
+        return;
+      }
+      
+      const user = JSON.parse(userData);
+      const userId = user.id || 11; // Fallback to your user ID
+      
+      // Map dueDate to due_date for Supabase compatibility
       const { dueDate, ...rest } = taskData;
-      const backendTaskData = { ...rest, due_date: dueDate };
+      const supabaseTaskData = { 
+        ...rest, 
+        due_date: dueDate,
+        user_id: userId,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
       
-      console.log('Sending task data:', backendTaskData);
+      console.log('Sending task data to Supabase:', supabaseTaskData);
       
-      const headers = getAuthHeaders();
-      const response = await axios.post(`${API_BASE_URL}/tasks/`, backendTaskData, { headers });
+      const { data, error } = await supabase
+        .from('tasks')
+        .insert([supabaseTaskData])
+        .select()
+        .single();
       
-      console.log('Task created successfully:', response.data);
+      if (error) {
+        console.error('Supabase error:', error);
+        setError(`Failed to add task: ${error.message}`);
+        return;
+      }
+      
+      console.log('Task created successfully in Supabase:', data);
       
       // Reset to first page and refetch tasks and stats to show the new task
       setCurrentPage(1);
@@ -310,37 +411,50 @@ const Tasks = () => {
       await fetchTaskStats();
       setIsFormOpen(false);
       showToast('Task created successfully!', 'success');
-    } catch (err: any) {
-      console.error('Error adding task:', err);
-      console.error('Error response:', err.response?.data);
-      console.error('Error status:', err.response?.status);
       
-      // Show more specific error message
-      if (err.response?.data) {
-        const errorData = err.response.data;
-        if (typeof errorData === 'object') {
-          const errorMessages = Object.entries(errorData)
-            .map(([field, message]) => `${field}: ${message}`)
-            .join(', ');
-          setError(`Failed to add task: ${errorMessages}`);
-        } else {
-          setError(`Failed to add task: ${errorData}`);
-        }
-      } else {
+      // Update productivity log when a new task is created
+      console.log('🔄 Calling updateProductivityLog after task creation');
+      await updateProductivityLog();
+      
+      // Trigger progress refresh for real-time updates
+      window.dispatchEvent(new CustomEvent('taskCreated', { 
+        detail: { taskId: data.id, taskTitle: data.title } 
+      }));
+    } catch (err: any) {
+      console.error('Error adding task to Supabase:', err);
         setError('Failed to add task. Please try again.');
-      }
     }
   };
 
-  // Update existing task
+  // Update existing task in Supabase
   const updateTask = async (taskData: Omit<Task, 'id'>) => {
     if (!editingTask) return;
     
     try {
-      // Map dueDate to due_date for backend compatibility (omit dueDate)
+      // Map dueDate to due_date for Supabase compatibility
       const { dueDate, ...rest } = taskData;
-      const backendTaskData = { ...rest, due_date: dueDate };
-      await axios.put(`${API_BASE_URL}/tasks/${editingTask.id}/`, backendTaskData, { headers: getAuthHeaders() });
+      const supabaseTaskData = { 
+        ...rest, 
+        due_date: dueDate,
+        updated_at: new Date().toISOString()
+      };
+      
+      console.log('Updating task in Supabase:', editingTask.id, supabaseTaskData);
+      
+      const { data, error } = await supabase
+        .from('tasks')
+        .update(supabaseTaskData)
+        .eq('id', editingTask.id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        setError(`Failed to update task: ${error.message}`);
+        return;
+      }
+      
+      console.log('Task updated successfully in Supabase:', data);
       
       // Refetch tasks and stats to ensure consistency with current pagination, filtering, and sorting
       await fetchTasks();
@@ -349,7 +463,7 @@ const Tasks = () => {
       setIsFormOpen(false);
       showToast('Task updated successfully!', 'success');
     } catch (err) {
-      console.error('Error updating task:', err);
+      console.error('Error updating task in Supabase:', err);
       setError('Failed to update task. Please try again.');
     }
   };
@@ -360,11 +474,29 @@ const Tasks = () => {
     setDeleteModalOpen(true);
   };
 
-  // Confirm deletion
+  // Confirm deletion in Supabase
   const confirmDeleteTask = async () => {
     if (deleteTaskId === null) return;
     try {
-      await axios.delete(`${API_BASE_URL}/tasks/${deleteTaskId}/`, { headers: getAuthHeaders() });
+      console.log('Deleting task from Supabase:', deleteTaskId);
+      
+      const { error } = await supabase
+        .from('tasks')
+        .update({ 
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', deleteTaskId);
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        setError(`Failed to delete task: ${error.message}`);
+        setDeleteModalOpen(false);
+        return;
+      }
+      
+      console.log('Task deleted successfully in Supabase');
       
       // Refetch tasks and stats to ensure consistency with current pagination, filtering, and sorting
       await fetchTasks();
@@ -373,13 +505,217 @@ const Tasks = () => {
       setDeleteModalOpen(false);
       showToast('Task deleted successfully!', 'success');
     } catch (err) {
-      console.error('Error deleting task:', err);
+      console.error('Error deleting task from Supabase:', err);
       setError('Failed to delete task. Please try again.');
       setDeleteModalOpen(false);
     }
   };
 
-  // Toggle task completion
+  // Helper function to update productivity log (called when tasks are created or completed)
+  const updateProductivityLog = async () => {
+    try {
+      console.log('🔄 updateProductivityLog called');
+      
+      // Get current user ID
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+      const userId = user?.id || 11;
+      
+      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format (local date)
+      console.log('🔄 Updating productivity log for user:', userId, 'date:', today);
+      
+      // Get today's productivity log or create new one
+      const { data: existingLog, error: fetchError } = await supabase
+        .from('productivity_logs')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('period_type', 'daily')
+        .eq('period_start', today)
+        .eq('period_end', today)
+        .single();
+      
+      if (fetchError && fetchError.code !== 'PGRST116') { // PGRST116 = no rows found
+        console.error('Error fetching productivity log:', fetchError);
+        return;
+      }
+      
+      // Get all active tasks for the user (not deleted)
+      const { data: allTasks, error: tasksError } = await supabase
+        .from('tasks')
+        .select('id, title, completed, created_at, due_date, updated_at')
+        .eq('user_id', userId)
+        .eq('is_deleted', false);
+      
+      if (tasksError) {
+        console.error('Error fetching tasks:', tasksError);
+        return;
+      }
+      
+      // Use a realistic approach: only count tasks that were actually worked on today
+      // This gives a true picture of daily productivity
+      
+      // Get yesterday's date for late task detection
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+      
+      // Count tasks that are relevant for today's productivity
+      const todayTasks = allTasks?.filter(task => {
+        const createdDate = new Date(task.created_at).toLocaleDateString('en-CA');
+        const updatedDate = task.updated_at ? new Date(task.updated_at).toLocaleDateString('en-CA') : null;
+        const dueDate = task.due_date;
+        const completed = task.completed;
+        
+        // Task is relevant for today's productivity if:
+        // 1. Created today (new work)
+        // 2. Updated today and not completed (work in progress)
+        // 3. Due today (regardless of completion status)
+        
+        const isRelevant = (createdDate === today) || 
+                          (updatedDate === today && !completed) || 
+                          (dueDate === today);
+        
+        return isRelevant;
+      }) || [];
+      
+      // Count completed tasks, but exclude late tasks (due yesterday but completed today)
+      const completedTasks = todayTasks.filter(task => {
+        const updatedDate = task.updated_at ? new Date(task.updated_at).toLocaleDateString('en-CA') : null;
+        const dueDate = task.due_date;
+        const completed = task.completed;
+        
+        // Task is completed on time if:
+        // 1. It's completed AND
+        // 2. It's not a late task (due yesterday but completed today)
+        const isLate = dueDate === yesterdayStr && completed && updatedDate === today;
+        
+        return completed && !isLate;
+      }).length;
+      
+      const totalTasks = todayTasks.length;
+      const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+      
+      console.log('📊 Productivity calculation:', {
+        today,
+        yesterday: yesterdayStr,
+        totalTasks,
+        completedTasks,
+        completionRate,
+        todayTasks: todayTasks.map(t => ({ 
+          id: t.id, 
+          title: t.title || 'No title',
+          completed: t.completed, 
+          created_at: t.created_at, 
+          updated_at: t.updated_at,
+          due_date: t.due_date
+        }))
+      });
+      
+      console.log('📊 Task details:', {
+        allTasksCount: allTasks?.length || 0,
+        todayTasksCount: todayTasks.length,
+        completedTasks,
+        today,
+        yesterday: yesterdayStr,
+        todayTaskDetails: todayTasks.map(task => ({
+          id: task.id,
+          title: task.title || 'No title',
+          completed: task.completed,
+          created_at: task.created_at,
+          due_date: task.due_date,
+          updated_at: task.updated_at
+        }))
+      });
+      
+      // Determine productivity status
+      let status = 'Low Productivity';
+      if (completionRate >= 90) status = 'Highly Productive';
+      else if (completionRate >= 70) status = 'Productive';
+      else if (completionRate >= 40) status = 'Moderately Productive';
+      
+      if (existingLog) {
+        // Update existing log
+        const { error: updateError } = await supabase
+          .from('productivity_logs')
+          .update({
+            completion_rate: completionRate,
+            total_tasks: totalTasks,
+            completed_tasks: completedTasks,
+            status: status,
+            logged_at: new Date().toISOString()
+          })
+          .eq('id', existingLog.id);
+        
+        if (updateError) {
+          console.error('Error updating productivity log:', updateError);
+        } else {
+          console.log('✅ Productivity log updated successfully');
+        }
+      } else {
+        // Create new log
+        const { error: insertError } = await supabase
+          .from('productivity_logs')
+          .insert([{
+            user_id: userId,
+            period_type: 'daily',
+            period_start: today,
+            period_end: today,
+            completion_rate: completionRate,
+            total_tasks: totalTasks,
+            completed_tasks: completedTasks,
+            status: status,
+            logged_at: new Date().toISOString()
+          }]);
+        
+        if (insertError) {
+          console.error('Error creating productivity log:', insertError);
+        } else {
+          console.log('✅ Productivity log created successfully');
+        }
+      }
+    } catch (err) {
+      console.error('Error in updateProductivityLog:', err);
+    }
+  };
+
+  // Helper function to log XP and productivity when task is completed
+  const logTaskCompletion = async (taskId: number, taskTitle: string) => {
+    try {
+      // Get current user ID
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+      const userId = user?.id || 11;
+      
+      console.log('🎮 Logging XP and productivity for task completion:', taskTitle);
+      
+      // Create XP log entry (10 XP per task completion)
+      console.log('🎮 Creating XP log entry for user:', userId, 'task:', taskId, 'XP:', 10);
+      const { error: xpError } = await supabase
+        .from('xp_logs')
+        .insert([{
+          user_id: userId,
+          task_id: taskId,
+          xp_amount: 10,
+          source: 'task_completion',
+          description: `Completed task: ${taskTitle}`,
+          created_at: new Date().toISOString()
+        }]);
+      
+      if (xpError) {
+        console.error('❌ Error creating XP log:', xpError);
+      } else {
+        console.log('✅ XP log created successfully - +10 XP added!');
+      }
+      
+      // Update productivity log for today
+      await updateProductivityLog();
+      
+    } catch (err) {
+      console.error('Error in logTaskCompletion:', err);
+    }
+  };
+
+  // Toggle task completion in Supabase
   const toggleTaskCompletion = async (id: number) => {
     console.log('toggleTaskCompletion called with id:', id);
     const taskToToggle = tasks.find(task => task.id === id);
@@ -391,17 +727,40 @@ const Tasks = () => {
     console.log('Task to toggle:', taskToToggle.title, 'Current completed status:', taskToToggle.completed);
     
     try {
-      const response = await axios.patch(`${API_BASE_URL}/tasks/${id}/`, {
-        completed: !taskToToggle.completed
-      }, { headers: getAuthHeaders() });
+      const newCompletedStatus = !taskToToggle.completed;
+      const completedAt = newCompletedStatus ? new Date().toISOString() : null;
       
-      console.log('Task completion response:', response.data);
+      const { data, error } = await supabase
+        .from('tasks')
+        .update({ 
+          completed: newCompletedStatus,
+          completed_at: completedAt,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id)
+        .select()
+        .single();
       
-      // If task was completed, show success message and refetch data
-      if (!taskToToggle.completed) {
-        console.log('Task was completed');
-        showToast(`Task "${taskToToggle.title}" completed!`, 'success');
-      } else {
+      if (error) {
+        console.error('Supabase error:', error);
+        setError(`Failed to update task: ${error.message}`);
+        return;
+      }
+      
+      console.log('Task completion updated in Supabase:', data);
+      
+      // If task was completed, log XP and productivity
+      if (!taskToToggle.completed && newCompletedStatus) {
+        console.log('🎮 Task was completed - logging XP and productivity');
+        console.log('🎮 Calling logTaskCompletion for task:', id, taskToToggle.title);
+        await logTaskCompletion(id, taskToToggle.title);
+        showToast(`Task "${taskToToggle.title}" completed! +10 XP`, 'success');
+        
+        // Trigger progress refresh for real-time updates
+        window.dispatchEvent(new CustomEvent('taskCompleted', { 
+          detail: { taskId: id, taskTitle: taskToToggle.title } 
+        }));
+      } else if (taskToToggle.completed && !newCompletedStatus) {
         console.log('Task was marked as pending');
         showToast(`Task "${taskToToggle.title}" marked as pending`, 'success');
       }
@@ -412,28 +771,28 @@ const Tasks = () => {
       await fetchTaskStats();
       console.log('Tasks and stats refetched successfully');
     } catch (err: any) {
-      console.error('Error toggling task completion:', err);
-      
-      // Handle validation error for task completion
-      if (err.response?.data?.completed) {
-        setError(err.response.data.completed);
-        // Show the error for 5 seconds then clear it
-        setTimeout(() => setError(null), 5000);
-      } else {
+      console.error('Error toggling task completion in Supabase:', err);
         setError('Failed to update task. Please try again.');
-      }
     }
   };
 
   // Handle task completion from evidence submission
-  const handleTaskCompleted = (completedTask: any) => {
+  const handleTaskCompleted = async (completedTask: any) => {
     console.log('Task completed through evidence modal:', completedTask.title);
+    
+    // Log XP and productivity for this task completion
+    await logTaskCompletion(completedTask.id, completedTask.title);
     
     // Update the task in the current list
     setTasks(tasks.map(task => task.id === completedTask.id ? completedTask : task));
     
     // Show success message
-          showToast(`Task "${completedTask.title}" completed with evidence!`, 'success');
+    showToast(`Task "${completedTask.title}" completed with evidence! +10 XP`, 'success');
+    
+    // Trigger progress refresh for real-time updates
+    window.dispatchEvent(new CustomEvent('taskCompleted', { 
+      detail: { taskId: completedTask.id, taskTitle: completedTask.title } 
+    }));
     
     // Refetch tasks and stats to update the UI
     setTimeout(async () => {
@@ -547,14 +906,6 @@ const Tasks = () => {
   
   const displayedTasks = activeTab === 'categories' ? [] : tasks; // Categories tab will handle its own display
 
-  // Show loading state while waiting for user data
-  if (!user) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500"></div>
-      </div>
-    );
-  }
 
   return (
     <PageLayout>
@@ -570,8 +921,9 @@ const Tasks = () => {
                 Manage and track your tasks
               </p>
             </div>
-            {/* Right side: TaskFilters */}
+            {/* Right side: Real-time status and TaskFilters */}
             <div className="flex items-center gap-4">
+              <RealtimeStatus />
               <TaskFilters
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
@@ -590,6 +942,9 @@ const Tasks = () => {
               />
             </div>
           </div>
+
+          {/* Supabase Connection Test */}
+          <SupabaseConnectionTest />
 
           {/* Task summary */}
           <TaskSummary 

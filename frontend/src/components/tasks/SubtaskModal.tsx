@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Subtask } from '../../types/task';
+import { supabase } from '../../lib/supabase';
 
 interface SubtaskModalProps {
   taskId: number;
@@ -19,8 +20,38 @@ const SubtaskModal: React.FC<SubtaskModalProps> = ({ taskId, isOpen, initialSubt
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSubtasks(initialSubtasks);
-  }, [initialSubtasks, isOpen]);
+    if (isOpen) {
+      fetchSubtasks();
+    } else {
+      setSubtasks(initialSubtasks);
+    }
+  }, [initialSubtasks, isOpen, taskId]);
+
+  const fetchSubtasks = async () => {
+    try {
+      console.log('Fetching subtasks from Supabase for task:', taskId);
+      
+      const { data, error } = await supabase
+        .from('subtasks')
+        .select('*')
+        .eq('task_id', taskId)
+        .eq('is_deleted', false)
+        .order('created_at', { ascending: true });
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        setError('Failed to load subtasks');
+        return;
+      }
+      
+      console.log('📋 Subtasks loaded from Supabase:', data);
+      console.log('📋 Setting subtasks state with:', data?.map(s => ({ id: s.id, title: s.title, completed: s.completed })));
+      setSubtasks(data || []);
+    } catch (err) {
+      console.error('Error fetching subtasks:', err);
+      setError('Failed to load subtasks');
+    }
+  };
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
@@ -33,12 +64,38 @@ const SubtaskModal: React.FC<SubtaskModalProps> = ({ taskId, isOpen, initialSubt
     try {
       setLoading(true);
       setError(null);
-      const res = await axios.post(`${API_BASE_URL}/subtasks/`, { task: taskId, title }, { headers: getAuthHeaders() });
-      const updated = [...subtasks, res.data];
-      setSubtasks(updated);
+      
+      // Get current user ID
+      const userData = localStorage.getItem('user');
+      const user = userData ? JSON.parse(userData) : null;
+      const userId = user?.id || 11; // Fallback to your user ID
+      
+      const { data, error } = await supabase
+        .from('subtasks')
+        .insert([{
+          task_id: taskId,
+          title: title,
+          completed: false,
+          user_id: userId,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        setError(`Failed to add subtask: ${error.message}`);
+        return;
+      }
+      
+      console.log('Subtask added successfully:', data);
       setNewTitle('');
-      onChange && onChange(updated);
+      
+      // Refresh subtasks from Supabase
+      await fetchSubtasks();
     } catch (e: any) {
+      console.error('Error adding subtask:', e);
       setError('Failed to add subtask');
     } finally {
       setLoading(false);
@@ -47,20 +104,53 @@ const SubtaskModal: React.FC<SubtaskModalProps> = ({ taskId, isOpen, initialSubt
 
   const handleToggle = async (s: Subtask) => {
     try {
-      const res = await axios.patch(`${API_BASE_URL}/subtasks/${s.id}/`, { completed: !s.completed }, { headers: getAuthHeaders() });
-      const updated = subtasks.map(x => (x.id === s.id ? res.data : x));
-      setSubtasks(updated);
-      onChange && onChange(updated);
-    } catch {}
+      console.log('🔄 Toggling subtask:', s.id, s.title, 'from', s.completed, 'to', !s.completed);
+      
+      const { data, error } = await supabase
+        .from('subtasks')
+        .update({ 
+          completed: !s.completed,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', s.id)
+        .select()
+        .single();
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        return;
+      }
+      
+      console.log('✅ Subtask toggled successfully:', data);
+      
+      // Refresh subtasks from Supabase
+      await fetchSubtasks();
+    } catch (err) {
+      console.error('Error toggling subtask:', err);
+    }
   };
 
   const handleDelete = async (id: number) => {
     try {
-      await axios.delete(`${API_BASE_URL}/subtasks/${id}/`, { headers: getAuthHeaders() });
-      const updated = subtasks.filter(x => x.id !== id);
-      setSubtasks(updated);
-      onChange && onChange(updated);
-    } catch {}
+      const { error } = await supabase
+        .from('subtasks')
+        .update({ 
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', id);
+      
+      if (error) {
+        console.error('Supabase error:', error);
+        return;
+      }
+      
+      // Refresh subtasks from Supabase
+      await fetchSubtasks();
+    } catch (err) {
+      console.error('Error deleting subtask:', err);
+    }
   };
 
   const incompleteCount = useMemo(() => subtasks.filter(s => !s.completed).length, [subtasks]);

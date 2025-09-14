@@ -7,6 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { Task } from '../types/task';
 import { ScheduleEvent } from '../types/schedule';
 import { format } from 'date-fns';
+import { supabase } from '../lib/supabase';
 
 interface User {
   username: string;
@@ -479,30 +480,49 @@ const Home = () => {
   const fetchTasks = async () => {
     setTasksLoading(true);
     try {
-      const params = new URLSearchParams();
-      params.append('completed', 'false');
-      params.append('ordering', 'due_date');
-      console.log('Fetching tasks with params:', params.toString());
-      const response = await axios.get(`${API_BASE_URL}/tasks/?${params.toString()}`, { headers: getAuthHeaders() });
-      console.log('Tasks API response:', response.data);
+      // Get current user ID
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        setTasks([]);
+        return;
+      }
       
-      // Handle paginated response
-      const tasksData = response.data.results || response.data;
+      const user = JSON.parse(userData);
+      const userId = user.id || 11; // Fallback to your user ID
+      
+      console.log('Fetching pending tasks from Supabase for user:', userId);
+      
+      // Fetch incomplete tasks from Supabase
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('completed', false)
+        .eq('is_deleted', false)
+        .order('due_date', { ascending: true });
+      
+      if (error) {
+        console.error('Supabase error fetching tasks:', error);
+        setTasks([]);
+        return;
+      }
+      
+      console.log('Supabase tasks response:', data);
       
       // Map due_date to dueDate for each task
-      const mappedTasks = tasksData.map((task: any) => ({
+      const mappedTasks = (data || []).map((task: any) => ({
         ...task,
         dueDate: task.due_date,
       }));
+      
       console.log('Mapped tasks:', mappedTasks);
-      // Sort by dueDate ascending, take top 5
-      const sorted = mappedTasks
-        .sort((a: Task, b: Task) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime())
-        .slice(0, 5);
+      
+      // Take top 5 tasks
+      const sorted = mappedTasks.slice(0, 5);
       console.log('Final sorted tasks:', sorted);
       setTasks(sorted);
     } catch (err) {
-      console.error('Error fetching tasks:', err);
+      console.error('Error fetching tasks from Supabase:', err);
       setTasks([]);
     } finally {
       setTasksLoading(false);
