@@ -65,7 +65,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
         total_tasks: 0,
         completed_tasks: 0,
         completion_rate: 0,
-        status: 'Low Productivity',
+        status: 'Low Productive',
         logged_at: log.logged_at
       };
     }
@@ -97,7 +97,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
       } else if (week.completion_rate >= 40) {
         week.status = 'Moderately Productive';
       } else {
-        week.status = 'Low Productivity';
+        week.status = 'Low Productive';
       }
       
       if (process.env.NODE_ENV === 'development') {
@@ -105,7 +105,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
       }
     } else {
       week.completion_rate = 0;
-      week.status = 'Low Productivity';
+      week.status = 'Low Productive';
     }
   });
   
@@ -167,7 +167,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
         total_tasks: 0,
         completed_tasks: 0,
         completion_rate: 0,
-        status: 'Low Productivity',
+        status: 'Low Productive',
         logged_at: log.logged_at
       };
     }
@@ -199,7 +199,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
       } else if (month.completion_rate >= 40) {
         month.status = 'Moderately Productive';
       } else {
-        month.status = 'Low Productivity';
+        month.status = 'Low Productive';
       }
       
       if (process.env.NODE_ENV === 'development') {
@@ -207,7 +207,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
       }
     } else {
       month.completion_rate = 0;
-      month.status = 'Low Productivity';
+      month.status = 'Low Productive';
     }
   });
   
@@ -959,7 +959,7 @@ const Progress = () => {
         return 'text-green-600 dark:text-green-300';
       case 'Moderately Productive':
         return 'text-yellow-600 dark:text-yellow-400';
-      case 'Low Productivity':
+      case 'Low Productive':
         return 'text-red-600 dark:text-red-400';
       default:
         return 'text-gray-600 dark:text-gray-300';
