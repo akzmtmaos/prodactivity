@@ -62,13 +62,6 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     setSelectedMonth(null);
   };
   const renderDailyView = () => {
-    console.log('renderDailyView called with:', {
-      prodLogsLength: prodLogs.length,
-      selectedDate: selectedDate.toISOString(),
-      selectedMonth: selectedDate.getMonth(),
-      selectedYear: selectedDate.getFullYear()
-    });
-    
     // Find the productivity data for the selected date
     // Use local date formatting to avoid timezone issues
     const selectedDateStr = selectedDate.toLocaleDateString('en-CA'); // Format as YYYY-MM-DD in local timezone
@@ -77,19 +70,6 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     // Check if selected date is today
     const today = new Date();
     const isSelectedDateToday = selectedDate.toDateString() === today.toDateString();
-    
-    console.log('Debug info:', {
-      selectedDateStr,
-      isSelectedDateToday,
-      selectedDateData: selectedDateData ? 'Found' : 'Not found',
-      allDates: prodLogs.map(item => item.date).slice(0, 10), // Show first 10 dates for debugging
-      selectedDateISO: selectedDate.toISOString(),
-      selectedDateString: selectedDate.toString(),
-      todayISO: today.toISOString(),
-      todayString: today.toString(),
-      selectedDateLocal: selectedDate.toLocaleDateString('en-CA'),
-      todayLocal: today.toLocaleDateString('en-CA')
-    });
     
     return (
     <>
@@ -108,34 +88,27 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       {!selectedDateData && !isSelectedDateToday && (
         <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8 mb-4">
           <div className="text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-2">No data found for {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">This might be because:</p>
-            <ul className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              <li>• No tasks were completed on this date</li>
-              <li>• Data is still being processed</li>
-              <li>• API is not returning data for this date</li>
-            </ul>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Total logs received: {prodLogs.length}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">Looking for date: {selectedDateStr}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">Is today: {isSelectedDateToday ? 'Yes' : 'No'}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">Available dates: {prodLogs.map(item => item.date).slice(0, 5).join(', ')}</p>
+            <div className="text-4xl mb-3">📅</div>
+            <p className="text-gray-500 dark:text-gray-400 mb-2 font-medium">No activity recorded for {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
+            <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">This means no tasks were created or completed on this date.</p>
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mt-3">
+              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">💡 This is normal!</p>
+              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Productivity data only appears when you create or complete tasks on a specific date.</p>
+            </div>
           </div>
         </div>
       )}
       
       {/* Historical logs - include selected date if it's not today */}
-      {console.log('All prodLogs:', prodLogs)} {/* Debug log */}
       {prodLogs
         .filter(item => {
           if (!item || !item.date) {
-            console.log('Item missing date:', item);
             return false;
           }
           
           // Parse date properly to avoid timezone issues
           const dayDate = new Date(item.date + 'T00:00:00.000Z');
           if (isNaN(dayDate.getTime())) {
-            console.log('Invalid date for item:', item);
             return false;
           }
           
@@ -158,7 +131,6 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           // 2. It's the selected date but not today (include it in historical list)
           // 3. It's today (include today's data in the history)
           const shouldShow = isInSelectedMonth && (!isSelectedDate || !isToday);
-          console.log(`Date ${dayDate.toISOString()}: selectedMonth=${selectedMonth}, selectedYear=${selectedYear}, itemMonth=${itemMonth}, itemYear=${itemYear}, isInSelectedMonth=${isInSelectedMonth}, isSelectedDate=${isSelectedDate}, isToday=${isToday}, shouldShow=${shouldShow}, item:`, item);
           return shouldShow;
         })
         .sort((a, b) => {
@@ -231,18 +203,33 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           console.log('Invalid week dates for item:', item);
           return null;
         }
+        
+        // Check if this is a future week
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const isFutureWeek = weekStart > today;
+        
         return (
           <div 
             key={item.week_start} 
-            className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors duration-200"
-            onClick={() => handleWeekClick(item.week_start, item.week_end, item.log.completion_rate)}
+            className={`grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2 transition-colors duration-200 ${
+              isFutureWeek 
+                ? 'cursor-not-allowed opacity-50' 
+                : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600/50'
+            }`}
+            onClick={() => {
+              if (!isFutureWeek) {
+                handleWeekClick(item.week_start, item.week_end, item.log.completion_rate);
+              }
+            }}
           >
             <div className="text-left">
               <div className="text-sm font-semibold text-gray-900 dark:text-white">
                 {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                {isFutureWeek && <span className="ml-2 text-xs text-orange-500">(Future Week)</span>}
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Click to view daily breakdown
+                {isFutureWeek ? 'Future week - no data available' : 'Click to view daily breakdown'}
               </div>
             </div>
             <div className="flex justify-center">
@@ -304,18 +291,33 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
         }
         const monthDate = new Date(selectedDate.getFullYear(), item.month - 1, 1);
         if (isNaN(monthDate.getTime())) return null;
+        
+        // Check if this is a future month
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const isFutureMonth = monthDate > today;
+        
         return (
           <div 
             key={item.month} 
-            className="grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2 cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600/50 transition-colors duration-200"
-            onClick={() => handleMonthClick(item.month, selectedDate.getFullYear(), item.log.completion_rate)}
+            className={`grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2 transition-colors duration-200 ${
+              isFutureMonth 
+                ? 'cursor-not-allowed opacity-50' 
+                : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600/50'
+            }`}
+            onClick={() => {
+              if (!isFutureMonth) {
+                handleMonthClick(item.month, selectedDate.getFullYear(), item.log.completion_rate);
+              }
+            }}
           >
             <div className="text-left">
               <div className="text-sm font-semibold text-gray-900 dark:text-white">
                 {monthDate.toLocaleDateString('en-US', { month: 'long' })}
+                {isFutureMonth && <span className="ml-2 text-xs text-orange-500">(Future Month)</span>}
               </div>
               <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Click to view daily breakdown
+                {isFutureMonth ? 'Future month - no data available' : 'Click to view daily breakdown'}
               </div>
             </div>
             <div className="flex justify-center">

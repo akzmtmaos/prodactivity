@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-
-// Helper to get JWT token from localStorage
-function getAuthHeaders(): HeadersInit | undefined {
-  const token = localStorage.getItem('accessToken');
-  return token ? { 'Authorization': `Bearer ${token}` } : undefined;
-}
-
-// API base URL - use direct backend URL for now
-const API_BASE_URL = 'http://192.168.56.1:8000/api';
+import { supabase } from '../../lib/supabase';
 
 interface MonthlyBreakdownModalProps {
   isOpen: boolean;
@@ -50,38 +42,58 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
     setError(null);
     
     try {
-      const headers = getAuthHeaders();
-      
       // Get the first and last day of the month
       const firstDay = new Date(year, month - 1, 1);
-      const lastDay = new Date(year, month, 0);
+      const lastDay = new Date(year, month, 0); // This gives us the last day of the current month
       
-      // Fetch daily data for each day in the month
+      
+      // Check if this is a future month
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (firstDay > today) {
+        setError('Cannot view breakdown for future months');
+        setLoading(false);
+        return;
+      }
+      
+      // Get current user ID
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        setError('User not authenticated');
+        setLoading(false);
+        return;
+      }
+      
+      const user = JSON.parse(userData);
+      const userId = user.id || 11;
+      
+      // Fetch daily data from Supabase for each day in the month
       const dailyPromises = [];
       const currentDate = new Date(firstDay);
       
-      while (currentDate <= lastDay) {
-        const dateStr = currentDate.toISOString().split('T')[0];
-        const url = `${API_BASE_URL}/progress/productivity/?view=daily&date=${dateStr}`;
-        
-        dailyPromises.push(
-          fetch(url, { ...(headers && { headers }) })
-            .then(res => res.json())
-            .then(data => ({
-              date: dateStr,
-              completion_rate: data.completion_rate || 0,
-              status: data.status || 'No Tasks',
-              total_tasks: data.total_tasks || 0,
-              completed_tasks: data.completed_tasks || 0
-            }))
-            .catch(err => {
-              console.error(`Error fetching data for ${dateStr}:`, err);
+            while (currentDate <= lastDay) {
+              const dateStr = currentDate.toISOString().split('T')[0];
+              
+              dailyPromises.push(
+          supabase
+            .from('productivity_logs')
+            .select('completion_rate, status, total_tasks, completed_tasks')
+            .eq('user_id', userId)
+            .eq('period_type', 'daily')
+            .eq('period_start', dateStr)
+            .single()
+            .then(({ data, error }) => {
+              if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+                console.error(`Error fetching data for ${dateStr}:`, error);
+              }
+              
               return {
                 date: dateStr,
-                completion_rate: 0,
-                status: 'No Tasks',
-                total_tasks: 0,
-                completed_tasks: 0
+                completion_rate: data?.completion_rate || 0,
+                status: data?.status || 'No Tasks',
+                total_tasks: data?.total_tasks || 0,
+                completed_tasks: data?.completed_tasks || 0
               };
             })
         );
@@ -89,8 +101,8 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
         currentDate.setDate(currentDate.getDate() + 1);
       }
       
-      const results = await Promise.all(dailyPromises);
-      setDailyData(results);
+            const results = await Promise.all(dailyPromises);
+            setDailyData(results);
     } catch (err) {
       console.error('Error fetching daily breakdown:', err);
       setError('Failed to fetch daily breakdown data');

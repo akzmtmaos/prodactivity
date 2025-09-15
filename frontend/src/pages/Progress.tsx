@@ -26,13 +26,35 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
   }
   
   const weeklyData: { [key: string]: any } = {};
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Reset time to start of day
   
   dailyLogs.forEach(log => {
     const date = new Date(log.period_start);
+    
+    // Skip future dates
+    if (date > today) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 Skipping future date:', log.period_start);
+      }
+      return;
+    }
+    
     // Get the Monday of the week (week starts on Monday)
+    // date.getDay() returns 0 for Sunday, 1 for Monday, etc.
+    // To get Monday: if Sunday (0), go back 6 days; if Monday (1), stay; etc.
+    const daysSinceMonday = date.getDay() === 0 ? 6 : date.getDay() - 1;
     const monday = new Date(date);
-    monday.setDate(date.getDate() - date.getDay() + 1);
+    monday.setDate(date.getDate() - daysSinceMonday);
     const weekKey = monday.toISOString().split('T')[0];
+    
+    // Skip future weeks (where Monday is in the future)
+    if (monday > today) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 Skipping future week starting:', weekKey);
+      }
+      return;
+    }
     
     if (!weeklyData[weekKey]) {
       weeklyData[weekKey] = {
@@ -52,10 +74,21 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     weeklyData[weekKey].completed_tasks += log.completed_tasks || 0;
   });
   
-  // Calculate completion rates and statuses for each week
+  // Calculate completion rates and statuses for each week using daily average method
   Object.values(weeklyData).forEach((week: any) => {
-    if (week.total_tasks > 0) {
-      week.completion_rate = Math.round((week.completed_tasks / week.total_tasks) * 100);
+    // Get all daily logs for this week to calculate daily average
+    const weekStart = new Date(week.period_start);
+    const weekEnd = new Date(week.period_end);
+    
+    const dailyLogsForWeek = dailyLogs.filter(log => {
+      const logDate = new Date(log.period_start);
+      return logDate >= weekStart && logDate <= weekEnd;
+    });
+    
+    if (dailyLogsForWeek.length > 0) {
+      // Calculate average of daily completion rates (same as WeeklyBreakdownModal)
+      const totalDailyRate = dailyLogsForWeek.reduce((sum, log) => sum + (log.completion_rate || 0), 0);
+      week.completion_rate = Math.round(totalDailyRate / dailyLogsForWeek.length);
       
       if (week.completion_rate >= 80) {
         week.status = 'Highly Productive';
@@ -66,6 +99,13 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
       } else {
         week.status = 'Low Productivity';
       }
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🔄 Week ${week.period_start}: ${dailyLogsForWeek.length} days, rates: ${dailyLogsForWeek.map(l => l.completion_rate)}, average: ${week.completion_rate}%`);
+      }
+    } else {
+      week.completion_rate = 0;
+      week.status = 'Low Productivity';
     }
   });
   
@@ -92,10 +132,30 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
   }
   
   const monthlyData: { [key: string]: any } = {};
+  const today = new Date();
+  today.setHours(0, 0, 0, 0); // Reset time to start of day
   
   dailyLogs.forEach(log => {
     const date = new Date(log.period_start);
+    
+    // Skip future dates
+    if (date > today) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 Skipping future date in monthly aggregation:', log.period_start);
+      }
+      return;
+    }
+    
     const monthKey = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-01`;
+    
+    // Skip future months (where the month is in the future)
+    const monthStart = new Date(monthKey);
+    if (monthStart > today) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔄 Skipping future month:', monthKey);
+      }
+      return;
+    }
     
     if (!monthlyData[monthKey]) {
       const lastDay = new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
@@ -116,10 +176,21 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
     monthlyData[monthKey].completed_tasks += log.completed_tasks || 0;
   });
   
-  // Calculate completion rates and statuses for each month
+  // Calculate completion rates and statuses for each month using daily average method
   Object.values(monthlyData).forEach((month: any) => {
-    if (month.total_tasks > 0) {
-      month.completion_rate = Math.round((month.completed_tasks / month.total_tasks) * 100);
+    // Get all daily logs for this month to calculate daily average
+    const monthStart = new Date(month.period_start);
+    const monthEnd = new Date(month.period_end);
+    
+    const dailyLogsForMonth = dailyLogs.filter(log => {
+      const logDate = new Date(log.period_start);
+      return logDate >= monthStart && logDate <= monthEnd;
+    });
+    
+    if (dailyLogsForMonth.length > 0) {
+      // Calculate average of daily completion rates (same as WeeklyBreakdownModal)
+      const totalDailyRate = dailyLogsForMonth.reduce((sum, log) => sum + (log.completion_rate || 0), 0);
+      month.completion_rate = Math.round(totalDailyRate / dailyLogsForMonth.length);
       
       if (month.completion_rate >= 80) {
         month.status = 'Highly Productive';
@@ -130,6 +201,13 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
       } else {
         month.status = 'Low Productivity';
       }
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`🔄 Month ${month.period_start}: ${dailyLogsForMonth.length} days, rates: ${dailyLogsForMonth.map(l => l.completion_rate)}, average: ${month.completion_rate}%`);
+      }
+    } else {
+      month.completion_rate = 0;
+      month.status = 'Low Productivity';
     }
   });
   

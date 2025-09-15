@@ -1,14 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-
-// Helper to get JWT token from localStorage
-function getAuthHeaders(): HeadersInit | undefined {
-  const token = localStorage.getItem('accessToken');
-  return token ? { 'Authorization': `Bearer ${token}` } : undefined;
-}
-
-// API base URL - use direct backend URL for now
-const API_BASE_URL = 'http://192.168.56.1:8000/api';
+import { supabase } from '../../lib/supabase';
 
 interface WeeklyBreakdownModalProps {
   isOpen: boolean;
@@ -50,36 +42,56 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
     setError(null);
     
     try {
-      const headers = getAuthHeaders();
       const startDate = new Date(weekStart);
       const endDate = new Date(weekEnd);
       
-      // Fetch daily data for each day in the week
+      // Check if this is a future week
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      if (startDate > today) {
+        setError('Cannot view breakdown for future weeks');
+        setLoading(false);
+        return;
+      }
+      
+      // Get current user ID
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        setError('User not authenticated');
+        setLoading(false);
+        return;
+      }
+      
+      const user = JSON.parse(userData);
+      const userId = user.id || 11;
+      
+      // Fetch daily data from Supabase for each day in the week
       const dailyPromises = [];
       const currentDate = new Date(startDate);
       
       while (currentDate <= endDate) {
         const dateStr = currentDate.toISOString().split('T')[0];
-        const url = `${API_BASE_URL}/progress/productivity/?view=daily&date=${dateStr}`;
         
         dailyPromises.push(
-          fetch(url, { ...(headers && { headers }) })
-            .then(res => res.json())
-            .then(data => ({
-              date: dateStr,
-              completion_rate: data.completion_rate || 0,
-              status: data.status || 'No Tasks',
-              total_tasks: data.total_tasks || 0,
-              completed_tasks: data.completed_tasks || 0
-            }))
-            .catch(err => {
-              console.error(`Error fetching data for ${dateStr}:`, err);
+          supabase
+            .from('productivity_logs')
+            .select('completion_rate, status, total_tasks, completed_tasks')
+            .eq('user_id', userId)
+            .eq('period_type', 'daily')
+            .eq('period_start', dateStr)
+            .single()
+            .then(({ data, error }) => {
+              if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+                console.error(`Error fetching data for ${dateStr}:`, error);
+              }
+              
               return {
                 date: dateStr,
-                completion_rate: 0,
-                status: 'No Tasks',
-                total_tasks: 0,
-                completed_tasks: 0
+                completion_rate: data?.completion_rate || 0,
+                status: data?.status || 'No Tasks',
+                total_tasks: data?.total_tasks || 0,
+                completed_tasks: data?.completed_tasks || 0
               };
             })
         );
@@ -89,6 +101,8 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
       
       const results = await Promise.all(dailyPromises);
       setDailyData(results);
+      
+      console.log('📊 Weekly breakdown data from Supabase:', results);
     } catch (err) {
       console.error('Error fetching daily breakdown:', err);
       setError('Failed to fetch daily breakdown data');
