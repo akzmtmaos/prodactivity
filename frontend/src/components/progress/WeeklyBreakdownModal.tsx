@@ -176,7 +176,7 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
                 <div className="text-center">
                   <p className="text-sm text-gray-600 dark:text-gray-400">Weekly Average</p>
                   <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {calculateAverage().toFixed(2)}%
+                    {weekPercentage.toFixed(2)}%
                   </p>
                 </div>
               </div>

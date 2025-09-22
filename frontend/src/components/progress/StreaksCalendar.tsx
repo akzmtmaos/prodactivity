@@ -79,14 +79,36 @@ const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData }) => {
     // Sort by date (most recent first)
     const sortedData = [...streakData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
-    let currentStreak = 0;
-    for (const day of sortedData) {
-      if (day.streak) {
+    if (sortedData.length === 0) return 0;
+    
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+    
+    // Check if we have data for today
+    const todayData = sortedData.find(day => day.date === todayStr);
+    if (!todayData || !todayData.streak) {
+      return 0; // No streak if today is not productive
+    }
+    
+    let currentStreak = 1; // Start with today
+    let currentDate = new Date(today);
+    
+    // Go backwards day by day to check for consecutive productive days
+    for (let i = 1; i < 365; i++) { // Check up to 1 year back
+      currentDate.setDate(currentDate.getDate() - 1);
+      const dateStr = currentDate.toISOString().split('T')[0];
+      
+      const dayData = sortedData.find(day => day.date === dateStr);
+      
+      if (dayData && dayData.streak) {
         currentStreak++;
       } else {
-        break; // Streak broken
+        // If no data for this day or day is not productive, streak is broken
+        break;
       }
     }
+    
     return currentStreak;
   };
 

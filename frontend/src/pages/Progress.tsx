@@ -80,15 +80,38 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     const weekStart = new Date(week.period_start);
     const weekEnd = new Date(week.period_end);
     
+    // Check if this is the current week
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const isCurrentWeek = weekStart <= today && weekEnd >= today;
+    
     const dailyLogsForWeek = dailyLogs.filter(log => {
       const logDate = new Date(log.period_start);
       return logDate >= weekStart && logDate <= weekEnd;
     });
     
     if (dailyLogsForWeek.length > 0) {
+      // For current week, we need to include all days up to today, not just days with data
+      let completionRates: number[] = [];
+      
+      if (isCurrentWeek) {
+        // For current week, generate completion rates for ALL days in the week (same as WeeklyBreakdownModal)
+        // The WeeklyBreakdownModal includes all days from startDate to endDate, including future days
+        const currentDate = new Date(weekStart);
+        while (currentDate <= weekEnd) {
+          const dateStr = currentDate.toISOString().split('T')[0];
+          const dayLog = dailyLogsForWeek.find(log => log.period_start === dateStr);
+          completionRates.push(dayLog ? (dayLog.completion_rate || 0) : 0);
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+      } else {
+        // For past weeks, use the existing data (all days should have data)
+        completionRates = dailyLogsForWeek.map(log => log.completion_rate || 0);
+      }
+      
       // Calculate average of daily completion rates (same as WeeklyBreakdownModal)
-      const totalDailyRate = dailyLogsForWeek.reduce((sum, log) => sum + (log.completion_rate || 0), 0);
-      week.completion_rate = Math.round(totalDailyRate / dailyLogsForWeek.length);
+      const totalDailyRate = completionRates.reduce((sum, rate) => sum + rate, 0);
+      week.completion_rate = Math.round(totalDailyRate / completionRates.length);
       
       if (week.completion_rate >= 80) {
         week.status = 'Highly Productive';
@@ -101,7 +124,15 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
       }
       
       if (process.env.NODE_ENV === 'development') {
-        console.log(`🔄 Week ${week.period_start}: ${dailyLogsForWeek.length} days, rates: ${dailyLogsForWeek.map(l => l.completion_rate)}, average: ${week.completion_rate}%`);
+        console.log(`🔄 Week ${week.period_start}: ${completionRates.length} days (current: ${isCurrentWeek}), rates: ${completionRates}, average: ${week.completion_rate}%`);
+        console.log(`🔄 Week details:`, {
+          weekStart: week.period_start,
+          weekEnd: week.period_end,
+          isCurrentWeek,
+          today: today.toISOString().split('T')[0],
+          completionRates,
+          average: week.completion_rate
+        });
       }
     } else {
       week.completion_rate = 0;
@@ -706,8 +737,46 @@ const Progress = () => {
           
           if (error) {
             console.error('Error fetching daily productivity logs:', error);
+            data = [];
           } else {
-            data = logs || [];
+            const existingLogs = logs || [];
+            
+            // Generate entries for ALL days in the month, including days with 0% productivity
+            const allDaysData: any[] = [];
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            for (let day = 1; day <= lastDay; day++) {
+              const dateStr = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+              const currentDate = new Date(dateStr);
+              
+              // Skip future dates
+              if (currentDate > today) continue;
+              
+              // Find existing log for this date
+              const existingLog = existingLogs.find(log => log.period_start === dateStr);
+              
+              if (existingLog) {
+                // Use existing data
+                allDaysData.push(existingLog);
+              } else {
+                // Create entry for day with 0% productivity
+                allDaysData.push({
+                  period_start: dateStr,
+                  period_end: dateStr,
+                  period_type: 'daily',
+                  user_id: userId,
+                  total_tasks: 0,
+                  completed_tasks: 0,
+                  completion_rate: 0,
+                  status: 'Low Productive',
+                  logged_at: new Date().toISOString()
+                });
+              }
+            }
+            
+            data = allDaysData;
+            console.log('📊 Generated data for all days in month:', data.length, 'days');
           }
         } else if (progressView === 'Weekly') {
           // For weekly view, fetch daily logs and aggregate them into weeks
@@ -1047,14 +1116,36 @@ function calculateCurrentStreakFromData(streakData: any[]) {
   // Sort by date (most recent first)
   const sortedData = [...streakData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
-  let currentStreak = 0;
-  for (const day of sortedData) {
-    if (day.streak) {
+  if (sortedData.length === 0) return 0;
+  
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const todayStr = today.toISOString().split('T')[0];
+  
+  // Check if we have data for today
+  const todayData = sortedData.find(day => day.date === todayStr);
+  if (!todayData || !todayData.streak) {
+    return 0; // No streak if today is not productive
+  }
+  
+  let currentStreak = 1; // Start with today
+  let currentDate = new Date(today);
+  
+  // Go backwards day by day to check for consecutive productive days
+  for (let i = 1; i < 365; i++) { // Check up to 1 year back
+    currentDate.setDate(currentDate.getDate() - 1);
+    const dateStr = currentDate.toISOString().split('T')[0];
+    
+    const dayData = sortedData.find(day => day.date === dateStr);
+    
+    if (dayData && dayData.streak) {
       currentStreak++;
     } else {
-      break; // Streak broken
+      // If no data for this day or day is not productive, streak is broken
+      break;
     }
   }
+  
   return currentStreak;
 }
 

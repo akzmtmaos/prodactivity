@@ -194,9 +194,12 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       prodLogs: prodLogs
     });
     
+    // Reverse the array to show most recent weeks first
+    const reversedProdLogs = [...prodLogs].reverse();
+    
     return (
     <>
-      {prodLogs.map((item, idx) => {
+      {reversedProdLogs.map((item, idx) => {
         const weekStart = item.week_start ? new Date(item.week_start) : null;
         const weekEnd = item.week_end ? new Date(item.week_end) : null;
         if (!weekStart || isNaN(weekStart.getTime()) || !weekEnd || isNaN(weekEnd.getTime())) {
@@ -282,9 +285,12 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       prodLogs: prodLogs
     });
     
+    // Reverse the array to show most recent months first
+    const reversedProdLogs = [...prodLogs].reverse();
+    
     return (
     <>
-      {prodLogs.map((item, idx) => {
+      {reversedProdLogs.map((item, idx) => {
         if (!item.month || isNaN(item.month) || item.month < 1 || item.month > 12) {
           console.log('Invalid month for item:', item);
           return null;

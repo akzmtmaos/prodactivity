@@ -103,8 +103,8 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
         </div>
       </div>
       <div className="prose prose-sm max-w-none dark:prose-invert">
-        <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap" style={{ maxHeight: '200px', overflow: 'hidden' }}>
-          {truncateHtmlContent(reviewer.content, 300)}
+        <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap" style={{ maxHeight: '300px', overflow: 'hidden' }}>
+          {truncateHtmlContent(reviewer.content, 1000)}
         </div>
       </div>
       <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">

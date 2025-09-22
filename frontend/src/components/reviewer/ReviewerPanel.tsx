@@ -18,6 +18,7 @@ import {
   Download,
   Share2
 } from 'lucide-react';
+import HelpButton from '../HelpButton';
 import axios from 'axios';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
@@ -43,8 +44,8 @@ interface Reviewer {
 
 
 interface ReviewerPanelProps {
-  notes: Array<{ id: number; title: string; content: string; notebook_name: string }>;
-  notebooks: Array<{ id: number; name: string }>;
+  notes: Array<{ id: number; title: string; content: string; notebook_name: string; note_type?: string }>;
+  notebooks: Array<{ id: number; name: string; notebook_type?: string }>;
   activeTab: 'reviewer' | 'quiz';
   setActiveTab: (tab: 'reviewer' | 'quiz') => void;
 }
@@ -138,11 +139,15 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       let sourceContent = '';
       let sourceTitle = '';
 
+      let sourceNoteType = null;
+      let sourceNotebookType = null;
+
       if (selectedSource === 'note' && selectedNote && notes && Array.isArray(notes)) {
         const note = notes.find(n => n.id === selectedNote);
         if (note) {
           sourceContent = note.content;
           sourceTitle = note.title;
+          sourceNoteType = note.note_type;
         }
       } else if (selectedSource === 'notebook' && selectedNotebook && notebooks && Array.isArray(notebooks) && notes && Array.isArray(notes)) {
         const notebook = notebooks.find(n => n.id === selectedNotebook);
@@ -150,6 +155,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           const notebookNotes = notes.filter(n => n.notebook_name === notebook.name);
           sourceContent = notebookNotes.map(n => `${n.title}\n${n.content}`).join('\n\n');
           sourceTitle = notebook.name;
+          sourceNotebookType = notebook.notebook_type;
         }
       }
 
@@ -159,36 +165,13 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         return;
       }
 
-      // Compose a detailed prompt for the reviewer
-      const detailedPrompt = `Please review the following content and provide your response in the following format:
-
-Summary:
-
-[Write a concise summary here]
-
-Terminology:
-
-- [List important terminologies with brief explanations as bullet points]
-
-Key Points:
-
-- [List key points and main ideas as bullet points]
-
-Main Idea:
-
-- [State the main idea(s) as bullet points]
-
-Leave one blank line between each section. Use bullet points for lists.
-
-Content:
-${sourceContent}`;
-
-      // Only one POST to /notes/ai-reviewer/
+      // Only one POST to /reviewers/ai/generate/
       const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
-        text: detailedPrompt,
+        text: sourceContent, // Send raw content instead of pre-formatted prompt
         title: reviewerTitle || `${sourceTitle} - Study Summary`,
         source_note: selectedSource === 'note' ? selectedNote : null,
         source_notebook: selectedSource === 'notebook' ? selectedNotebook : null,
+        note_type: sourceNoteType || sourceNotebookType, // Send note/notebook type for context
         tags: []
       }, {
         headers: getAuthHeaders()
@@ -268,7 +251,12 @@ ${sourceContent}`;
     try {
       const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
         text: reviewer.content,
-        title: `Quiz: ${reviewer.title}`
+        title: `Quiz: ${reviewer.title}`,
+        note_type: reviewer.source_note ? 
+          (notes.find(n => n.id === reviewer.source_note)?.note_type) : 
+          (reviewer.source_notebook ? 
+            (notebooks.find(n => n.id === reviewer.source_notebook)?.notebook_type) : 
+            null)
       }, {
         headers: getAuthHeaders()
       });
@@ -337,7 +325,26 @@ ${sourceContent}`;
       <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 pb-2">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Reviewer</h1>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+              Reviewer
+              <HelpButton 
+                content={
+                  <div>
+                    <p className="font-semibold mb-2">Reviewer & Study Materials</p>
+                    <ul className="space-y-1 text-xs">
+                      <li>• <strong>Generate Reviewers:</strong> Create study materials from your notes</li>
+                      <li>• <strong>AI-Powered:</strong> Intelligent content generation and summarization</li>
+                      <li>• <strong>Multiple Formats:</strong> Questions, summaries, and study guides</li>
+                      <li>• <strong>Source Tracking:</strong> See which notes were used to create reviewers</li>
+                      <li>• <strong>Favorites:</strong> Mark important reviewers for quick access</li>
+                      <li>• <strong>Tags:</strong> Organize reviewers by topic or subject</li>
+                      <li>• <strong>Export:</strong> Download reviewers for offline study</li>
+                    </ul>
+                  </div>
+                } 
+                title="Reviewer Help" 
+              />
+            </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-2">Generate study materials from your notes</p>
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-2 mt-4 sm:mt-0 justify-end w-full sm:w-auto">

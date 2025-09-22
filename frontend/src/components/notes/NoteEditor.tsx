@@ -8,7 +8,8 @@ import {
   X,
   FileText,
   FileDown,
-  Table
+  Table,
+  Settings
 } from 'lucide-react';
 import { DocumentTextIcon, ChatBubbleLeftRightIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
@@ -53,6 +54,50 @@ interface NoteEditorProps {
 
 const AUTO_SAVE_DELAY = 2000; // 2 seconds delay for auto-save
 
+// Function to convert markdown to HTML
+const convertMarkdownToHTML = (text: string): string => {
+  if (!text) return '';
+  
+  return text
+    // Convert ### headings to h3
+    .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-4">$1</h3>')
+    // Convert ## headings to h2
+    .replace(/^## (.+)$/gm, '<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3 mt-5">$1</h2>')
+    // Convert # headings to h1
+    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4 mt-6">$1</h1>')
+    // Convert **bold** to <strong>
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+    // Convert *italic* to <em>
+    .replace(/\*(.+?)\*/g, '<em class="italic">$1</em>')
+    // Convert numbered lists
+    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 mb-1">$1. $2</li>')
+    // Convert bullet points
+    .replace(/^[-*] (.+)$/gm, '<li class="ml-4 mb-1 list-disc">$1</li>')
+    // Convert line breaks to <br>
+    .replace(/\n/g, '<br>');
+};
+
+// Function to convert HTML back to markdown for storage
+const convertHTMLToMarkdown = (html: string): string => {
+  if (!html) return '';
+  
+  return html
+    // Convert h3 back to ###
+    .replace(/<h3[^>]*>(.+?)<\/h3>/g, '### $1')
+    // Convert h2 back to ##
+    .replace(/<h2[^>]*>(.+?)<\/h2>/g, '## $1')
+    // Convert h1 back to #
+    .replace(/<h1[^>]*>(.+?)<\/h1>/g, '# $1')
+    // Convert <strong> back to **
+    .replace(/<strong[^>]*>(.+?)<\/strong>/g, '**$1**')
+    // Convert <em> back to *
+    .replace(/<em[^>]*>(.+?)<\/em>/g, '*$1*')
+    // Convert <br> back to \n
+    .replace(/<br\s*\/?>/g, '\n')
+    // Remove other HTML tags
+    .replace(/<[^>]*>/g, '');
+};
+
 const HIGHLIGHT_COLORS = [
   { name: 'Yellow', value: '#ffeb3b' },
   { name: 'Green', value: '#a5d6a7' },
@@ -80,6 +125,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const [hasChanges, setHasChanges] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const autoSaveTimeout = useRef<NodeJS.Timeout | null>(null);
+  const isAutoSaving = useRef<boolean>(false);
+  const contentRef = useRef<string>('');
+  const lastAutoSaveTime = useRef<number>(0);
+  const isUpdatingFromAutosave = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.56.1:8000/api/notes';
   const [colorPickerPosition, setColorPickerPosition] = useState({ x: 0, y: 0 });
@@ -95,9 +144,36 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const [exportFormat, setExportFormat] = useState<'pdf' | 'doc'>('pdf');
   const [isExporting, setIsExporting] = useState(false);
   
+  // Settings modal state
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  
+  
   // Simple contentEditable ref
   const contentEditableRef = useRef<HTMLDivElement>(null);
   const [isInitialized, setIsInitialized] = useState(false);
+  
+  // Simple markdown conversion function
+  const convertMarkdownToHTML = (text: string): string => {
+    if (!text) return '';
+    
+    return text
+      // Convert ### headings to h3
+      .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-4">$1</h3>')
+      // Convert ## headings to h2
+      .replace(/^## (.+)$/gm, '<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3 mt-5">$1</h2>')
+      // Convert # headings to h1
+      .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4 mt-6">$1</h1>')
+      // Convert **bold** to <strong>
+      .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+      // Convert *italic* to <em>
+      .replace(/\*(.+?)\*/g, '<em class="italic">$1</em>')
+      // Convert numbered lists
+      .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 mb-1">$1. $2</li>')
+      // Convert bullet lists
+      .replace(/^[-*] (.+)$/gm, '<li class="ml-4 mb-1 list-disc">$1</li>')
+      // Convert line breaks
+      .replace(/\n/g, '<br>');
+  };
   
   // Save and restore cursor position to prevent jumping
   const saveCursorPosition = () => {
@@ -199,42 +275,95 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
   };
 
-  useEffect(() => {
-    if (note) {
-      console.log('Note loaded:', note);
-      setTitle(note.title || '');
-      setContent(note.content || '');
-      setPriority(note.priority || 'medium');
-      setHasChanges(false);
-      
-      // Update last_visited timestamp when note is loaded
-      const updateLastVisited = async () => {
-        try {
-          console.log('Updating last_visited for note:', note.id);
-          const response = await axios.patch(`${API_URL}/notes/${note.id}/`, {
-            last_visited: new Date().toISOString()
-          }, {
-            headers: getAuthHeaders()
-          });
-          console.log('Visit update response:', response.data);
-          
-          // Dispatch event to notify that a note has been updated
-          window.dispatchEvent(new Event('noteUpdated'));
-        } catch (error) {
-          console.error('Failed to update note visit timestamp:', error);
-          if (axios.isAxiosError(error)) {
-            console.error('Error details:', {
-              status: error.response?.status,
-              data: error.response?.data,
-              headers: error.response?.headers
-            });
-          }
-        }
-      };
-      
-      updateLastVisited();
-    }
-  }, [note]);
+  // COMPLETELY DISABLED: This useEffect was causing content to disappear after autosave
+  // The editor now works purely from DOM, no React state interference
+  // useEffect(() => {
+  //   if (note) {
+  //     console.log('Note loaded:', note);
+  //     
+  //     // CRITICAL FIX: If the editor has content, NEVER overwrite it to prevent disappearing
+  //     if (contentEditableRef.current && contentEditableRef.current.innerHTML.trim()) {
+  //       console.log('Editor has content, preserving it to prevent disappearing');
+  //       // Only update title and priority, never touch content
+  //       setTitle(note.title || '');
+  //       setPriority(note.priority || 'medium');
+  //       setHasChanges(false);
+  //       return;
+  //     }
+  //     
+  //     // CRITICAL FIX: For new notes, COMPLETELY skip this useEffect to prevent any interference
+  //     if (isNewNote) {
+  //       console.log('New note detected, completely skipping useEffect to preserve editor content');
+  //       return;
+  //     }
+  //     
+  //     // CRITICAL FIX: Don't update content if we're in the middle of an autosave update
+  //     if (isUpdatingFromAutosave.current) {
+  //       console.log('Autosave update in progress, preserving editor content');
+  //       // Still update title and priority, but preserve content
+  //       setTitle(note.title || '');
+  //       setPriority(note.priority || 'medium');
+  //       setHasChanges(false);
+  //       // Don't update content state to preserve what's in the editor
+  //       return;
+  //     }
+  //     
+  //     setTitle(note.title || '');
+  //     setPriority(note.priority || 'medium');
+  //     setHasChanges(false);
+  //     
+  //     // Only update content state for existing notes that are being loaded fresh
+  //     const noteContent = note.content || '';
+  //     contentRef.current = noteContent;
+  //     setContent(noteContent);
+  //     
+  //     // Update last_visited timestamp when note is loaded
+  //     const updateLastVisited = async () => {
+  //       try {
+  //         console.log('Updating last_visited for note:', note.id);
+  //         const response = await axios.patch(`${API_URL}/notes/${note.id}/`, {
+  //           last_visited: new Date().toISOString()
+  //         }, {
+  //           headers: getAuthHeaders()
+  //         });
+  //         console.log('Visit update response:', response.data);
+  //         
+  //         // Dispatch event to notify that a note has been updated
+  //         window.dispatchEvent(new Event('noteUpdated'));
+  //       } catch (error) {
+  //         console.error('Failed to update note visit timestamp:', error);
+  //         if (axios.isAxiosError(error)) {
+  //           console.error('Error details:', {
+  //             status: error.response?.status,
+  //             data: error.response?.data,
+  //             headers: error.response?.headers
+  //           });
+  //         }
+  //       }
+  //     };
+  //     
+  //     updateLastVisited();
+  //   }
+  // }, [note, isNewNote]);
+
+  // COMPLETELY DISABLED: No title/priority updates to prevent any re-renders
+  // useEffect(() => {
+  //   if (note) {
+  //     console.log('Updating title and priority for note:', note.title, note.priority);
+  //     setTitle(note.title || '');
+  //     setPriority(note.priority || 'medium');
+  //     setHasChanges(false);
+  //   }
+  // }, [note?.title, note?.priority]);
+
+  // COMPLETELY DISABLED: No content state updates at all
+  // useEffect(() => {
+  //   if (note && isNewNote) {
+  //     console.log('New note detected - NEVER updating content state to prevent disappearing');
+  //     // Don't call setContent at all for new notes
+  //     return;
+  //   }
+  // }, [note?.content, isNewNote]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
@@ -251,13 +380,81 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     if (autoSaveTimeout.current) {
       clearTimeout(autoSaveTimeout.current);
     }
-            onSave(title.trim() || 'Untitled Note', content, priority);
+    
+    // Set flag to prevent content state updates during save
+    isAutoSaving.current = true;
+    
+    // Save cursor position before any operations
+    const selection = window.getSelection();
+    const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+    const cursorPosition = range ? {
+      startContainer: range.startContainer,
+      startOffset: range.startOffset,
+      endContainer: range.endContainer,
+      endOffset: range.endOffset
+    } : null;
+    
+    // Get current content from DOM instead of state to ensure we have the latest content
+    const currentContent = contentEditableRef.current?.innerHTML || contentRef.current;
+    
+    // Update content ref but NEVER update state to prevent re-renders that cause text to disappear
+    contentRef.current = currentContent;
+    // NEVER call setContent to prevent content disappearing - editor works purely from DOM
+    
+    // Set flag to indicate we're updating from autosave
+    isUpdatingFromAutosave.current = true;
+    
+    // Save the content
+    onSave(title.trim() || 'Untitled Note', currentContent, priority);
     setHasChanges(false);
     setLastSaved(new Date());
+    
+    // Record the time of autosave
+    lastAutoSaveTime.current = Date.now();
+    
+    // Restore cursor position immediately after save
+    if (cursorPosition && selection) {
+      // Use requestAnimationFrame to ensure DOM is stable
+      requestAnimationFrame(() => {
+        try {
+          const newRange = document.createRange();
+          newRange.setStart(cursorPosition.startContainer, cursorPosition.startOffset);
+          newRange.setEnd(cursorPosition.endContainer, cursorPosition.endOffset);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
+        } catch (error) {
+          // If cursor restoration fails, try to place it at the end
+          if (contentEditableRef.current) {
+            const newRange = document.createRange();
+            newRange.selectNodeContents(contentEditableRef.current);
+            newRange.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(newRange);
+          }
+        }
+        
+        // Clear the autosave flag after cursor restoration
+        isAutoSaving.current = false;
+        // Clear the autosave update flag after a short delay
+        setTimeout(() => {
+          isUpdatingFromAutosave.current = false;
+        }, 100);
+      });
+    } else {
+      // Clear the autosave flag if no cursor to restore
+      isAutoSaving.current = false;
+      // Clear the autosave update flag after a short delay
+      setTimeout(() => {
+        isUpdatingFromAutosave.current = false;
+      }, 100);
+    }
     
     // Dispatch event to notify that a note has been updated
     window.dispatchEvent(new Event('noteUpdated'));
   };
+
+  // REMOVED: debouncedContentUpdate function that was causing cursor jumping
+  // Content state will be updated only when needed for saving
 
   // Debounced save function
   const debouncedSave = useCallback(() => {
@@ -270,14 +467,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         handleSave();
       }
     }, AUTO_SAVE_DELAY);
-  }, [title, content, priority, hasChanges]);
+  }, [title, priority, hasChanges, handleSave]);
 
-  // Auto-save when content or title changes
+  // Auto-save when title, priority, or hasChanges changes
   useEffect(() => {
     if (hasChanges) {
       debouncedSave();
     }
-  }, [content, title, priority, hasChanges, debouncedSave]);
+  }, [title, priority, hasChanges, debouncedSave]);
 
   // Maintain focus and cursor position when content changes
   useEffect(() => {
@@ -968,25 +1165,108 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       highlight: document.queryCommandValue('hiliteColor') !== 'transparent' && document.queryCommandValue('hiliteColor') !== ''
     };
     setActiveFormatting(formatting);
+    
+    // NEVER update content state to prevent text disappearing - editor works purely from DOM
+    // Content is managed entirely by contentEditableRef.current.innerHTML
   };
 
-  // Initialize contentEditable with content
+  // Initialize contentEditable with content - ONLY ONCE when component mounts
   useEffect(() => {
     if (contentEditableRef.current && !isInitialized) {
+      // Only set content if it's not empty and editor is empty
+      if (content && content.trim() && !contentEditableRef.current.innerHTML.trim()) {
       contentEditableRef.current.innerHTML = content;
+      }
       setIsInitialized(true);
     }
-  }, [content, isInitialized]);
+  }, [isInitialized]); // Removed content dependency to prevent re-initialization
+
+  // DISABLED: This useEffect was causing text to disappear after autosave
+  // The editor now works purely from DOM during typing, and only updates state when needed
+  // useEffect(() => {
+  //   if (contentEditableRef.current && isInitialized && !isAutoSaving.current) {
+  //     // Only update DOM if content is different from what's currently displayed
+  //     const currentDOMContent = contentEditableRef.current.innerHTML;
+  //     if (currentDOMContent !== content) {
+  //       // Check if the editor is currently focused (user is typing)
+  //       const isEditorFocused = document.activeElement === contentEditableRef.current;
+  //       
+  //       if (isEditorFocused) {
+  //         // If user is typing, don't update DOM to avoid cursor issues
+  //         return;
+  //       }
+  //       
+  //       // Don't update DOM if we just autosaved recently (within 3 seconds)
+  //       const timeSinceAutoSave = Date.now() - lastAutoSaveTime.current;
+  //       if (timeSinceAutoSave < 3000) {
+  //         console.log('Recently autosaved, not updating DOM to preserve user input');
+  //         return;
+  //       }
+  //       
+  //       // Additional check: if the DOM content is longer than the state content,
+  //       // it means the user has typed more content, so don't overwrite it
+  //       if (currentDOMContent.length > content.length && content.length > 0) {
+  //         console.log('DOM content is longer than state content, preserving user input');
+  //         return;
+  //       }
+  //       
+  //       // Save cursor position before updating DOM
+  //       const selection = window.getSelection();
+  //       const range = selection && selection.rangeCount > 0 ? selection.getRangeAt(0) : null;
+  //       const cursorPosition = range ? {
+  //         startContainer: range.startContainer,
+  //         startOffset: range.startOffset,
+  //         endContainer: range.endContainer,
+  //         endOffset: range.endOffset
+  //       } : null;
+  //       
+  //       // Update DOM
+  //       contentEditableRef.current.innerHTML = content;
+  //       
+  //       // Restore cursor position if it was saved
+  //       if (cursorPosition && selection) {
+  //         // Use requestAnimationFrame to ensure DOM is stable before restoring cursor
+  //         requestAnimationFrame(() => {
+  //           try {
+  //             const newRange = document.createRange();
+  //             newRange.setStart(cursorPosition.startContainer, cursorPosition.startOffset);
+  //             newRange.setEnd(cursorPosition.endContainer, cursorPosition.endOffset);
+  //             selection.removeAllRanges();
+  //             selection.addRange(newRange);
+  //           } catch (error) {
+  //             // If cursor restoration fails, try to find a similar position
+  //             try {
+  //               const newRange = document.createRange();
+  //               if (contentEditableRef.current) {
+  //                 // Try to place cursor at the end of the content
+  //                 newRange.selectNodeContents(contentEditableRef.current);
+  //                 newRange.collapse(false);
+  //                 selection.removeAllRanges();
+  //                 selection.addRange(newRange);
+  //               }
+  //             } catch (fallbackError) {
+  //               // If all else fails, just focus the editor
+  //               if (contentEditableRef.current) {
+  //                 contentEditableRef.current.focus();
+  //               }
+  //             }
+  //           }
+  //         });
+  //       }
+  //     }
+  //   }
+  // }, [content, isInitialized]);
 
   // Update contentEditable when content changes externally (like from import)
-  useEffect(() => {
-    if (contentEditableRef.current && isInitialized) {
-      const currentContent = contentEditableRef.current.innerHTML;
-      if (currentContent !== content) {
-        contentEditableRef.current.innerHTML = content;
-      }
-    }
-  }, [content, isInitialized]);
+  // REMOVED: This was causing cursor to jump to top during typing
+  // useEffect(() => {
+  //   if (contentEditableRef.current && isInitialized) {
+  //     const currentContent = contentEditableRef.current.innerHTML;
+  //     if (currentContent !== content) {
+  //       contentEditableRef.current.innerHTML = content;
+  //     }
+  //   }
+  // }, [content, isInitialized]);
 
   // Handler for back/close button
   const handleBack = () => {
@@ -1044,7 +1324,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
           </div>
           <div className="flex items-center gap-2 whitespace-nowrap">
             <button
-              onClick={handleSave}
+              onClick={() => onSave(title, content, priority)}
               className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
               title="Save"
               type="button"
@@ -1067,28 +1347,12 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               </label>
             </div>
             <button
-              onClick={handleImportPDF}
-              className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center justify-center flex-shrink-0"
-              title="Import Document"
+              onClick={() => setShowSettingsModal(true)}
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
+              title="Settings"
               type="button"
             >
-              <FileUp size={16} />
-            </button>
-            <button
-              onClick={() => setShowExportModal(true)}
-              className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 flex items-center justify-center flex-shrink-0"
-              title="Export Document"
-              type="button"
-            >
-              <Download size={16} />
-            </button>
-            <button
-              onClick={insertTable}
-              className="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700 flex items-center justify-center flex-shrink-0"
-              title="Insert Table"
-              type="button"
-            >
-              <Table size={16} />
+              <Settings size={16} />
             </button>
           </div>
         </div>
@@ -1362,34 +1626,65 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                   <div
                     ref={contentEditableRef}
                     contentEditable
-                    key={`note-${note?.id || 'new'}-${isInitialized}`}
+                    // NO KEY PROP: Keep the div completely stable to prevent remounting
                     className="outline-none focus:outline-none note-editor w-full"
                     onInput={(e) => {
-                      // Save cursor position before updating content
-                      const savedRange = saveCursorPosition();
-                      
-                      const newContent = e.currentTarget.innerHTML;
-                      setContent(newContent);
+                      // COMPLETELY DISABLED: Just mark that there are changes, do nothing else
                       setHasChanges(true);
-                      handleFormattingChange();
-                      
-                      // Restore cursor position after a short delay to allow React to re-render
-                      setTimeout(() => {
-                        restoreCursorPosition(savedRange);
-                      }, 0);
+                      // Don't call handleFormattingChange to prevent any interference
                     }}
-                    onBlur={handleFormattingChange}
-                    onKeyUp={handleFormattingChange}
+                    onBlur={() => {}} // DISABLED: No formatting change handling
+                    onKeyUp={() => {}} // DISABLED: No formatting change handling
                     onKeyDown={(e) => {
                       // Handle Backspace key for lists
                       if (e.key === 'Backspace') {
                         handleListBackspace(e);
                       }
 
-                      // Handle Enter key for lists
+                      // Handle Enter key for lists and heading exit
                       if (e.key === 'Enter') {
                         const range = getSelection();
                         if (!range) return;
+
+                        const container = range.commonAncestorContainer;
+                        
+                        // Check if we're inside a heading element
+                        const headingElement = container.nodeType === Node.TEXT_NODE 
+                          ? container.parentElement 
+                          : container;
+                        
+                        if (headingElement && headingElement.nodeType === Node.ELEMENT_NODE) {
+                          const element = headingElement as Element;
+                          if (element.tagName === 'H1' || element.tagName === 'H2' || element.tagName === 'H3') {
+                            // If we're inside a heading, create a new paragraph after it
+                            e.preventDefault();
+                            
+                            const newParagraph = document.createElement('p');
+                            newParagraph.innerHTML = '<br>'; // Add a line break to make it editable
+                            
+                            // Insert the new paragraph after the heading
+                            if (headingElement.parentNode) {
+                              headingElement.parentNode.insertBefore(newParagraph, headingElement.nextSibling);
+                              
+                              // Move cursor to the new paragraph
+                              const selection = window.getSelection();
+                              if (selection) {
+                                const newRange = document.createRange();
+                                newRange.setStart(newParagraph, 0);
+                                newRange.collapse(true);
+                                selection.removeAllRanges();
+                                selection.addRange(newRange);
+                              }
+                              
+                              // Update content state
+                              if (contentEditableRef.current) {
+                                setContent(contentEditableRef.current.innerHTML);
+                                setHasChanges(true);
+                              }
+                            }
+                            return;
+                          }
+                        }
 
                         const listItem = range.startContainer.parentElement;
                         
@@ -1452,7 +1747,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         }
                       }
                       
-                      // Handle space key for auto-conversion
+                      // Handle Space key for markdown conversion
                       if (e.key === ' ') {
                         const range = getSelection();
                         if (!range) return;
@@ -1460,11 +1755,88 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         const container = range.commonAncestorContainer;
                         if (container.nodeType === Node.TEXT_NODE) {
                           const text = container.textContent || '';
-                          if (text.trim().endsWith('-')) {
-                            // Convert to bullet list
-                            setTimeout(() => {
-                              convertToBulletList();
-                            }, 10);
+                          const lines = text.split('\n');
+                          const currentLine = lines[lines.length - 1];
+                          
+                          // Check for markdown patterns and convert only the current line
+                          if (currentLine.trim() === '###' || 
+                              currentLine.trim() === '##' || 
+                              currentLine.trim() === '#' ||
+                              currentLine.trim() === '-' ||
+                              currentLine.trim().match(/^\d+\.$/)) {
+                            e.preventDefault();
+                            
+                            // Convert only the current line to HTML
+                            let convertedLine = currentLine;
+                            if (currentLine.trim() === '###') {
+                              convertedLine = `<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-4" style="font-size: 1.125rem; line-height: 1.75rem; font-weight: 600;"></h3>`;
+                            } else if (currentLine.trim() === '##') {
+                              convertedLine = `<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3 mt-5" style="font-size: 1.25rem; line-height: 1.75rem; font-weight: 600;"></h2>`;
+                            } else if (currentLine.trim() === '#') {
+                              convertedLine = `<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4 mt-6" style="font-size: 1.5rem; line-height: 2rem; font-weight: 700;"></h1>`;
+                            } else if (currentLine.trim() === '-') {
+                              convertedLine = `<li class="ml-4 mb-1 list-disc"></li>`;
+                            } else if (currentLine.trim().match(/^\d+\.$/)) {
+                              convertedLine = `<li class="ml-4 mb-1"></li>`;
+                            }
+                            
+                            // Instead of replacing all content, let's just insert the converted element
+                            if (contentEditableRef.current) {
+                              // Create the converted element
+                              const tempDiv = document.createElement('div');
+                              tempDiv.innerHTML = convertedLine;
+                              const convertedElement = tempDiv.firstChild;
+                              
+                              if (convertedElement) {
+                                // Get the current selection
+                                const selection = window.getSelection();
+                                if (selection && selection.rangeCount > 0) {
+                                  const range = selection.getRangeAt(0);
+                                  
+                                  // Find the current line and replace it
+                                  const container = range.commonAncestorContainer;
+                                  if (container.nodeType === Node.TEXT_NODE) {
+                                    const textNode = container;
+                                    const textContent = textNode.textContent || '';
+                                    const lines = textContent.split('\n');
+                                    
+                                    // Remove the markdown line from the text
+                                    lines[lines.length - 1] = '';
+                                    textNode.textContent = lines.join('\n');
+                                    
+                                    // Insert the converted element after the text node
+                                    const newRange = document.createRange();
+                                    newRange.setStartAfter(textNode);
+                                    newRange.collapse(true);
+                                    newRange.insertNode(convertedElement);
+                                    
+                                    // Move cursor inside the converted element
+                                    const cursorRange = document.createRange();
+                                    cursorRange.setStart(convertedElement, 0);
+                                    cursorRange.collapse(true);
+                                    selection.removeAllRanges();
+                                    selection.addRange(cursorRange);
+                                    
+                                    // Add a placeholder text node to ensure proper styling
+                                    const placeholder = document.createTextNode('\u200B'); // Zero-width space
+                                    convertedElement.appendChild(placeholder);
+                                    
+                                    // Move cursor to the placeholder
+                                    const newCursorRange = document.createRange();
+                                    newCursorRange.setStart(placeholder, 0);
+                                    newCursorRange.collapse(true);
+                                    selection.removeAllRanges();
+                                    selection.addRange(newCursorRange);
+                                    
+                                    // Update the content state
+                                    if (contentEditableRef.current) {
+                                      setContent(contentEditableRef.current.innerHTML);
+                                      setHasChanges(true);
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           }
                         }
                       }
@@ -1626,6 +1998,112 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     <span>Export</span>
                   </>
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Settings Modal */}
+      {showSettingsModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Document Settings
+              </h2>
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  Import & Export
+                </h3>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setShowSettingsModal(false);
+                      handleImportPDF();
+                    }}
+                    className="w-full flex items-center space-x-3 px-4 py-3 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+                  >
+                    <FileUp size={20} />
+                    <div className="text-left">
+                      <div className="font-medium">Import Document</div>
+                      <div className="text-sm text-blue-600 dark:text-blue-400">Upload PDF or Word documents</div>
+                    </div>
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setShowSettingsModal(false);
+                      setShowExportModal(true);
+                    }}
+                    className="w-full flex items-center space-x-3 px-4 py-3 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+                  >
+                    <Download size={20} />
+                    <div className="text-left">
+                      <div className="font-medium">Export Document</div>
+                      <div className="text-sm text-green-600 dark:text-green-400">Download as PDF or Word</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-b border-gray-200 dark:border-gray-700 pb-4">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  Document Tools
+                </h3>
+                <div className="space-y-2">
+                  <button
+                    onClick={() => {
+                      setShowSettingsModal(false);
+                      insertTable();
+                    }}
+                    className="w-full flex items-center space-x-3 px-4 py-3 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+                  >
+                    <Table size={20} />
+                    <div className="text-left">
+                      <div className="font-medium">Insert Table</div>
+                      <div className="text-sm text-purple-600 dark:text-purple-400">Add a table to your document</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white mb-3">
+                  View Options
+                </h3>
+                <div className="space-y-2">
+                  <label className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div>
+                      <div className="font-medium text-gray-900 dark:text-white">Page View</div>
+                      <div className="text-sm text-gray-600 dark:text-gray-400">Show document in page format</div>
+                    </div>
+                    <input 
+                      type="checkbox" 
+                      checked={pageView} 
+                      onChange={(e) => setPageView(e.target.checked)}
+                      className="text-indigo-600 focus:ring-indigo-500"
+                    />
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowSettingsModal(false)}
+                className="px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+              >
+                Close
               </button>
             </div>
           </div>

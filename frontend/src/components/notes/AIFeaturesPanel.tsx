@@ -15,6 +15,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import axiosInstance from '../../utils/axiosConfig';
+import TypingAnimation from '../common/TypingAnimation';
 
 interface AIFeaturesPanelProps {
   content: string;
@@ -57,11 +58,34 @@ interface Flashcard {
   back: string;
 }
 
+// Function to convert markdown to HTML
+const convertMarkdownToHTML = (text: string): string => {
+  if (!text) return '';
+  
+  return text
+    // Convert ### headings to h3
+    .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-4">$1</h3>')
+    // Convert ## headings to h2
+    .replace(/^## (.+)$/gm, '<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3 mt-5">$1</h2>')
+    // Convert # headings to h1
+    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4 mt-6">$1</h1>')
+    // Convert **bold** to <strong>
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
+    // Convert *italic* to <em>
+    .replace(/\*(.+?)\*/g, '<em class="italic">$1</em>')
+    // Convert numbered lists
+    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 mb-1">$1. $2</li>')
+    // Convert bullet points
+    .replace(/^[-*] (.+)$/gm, '<li class="ml-4 mb-1 list-disc">$1</li>')
+    // Convert line breaks to <br>
+    .replace(/\n/g, '<br>');
+};
+
 const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ 
   content, 
   onApplySummary, 
   onActiveChange, 
-  sourceNoteId, 
+  sourceNoteId,
   sourceNotebookId, 
   sourceTitle,
   noteType = 'other',
@@ -78,6 +102,8 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
   // Chat state
   const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'assistant', content: string}>>([]);
   const [chatInput, setChatInput] = useState('');
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingMessageIndex, setTypingMessageIndex] = useState<number | null>(null);
 
   // Urgency detection state
   const [urgencyAnalysis, setUrgencyAnalysis] = useState<UrgencyAnalysis | null>(null);
@@ -126,6 +152,8 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
     if (featureId === 'chat') {
       setChatMessages([]);
       setChatInput('');
+      setIsTyping(false);
+      setTypingMessageIndex(null);
     }
   };
 
@@ -397,14 +425,19 @@ Click "View Deck" to see your flashcards in the Decks section.`);
     try {
       // Prepare messages array for the backend
       const messages = [
-        { role: 'system', content: `You are a helpful AI assistant. You are helping with a note titled "${sourceTitle || 'Untitled Note'}". The note content is: ${content}` },
         ...chatMessages,
         userMessage
       ];
 
       // Create a temporary assistant message that we'll update
       const tempAssistantMessage = { role: 'assistant' as const, content: '' };
-      setChatMessages(prev => [...prev, tempAssistantMessage]);
+      setChatMessages(prev => {
+        const newMessages = [...prev, tempAssistantMessage];
+        setTypingMessageIndex(newMessages.length - 1); // Index of the new assistant message
+        return newMessages;
+      });
+      setIsTyping(true);
+      console.log('🎬 Starting typing animation, isTyping:', true);
 
       const response = await fetch('/api/notes/chat/', {
         method: 'POST',
@@ -412,7 +445,9 @@ Click "View Deck" to see your flashcards in the Decks section.`);
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
         },
-        body: JSON.stringify({ messages: messages })
+        body: JSON.stringify({ 
+          messages: messages
+        })
       });
 
       if (!response.ok) {
@@ -440,15 +475,18 @@ Click "View Deck" to see your flashcards in the Decks section.`);
             try {
               const data = JSON.parse(line.slice(6));
               if (data.chunk) {
-                fullResponse += data.chunk;
-                // Update the last message with accumulated content
+                // Update the last message with the new chunk for typing animation
                 setChatMessages(prev => {
                   const newMessages = [...prev];
                   if (newMessages.length > 0) {
-                    newMessages[newMessages.length - 1] = { ...newMessages[newMessages.length - 1], content: fullResponse };
+                    newMessages[newMessages.length - 1] = { ...newMessages[newMessages.length - 1], content: data.full_response || fullResponse + data.chunk };
                   }
                   return newMessages;
                 });
+                fullResponse = data.full_response || fullResponse + data.chunk;
+                
+                // Add a small delay to make typing animation visible
+                await new Promise(resolve => setTimeout(resolve, 50));
               } else if (data.done && data.full_response) {
                 // Final update with cleaned response
                 setChatMessages(prev => {
@@ -458,6 +496,9 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                   }
                   return newMessages;
                 });
+                setIsTyping(false);
+                setTypingMessageIndex(null);
+                console.log('🎬 Typing animation complete, isTyping:', false);
               }
             } catch (e) {
               console.error('Error parsing SSE data:', e);
@@ -471,6 +512,8 @@ Click "View Deck" to see your flashcards in the Decks section.`);
       setError(errorMessage);
       // Remove the temporary assistant message on error
       setChatMessages(prev => prev.slice(0, -1));
+      setIsTyping(false);
+      setTypingMessageIndex(null);
     } finally {
       setIsLoading(false);
     }
@@ -579,6 +622,8 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                     onClick={() => {
                       setChatMessages([]);
                       setChatInput('');
+                      setIsTyping(false);
+                      setTypingMessageIndex(null);
                     }}
                     className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
                     title="Clear chat"
@@ -596,6 +641,8 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                     setSummaryResult('');
                     setChatMessages([]);
                     setChatInput('');
+                    setIsTyping(false);
+                    setTypingMessageIndex(null);
                     setUrgencyAnalysis(null);
                     setChunkingAnalysis(null);
                     setNotebookSummary('');
@@ -612,7 +659,7 @@ Click "View Deck" to see your flashcards in the Decks section.`);
               </div>
             </div>
             <div className="flex-1 overflow-hidden">
-              <div className="h-full">
+              <div className="h-full overflow-y-auto">
                 {activeFeature === 'summary' && (
                   <>
                     <p className="text-sm text-gray-500 dark:text-gray-400 p-4">
@@ -640,10 +687,11 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                           
                           {summaryResult && (
                             <div className="space-y-4">
-                              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                                <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                                  {summaryResult}
-                                </p>
+                              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 max-h-96 overflow-y-auto">
+                                <div 
+                                  className="text-sm text-gray-700 dark:text-gray-300"
+                                  dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(summaryResult) }}
+                                />
                               </div>
                               <button
                                 onClick={handleApplySummary}
@@ -685,9 +733,10 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                         
                         {notebookSummary && (
                           <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 max-h-64 overflow-y-auto">
-                            <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                              {notebookSummary}
-                            </p>
+                            <div 
+                              className="text-sm text-gray-700 dark:text-gray-300"
+                              dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(notebookSummary) }}
+                            />
                           </div>
                         )}
                       </>
@@ -847,10 +896,11 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                       {isReviewing ? 'Reviewing...' : 'Generate Review'}
                     </button>
                     {reviewResult && (
-                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mt-2">
-                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                          {reviewResult}
-                        </p>
+                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mt-2 max-h-64 overflow-y-auto">
+                        <div 
+                          className="text-sm text-gray-700 dark:text-gray-300"
+                          dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(reviewResult) }}
+                        />
                         {generatedReviewerId && (
                           <button
                             onClick={handleViewFullReview}
@@ -902,10 +952,11 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                     )}
                     
                     {flashcardResult && (
-                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mt-2">
-                        <p className="text-sm text-gray-700 dark:text-gray-300 whitespace-pre-wrap">
-                          {flashcardResult}
-                        </p>
+                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mt-2 max-h-64 overflow-y-auto">
+                        <div 
+                          className="text-sm text-gray-700 dark:text-gray-300"
+                          dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(flashcardResult) }}
+                        />
                         {createdDeckId && (
                           <button
                             onClick={handleViewDeck}
@@ -935,13 +986,32 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                             }`}
                           >
                             <div
-                              className={`max-w-[80%] rounded-lg p-3 break-words ${
+                              className={`max-w-[80%] rounded-lg p-3 break-words transition-all duration-200 ${
                                 message.role === 'user'
                                   ? 'bg-indigo-600 text-white'
                                   : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                              } ${
+                                message.role === 'assistant' && isTyping && typingMessageIndex === index
+                                  ? 'shadow-md ring-2 ring-indigo-200 dark:ring-indigo-800'
+                                  : ''
                               }`}
                             >
-                                <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                              {message.role === 'assistant' && isTyping && typingMessageIndex === index ? (
+                                <>
+                                  {console.log('🎬 Rendering TypingAnimation for message', index, 'content:', message.content)}
+                                  <div 
+                                    className="text-sm"
+                                    dangerouslySetInnerHTML={{ 
+                                      __html: convertMarkdownToHTML(message.content) + '<span class="animate-pulse text-indigo-500 ml-1">|</span>'
+                                    }}
+                                  />
+                                </>
+                              ) : (
+                                <div 
+                                  className="text-sm"
+                                  dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(message.content) }}
+                                />
+                              )}
                             </div>
                           </div>
                       ))}

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import PageLayout from '../components/PageLayout';
+import HelpButton from '../components/HelpButton';
 import TaskList from '../components/tasks/TaskList';
 import TaskForm from '../components/tasks/TaskForm';
 import TaskFilters from '../components/tasks/TaskFilters';
@@ -10,7 +11,6 @@ import { Task } from '../types/task';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
 import RealtimeStatus from '../components/common/RealtimeStatus';
-import SupabaseConnectionTest from '../components/common/SupabaseConnectionTest';
 import { RealtimeProvider, useRealtime } from '../context/RealtimeContext';
 import { supabase } from '../lib/supabase';
 // import { getTimezoneOffset } from '../utils/dateUtils';
@@ -914,8 +914,25 @@ const TasksContent = ({ user }: { user: any }) => {
           {/* Header section */}
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-center">
                 Tasks
+                <HelpButton 
+                  content={
+                    <div>
+                      <p className="font-semibold mb-2">Task Management</p>
+                      <ul className="space-y-1 text-xs">
+                        <li>• <strong>Create Tasks:</strong> Add new tasks with due dates and priorities</li>
+                        <li>• <strong>Priority Levels:</strong> High, Medium, Low priority tasks</li>
+                        <li>• <strong>Due Dates:</strong> Set deadlines and track overdue tasks</li>
+                        <li>• <strong>Subtasks:</strong> Break down complex tasks into smaller parts</li>
+                        <li>• <strong>Time Tracking:</strong> Log time spent on tasks</li>
+                        <li>• <strong>Evidence Upload:</strong> Attach files as proof of completion</li>
+                        <li>• <strong>Archive/Delete:</strong> Organize completed and old tasks</li>
+                      </ul>
+                    </div>
+                  } 
+                  title="Tasks Help" 
+                />
               </h1>
               <p className="text-lg text-gray-600 dark:text-gray-400">
                 Manage and track your tasks
@@ -943,8 +960,6 @@ const TasksContent = ({ user }: { user: any }) => {
             </div>
           </div>
 
-          {/* Supabase Connection Test */}
-          <SupabaseConnectionTest />
 
           {/* Task summary */}
           <TaskSummary 

@@ -18,6 +18,15 @@ import NotesTabs from '../components/notes/NotesTabs';
 
 import NotebookAIInsights from '../components/notes/NotebookAIInsights';
 
+// Generate organized colors with better visual progression (same as ColorPickerModal)
+const generateNotebookColor = (notebookId: number): string => {
+  const hueSteps = [0, 15, 30, 45, 60, 90, 120, 150, 180, 210, 240, 270];
+  const saturation = 70;
+  const lightness = 85;
+  const hue = hueSteps[notebookId % hueSteps.length];
+  return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+};
+
 interface Notebook {
   id: number;
   name: string;
@@ -116,10 +125,6 @@ const Notes = () => {
   type ViewType = 'notebooks' | 'notes';
   const [currentView, setCurrentView] = useState<ViewType>('notebooks');
   
-
-
-
-
   // Fetch notebooks from API
   const fetchNotebooks = async () => {
     try {
@@ -143,7 +148,7 @@ const Notes = () => {
         // Ensure each notebook has a color field with a default value
         const notebooksWithColors = notebooksData.map((notebook: any) => ({
           ...notebook,
-          color: notebook.color || savedColors[notebook.id] || `hsl(${(notebook.id * 137.5) % 360}, 70%, 85%)`
+          color: notebook.color || savedColors[notebook.id] || generateNotebookColor(notebook.id)
         }));
         
         console.log('Notebooks with colors:', notebooksWithColors);
@@ -179,7 +184,7 @@ const Notes = () => {
         // Ensure each archived notebook has a color field with a default value
         const archivedNotebooksWithColors = archivedNotebooksData.map((notebook: any) => ({
           ...notebook,
-          color: notebook.color || savedColors[notebook.id] || `hsl(${(notebook.id * 137.5) % 360}, 70%, 85%)`
+          color: notebook.color || savedColors[notebook.id] || generateNotebookColor(notebook.id)
         }));
         
         setArchivedNotebooks(archivedNotebooksWithColors);
@@ -210,7 +215,7 @@ const Notes = () => {
       // Ensure each note has the notebook_color field
       const notesWithColors = (notesData || []).map((note: any) => ({
         ...note,
-        notebook_color: note.notebook_color || savedColors[note.notebook] || `hsl(${(note.notebook * 137.5) % 360}, 70%, 85%)`
+        notebook_color: note.notebook_color || savedColors[note.notebook] || generateNotebookColor(note.notebook)
       }));
       
       setNotes(notesWithColors);
@@ -232,7 +237,7 @@ const Notes = () => {
       // Ensure each archived note has the notebook_color field
       const archivedNotesWithColors = (archivedNotesData || []).map((note: any) => ({
         ...note,
-        notebook_color: note.notebook_color || savedColors[note.notebook] || `hsl(${(note.notebook * 137.5) % 360}, 70%, 85%)`
+        notebook_color: note.notebook_color || savedColors[note.notebook] || generateNotebookColor(note.notebook)
       }));
       
       setArchivedNotes(archivedNotesWithColors);
@@ -494,6 +499,8 @@ const Notes = () => {
         // Switch to edit mode after first save to prevent duplicates
         setNoteEditorNote(response.data);
         setIsNewNoteEditor(false);
+        // Update URL to include the new note ID
+        navigate(`/notes/${response.data.id}`);
         // Update notebook notes count
         const updatedNotebooks = notebooks.map(nb => 
           nb.id === selectedNotebook.id 
@@ -1462,4 +1469,3 @@ const Notes = () => {
 };
 
 export default Notes;
-

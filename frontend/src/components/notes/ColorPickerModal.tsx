@@ -10,30 +10,30 @@ interface ColorPickerModalProps {
   title?: string;
 }
 
-const NOTEBOOK_COLORS = [
-  { name: 'Red', value: '#ef4444', bg: 'bg-red-500', hover: 'hover:bg-red-600' },
-  { name: 'Orange', value: '#f97316', bg: 'bg-orange-500', hover: 'hover:bg-orange-600' },
-  { name: 'Amber', value: '#f59e0b', bg: 'bg-amber-500', hover: 'hover:bg-amber-600' },
-  { name: 'Yellow', value: '#eab308', bg: 'bg-yellow-500', hover: 'hover:bg-yellow-600' },
-  { name: 'Lime', value: '#84cc16', bg: 'bg-lime-500', hover: 'hover:bg-lime-600' },
-  { name: 'Green', value: '#22c55e', bg: 'bg-green-500', hover: 'hover:bg-green-600' },
-  { name: 'Emerald', value: '#10b981', bg: 'bg-emerald-500', hover: 'hover:bg-emerald-600' },
-  { name: 'Teal', value: '#14b8a6', bg: 'bg-teal-500', hover: 'hover:bg-teal-600' },
-  { name: 'Cyan', value: '#06b6d4', bg: 'bg-cyan-500', hover: 'hover:bg-cyan-600' },
-  { name: 'Sky', value: '#0ea5e9', bg: 'bg-sky-500', hover: 'hover:bg-sky-600' },
-  { name: 'Blue', value: '#3b82f6', bg: 'bg-blue-500', hover: 'hover:bg-blue-600' },
-  { name: 'Indigo', value: '#6366f1', bg: 'bg-indigo-500', hover: 'hover:bg-indigo-600' },
-  { name: 'Violet', value: '#8b5cf6', bg: 'bg-violet-500', hover: 'hover:bg-violet-600' },
-  { name: 'Purple', value: '#a855f7', bg: 'bg-purple-500', hover: 'hover:bg-purple-600' },
-  { name: 'Fuchsia', value: '#d946ef', bg: 'bg-fuchsia-500', hover: 'hover:bg-fuchsia-600' },
-  { name: 'Pink', value: '#ec4899', bg: 'bg-pink-500', hover: 'hover:bg-pink-600' },
-  { name: 'Rose', value: '#f43f5e', bg: 'bg-rose-500', hover: 'hover:bg-rose-600' },
-  { name: 'Slate', value: '#64748b', bg: 'bg-slate-500', hover: 'hover:bg-slate-600' },
-  { name: 'Gray', value: '#6b7280', bg: 'bg-gray-500', hover: 'hover:bg-gray-600' },
-  { name: 'Zinc', value: '#71717a', bg: 'bg-zinc-500', hover: 'hover:bg-zinc-600' },
-  { name: 'Neutral', value: '#737373', bg: 'bg-neutral-500', hover: 'hover:bg-neutral-600' },
-  { name: 'Stone', value: '#78716c', bg: 'bg-stone-500', hover: 'hover:bg-stone-600' },
-];
+// Generate organized colors with better visual progression
+const generateNotebookColors = () => {
+  const colors = [];
+  
+  // Create a more organized color palette with better hue distribution (first 12 colors only)
+  const hueSteps = [0, 15, 30, 45, 60, 90, 120, 150, 180, 210, 240, 270];
+  const saturation = 70;
+  const lightness = 85;
+  
+  for (let i = 0; i < 12; i++) {
+    // Use a more organized hue distribution
+    const hue = hueSteps[i];
+    const hslValue = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    colors.push({
+      name: `Color ${i + 1}`,
+      value: hslValue,
+      bg: '', // Will be set dynamically
+      hover: '' // Will be set dynamically
+    });
+  }
+  return colors;
+};
+
+const NOTEBOOK_COLORS = generateNotebookColors();
 
 const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
   isOpen,
@@ -77,12 +77,12 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
                 onClick={() => handleColorSelect(color.value)}
                 className={`
                   w-12 h-12 rounded-lg border-2 transition-all duration-200
-                  ${color.bg} ${color.hover}
                   ${currentColor === color.value 
                     ? 'border-gray-900 dark:border-white ring-2 ring-indigo-500 ring-offset-2' 
                     : 'border-gray-200 dark:border-gray-600 hover:scale-110'
                   }
                 `}
+                style={{ backgroundColor: color.value }}
                 title={color.name}
               >
                 {currentColor === color.value && (

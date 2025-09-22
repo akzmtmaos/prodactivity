@@ -193,29 +193,8 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
               {note.title}
             </h3>
           </div>
-          {/* Second line: IMPORTANT tag, metadata, and timestamps */}
+          {/* Second line: Only timestamps */}
           <div className="flex items-center gap-2 mt-1">
-            {note.is_urgent && (
-              <span className="px-2 py-1 text-xs font-medium rounded-full bg-orange-600 text-white">
-                IMPORTANT
-              </span>
-            )}
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {getNoteTypeLabel(note.note_type)}
-            </span>
-            <span className="text-xs text-gray-400">•</span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {note.notebook_name}
-            </span>
-            {note.notebook_urgency !== 'normal' && (
-              <>
-                <span className="text-xs text-gray-400">•</span>
-                <span className={`px-1 py-0.5 text-xs font-medium rounded ${getUrgencyColor(note.notebook_urgency)}`}>
-                  {note.notebook_urgency.toUpperCase()}
-                </span>
-              </>
-            )}
-            <span className="text-xs text-gray-400">•</span>
             <span className="text-xs text-gray-500 dark:text-gray-400">
               Created: {formatDate(note.created_at)} | Updated: {formatDate(note.updated_at)}
             </span>

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Play, Pause, RotateCcw, Settings, Clock, Target, TrendingUp } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
+import HelpButton from '../components/HelpButton';
 import PomodoroModeToggle from '../components/studytimer/PomodoroModeToggle';
 import { useTimer } from '../context/TimerContext';
 
@@ -155,8 +156,25 @@ const StudyTimer: React.FC = () => {
       <div className="space-y-6">
         {/* Header */}
         <div className="mb-4">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
             Study Timer
+            <HelpButton 
+              content={
+                <div>
+                  <p className="font-semibold mb-2">Study Timer & Focus</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>• <strong>Pomodoro Technique:</strong> 25-minute focused work sessions</li>
+                    <li>• <strong>Custom Timers:</strong> Set your own study session lengths</li>
+                    <li>• <strong>Break Timers:</strong> Take regular breaks to maintain focus</li>
+                    <li>• <strong>Session Logs:</strong> Track your study time and productivity</li>
+                    <li>• <strong>Statistics:</strong> View your study patterns and progress</li>
+                    <li>• <strong>Floating Timer:</strong> Keep timer visible while working</li>
+                    <li>• <strong>Sound Alerts:</strong> Get notified when sessions end</li>
+                  </ul>
+                </div>
+              } 
+              title="Study Timer Help" 
+            />
           </h1>
           <p className="text-gray-600 dark:text-gray-400 mt-2">
             Track your study sessions

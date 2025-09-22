@@ -1,6 +1,7 @@
 import React from 'react';
 import SearchBar from './SearchBar';
 import { Search, AlertTriangle, ArrowUpDown, Brain } from 'lucide-react';
+import HelpButton from '../HelpButton';
 
 interface NotesHeaderProps {
   currentView: 'notebooks' | 'notes';
@@ -45,11 +46,27 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
   onAIInsights,
   isSearching = false,
 }) => {
+  const notesHelpContent = (
+    <div>
+      <p className="font-semibold mb-2">Notes Management</p>
+      <ul className="space-y-1 text-xs">
+        <li>• <strong>Notebooks:</strong> Organize your notes into different categories</li>
+        <li>• <strong>Create Notes:</strong> Click the + button to add new notes</li>
+        <li>• <strong>Markdown Support:</strong> Use # ## ### for headings, - for lists</li>
+        <li>• <strong>AI Features:</strong> Get summaries, chat, and insights for your notes</li>
+        <li>• <strong>Search:</strong> Find notes by title, content, or date</li>
+        <li>• <strong>Archive:</strong> Move old notes to archive to keep things organized</li>
+        <li>• <strong>Color Coding:</strong> Use different colors to categorize notebooks</li>
+      </ul>
+    </div>
+  );
+
   return (
     <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
           {currentView === 'notebooks' ? 'Notes' : 'Notes'}
+          <HelpButton content={notesHelpContent} title="Notes Help" />
         </h1>
         <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
           {currentView === 'notebooks'

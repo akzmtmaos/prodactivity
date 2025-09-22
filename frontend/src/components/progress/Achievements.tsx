@@ -235,19 +235,6 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel }) => {
           </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="mb-6">
-          <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-2">
-            <span>Progress</span>
-            <span>{Math.round((unlockedAchievements.length / allAchievements.length) * 100)}%</span>
-          </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
-            <div 
-              className="bg-gradient-to-r from-yellow-400 to-yellow-600 h-2 rounded-full transition-all duration-500"
-              style={{ width: `${(unlockedAchievements.length / allAchievements.length) * 100}%` }}
-            ></div>
-          </div>
-        </div>
 
         {/* Unlocked Achievements */}
         {unlockedAchievements.length > 0 && (
@@ -293,7 +280,7 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel }) => {
               Locked ({lockedAchievements.length})
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {lockedAchievements.slice(0, 6).map((achievement) => (
+              {lockedAchievements.map((achievement) => (
                 <div 
                   key={achievement.id}
                   className="p-4 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/30 opacity-60"
@@ -320,11 +307,6 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel }) => {
                 </div>
               ))}
             </div>
-            {lockedAchievements.length > 6 && (
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
-                And {lockedAchievements.length - 6} more achievements to unlock...
-              </p>
-            )}
           </div>
         )}
       </div>

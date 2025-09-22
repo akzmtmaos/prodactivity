@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import PageLayout from '../components/PageLayout';
 import NotificationList, { Notification } from '../components/notifications/NotificationList';
+import { useNotifications } from '../hooks/useNotifications';
 
 const Notifications = ({ decrementUnreadCount }: { decrementUnreadCount?: () => void }) => {
   const [user, setUser] = useState<any | null>(null);
   const [greeting, setGreeting] = useState('');
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  // Helper to get auth token (adjust if you use a different storage method)
-  const getToken = () => localStorage.getItem('accessToken');
+  const { 
+    notifications, 
+    unreadCount, 
+    loading, 
+    markAsRead, 
+    markAllAsRead 
+  } = useNotifications();
 
   useEffect(() => {
     // Get user data from localStorage
@@ -37,65 +40,16 @@ const Notifications = ({ decrementUnreadCount }: { decrementUnreadCount?: () => 
     else setGreeting('Good evening');
   }, []);
 
-  useEffect(() => {
-    // Fetch notifications from backend
-    const fetchNotifications = async () => {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/notifications/', {
-          headers: {
-            'Authorization': `Bearer ${getToken()}`,
-          },
-        });
-        if (!res.ok) throw new Error('Failed to fetch notifications');
-        const data = await res.json();
-        // Map backend fields to frontend Notification type
-        const mapped: Notification[] = data.map((n: any) => ({
-          id: String(n.id),
-          title: n.type === 'task_due' ? 'Task Due Soon' : n.type === 'task_overdue' ? 'Task Overdue' : n.type === 'event_upcoming' ? 'Event Upcoming' : 'Notification',
-          message: n.message,
-          type: n.type === 'task_due' ? 'warning' : n.type === 'task_overdue' ? 'error' : n.type === 'event_upcoming' ? 'info' : 'info',
-          timestamp: new Date(n.created_at),
-          isRead: n.is_read,
-        }));
-        setNotifications(mapped);
-      } catch (e) {
-        console.error(e);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchNotifications();
-  }, []);
 
   const handleMarkAsRead = async (id: string) => {
-    try {
-      await fetch(`/api/notifications/${id}/read/`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${getToken()}`,
-        },
-      });
-      setNotifications((prev) =>
-        prev.map((notification) =>
-          notification.id === id
-            ? { ...notification, isRead: true }
-            : notification
-        )
-      );
-      if (decrementUnreadCount) decrementUnreadCount();
-    } catch (e) {
-      console.error('Failed to mark notification as read:', e);
-    }
+    await markAsRead(id);
+    if (decrementUnreadCount) decrementUnreadCount();
   };
 
   const handleClearAll = async () => {
-    // Mark all as read (no bulk endpoint, so do one by one)
-    const unread = notifications.filter((n) => !n.isRead);
-    await Promise.all(unread.map((n) => handleMarkAsRead(n.id)));
-    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+    await markAllAsRead();
     if (decrementUnreadCount) {
-      for (let i = 0; i < unread.length; i++) {
+      for (let i = 0; i < unreadCount; i++) {
         decrementUnreadCount();
       }
     }

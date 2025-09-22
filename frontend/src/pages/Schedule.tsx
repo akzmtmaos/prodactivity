@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { isValid } from 'date-fns';
 import PageLayout from '../components/PageLayout';
+import HelpButton from '../components/HelpButton';
 import Calendar from '../components/schedules/Calendar';
 import UpcomingEvents from '../components/schedules/UpcomingEvents';
 import RecurringSchedules from '../components/schedules/RecurringSchedules';
@@ -118,7 +119,7 @@ const Schedule = () => {
     }
   };
 
-  const saveAllData = () => {
+  const saveAllData = (newEvents?: ScheduleEvent[], newRecurringSchedules?: RecurringSchedule[], newPastEvents?: PastEvent[]) => {
     try {
       const userData = localStorage.getItem('user');
       if (!userData) {
@@ -128,9 +129,14 @@ const Schedule = () => {
 
       const { username } = JSON.parse(userData);
       
-      localStorage.setItem(`scheduleEvents_${username}`, JSON.stringify(events));
-      localStorage.setItem(`recurringSchedules_${username}`, JSON.stringify(recurringSchedules));
-      localStorage.setItem(`pastEvents_${username}`, JSON.stringify(pastEvents));
+      // Use provided data or current state
+      const eventsToSave = newEvents || events;
+      const recurringSchedulesToSave = newRecurringSchedules || recurringSchedules;
+      const pastEventsToSave = newPastEvents || pastEvents;
+      
+      localStorage.setItem(`scheduleEvents_${username}`, JSON.stringify(eventsToSave));
+      localStorage.setItem(`recurringSchedules_${username}`, JSON.stringify(recurringSchedulesToSave));
+      localStorage.setItem(`pastEvents_${username}`, JSON.stringify(pastEventsToSave));
       setError(null);
     } catch (e) {
       console.error('Error saving data:', e);
@@ -147,7 +153,7 @@ const Schedule = () => {
 
       const updatedEvents = [...events, eventToAdd];
       setEvents(updatedEvents);
-      saveAllData();
+      saveAllData(updatedEvents);
     } catch (e) {
       console.error('Error adding event:', e);
       setError('Failed to add event. Please try again.');
@@ -156,14 +162,15 @@ const Schedule = () => {
 
   const handleAddRecurringSchedule = (scheduleData: Omit<RecurringSchedule, 'id'>) => {
     try {
+      let updatedSchedules: RecurringSchedule[];
+      
       if (editingSchedule) {
         // Update existing schedule
-        const updatedSchedules = recurringSchedules.map(schedule =>
+        updatedSchedules = recurringSchedules.map(schedule =>
           schedule.id === editingSchedule.id
             ? { ...scheduleData, id: editingSchedule.id }
             : schedule
         );
-        setRecurringSchedules(updatedSchedules);
         setEditingSchedule(null);
       } else {
         // Add new schedule
@@ -171,10 +178,11 @@ const Schedule = () => {
           id: Date.now().toString(),
           ...scheduleData
         };
-        const updatedSchedules = [...recurringSchedules, scheduleToAdd];
-        setRecurringSchedules(updatedSchedules);
+        updatedSchedules = [...recurringSchedules, scheduleToAdd];
       }
-      saveAllData();
+      
+      setRecurringSchedules(updatedSchedules);
+      saveAllData(undefined, updatedSchedules);
     } catch (e) {
       console.error('Error adding/updating recurring schedule:', e);
       setError('Failed to save recurring schedule. Please try again.');
@@ -185,7 +193,7 @@ const Schedule = () => {
     try {
       const updatedEvents = events.filter(event => event.id !== id);
       setEvents(updatedEvents);
-      saveAllData();
+      saveAllData(updatedEvents);
     } catch (e) {
       console.error('Error deleting event:', e);
       setError('Failed to delete event. Please try again.');
@@ -196,7 +204,7 @@ const Schedule = () => {
     try {
       const updatedSchedules = recurringSchedules.filter(schedule => schedule.id !== id);
       setRecurringSchedules(updatedSchedules);
-      saveAllData();
+      saveAllData(undefined, updatedSchedules);
     } catch (e) {
       console.error('Error deleting recurring schedule:', e);
       setError('Failed to delete recurring schedule. Please try again.');
@@ -211,7 +219,7 @@ const Schedule = () => {
           : schedule
       );
       setRecurringSchedules(updatedSchedules);
-      saveAllData();
+      saveAllData(undefined, updatedSchedules);
     } catch (e) {
       console.error('Error toggling schedule active status:', e);
       setError('Failed to update schedule status. Please try again.');
@@ -242,7 +250,7 @@ const Schedule = () => {
       
       setPastEvents(updatedPastEvents);
       setEvents(updatedEvents);
-      saveAllData();
+      saveAllData(updatedEvents, undefined, updatedPastEvents);
     } catch (e) {
       console.error('Error moving event to past:', e);
       setError('Failed to update event status. Please try again.');
@@ -265,8 +273,25 @@ const Schedule = () => {
           {/* Header section */}
           <div className="mb-8 flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
                 Schedule
+                <HelpButton 
+                  content={
+                    <div>
+                      <p className="font-semibold mb-2">Schedule Management</p>
+                      <ul className="space-y-1 text-xs">
+                        <li>• <strong>Add Events:</strong> Create one-time events with details</li>
+                        <li>• <strong>Recurring Schedules:</strong> Set up repeating events</li>
+                        <li>• <strong>Calendar View:</strong> Visual monthly calendar display</li>
+                        <li>• <strong>Upcoming Events:</strong> See what's coming next</li>
+                        <li>• <strong>Past Events:</strong> Review completed activities</li>
+                        <li>• <strong>Event Details:</strong> Add location, time, and descriptions</li>
+                        <li>• <strong>Edit/Delete:</strong> Modify or remove events as needed</li>
+                      </ul>
+                    </div>
+                  } 
+                  title="Schedule Help" 
+                />
               </h1>
               <p className="mt-1 text-lg text-gray-600 dark:text-gray-400">
                 Here's your upcoming schedule.

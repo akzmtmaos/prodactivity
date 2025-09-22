@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Search, Filter, BookOpen, TrendingUp, Clock, Target, FileText } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
+import HelpButton from '../components/HelpButton';
 import Pagination from '../components/common/Pagination';
 import DeckCard from '../components/decks/DeckCard';
 import CreateDeckModal from '../components/decks/CreateDeckModal';
@@ -112,10 +113,11 @@ const Decks = () => {
   const [notesByNotebook, setNotesByNotebook] = useState<Record<number, NoteItem[]>>({});
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<number>>(new Set());
   const [loadingNotes, setLoadingNotes] = useState<boolean>(false);
-  const [parseStrategy, setParseStrategy] = useState<'qa' | 'heading'>('qa');
-  const [deckStrategy, setDeckStrategy] = useState<'per_note' | 'single'>('per_note');
-  const [singleDeckName, setSingleDeckName] = useState<string>('Converted Notes');
+  const [deckName, setDeckName] = useState<string>('AI Generated Deck');
   const [previewCount, setPreviewCount] = useState<number>(0);
+  const [aiPreviewCards, setAiPreviewCards] = useState<{ question: string; answer: string }[]>([]);
+  const [showAiPreview, setShowAiPreview] = useState<boolean>(false);
+  const [aiLoading, setAiLoading] = useState<boolean>(false);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
@@ -164,200 +166,11 @@ const Decks = () => {
     }
   };
 
+  // Legacy function kept for potential fallback, but we now use AI for all conversion
   const parseNotesToCards = (notes: NoteItem[]): { question: string; answer: string }[] => {
-    const cards: { question: string; answer: string }[] = [];
-    
-    // Helper function to clean HTML tags and normalize text
-    const cleanText = (text: string): string => {
-      return text
-        .replace(/<[^>]*>/g, '') // Remove HTML tags
-        .replace(/&nbsp;/g, ' ') // Replace HTML entities
-        .replace(/&amp;/g, '&')
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .replace(/&quot;/g, '"')
-        .replace(/\s+/g, ' ') // Normalize whitespace
-        .trim();
-    };
-    
-    for (const note of notes) {
-      const content = cleanText(note.content || '');
-      console.log('Parsing note:', note.title, 'Content length:', content.length);
-      
-      if (parseStrategy === 'qa') {
-        // Strategy 1: Look for explicit Q:/A: lines
-        const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-        let i = 0;
-        while (i < lines.length) {
-          const line = lines[i];
-          
-          // Check for Q: A: pattern
-          if (/^q\s*:|^Q\s*:/.test(line)) {
-            const q = line.replace(/^q\s*:|^Q\s*:/, '').trim();
-            let a = '';
-            if (i + 1 < lines.length && (/^a\s*:|^A\s*:/.test(lines[i + 1]) || lines[i + 1].length > 0)) {
-              const next = lines[i + 1];
-              a = next.replace(/^a\s*:|^A\s*:/, '').trim();
-              i += 2;
-            } else {
-              i += 1;
-            }
-            if (q && a) {
-              cards.push({ question: q, answer: a });
-              console.log('Found Q/A pattern:', q, '->', a);
-            }
-            continue;
-          }
-          
-          // Check for question mark pattern
-          if (line.endsWith('?')) {
-            const q = line;
-            let a = '';
-            let j = i + 1;
-            while (j < lines.length && !lines[j].endsWith('?') && !/^q\s*:|^Q\s*:/.test(lines[j])) {
-              if (a.length > 0) a += ' ';
-              a += lines[j];
-              j++;
-            }
-            if (q && a) {
-              cards.push({ question: q, answer: a });
-              console.log('Found ? pattern:', q, '->', a);
-            }
-            i = j;
-            continue;
-          }
-          
-          i++;
-        }
-        
-        // Strategy 2: If no Q/A patterns found, create cards from sentences with better logic
-        if (cards.length === 0) {
-          const sentences = content.split(/[.!?]+/).filter(s => s.trim().length > 15);
-          for (let i = 0; i < sentences.length - 1; i++) {
-            const currentSentence = sentences[i].trim();
-            const nextSentence = sentences[i + 1].trim();
-            
-            // Skip if either sentence is too short or too long
-            if (currentSentence.length < 10 || currentSentence.length > 200 || 
-                nextSentence.length < 10 || nextSentence.length > 300) {
-              continue;
-            }
-            
-            // Create a question from the current sentence
-            let question = currentSentence;
-            if (!question.endsWith('?')) {
-              // Try to make it a question if it's not already
-              if (question.toLowerCase().includes('is') || question.toLowerCase().includes('are') || 
-                  question.toLowerCase().includes('can') || question.toLowerCase().includes('will')) {
-                question = question + '?';
-              } else {
-                question = 'What is ' + question.toLowerCase() + '?';
-              }
-            }
-            
-            cards.push({ question, answer: nextSentence });
-            console.log('Created from sentences:', question.substring(0, 50), '->', nextSentence.substring(0, 50));
-          }
-        }
-        
-        // Strategy 3: If still no cards, create from key concepts
-        if (cards.length === 0) {
-          const lines = content.split('\n').filter(line => line.trim().length > 20);
-          for (let i = 0; i < lines.length - 1; i++) {
-            const concept = lines[i].trim();
-            const explanation = lines[i + 1].trim();
-            
-            if (concept && explanation && concept.length > 10 && explanation.length > 10) {
-                             // Create a better question by filtering out common filler words
-               const words = concept.split(' ').filter(w => 
-                 !['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'].includes(w.toLowerCase())
-               );
-               const keyConcept = words.slice(0, Math.min(4, words.length)).join(' ');
-               const question = `What is ${keyConcept}?`;
-              cards.push({ question, answer: explanation });
-              console.log('Created from concepts:', question, '->', explanation.substring(0, 50));
-            }
-          }
-        }
-        
-      } else {
-        // Heading strategy: treat markdown headings as questions, next paragraph as answer
-        const lines = content.split('\n');
-        let i = 0;
-        while (i < lines.length) {
-          const raw = lines[i].trim();
-          const isHeading = /^(#{1,6})\s+/.test(raw);
-          if (isHeading) {
-            const q = raw.replace(/^(#{1,6})\s+/, '').trim();
-            let aLines: string[] = [];
-            i++;
-            while (i < lines.length) {
-              const t = lines[i].trim();
-              if (t.length === 0) { i++; continue; }
-              if (/^(#{1,6})\s+/.test(t)) break;
-              aLines.push(t);
-              i++;
-              // Stop answer at blank line to avoid swallowing entire doc
-              if (i < lines.length && lines[i].trim() === '') break;
-            }
-            const a = aLines.join(' ');
-            if (q && a) {
-              cards.push({ question: q, answer: a });
-              console.log('Found heading pattern:', q, '->', a);
-            }
-            continue;
-          }
-          i++;
-        }
-        
-        // Fallback: If no headings found, create from paragraphs
-        if (cards.length === 0) {
-          const paragraphs = content.split('\n\n').filter(p => p.trim().length > 10);
-          for (let i = 0; i < paragraphs.length - 1; i += 2) {
-            const question = paragraphs[i].trim();
-            const answer = paragraphs[i + 1].trim();
-            if (question && answer && question.length > 5 && answer.length > 5) {
-              cards.push({ question, answer });
-              console.log('Created from paragraphs (heading strategy):', question.substring(0, 50), '->', answer.substring(0, 50));
-            }
-          }
-        }
-      }
-      
-      // Final fallback: If still no cards, create better cards from content chunks
-      if (cards.length === 0 && content.trim().length > 20) {
-        const chunks = content.split(/[.!?]+/).filter(chunk => chunk.trim().length > 20);
-        
-        if (chunks.length >= 2) {
-          // Create multiple cards from content chunks
-          for (let i = 0; i < chunks.length - 1; i++) {
-            const chunk = chunks[i].trim();
-            const nextChunk = chunks[i + 1].trim();
-            
-            if (chunk.length > 15 && nextChunk.length > 15) {
-                             // Create a better question by filtering out common filler words
-               const words = chunk.split(' ').filter(w => 
-                 !['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by'].includes(w.toLowerCase())
-               );
-               const keyConcept = words.slice(0, Math.min(4, words.length)).join(' ');
-               const question = `What is ${keyConcept}?`;
-              const answer = nextChunk;
-              cards.push({ question, answer });
-              console.log('Created fallback card:', question, '->', answer.substring(0, 50));
-            }
-          }
-        } else {
-          // Single card from title and content
-          const question = note.title || 'What is this note about?';
-          const answer = truncateHtmlContent(content, 300);
-          cards.push({ question, answer });
-          console.log('Created single fallback card:', question, '->', answer.substring(0, 50));
-        }
-      }
-    }
-    
-    console.log('Total cards created:', cards.length);
-    return cards;
+    // This function is no longer used since we use AI for all conversions
+    // Keeping it for potential fallback scenarios
+    return [];
   };
 
   useEffect(() => {
@@ -372,12 +185,19 @@ const Decks = () => {
 
   useEffect(() => {
     if (!showConvertModal) return;
-    if (modalSelectedNotebookId == null) { setPreviewCount(0); return; }
+    if (modalSelectedNotebookId == null) { 
+      setPreviewCount(0); 
+      setAiPreviewCards([]);
+      setShowAiPreview(false);
+      return; 
+    }
     const notes = notesByNotebook[modalSelectedNotebookId] || [];
     const selected = notes.filter(n => selectedNoteIds.has(n.id));
-    const cards = parseNotesToCards(selected);
-    setPreviewCount(cards.length);
-  }, [selectedNoteIds, parseStrategy, notesByNotebook, modalSelectedNotebookId, showConvertModal]);
+    
+    // Estimate 3-5 cards per note for AI generation
+    setPreviewCount(selected.length * 4);
+    setShowAiPreview(false);
+  }, [selectedNoteIds, notesByNotebook, modalSelectedNotebookId, showConvertModal]);
 
   const handleToggleNoteSelection = (noteId: number) => {
     setSelectedNoteIds(prev => {
@@ -397,6 +217,51 @@ const Decks = () => {
     }
   };
 
+  const handleAiPreview = async () => {
+    if (modalSelectedNotebookId == null) return;
+    const notes = notesByNotebook[modalSelectedNotebookId] || [];
+    const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
+    
+    if (selectedNotes.length === 0) {
+      setToast({ message: 'Select at least one note to preview', type: 'error' });
+      return;
+    }
+
+    setAiLoading(true);
+    try {
+      // Combine all selected notes content
+      const combinedContent = selectedNotes.map(note => 
+        `Title: ${note.title}\nContent: ${note.content}`
+      ).join('\n\n---\n\n');
+      
+      const response = await fetch('http://192.168.56.1:8000/api/decks/ai/preview-flashcards/', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          content: combinedContent,
+          title: deckName || 'AI Generated Deck',
+          strategy: 'ai_enhanced'
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to preview flashcards');
+      }
+
+      const data = await response.json();
+      setAiPreviewCards(data.flashcards || []);
+      setPreviewCount(data.count || 0);
+      setShowAiPreview(true);
+    } catch (error) {
+      console.error('AI preview error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setToast({ message: `Preview failed: ${errorMessage}`, type: 'error' });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const convertSelectedNotes = async () => {
     if (modalSelectedNotebookId == null) return;
     const notes = notesByNotebook[modalSelectedNotebookId] || [];
@@ -408,117 +273,84 @@ const Decks = () => {
     const token = localStorage.getItem('accessToken');
     try {
       setLoadingNotes(true);
-      const createdDecks: Deck[] = [];
       
-      if (deckStrategy === 'single') {
-        // Create single deck
-        const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-          body: JSON.stringify({ title: singleDeckName.trim() || 'Converted Notes' })
-        });
-        if (!res.ok) throw new Error('Failed to create deck');
-        const deckData = await res.json();
-        const allCards = parseNotesToCards(selectedNotes);
-        
-        // Create flashcards with proper error handling
-        const createdFlashcards = [];
-        for (const card of allCards) {
-          const flashcardRes = await fetch('http://192.168.56.1:8000/api/decks/flashcards/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-            body: JSON.stringify({ deck: deckData.id, front: card.question, back: card.answer })
-          });
-          if (!flashcardRes.ok) {
-            console.error('Failed to create flashcard:', card);
-            continue;
-          }
-          const flashcardData = await flashcardRes.json();
-          createdFlashcards.push({
-            id: flashcardData.id.toString(),
-            question: flashcardData.front,
-            answer: flashcardData.back,
-            front: flashcardData.front,
-            back: flashcardData.back,
-            difficulty: undefined
-          });
-        }
-        
+      // Create single deck with AI-generated name
+      const deckTitle = deckName.trim() || 'AI Generated Deck';
+      const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
+        body: JSON.stringify({ title: deckTitle })
+      });
+      if (!res.ok) throw new Error('Failed to create deck');
+      const deckData = await res.json();
+      
+      // Use AI to generate flashcards from all selected notes
+      const combinedContent = selectedNotes.map(note => 
+        `Title: ${note.title}\nContent: ${note.content}`
+      ).join('\n\n---\n\n');
+      
+      const aiResponse = await fetch('http://192.168.56.1:8000/api/decks/ai/generate-flashcards/', {
+        method: 'POST',
+        headers: getAuthHeaders(),
+        body: JSON.stringify({
+          content: combinedContent,
+          title: deckTitle,
+          strategy: 'ai_enhanced',
+          deck_id: deckData.id
+        })
+      });
+      
+      if (!aiResponse.ok) {
+        const errorData = await aiResponse.json();
+        throw new Error(errorData.error || 'AI generation failed');
+      }
+      
+      const aiData = await aiResponse.json();
+      
+      // Fetch the updated deck with flashcards
+      const updatedDeckRes = await fetch(`http://192.168.56.1:8000/api/decks/decks/${deckData.id}/`, {
+        headers: { 'Authorization': token ? `Bearer ${token}` : '' }
+      });
+      if (updatedDeckRes.ok) {
+        const updatedDeckData = await updatedDeckRes.json();
         const newDeck: Deck = {
-          id: deckData.id.toString(),
-          title: deckData.title,
-          flashcardCount: createdFlashcards.length,
+          id: updatedDeckData.id.toString(),
+          title: updatedDeckData.title,
+          flashcardCount: updatedDeckData.flashcard_count || 0,
           progress: 0,
-          created_at: deckData.created_at,
-          updated_at: deckData.updated_at,
-          createdAt: deckData.created_at,
-          flashcards: createdFlashcards,
+          created_at: updatedDeckData.created_at,
+          updated_at: updatedDeckData.updated_at,
+          createdAt: updatedDeckData.created_at,
+          flashcards: (updatedDeckData.flashcards || []).map((fc: any) => ({
+            id: fc.id.toString(),
+            question: fc.front,
+            answer: fc.back,
+            front: fc.front,
+            back: fc.back,
+            difficulty: undefined
+          })),
           subDecks: [],
           is_deleted: false,
           is_archived: false,
         };
-        createdDecks.push(newDeck);
-      } else {
-        // Create a deck per note
-        for (const note of selectedNotes) {
-          const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-            body: JSON.stringify({ title: note.title || `Note ${note.id}` })
-          });
-          if (!res.ok) throw new Error('Failed to create deck');
-          const deckData = await res.json();
-          const cards = parseNotesToCards([note]);
-          
-          // Create flashcards with proper error handling
-          const createdFlashcards = [];
-          for (const card of cards) {
-            const flashcardRes = await fetch('http://192.168.56.1:8000/api/decks/flashcards/', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-              body: JSON.stringify({ deck: deckData.id, front: card.question, back: card.answer })
-            });
-            if (!flashcardRes.ok) {
-              console.error('Failed to create flashcard:', card);
-              continue;
-            }
-            const flashcardData = await flashcardRes.json();
-            createdFlashcards.push({
-              id: flashcardData.id.toString(),
-              question: flashcardData.front,
-              answer: flashcardData.back,
-              front: flashcardData.front,
-              back: flashcardData.back,
-              difficulty: undefined
-            });
-          }
-          
-          const newDeck: Deck = {
-            id: deckData.id.toString(),
-            title: deckData.title,
-            flashcardCount: createdFlashcards.length,
-            progress: 0,
-            created_at: deckData.created_at,
-            updated_at: deckData.updated_at,
-            createdAt: deckData.created_at,
-            flashcards: createdFlashcards,
-            subDecks: [],
-            is_deleted: false,
-            is_archived: false,
-          };
-          createdDecks.push(newDeck);
-        }
+        
+        // Add the new deck to the current decks
+        setDecks(prev => [...prev, newDeck]);
+        setToast({ 
+          message: `Successfully created "${newDeck.title}" with ${newDeck.flashcardCount} flashcards!`, 
+          type: 'success' 
+        });
       }
       
-      // Merge into current decks
-      setDecks(prev => [...prev, ...createdDecks]);
-      setToast({ message: `Successfully created ${createdDecks.length} deck(s) with flashcards`, type: 'success' });
       // Reset modal state
       setShowConvertModal(false);
       setSelectedNoteIds(new Set());
+      setShowAiPreview(false);
+      setAiPreviewCards([]);
     } catch (e) {
       console.error('Conversion error:', e);
-      setToast({ message: 'Conversion failed. Please try again.', type: 'error' });
+      const errorMessage = e instanceof Error ? e.message : 'Unknown error occurred';
+      setToast({ message: `Conversion failed: ${errorMessage}`, type: 'error' });
     } finally {
       setLoadingNotes(false);
     }
@@ -1181,8 +1013,25 @@ const Decks = () => {
           {/* Header */}
           <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
                 Flashcards
+                <HelpButton 
+                  content={
+                    <div>
+                      <p className="font-semibold mb-2">Flashcards & Study</p>
+                      <ul className="space-y-1 text-xs">
+                        <li>• <strong>Create Decks:</strong> Organize flashcards by topic</li>
+                        <li>• <strong>Study Modes:</strong> Practice, Quiz, and Review sessions</li>
+                        <li>• <strong>Spaced Repetition:</strong> Cards appear based on difficulty</li>
+                        <li>• <strong>Progress Tracking:</strong> Monitor your learning progress</li>
+                        <li>• <strong>Import from Notes:</strong> Convert notes to flashcards</li>
+                        <li>• <strong>Sub-decks:</strong> Organize cards into smaller groups</li>
+                        <li>• <strong>Statistics:</strong> View detailed study analytics</li>
+                      </ul>
+                    </div>
+                  } 
+                  title="Flashcards Help" 
+                />
               </h1>
               <p className="text-gray-600 dark:text-gray-400 mt-2">
                 Ready to learn something new today?
@@ -1227,13 +1076,13 @@ const Decks = () => {
                   <option value="new">New</option>
                 </select>
               </div>
-              {/* Convert Notes button */}
+              {/* AI Generate Flashcards button */}
               <button
                 onClick={() => setShowConvertModal(true)}
-                className="inline-flex items-center h-10 min-w-[180px] px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
+                className="inline-flex items-center h-10 min-w-[200px] px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
               >
                 <FileText size={20} className="mr-2" />
-                Convert Notes
+                Convert to Flashcards
               </button>
               {/* Add Deck button */}
               <button
@@ -1497,8 +1346,8 @@ const Decks = () => {
                     <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
                   </div>
                   <div className="mt-3 text-left sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">Convert Notes to Flashcards</h3>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Select notes and how to parse them into Q/A cards. Create a single deck or one deck per note.</p>
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">🤖 AI-Powered Flashcard Generation</h3>
+                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Select notes and let DeepSeek-R1 intelligently convert them into high-quality flashcards.</p>
                     <div className="mt-4 space-y-4">
                       {/* Notebook selector */}
                       <div>
@@ -1566,47 +1415,64 @@ const Decks = () => {
                           )}
                         </div>
                       </div>
-                      {/* Parsing strategy */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Parsing Strategy</label>
-                          <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                            <label className="flex items-center gap-2">
-                              <input type="radio" name="parseStrategy" value="qa" checked={parseStrategy === 'qa'} onChange={() => setParseStrategy('qa')} />
-                              Q/A lines (detect lines starting with "Q:" followed by "A:", or questions ending with "?")
-                            </label>
-                            <label className="flex items-center gap-2">
-                              <input type="radio" name="parseStrategy" value="heading" checked={parseStrategy === 'heading'} onChange={() => setParseStrategy('heading')} />
-                              Headings as questions (Markdown headings, next paragraph as answer)
-                            </label>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deck Strategy</label>
-                          <div className="space-y-2 text-sm text-gray-700 dark:text-gray-300">
-                            <label className="flex items-center gap-2">
-                              <input type="radio" name="deckStrategy" value="per_note" checked={deckStrategy === 'per_note'} onChange={() => setDeckStrategy('per_note')} />
-                              Create a deck per selected note (deck name = note title)
-                            </label>
-                            <label className="flex items-center gap-2">
-                              <input type="radio" name="deckStrategy" value="single" checked={deckStrategy === 'single'} onChange={() => setDeckStrategy('single')} />
-                              Create a single deck for all cards
-                            </label>
-                            {deckStrategy === 'single' && (
-                              <input
-                                type="text"
-                                value={singleDeckName}
-                                onChange={(e) => setSingleDeckName(e.target.value)}
-                                placeholder="Deck name"
-                                className="mt-1 w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                              />
-                            )}
-                          </div>
-                        </div>
+                      {/* Deck name */}
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deck Name</label>
+                        <input
+                          type="text"
+                          value={deckName}
+                          onChange={(e) => setDeckName(e.target.value)}
+                          placeholder="Enter a name for your flashcard deck"
+                          className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                          🤖 DeepSeek-R1 will intelligently analyze your notes and create high-quality flashcards automatically.
+                        </p>
                       </div>
                       {/* Preview */}
-                      <div className="text-sm text-gray-700 dark:text-gray-300">
-                        Estimated cards: <span className="font-semibold">{previewCount}</span>
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm text-gray-700 dark:text-gray-300">
+                            Estimated cards: <span className="font-semibold">{previewCount}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleAiPreview}
+                            disabled={aiLoading || selectedNoteIds.size === 0}
+                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {aiLoading ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-emerald-600 mr-1"></div>
+                                Generating...
+                              </>
+                            ) : (
+                              '🔍 Preview with AI'
+                            )}
+                          </button>
+                        </div>
+                        
+                        {/* AI Preview Cards */}
+                        {showAiPreview && aiPreviewCards.length > 0 && (
+                          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800/50">
+                            <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
+                              AI Preview ({aiPreviewCards.length} cards):
+                            </div>
+                            <div className="max-h-40 overflow-y-auto space-y-2">
+                              {aiPreviewCards.slice(0, 3).map((card, index) => (
+                                <div key={index} className="text-xs">
+                                  <div className="font-medium text-gray-800 dark:text-gray-200">Q: {card.question}</div>
+                                  <div className="text-gray-600 dark:text-gray-400 ml-2">A: {card.answer}</div>
+                                </div>
+                              ))}
+                              {aiPreviewCards.length > 3 && (
+                                <div className="text-xs text-gray-500 dark:text-gray-400 italic">
+                                  ... and {aiPreviewCards.length - 3} more cards
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1615,11 +1481,20 @@ const Decks = () => {
               <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 sm:px-6 sm:flex sm:flex-row-reverse">
                 <button
                   type="button"
-                  disabled={loadingNotes}
+                  disabled={loadingNotes || aiLoading}
                   onClick={convertSelectedNotes}
                   className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-60"
                 >
-                  Convert
+                  {loadingNotes ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      AI Generating...
+                    </>
+                  ) : (
+                    <>
+                      🤖 Generate Flashcards
+                    </>
+                  )}
                 </button>
                 <button
                   type="button"
