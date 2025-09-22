@@ -52,7 +52,7 @@ def test_productivity_api():
         elif completion_rate >= 40:
             status = 'Moderately Productive'
         else:
-            status = 'Low Productivity'
+            status = 'Low Productive'
         
         print(f"Status: {status}")
     else:

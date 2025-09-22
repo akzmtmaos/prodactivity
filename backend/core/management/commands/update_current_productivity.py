@@ -50,7 +50,7 @@ class Command(BaseCommand):
                 elif completion_rate >= 40:
                     status = 'Moderately Productive'
                 else:
-                    status = 'Low Productivity'
+                    status = 'Low Productive'
             
             # Update or create weekly log
             log, created = ProductivityLog.objects.get_or_create(
@@ -113,7 +113,7 @@ class Command(BaseCommand):
                 elif completion_rate >= 40:
                     status = 'Moderately Productive'
                 else:
-                    status = 'Low Productivity'
+                    status = 'Low Productive'
             
             # Update or create monthly log
             log, created = ProductivityLog.objects.get_or_create(

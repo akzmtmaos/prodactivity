@@ -42,6 +42,9 @@ class AIConfiguration(models.Model):
         ('quiz_prompt', 'Quiz Generation Prompt'),
         ('summary_prompt', 'Content Summary Prompt'),
         ('chat_prompt', 'AI Chat Prompt'),
+        ('flashcard_prompt', 'Flashcard Generation Prompt'),
+        ('flashcard_qa_prompt', 'Q&A Pattern Flashcard Prompt'),
+        ('flashcard_heading_prompt', 'Heading Pattern Flashcard Prompt'),
     ]
     
     config_type = models.CharField(

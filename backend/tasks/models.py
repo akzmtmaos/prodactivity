@@ -139,7 +139,7 @@ class Task(models.Model):
         elif completion_pct >= 40:
             status = 'Moderately Productive'
         else:
-            status = 'Low Productivity'
+            status = 'Low Productive'
             
         return {
             'status': status,

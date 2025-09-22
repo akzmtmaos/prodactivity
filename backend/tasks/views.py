@@ -141,7 +141,7 @@ class TaskViewSet(viewsets.ModelViewSet):
             elif completion_rate >= 40:
                 status = 'Moderately Productive'
             else:
-                status = 'Low Productivity'
+                status = 'Low Productive'
         
         logger.debug(f"[_update_today_productivity] Final status: {status}")
         

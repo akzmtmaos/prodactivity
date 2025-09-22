@@ -84,5 +84,70 @@ Content:
 User: {message}
 
 Assistant:"""
+        },
+        'flashcard_prompt': {
+            'title': 'Default Flashcard Generation Prompt',
+            'description': 'Default prompt for generating flashcards from content using AI',
+            'prompt_template': """You are an expert at creating educational flashcards. Convert the following content into high-quality flashcards.
+
+Instructions:
+1. Create 5-10 flashcards that cover the most important concepts
+2. Make questions clear and specific
+3. Provide comprehensive but concise answers
+4. Focus on key facts, definitions, and important details
+5. Format your response as a JSON array of objects with "question" and "answer" fields
+
+Example format:
+[
+  {
+    "question": "What is the main concept?",
+    "answer": "The main concept is..."
+  }
+]
+
+Content Title: {title}
+
+Content:
+{content}
+
+Generate flashcards now:"""
+        },
+        'flashcard_qa_prompt': {
+            'title': 'Q&A Pattern Flashcard Prompt',
+            'description': 'Prompt for generating flashcards from Q&A formatted content',
+            'prompt_template': """You are an expert at creating educational flashcards. The following content appears to be in Q&A format. Extract and enhance the question-answer pairs to create high-quality flashcards.
+
+Instructions:
+1. Identify existing Q&A patterns in the content
+2. Enhance questions to be clear and specific
+3. Improve answers to be comprehensive but concise
+4. Create additional flashcards for important concepts not in Q&A format
+5. Format your response as a JSON array of objects with "question" and "answer" fields
+
+Content Title: {title}
+
+Content:
+{content}
+
+Generate flashcards now:"""
+        },
+        'flashcard_heading_prompt': {
+            'title': 'Heading Pattern Flashcard Prompt',
+            'description': 'Prompt for generating flashcards from content with headings',
+            'prompt_template': """You are an expert at creating educational flashcards. The following content has headings and structured information. Convert headings into questions and their content into answers.
+
+Instructions:
+1. Use headings as the basis for questions
+2. Convert heading content into comprehensive answers
+3. Create additional flashcards for important sub-concepts
+4. Make questions clear and specific
+5. Format your response as a JSON array of objects with "question" and "answer" fields
+
+Content Title: {title}
+
+Content:
+{content}
+
+Generate flashcards now:"""
         }
     }

@@ -50,7 +50,7 @@ def create_sample_data():
         # 5 days ago - 80% completion (4/5 tasks completed)
         (today - timedelta(days=5), 5, 4, 'Productive'),
         # 6 days ago - 20% completion (1/5 tasks completed)
-        (today - timedelta(days=6), 5, 1, 'Low Productivity'),
+        (today - timedelta(days=6), 5, 1, 'Low Productive'),
         # 7 days ago - 100% completion (3/3 tasks completed)
         (today - timedelta(days=7), 3, 3, 'Highly Productive'),
     ]
@@ -90,7 +90,7 @@ def create_sample_data():
         elif completion_rate >= 40:
             status = 'Moderately Productive'
         else:
-            status = 'Low Productivity'
+            status = 'Low Productive'
         
         # Create or update productivity log
         log, created = ProductivityLog.objects.get_or_create(

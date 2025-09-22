@@ -12,6 +12,7 @@ import json
 import logging
 import requests
 import os
+import re
 from reviewer.serializers import ReviewerSerializer
 from core.utils import get_ai_config
 
@@ -21,45 +22,61 @@ logger = logging.getLogger(__name__)
 
 # Ollama API configuration
 OLLAMA_API_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "llama2:latest"
+OLLAMA_MODEL = "deepseek-r1:1.5b"
+
+def clean_ai_response(response_text):
+    """Minimal cleaning - only remove thinking tags and fix formatting"""
+    import re
+    
+    if not response_text:
+        return ""
+    
+    # Remove <think>...</think> blocks (including incomplete ones)
+    cleaned = re.sub(r'<think>.*?(</think>|$)', '', response_text, flags=re.DOTALL)
+    
+    # If after removing thinking tags, we have very little content, try to extract from thinking
+    if len(cleaned.strip()) < 20:
+        # Try to extract the actual response from thinking tags
+        think_match = re.search(r'<think>.*?(?:So,|Therefore,|In summary,|The answer is|The result is|Summary:)(.*?)(?:</think>|$)', response_text, flags=re.DOTALL | re.IGNORECASE)
+        if think_match:
+            extracted = think_match.group(1).strip()
+            if len(extracted) > 10:
+                cleaned = extracted
+    
+    # Remove markdown bold formatting that's not wanted
+    cleaned = re.sub(r'\*\*(.*?)\*\*', r'\1', cleaned)  # Remove **bold** but keep content
+    
+    # Convert LaTeX math expressions to plain text
+    cleaned = re.sub(r'\\boxed\{([^}]*)\}', r'\1', cleaned)  # \boxed{14} -> 14 (handle incomplete)
+    cleaned = re.sub(r'\\\[(.*?)\\\]', r'\1', cleaned)       # \[...\] -> content
+    cleaned = re.sub(r'\\\((.*?)\\\)', r'\1', cleaned)       # \(...\) -> content
+    cleaned = re.sub(r'\\\$([^$]*)\\\$', r'\1', cleaned)     # $...$ -> content (handle incomplete)
+    
+    # Clean up excessive whitespace
+    cleaned = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned)  # Max 2 newlines
+    cleaned = re.sub(r'[ \t]+', ' ', cleaned)           # Collapse spaces/tabs
+    cleaned = cleaned.strip()
+    
+    return cleaned
 
 def format_chat_prompt(messages):
-    # Get chat prompt from database configuration
-    try:
-        # For chat, we'll use a simple system instruction
-        system_instruction = """<s>[INST] You are a helpful AI assistant. Follow these guidelines:
-- Provide clear, direct, and accurate responses
-- Do NOT use roleplay elements like *smiles*, *adjusts glasses*, *nods*, etc.
-- Be professional, friendly, and concise
-- Answer simple questions directly first, then elaborate if needed
-- Keep responses focused and relevant to the user's question
-- Use natural, conversational language without excessive formatting
-
-Remember: No roleplay elements, no asterisks, just clear helpful responses. [/INST]"""
-    except ValueError:
-        # Fallback if no configuration found
-        system_instruction = """<s>[INST] You are a helpful AI assistant. [/INST]"""
+    # Proper conversation format with clear role indicators
+    conversation = []
     
-    # Format conversation for Llama2 with proper instruction format
-    conversation = [system_instruction]
+    # Only keep last 4 messages to avoid confusion
+    recent_messages = messages[-4:] if len(messages) > 4 else messages
     
-    for msg in messages:
+    for msg in recent_messages:
         role = msg.get('role', 'user')
         content = msg.get('content', '').strip()
         
         if content:  # Only include non-empty messages
             if role == 'user':
-                conversation.append(f"<s>[INST] {content} [/INST]")
+                conversation.append(f"Human: {content}")
             elif role == 'assistant':
-                conversation.append(f"{content}")
+                conversation.append(f"Assistant: {content}")
     
-    # Add the current user prompt if it's a user message
-    if messages and messages[-1].get('role') == 'user':
-        current_user_content = messages[-1].get('content', '').strip()
-        if current_user_content:
-            conversation.append(f"<s>[INST] {current_user_content} [/INST]")
-    
-    return "\n".join(conversation)
+    return "\n\n".join(conversation)
 
 @csrf_exempt
 @require_http_methods(["POST"])
@@ -67,49 +84,32 @@ def chat(request):
     try:
         data = json.loads(request.body)
         messages = data.get('messages', [])
+        note_context = data.get('note_context', '')
         if not messages:
             return JsonResponse({
                 'error': 'No messages provided'
             }, status=400)
         
-        # Only keep last 6 user/assistant messages and validate content
-        user_assistant_msgs = []
-        for msg in messages:
-            if msg.get('role') in ('user', 'assistant'):
-                content = msg.get('content', '').strip()
-                if content:  # Only include messages with actual content
-                    user_assistant_msgs.append(msg)
-        
-        user_assistant_msgs = user_assistant_msgs[-6:]  # Keep last 6 messages
-        
-        if not user_assistant_msgs:
-            return JsonResponse({
-                'error': 'No valid messages provided'
-            }, status=400)
+        # No filtering, send all messages as-is
+        user_assistant_msgs = messages
         
         formatted_prompt = format_chat_prompt(user_assistant_msgs)
         
-        # Call Ollama API with streaming - Llama2 optimized settings for 4GB GPU
+        # Call Ollama API with streaming - Raw settings like ollama run
         payload = {
             "model": OLLAMA_MODEL,
             "prompt": formatted_prompt,
-            "stream": True,
-            "options": {
-                "temperature": 0.2,    # Very low temperature for consistent responses
-                "top_p": 0.7,          # Conservative sampling for predictable output
-                "top_k": 40,           # Limit vocabulary choices
-                "num_predict": 250,    # Shorter responses to avoid rambling
-                "repeat_penalty": 1.1, # Prevent repetitive responses
-                "stop": ["</s>", "[INST]", "User:", "Assistant:"]  # Stop at instruction markers
-            }
+            "stream": True
         }
         
         response = requests.post(OLLAMA_API_URL, json=payload, timeout=120, stream=True)
         
         if response.status_code == 200:
-            # Create a streaming response
+            # Create a streaming response - Real-time typing animation
             def generate():
                 full_response = ""
+                accumulated_clean_content = ""
+                
                 for line in response.iter_lines():
                     if line:
                         try:
@@ -117,42 +117,32 @@ def chat(request):
                             if 'response' in data:
                                 chunk = data['response']
                                 full_response += chunk
-                                # Send each chunk to the frontend
-                                yield f"data: {json.dumps({'chunk': chunk, 'full_response': full_response})}\n\n"
+                                
+                                # Clean the accumulated response
+                                current_clean_response = clean_ai_response(full_response)
+                                
+                                # Find new clean content to send
+                                if len(current_clean_response) > len(accumulated_clean_content):
+                                    new_content = current_clean_response[len(accumulated_clean_content):]
+                                    if new_content.strip():  # Only send non-empty content
+                                        yield f"data: {json.dumps({'chunk': new_content, 'full_response': current_clean_response})}\n\n"
+                                        accumulated_clean_content = current_clean_response
+                                
                             if data.get('done', False):
                                 break
                         except json.JSONDecodeError:
                             continue
                 
-                # Clean up the response and send completion signal
-                cleaned_response = full_response.strip()
+                # Final cleanup and send completion signal
+                final_cleaned_response = clean_ai_response(full_response)
                 
-                # Llama2-specific response cleaning
-                # Remove any remaining instruction markers
-                cleaned_response = cleaned_response.replace("</s>", "").replace("[INST]", "").replace("[/INST]", "")
-                cleaned_response = cleaned_response.replace("User:", "").replace("Assistant:", "")
+                # Send any remaining clean content
+                if len(final_cleaned_response) > len(accumulated_clean_content):
+                    remaining_content = final_cleaned_response[len(accumulated_clean_content):]
+                    if remaining_content.strip():
+                        yield f"data: {json.dumps({'chunk': remaining_content, 'full_response': final_cleaned_response})}\n\n"
                 
-                # Remove excessive whitespace and newlines
-                cleaned_response = " ".join(cleaned_response.split())
-                
-                # Basic validation to prevent weird responses
-                if len(cleaned_response) < 2:
-                    cleaned_response = "I'm sorry, I couldn't generate a proper response. Please try asking your question again."
-                
-                # Check for roleplay elements and replace them
-                roleplay_patterns = [
-                    r'\*[^*]+\*',  # Any text in asterisks
-                    r'\([^)]*\)',   # Any text in parentheses that might be actions
-                ]
-                
-                import re
-                for pattern in roleplay_patterns:
-                    cleaned_response = re.sub(pattern, '', cleaned_response)
-                
-                # Final cleanup
-                cleaned_response = cleaned_response.strip()
-                
-                yield f"data: {json.dumps({'done': True, 'full_response': cleaned_response})}\n\n"
+                yield f"data: {json.dumps({'done': True, 'full_response': final_cleaned_response})}\n\n"
             
             return StreamingHttpResponse(
                 generate(),
@@ -214,7 +204,7 @@ class SummarizeView(APIView):
                     "temperature": 0.2,
                     "top_p": 0.7,
                     "top_k": 40,
-                    "num_predict": 150,
+                    "num_predict": 1000,  # Increased from 500 to 1000
                     "repeat_penalty": 1.1
                 }
             }
@@ -223,7 +213,10 @@ class SummarizeView(APIView):
             
             if response.status_code == 200:
                 result = response.json()
-                summary = result.get('response', '').strip()
+                raw_summary = result.get('response', '').strip()
+                
+                # Clean the response to remove thinking tags
+                summary = clean_ai_response(raw_summary)
                 
                 if not summary:
                     return Response(
@@ -297,7 +290,10 @@ class ReviewView(APIView):
             
             if response.status_code == 200:
                 result = response.json()
-                review = result.get('response', '').strip()
+                raw_review = result.get('response', '').strip()
+                
+                # Clean the response to remove thinking tags
+                review = clean_ai_response(raw_review)
                 
                 if not review:
                     return Response(

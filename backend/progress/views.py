@@ -306,7 +306,7 @@ def user_productivity(request):
         elif completion_rate >= 40:
             status = 'Moderately Productive'
         else:
-            status = 'Low Productivity'
+            status = 'Low Productive'
     
     data = {
         'status': status,
@@ -425,7 +425,7 @@ def productivity_log_list(request):
                     elif completion_rate >= 40:
                         status = 'Moderately Productive'
                     else:
-                        status = 'Low Productivity'
+                        status = 'Low Productive'
                 
                 log = ProductivityLog.objects.create(
                     user=user,
@@ -515,7 +515,7 @@ def productivity_log_list(request):
                 elif completion_rate >= 40:
                     status = 'Moderately Productive'
                 else:
-                    status = 'Low Productivity'
+                    status = 'Low Productive'
                 
                 # Create the weekly log
                 log = ProductivityLog.objects.create(
@@ -624,7 +624,7 @@ def productivity_log_list(request):
                 elif completion_rate >= 40:
                     status = 'Moderately Productive'
                 else:
-                    status = 'Low Productivity'
+                    status = 'Low Productive'
                 
                 # Create the monthly log
                 log = ProductivityLog.objects.create(

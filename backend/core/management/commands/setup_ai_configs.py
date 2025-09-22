@@ -3,55 +3,52 @@ from core.models import AIConfiguration
 from core.utils import get_default_prompts
 
 class Command(BaseCommand):
-    help = 'Set up default AI configurations in the database'
-
-    def add_arguments(self, parser):
-        parser.add_argument(
-            '--force',
-            action='store_true',
-            help='Force update existing configurations',
-        )
+    help = 'Set up default AI configurations for the application'
 
     def handle(self, *args, **options):
         default_prompts = get_default_prompts()
-        
+        created_count = 0
+        updated_count = 0
+
         for config_type, config_data in default_prompts.items():
-            try:
-                # Check if configuration already exists
-                existing_config = AIConfiguration.objects.filter(config_type=config_type).first()
-                
-                if existing_config:
-                    if options['force']:
-                        # Update existing configuration
-                        existing_config.title = config_data['title']
-                        existing_config.prompt_template = config_data['prompt_template']
-                        existing_config.description = config_data['description']
-                        existing_config.save()
-                        self.stdout.write(
-                            self.style.SUCCESS(f'Updated existing configuration: {config_type}')
-                        )
-                    else:
-                        self.stdout.write(
-                            self.style.WARNING(f'Configuration already exists: {config_type} (use --force to update)')
-                        )
-                else:
-                    # Create new configuration
-                    AIConfiguration.objects.create(
-                        config_type=config_type,
-                        title=config_data['title'],
-                        prompt_template=config_data['prompt_template'],
-                        description=config_data['description'],
-                        is_active=True
-                    )
-                    self.stdout.write(
-                        self.style.SUCCESS(f'Created new configuration: {config_type}')
-                    )
-                    
-            except Exception as e:
+            config, created = AIConfiguration.objects.get_or_create(
+                config_type=config_type,
+                defaults={
+                    'title': config_data['title'],
+                    'description': config_data['description'],
+                    'prompt_template': config_data['prompt_template'],
+                    'is_active': True
+                }
+            )
+            
+            if created:
+                created_count += 1
                 self.stdout.write(
-                    self.style.ERROR(f'Error setting up {config_type}: {e}')
+                    self.style.SUCCESS(f'Created AI configuration: {config.title}')
                 )
-        
+            else:
+                # Update existing configuration if it's different
+                if (config.title != config_data['title'] or 
+                    config.description != config_data['description'] or
+                    config.prompt_template != config_data['prompt_template']):
+                    
+                    config.title = config_data['title']
+                    config.description = config_data['description']
+                    config.prompt_template = config_data['prompt_template']
+                    config.is_active = True
+                    config.save()
+                    
+                    updated_count += 1
+                    self.stdout.write(
+                        self.style.WARNING(f'Updated AI configuration: {config.title}')
+                    )
+                else:
+                    self.stdout.write(
+                        self.style.SUCCESS(f'AI configuration already exists: {config.title}')
+                    )
+
         self.stdout.write(
-            self.style.SUCCESS('AI configuration setup completed!')
+            self.style.SUCCESS(
+                f'\nSetup complete! Created {created_count} new configurations, updated {updated_count} existing ones.'
+            )
         )
