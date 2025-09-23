@@ -9,7 +9,8 @@ import {
   FileText,
   FileDown,
   Table,
-  Settings
+  Settings,
+  Image
 } from 'lucide-react';
 import { DocumentTextIcon, ChatBubbleLeftRightIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
@@ -73,6 +74,8 @@ const convertMarkdownToHTML = (text: string): string => {
     .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 mb-1">$1. $2</li>')
     // Convert bullet points
     .replace(/^[-*] (.+)$/gm, '<li class="ml-4 mb-1 list-disc">$1</li>')
+    // Convert horizontal rules (3 or more dashes on their own line)
+    .replace(/^-{3,}$/gm, '<hr class="my-4 border-gray-300 dark:border-gray-600">')
     // Convert line breaks to <br>
     .replace(/\n/g, '<br>');
 };
@@ -92,6 +95,8 @@ const convertHTMLToMarkdown = (html: string): string => {
     .replace(/<strong[^>]*>(.+?)<\/strong>/g, '**$1**')
     // Convert <em> back to *
     .replace(/<em[^>]*>(.+?)<\/em>/g, '*$1*')
+    // Convert <hr> back to dashes
+    .replace(/<hr[^>]*>/g, '\n---\n')
     // Convert <br> back to \n
     .replace(/<br\s*\/?>/g, '\n')
     // Remove other HTML tags
@@ -497,10 +502,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   }, [isInitialized]);
 
-  // Table functionality
+  // Enhanced Notion-style Table functionality
   const createTable = (rows: number = 3, cols: number = 3) => {
     const table = document.createElement('table');
-    table.className = 'note-table';
+    table.className = 'notion-table';
     table.setAttribute('data-rows', rows.toString());
     table.setAttribute('data-cols', cols.toString());
     
@@ -510,8 +515,17 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     for (let i = 0; i < cols; i++) {
       const th = document.createElement('th');
       th.contentEditable = 'true';
-      th.textContent = `Header ${i + 1}`;
-      th.className = 'table-header';
+      th.textContent = `Column ${i + 1}`;
+      th.className = 'notion-table-header';
+      th.setAttribute('data-column', i.toString());
+      
+      // Add placeholder for empty headers
+      th.addEventListener('blur', () => {
+        if (!th.textContent?.trim()) {
+          th.textContent = `Column ${i + 1}`;
+        }
+      });
+      
       headerRow.appendChild(th);
     }
     thead.appendChild(headerRow);
@@ -521,11 +535,18 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const tbody = document.createElement('tbody');
     for (let i = 0; i < rows - 1; i++) {
       const tr = document.createElement('tr');
+      tr.setAttribute('data-row', i.toString());
       for (let j = 0; j < cols; j++) {
         const td = document.createElement('td');
         td.contentEditable = 'true';
-        td.textContent = '';
-        td.className = 'table-cell';
+        td.innerHTML = '&nbsp;'; // Add non-breaking space for proper height
+        td.className = 'notion-table-cell';
+        td.setAttribute('data-column', j.toString());
+        td.setAttribute('data-row', i.toString());
+        
+        // Add cell selection and navigation
+        addCellNavigation(td, table);
+        
         tr.appendChild(td);
       }
       tbody.appendChild(tr);
@@ -535,12 +556,107 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     return table;
   };
 
-  const insertTable = () => {
+  // Add cell navigation (Tab, Enter, Arrow keys)
+  const addCellNavigation = (cell: HTMLTableCellElement, table: HTMLTableElement) => {
+    cell.addEventListener('keydown', (e) => {
+      const currentRow = parseInt(cell.getAttribute('data-row') || '0');
+      const currentCol = parseInt(cell.getAttribute('data-column') || '0');
+      const totalRows = table.querySelectorAll('tbody tr').length;
+      const totalCols = table.querySelectorAll('thead th').length;
+      
+      let targetCell: HTMLTableCellElement | null = null;
+      
+      switch (e.key) {
+        case 'Tab':
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Shift+Tab: Move to previous cell
+            if (currentCol > 0) {
+              targetCell = table.querySelector(`td[data-row="${currentRow}"][data-column="${currentCol - 1}"]`) as HTMLTableCellElement;
+            } else if (currentRow > 0) {
+              targetCell = table.querySelector(`td[data-row="${currentRow - 1}"][data-column="${totalCols - 1}"]`) as HTMLTableCellElement;
+            }
+          } else {
+            // Tab: Move to next cell
+            if (currentCol < totalCols - 1) {
+              targetCell = table.querySelector(`td[data-row="${currentRow}"][data-column="${currentCol + 1}"]`) as HTMLTableCellElement;
+            } else if (currentRow < totalRows - 1) {
+              targetCell = table.querySelector(`td[data-row="${currentRow + 1}"][data-column="0"]`) as HTMLTableCellElement;
+            } else {
+              // At last cell, add new row
+              addTableRow(table);
+              targetCell = table.querySelector(`td[data-row="${totalRows}"][data-column="0"]`) as HTMLTableCellElement;
+            }
+          }
+          break;
+          
+        case 'Enter':
+          e.preventDefault();
+          // Enter: Move to cell below, or add new row if at bottom
+          if (currentRow < totalRows - 1) {
+            targetCell = table.querySelector(`td[data-row="${currentRow + 1}"][data-column="${currentCol}"]`) as HTMLTableCellElement;
+          } else {
+            addTableRow(table);
+            targetCell = table.querySelector(`td[data-row="${totalRows}"][data-column="${currentCol}"]`) as HTMLTableCellElement;
+          }
+          break;
+          
+        case 'ArrowUp':
+          e.preventDefault();
+          if (currentRow > 0) {
+            targetCell = table.querySelector(`td[data-row="${currentRow - 1}"][data-column="${currentCol}"]`) as HTMLTableCellElement;
+          }
+          break;
+          
+        case 'ArrowDown':
+          e.preventDefault();
+          if (currentRow < totalRows - 1) {
+            targetCell = table.querySelector(`td[data-row="${currentRow + 1}"][data-column="${currentCol}"]`) as HTMLTableCellElement;
+          }
+          break;
+          
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (currentCol > 0) {
+            targetCell = table.querySelector(`td[data-row="${currentRow}"][data-column="${currentCol - 1}"]`) as HTMLTableCellElement;
+          }
+          break;
+          
+        case 'ArrowRight':
+          e.preventDefault();
+          if (currentCol < totalCols - 1) {
+            targetCell = table.querySelector(`td[data-row="${currentRow}"][data-column="${currentCol + 1}"]`) as HTMLTableCellElement;
+          }
+          break;
+      }
+      
+      if (targetCell) {
+        targetCell.focus();
+        const range = document.createRange();
+        range.selectNodeContents(targetCell);
+        range.collapse(false);
+        window.getSelection()?.removeAllRanges();
+        window.getSelection()?.addRange(range);
+      }
+    });
+    
+    // Add cell selection highlighting
+    cell.addEventListener('focus', () => {
+      // Remove previous selection
+      table.querySelectorAll('.notion-table-cell-selected').forEach(c => 
+        c.classList.remove('notion-table-cell-selected')
+      );
+      // Add selection to current cell
+      cell.classList.add('notion-table-cell-selected');
+    });
+  };
+
+  const insertTable = (rows: number = 3, cols: number = 3) => {
     const selection = window.getSelection();
     if (!selection || !contentEditableRef.current) return;
     
     const range = selection.getRangeAt(0);
-    const table = createTable(3, 3);
+    const table = createTable(rows, cols);
     
     // Insert table at cursor position
     range.deleteContents();
@@ -549,12 +665,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Add table controls
     addTableControls(table);
     
-    // Update content
-    setContent(contentEditableRef.current.innerHTML);
-    setHasChanges(true);
-    
           // Focus on first cell
-      const firstCell = table.querySelector('td, th') as HTMLElement;
+    const firstCell = table.querySelector('th') as HTMLElement;
       if (firstCell) {
         const newRange = document.createRange();
         newRange.setStart(firstCell, 0);
@@ -565,52 +677,414 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       }
   };
 
+  const [showTableGrid, setShowTableGrid] = useState(false);
+  const [tableGridPosition, setTableGridPosition] = useState({ x: 0, y: 0 });
+  const [hoveredTableSize, setHoveredTableSize] = useState<{ rows: number; cols: number } | null>(null);
+  const [previewTable, setPreviewTable] = useState<HTMLTableElement | null>(null);
+  const isConvertingMarkdown = useRef(false);
+
+  // Image upload functionality
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const imageUrl = e.target?.result as string;
+        insertImage(imageUrl);
+      };
+      reader.readAsDataURL(file);
+    }
+    // Reset the input
+    event.target.value = '';
+  };
+
+  const insertImage = (imageUrl: string) => {
+    const selection = window.getSelection();
+    if (!selection || !contentEditableRef.current) return;
+
+    const range = selection.getRangeAt(0);
+    const img = document.createElement('img');
+    img.src = imageUrl;
+    img.className = 'note-image';
+    img.style.maxWidth = '100%';
+    img.style.height = 'auto';
+    img.style.display = 'block';
+    img.style.margin = '8px 0';
+    img.style.cursor = 'pointer';
+    
+    // Add image wrapper for resizing
+    const wrapper = document.createElement('div');
+    wrapper.className = 'image-wrapper';
+    wrapper.style.position = 'relative';
+    wrapper.style.display = 'inline-block';
+    wrapper.style.margin = '8px 0';
+    wrapper.appendChild(img);
+    
+    // Add resize handles
+    addImageResizeHandles(wrapper);
+    
+    // Insert the image
+    range.deleteContents();
+    range.insertNode(wrapper);
+    
+    // Move cursor after the image
+    range.setStartAfter(wrapper);
+    range.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(range);
+    
+    // Update content
+    if (contentEditableRef.current) {
+      setContent(contentEditableRef.current.innerHTML);
+      setHasChanges(true);
+    }
+  };
+
+  const addImageResizeHandles = (wrapper: HTMLDivElement) => {
+    // Create resize handles
+    const handles = ['nw', 'ne', 'sw', 'se', 'n', 's', 'e', 'w'];
+    
+    handles.forEach(handle => {
+      const handleEl = document.createElement('div');
+      handleEl.className = `resize-handle resize-handle-${handle}`;
+      handleEl.style.cssText = `
+        position: absolute;
+        background: #2196f3;
+        border: 2px solid white;
+        border-radius: 50%;
+        width: 8px;
+        height: 8px;
+        z-index: 10;
+        cursor: ${handle.includes('n') || handle.includes('s') ? 'ns-resize' : handle.includes('e') || handle.includes('w') ? 'ew-resize' : 'nwse-resize'};
+        display: none;
+      `;
+      
+      // Position the handle
+      if (handle.includes('n')) handleEl.style.top = '-4px';
+      if (handle.includes('s')) handleEl.style.bottom = '-4px';
+      if (handle.includes('w')) handleEl.style.left = '-4px';
+      if (handle.includes('e')) handleEl.style.right = '-4px';
+      if (handle === 'n' || handle === 's') {
+        handleEl.style.left = '50%';
+        handleEl.style.transform = 'translateX(-50%)';
+      }
+      if (handle === 'e' || handle === 'w') {
+        handleEl.style.top = '50%';
+        handleEl.style.transform = 'translateY(-50%)';
+      }
+      
+      wrapper.appendChild(handleEl);
+    });
+    
+    // Show handles on hover/focus
+    wrapper.addEventListener('mouseenter', () => {
+      wrapper.querySelectorAll('.resize-handle').forEach(h => {
+        (h as HTMLElement).style.display = 'block';
+      });
+    });
+    
+    wrapper.addEventListener('mouseleave', () => {
+      wrapper.querySelectorAll('.resize-handle').forEach(h => {
+        (h as HTMLElement).style.display = 'none';
+      });
+    });
+    
+    // Add resize functionality
+    wrapper.addEventListener('mousedown', (e) => {
+      const handle = (e.target as HTMLElement).classList.contains('resize-handle');
+      if (handle) {
+        e.preventDefault();
+        e.stopPropagation();
+        startResize(e, wrapper);
+      }
+    });
+  };
+
+  const startResize = (e: MouseEvent, wrapper: HTMLDivElement) => {
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const startWidth = wrapper.offsetWidth;
+    const startHeight = wrapper.offsetHeight;
+    const handle = (e.target as HTMLElement).classList[1]; // Get handle direction
+    
+    const doResize = (e: MouseEvent) => {
+      const deltaX = e.clientX - startX;
+      const deltaY = e.clientY - startY;
+      
+      let newWidth = startWidth;
+      let newHeight = startHeight;
+      
+      if (handle.includes('e')) newWidth = startWidth + deltaX;
+      if (handle.includes('w')) newWidth = startWidth - deltaX;
+      if (handle.includes('s')) newHeight = startHeight + deltaY;
+      if (handle.includes('n')) newHeight = startHeight - deltaY;
+      
+      // Maintain aspect ratio for corner handles
+      if (handle.includes('n') || handle.includes('s')) {
+        const aspectRatio = startWidth / startHeight;
+        if (handle.includes('e') || handle.includes('w')) {
+          newHeight = newWidth / aspectRatio;
+        }
+      }
+      
+      wrapper.style.width = Math.max(50, newWidth) + 'px';
+      wrapper.style.height = Math.max(50, newHeight) + 'px';
+    };
+    
+    const stopResize = () => {
+      document.removeEventListener('mousemove', doResize);
+      document.removeEventListener('mouseup', stopResize);
+    };
+    
+    document.addEventListener('mousemove', doResize);
+    document.addEventListener('mouseup', stopResize);
+  };
+
+  const showTableSizeSelector = (event: React.MouseEvent) => {
+    console.log('Table button clicked!');
+    const rect = event.currentTarget.getBoundingClientRect();
+    console.log('Button position:', rect);
+    
+    // Calculate position relative to viewport
+    const x = Math.max(10, Math.min(rect.left - 100, window.innerWidth - 250)); // Keep on screen
+    const y = Math.max(10, rect.bottom + 10); // Add more space below button
+    
+    setTableGridPosition({ x, y });
+    setShowTableGrid(true);
+    console.log('showTableGrid set to true, position:', { x, y });
+  };
+
+  const insertTableFromGrid = (rows: number, cols: number) => {
+    console.log('insertTableFromGrid called with:', rows, cols);
+    console.log('previewTable exists:', !!previewTable);
+    
+    setShowTableGrid(false);
+    
+    // If there's a preview table, convert it to a real table
+    if (previewTable) {
+      console.log('Converting preview table to real table');
+      // Remove the preview styling and make it a real table
+      previewTable.className = 'notion-table';
+      previewTable.style.opacity = '';
+      previewTable.style.border = '';
+      previewTable.style.backgroundColor = '';
+      
+      // Add table controls
+      addTableControls(previewTable);
+      
+      // Clear the preview reference
+      setPreviewTable(null);
+      console.log('Table converted successfully');
+    } else {
+      console.log('No preview table, creating new table');
+      // Fallback: create a new table if no preview exists
+      insertTable(rows, cols);
+    }
+  };
+
+  const showPreviewTable = (rows: number, cols: number) => {
+    // Remove existing preview
+    removePreviewTable();
+    
+    // Create preview table
+    const table = createTable(rows, cols);
+    table.className = 'notion-table-preview';
+    table.style.opacity = '0.7';
+    table.style.border = '2px dashed #3b82f6';
+    table.style.backgroundColor = '#f0f9ff';
+    table.style.margin = '8px 0';
+    
+    // Insert at cursor position
+    const selection = window.getSelection();
+    if (selection && contentEditableRef.current) {
+      const range = selection.getRangeAt(0);
+      
+      // If there's already content at the cursor, insert after it
+      if (range.startContainer.nodeType === Node.TEXT_NODE && range.startOffset > 0) {
+        // Insert after the current text
+        range.setStartAfter(range.startContainer);
+        range.collapse(true);
+      }
+      
+      range.insertNode(table);
+      setPreviewTable(table);
+      
+      // Move cursor after the table
+      range.setStartAfter(table);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+  };
+
+  const removePreviewTable = () => {
+    if (previewTable) {
+      previewTable.remove();
+      setPreviewTable(null);
+    }
+  };
+
+  // Debug: Log when table grid is shown
+  useEffect(() => {
+    if (showTableGrid) {
+      console.log('Table grid is now visible at position:', tableGridPosition);
+    }
+  }, [showTableGrid, tableGridPosition]);
+
   const addTableControls = (table: HTMLTableElement) => {
     // Create table wrapper for hover effects
     const wrapper = document.createElement('div');
-    wrapper.className = 'table-wrapper';
+    wrapper.className = 'notion-table-wrapper';
     wrapper.style.position = 'relative';
+    wrapper.style.margin = '16px 0';
     
     // Insert wrapper before table and move table into it
     table.parentNode?.insertBefore(wrapper, table);
     wrapper.appendChild(table);
     
-    // Add delete button (top-right corner)
+    // Add floating toolbar (appears on hover)
+    const toolbar = document.createElement('div');
+    toolbar.className = 'notion-table-toolbar';
+    toolbar.style.cssText = `
+      position: absolute;
+      top: -40px;
+      left: 0;
+      background: white;
+      border: 1px solid #e1e5e9;
+      border-radius: 6px;
+      padding: 4px;
+      display: flex;
+      gap: 4px;
+      opacity: 0;
+      transition: opacity 0.2s;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      z-index: 1000;
+    `;
+    
+    // Add column button
+    const addColBtn = document.createElement('button');
+    addColBtn.innerHTML = '📊 Add Column';
+    addColBtn.title = 'Add Column';
+    addColBtn.style.cssText = `
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #37352f;
+    `;
+    addColBtn.onclick = () => addTableColumn(table);
+    addColBtn.onmouseover = () => addColBtn.style.background = '#f1f3f4';
+    addColBtn.onmouseout = () => addColBtn.style.background = 'transparent';
+    
+    // Add row button
+    const addRowBtn = document.createElement('button');
+    addRowBtn.innerHTML = '📋 Add Row';
+    addRowBtn.title = 'Add Row';
+    addRowBtn.style.cssText = `
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #37352f;
+    `;
+    addRowBtn.onclick = () => addTableRow(table);
+    addRowBtn.onmouseover = () => addRowBtn.style.background = '#f1f3f4';
+    addRowBtn.onmouseout = () => addRowBtn.style.background = 'transparent';
+    
+    // Delete table button
     const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'table-delete-btn';
-    deleteBtn.innerHTML = '×';
+    deleteBtn.innerHTML = '🗑️ Delete';
     deleteBtn.title = 'Delete Table';
+    deleteBtn.style.cssText = `
+      padding: 6px 12px;
+      border: none;
+      background: transparent;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      color: #e74c3c;
+    `;
     deleteBtn.onclick = () => deleteTable(table);
-    wrapper.appendChild(deleteBtn);
+    deleteBtn.onmouseover = () => deleteBtn.style.background = '#fdf2f2';
+    deleteBtn.onmouseout = () => deleteBtn.style.background = 'transparent';
+    
+    toolbar.appendChild(addColBtn);
+    toolbar.appendChild(addRowBtn);
+    toolbar.appendChild(deleteBtn);
+    wrapper.appendChild(toolbar);
     
     // Add column add button (right edge)
-    const addColBtn = document.createElement('div');
-    addColBtn.className = 'table-add-col-btn';
-    addColBtn.innerHTML = '+';
-    addColBtn.title = 'Add Column';
-    addColBtn.onclick = () => addTableColumn(table);
-    wrapper.appendChild(addColBtn);
+    const addColEdgeBtn = document.createElement('div');
+    addColEdgeBtn.className = 'notion-table-add-col-btn';
+    addColEdgeBtn.innerHTML = '+';
+    addColEdgeBtn.title = 'Add Column';
+    addColEdgeBtn.style.cssText = `
+      position: absolute;
+      right: -20px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 20px;
+      height: 40px;
+      background: #f8f9fa;
+      border: 1px solid #e1e5e9;
+      border-left: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-size: 16px;
+      color: #6c757d;
+    `;
+    addColEdgeBtn.onclick = () => addTableColumn(table);
+    wrapper.appendChild(addColEdgeBtn);
     
     // Add row add button (bottom edge)
-    const addRowBtn = document.createElement('div');
-    addRowBtn.className = 'table-add-row-btn';
-    addRowBtn.innerHTML = '+';
-    addRowBtn.title = 'Add Row';
-    addRowBtn.onclick = () => addTableRow(table);
-    wrapper.appendChild(addRowBtn);
+    const addRowEdgeBtn = document.createElement('div');
+    addRowEdgeBtn.className = 'notion-table-add-row-btn';
+    addRowEdgeBtn.innerHTML = '+';
+    addRowEdgeBtn.title = 'Add Row';
+    addRowEdgeBtn.style.cssText = `
+      position: absolute;
+      bottom: -20px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 40px;
+      height: 20px;
+      background: #f8f9fa;
+      border: 1px solid #e1e5e9;
+      border-top: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-size: 16px;
+      color: #6c757d;
+    `;
+    addRowEdgeBtn.onclick = () => addTableRow(table);
+    wrapper.appendChild(addRowEdgeBtn);
     
     // Make columns resizable
     makeTableResizable(table);
     
-    // Show/hide add buttons on hover
+    // Show/hide controls on hover
     wrapper.addEventListener('mouseenter', () => {
-      addColBtn.style.opacity = '1';
-      addRowBtn.style.opacity = '1';
+      toolbar.style.opacity = '1';
+      addColEdgeBtn.style.opacity = '1';
+      addRowEdgeBtn.style.opacity = '1';
     });
     
     wrapper.addEventListener('mouseleave', () => {
-      addColBtn.style.opacity = '0';
-      addRowBtn.style.opacity = '0';
+      toolbar.style.opacity = '0';
+      addColEdgeBtn.style.opacity = '0';
+      addRowEdgeBtn.style.opacity = '0';
     });
   };
 
@@ -619,24 +1093,26 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     if (!tbody) return;
     
     const cols = parseInt(table.getAttribute('data-cols') || '3');
+    const currentRows = tbody.children.length;
     const newRow = document.createElement('tr');
+    newRow.setAttribute('data-row', currentRows.toString());
     
     for (let i = 0; i < cols; i++) {
       const td = document.createElement('td');
       td.contentEditable = 'true';
-      td.textContent = '';
-      td.className = 'table-cell';
+      td.innerHTML = '&nbsp;'; // Add non-breaking space for proper height
+      td.className = 'notion-table-cell';
+      td.setAttribute('data-column', i.toString());
+      td.setAttribute('data-row', currentRows.toString());
+      
+      // Add cell navigation
+      addCellNavigation(td, table);
+      
       newRow.appendChild(td);
     }
     
     tbody.appendChild(newRow);
     table.setAttribute('data-rows', String(tbody.children.length + 1));
-    
-    // Update content
-    if (contentEditableRef.current) {
-      setContent(contentEditableRef.current.innerHTML);
-      setHasChanges(true);
-    }
   };
 
   const addTableColumn = (table: HTMLTableElement) => {
@@ -645,43 +1121,48 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     
     if (!headerRow) return;
     
+    const newColIndex = headerRow.children.length;
+    
     // Add header cell
           const th = document.createElement('th');
       th.contentEditable = 'true';
-      th.textContent = `Header ${headerRow.children.length + 1}`;
-      th.className = 'table-header';
+    th.textContent = `Column ${newColIndex + 1}`;
+    th.className = 'notion-table-header';
+    th.setAttribute('data-column', newColIndex.toString());
+    
+    // Add placeholder for empty headers
+    th.addEventListener('blur', () => {
+      if (!th.textContent?.trim()) {
+        th.textContent = `Column ${newColIndex + 1}`;
+      }
+    });
+    
       headerRow.appendChild(th);
     
     // Add body cells
-    bodyRows.forEach(row => {
+    bodyRows.forEach((row, rowIndex) => {
       const td = document.createElement('td');
       td.contentEditable = 'true';
-      td.textContent = '';
-      td.className = 'table-cell';
+      td.innerHTML = '&nbsp;'; // Add non-breaking space for proper height
+      td.className = 'notion-table-cell';
+      td.setAttribute('data-column', newColIndex.toString());
+      td.setAttribute('data-row', rowIndex.toString());
+      
+      // Add cell navigation
+      addCellNavigation(td, table);
+      
       row.appendChild(td);
     });
     
     table.setAttribute('data-cols', String(headerRow.children.length));
-    
-    // Update content
-    if (contentEditableRef.current) {
-      setContent(contentEditableRef.current.innerHTML);
-      setHasChanges(true);
-    }
   };
 
   const deleteTable = (table: HTMLTableElement) => {
     const wrapper = table.parentElement;
-    if (wrapper && wrapper.classList.contains('table-wrapper')) {
+    if (wrapper && (wrapper.classList.contains('table-wrapper') || wrapper.classList.contains('notion-table-wrapper'))) {
       wrapper.remove();
     } else {
       table.remove();
-    }
-    
-    // Update content
-    if (contentEditableRef.current) {
-      setContent(contentEditableRef.current.innerHTML);
-      setHasChanges(true);
     }
   };
 
@@ -1172,7 +1653,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
   // Initialize contentEditable with content - ONLY ONCE when component mounts
   useEffect(() => {
-    if (contentEditableRef.current && !isInitialized) {
+    if (contentEditableRef.current && !isInitialized && !isConvertingMarkdown.current) {
       // Only set content if it's not empty and editor is empty
       if (content && content.trim() && !contentEditableRef.current.innerHTML.trim()) {
       contentEditableRef.current.innerHTML = content;
@@ -1340,6 +1821,31 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               onSelectHighlightColor={(color) => handleHighlightColor(color)}
               highlightColors={HIGHLIGHT_COLORS}
             />
+            <button
+              onClick={showTableSizeSelector}
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
+              title="Insert Table"
+              type="button"
+            >
+              <Table size={16} />
+            </button>
+            <div className="relative">
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleImageUpload}
+                className="hidden"
+                id="image-upload"
+              />
+              <button
+                onClick={() => document.getElementById('image-upload')?.click()}
+                className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
+                title="Insert Image"
+                type="button"
+              >
+                <Image size={16} />
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
                 <input type="checkbox" checked={pageView} onChange={(e) => setPageView(e.target.checked)} />
@@ -1495,111 +2001,222 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          font-size: 0.875rem !important;
                        }
                        
-                       /* Table Styles */
-                       .note-editor .table-wrapper {
+                       /* Notion-style Table Styles */
+                       .note-editor .notion-table-wrapper {
                          position: relative !important;
-                         margin: 1rem 0 !important;
+                         margin: 16px 0 !important;
                          display: inline-block !important;
+                         border-radius: 6px !important;
+                         overflow: hidden !important;
+                         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+                         min-width: 500px !important;
+                         min-height: 120px !important;
                        }
                        
-                       .note-editor .note-table {
+                       .note-editor .notion-table {
                          border-collapse: collapse !important;
-                         border: 1px solid #d1d5db !important;
-                         border-radius: 0.375rem !important;
+                         border: 1px solid #e1e5e9 !important;
+                         border-radius: 6px !important;
                          overflow: hidden !important;
                          background: white !important;
-                         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+                         width: 100% !important;
+                         min-width: 500px !important;
+                         min-height: 120px !important;
                        }
                        
-                       .note-editor .note-table th,
-                       .note-editor .note-table td {
-                         border: 1px solid #e5e7eb !important;
-                         padding: 0.75rem !important;
+                       .note-editor .notion-table th,
+                       .note-editor .notion-table td {
+                         border: 1px solid #e1e5e9 !important;
+                         padding: 12px 16px !important;
                          text-align: left !important;
                          vertical-align: top !important;
                          min-width: 120px !important;
+                         min-height: 40px !important;
                          position: relative !important;
+                         font-size: 14px !important;
+                         line-height: 1.4 !important;
                        }
                        
-                       .note-editor .note-table th {
-                         background-color: #f8fafc !important;
-                         font-weight: 600 !important;
-                         color: #1e293b !important;
-                         border-bottom: 2px solid #e2e8f0 !important;
+                       .note-editor .notion-table-header {
+                         background-color: #f8f9fa !important;
+                         font-weight: 500 !important;
+                         color: #37352f !important;
+                         border-bottom: 2px solid #e1e5e9 !important;
+                         font-size: 13px !important;
+                         text-transform: uppercase !important;
+                         letter-spacing: 0.5px !important;
                        }
                        
-                       .note-editor .note-table td {
+                       .note-editor .notion-table-cell {
                          background-color: #ffffff !important;
+                         transition: background-color 0.1s ease !important;
                        }
                        
-                       .note-editor .note-table td:hover {
-                         background-color: #f8fafc !important;
+                       .note-editor .notion-table-cell:hover {
+                         background-color: #f8f9fa !important;
                        }
                        
-                       /* Notion-style add buttons */
-                       .note-editor .table-add-col-btn,
-                       .note-editor .table-add-row-btn {
+                       .note-editor .notion-table-cell-selected {
+                         background-color: #e3f2fd !important;
+                         box-shadow: inset 0 0 0 2px #2196f3 !important;
+                       }
+                       
+                       .note-editor .notion-table-cell:focus {
+                         outline: none !important;
+                         background-color: #e3f2fd !important;
+                         box-shadow: inset 0 0 0 2px #2196f3 !important;
+                       }
+                       
+                       /* Notion-style table controls */
+                       .note-editor .notion-table-toolbar {
                          position: absolute !important;
-                         width: 24px !important;
-                         height: 24px !important;
-                         background: #3b82f6 !important;
-                         color: white !important;
-                         border-radius: 50% !important;
+                         top: -40px !important;
+                         left: 0 !important;
+                         background: white !important;
+                         border: 1px solid #e1e5e9 !important;
+                         border-radius: 6px !important;
+                         padding: 4px !important;
+                         display: flex !important;
+                         gap: 4px !important;
+                         opacity: 0 !important;
+                         transition: opacity 0.2s !important;
+                         box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+                         z-index: 1000 !important;
+                       }
+                       
+                       .note-editor .notion-table-add-col-btn,
+                       .note-editor .notion-table-add-row-btn {
+                         position: absolute !important;
+                         background: #f8f9fa !important;
+                         border: 1px solid #e1e5e9 !important;
                          display: flex !important;
                          align-items: center !important;
                          justify-content: center !important;
                          cursor: pointer !important;
                          font-size: 16px !important;
-                         font-weight: bold !important;
+                         color: #6c757d !important;
                          opacity: 0 !important;
-                         transition: all 0.2s ease !important;
+                         transition: opacity 0.2s !important;
                          z-index: 10 !important;
-                         box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3) !important;
                        }
                        
-                       .note-editor .table-add-col-btn {
+                       .note-editor .notion-table-add-col-btn {
+                         right: -20px !important;
                          top: 50% !important;
-                         right: -12px !important;
                          transform: translateY(-50%) !important;
+                         width: 20px !important;
+                         height: 40px !important;
+                         border-left: none !important;
                        }
                        
-                       .note-editor .table-add-row-btn {
-                         bottom: -12px !important;
+                       .note-editor .notion-table-add-row-btn {
+                         bottom: -20px !important;
                          left: 50% !important;
                          transform: translateX(-50%) !important;
-                       }
-                       
-                       .note-editor .table-add-col-btn:hover,
-                       .note-editor .table-add-row-btn:hover {
-                         background: #2563eb !important;
-                         transform: scale(1.1) !important;
-                         box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4) !important;
-                       }
-                       
-                       /* Delete button */
-                       .note-editor .table-delete-btn {
-                         position: absolute !important;
-                         top: -8px !important;
-                         right: -8px !important;
-                         width: 20px !important;
+                         width: 40px !important;
                          height: 20px !important;
-                         background: #ef4444 !important;
-                         color: white !important;
-                         border: none !important;
-                         border-radius: 50% !important;
-                         cursor: pointer !important;
-                         font-size: 14px !important;
-                         font-weight: bold !important;
-                         opacity: 0 !important;
-                         transition: all 0.2s ease !important;
-                         z-index: 10 !important;
-                         box-shadow: 0 2px 4px rgba(239, 68, 68, 0.3) !important;
+                         border-top: none !important;
+                       }
+                       
+                       .note-editor .notion-table-add-col-btn:hover,
+                       .note-editor .notion-table-add-row-btn:hover {
+                         background: #e9ecef !important;
+                         color: #495057 !important;
                        }
                        
                        .note-editor .table-delete-btn:hover {
                          background: #dc2626 !important;
                          transform: scale(1.1) !important;
                          box-shadow: 0 4px 8px rgba(239, 68, 68, 0.4) !important;
+                       }
+                       
+                       /* Image Styles */
+                       .note-editor .image-wrapper {
+                         position: relative !important;
+                         display: inline-block !important;
+                         margin: 8px 0 !important;
+                         border: 2px solid transparent !important;
+                         border-radius: 4px !important;
+                         transition: border-color 0.2s ease !important;
+                       }
+                       
+                       .note-editor .image-wrapper:hover {
+                         border-color: #2196f3 !important;
+                       }
+                       
+                       .note-editor .note-image {
+                         display: block !important;
+                         max-width: 100% !important;
+                         height: auto !important;
+                         border-radius: 4px !important;
+                         cursor: pointer !important;
+                       }
+                       
+                       .note-editor .resize-handle {
+                         position: absolute !important;
+                         background: #2196f3 !important;
+                         border: 2px solid white !important;
+                         border-radius: 50% !important;
+                         width: 8px !important;
+                         height: 8px !important;
+                         z-index: 10 !important;
+                         display: none !important;
+                       }
+                       
+                       .note-editor .image-wrapper:hover .resize-handle {
+                         display: block !important;
+                       }
+                       
+                       .note-editor .resize-handle-nw {
+                         top: -4px !important;
+                         left: -4px !important;
+                         cursor: nw-resize !important;
+                       }
+                       
+                       .note-editor .resize-handle-ne {
+                         top: -4px !important;
+                         right: -4px !important;
+                         cursor: ne-resize !important;
+                       }
+                       
+                       .note-editor .resize-handle-sw {
+                         bottom: -4px !important;
+                         left: -4px !important;
+                         cursor: sw-resize !important;
+                       }
+                       
+                       .note-editor .resize-handle-se {
+                         bottom: -4px !important;
+                         right: -4px !important;
+                         cursor: se-resize !important;
+                       }
+                       
+                       .note-editor .resize-handle-n {
+                         top: -4px !important;
+                         left: 50% !important;
+                         transform: translateX(-50%) !important;
+                         cursor: n-resize !important;
+                       }
+                       
+                       .note-editor .resize-handle-s {
+                         bottom: -4px !important;
+                         left: 50% !important;
+                         transform: translateX(-50%) !important;
+                         cursor: s-resize !important;
+                       }
+                       
+                       .note-editor .resize-handle-e {
+                         top: 50% !important;
+                         right: -4px !important;
+                         transform: translateY(-50%) !important;
+                         cursor: e-resize !important;
+                       }
+                       
+                       .note-editor .resize-handle-w {
+                         top: 50% !important;
+                         left: -4px !important;
+                         transform: translateY(-50%) !important;
+                         cursor: w-resize !important;
                        }
                        
                        .note-editor .table-wrapper:hover .table-delete-btn {
@@ -1747,90 +2364,94 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         }
                       }
                       
-                      // Handle Space key for markdown conversion
+                      // Handle Space key for markdown conversion - USE SAME APPROACH AS TOOLBAR
                       if (e.key === ' ') {
                         const range = getSelection();
                         if (!range) return;
 
-                        const container = range.commonAncestorContainer;
+                        // Get the current line content
+                        let currentLine = '';
+                        let container = range.commonAncestorContainer;
+                        
                         if (container.nodeType === Node.TEXT_NODE) {
                           const text = container.textContent || '';
                           const lines = text.split('\n');
-                          const currentLine = lines[lines.length - 1];
-                          
-                          // Check for markdown patterns and convert only the current line
-                          if (currentLine.trim() === '###' || 
-                              currentLine.trim() === '##' || 
-                              currentLine.trim() === '#' ||
-                              currentLine.trim() === '-' ||
-                              currentLine.trim().match(/^\d+\.$/)) {
+                          currentLine = lines[lines.length - 1];
+                        } else if (container.nodeType === Node.ELEMENT_NODE) {
+                          const element = container as Element;
+                          const textContent = element.textContent || '';
+                          const lines = textContent.split('\n');
+                          currentLine = lines[lines.length - 1];
+                        }
+                        
+                        // Check for markdown patterns
+                        if (currentLine.trim() === '###' || 
+                            currentLine.trim() === '##' || 
+                            currentLine.trim() === '#' ||
+                            currentLine.trim() === '-' ||
+                            currentLine.trim().match(/^\d+\.$/) ||
+                            currentLine.trim().match(/^-{3,}$/)) {
+                            
                             e.preventDefault();
                             
-                            // Convert only the current line to HTML
-                            let convertedLine = currentLine;
-                            if (currentLine.trim() === '###') {
-                              convertedLine = `<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-4" style="font-size: 1.125rem; line-height: 1.75rem; font-weight: 600;"></h3>`;
-                            } else if (currentLine.trim() === '##') {
-                              convertedLine = `<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3 mt-5" style="font-size: 1.25rem; line-height: 1.75rem; font-weight: 600;"></h2>`;
-                            } else if (currentLine.trim() === '#') {
-                              convertedLine = `<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4 mt-6" style="font-size: 1.5rem; line-height: 2rem; font-weight: 700;"></h1>`;
-                            } else if (currentLine.trim() === '-') {
-                              convertedLine = `<li class="ml-4 mb-1 list-disc"></li>`;
-                            } else if (currentLine.trim().match(/^\d+\.$/)) {
-                              convertedLine = `<li class="ml-4 mb-1"></li>`;
-                            }
-                            
-                            // Instead of replacing all content, let's just insert the converted element
-                            if (contentEditableRef.current) {
-                              // Create the converted element
-                              const tempDiv = document.createElement('div');
-                              tempDiv.innerHTML = convertedLine;
-                              const convertedElement = tempDiv.firstChild;
+                            // Remove the markdown text first, then apply formatting
+                            if (container.nodeType === Node.TEXT_NODE) {
+                              const textNode = container;
+                              const text = textNode.textContent || '';
+                              const lines = text.split('\n');
+                              const lastLine = lines[lines.length - 1];
                               
-                              if (convertedElement) {
-                                // Get the current selection
+                              // Remove the markdown from the last line
+                              lines[lines.length - 1] = '';
+                              textNode.textContent = lines.join('\n');
+                              
+                              // Create a new paragraph/line for the heading
+                              const newParagraph = document.createElement('p');
+                              newParagraph.innerHTML = '<br>'; // Add a line break to make it editable
+                              
+                              // Insert the new paragraph after the text node
+                              if (textNode.parentNode) {
+                                textNode.parentNode.insertBefore(newParagraph, textNode.nextSibling);
+                                
+                                // Move cursor to the new paragraph
                                 const selection = window.getSelection();
-                                if (selection && selection.rangeCount > 0) {
-                                  const range = selection.getRangeAt(0);
-                                  
-                                  // Find the current line and replace it
-                                  const container = range.commonAncestorContainer;
-                                  if (container.nodeType === Node.TEXT_NODE) {
-                                    const textNode = container;
-                                    const textContent = textNode.textContent || '';
-                                    const lines = textContent.split('\n');
-                                    
-                                    // Remove the markdown line from the text
-                                    lines[lines.length - 1] = '';
-                                    textNode.textContent = lines.join('\n');
-                                    
-                                    // Insert the converted element after the text node
-                                    const newRange = document.createRange();
-                                    newRange.setStartAfter(textNode);
-                                    newRange.collapse(true);
-                                    newRange.insertNode(convertedElement);
-                                    
-                                    // Move cursor inside the converted element
-                                    const cursorRange = document.createRange();
-                                    cursorRange.setStart(convertedElement, 0);
-                                    cursorRange.collapse(true);
-                                    selection.removeAllRanges();
-                                    selection.addRange(cursorRange);
-                                    
-                                    // Add a placeholder text node to ensure proper styling
-                                    const placeholder = document.createTextNode('\u200B'); // Zero-width space
-                                    convertedElement.appendChild(placeholder);
-                                    
-                                    // Move cursor to the placeholder
-                                    const newCursorRange = document.createRange();
-                                    newCursorRange.setStart(placeholder, 0);
-                                    newCursorRange.collapse(true);
-                                    selection.removeAllRanges();
-                                    selection.addRange(newCursorRange);
-                                    
-                                    // Update the content state
-                                    if (contentEditableRef.current) {
-                                      setContent(contentEditableRef.current.innerHTML);
+                                if (selection) {
+                                  const newRange = document.createRange();
+                                  newRange.setStart(newParagraph, 0);
+                                  newRange.collapse(true);
+                                  selection.removeAllRanges();
+                                  selection.addRange(newRange);
+                                }
+                                
+                                // Now apply the formatting to the new paragraph
+                                if (currentLine.trim() === '###') {
+                                  toggleFormatting('formatBlock', 'h3');
+                                } else if (currentLine.trim() === '##') {
+                                  toggleFormatting('formatBlock', 'h2');
+                                } else if (currentLine.trim() === '#') {
+                                  toggleFormatting('formatBlock', 'h1');
+                                } else if (currentLine.trim() === '-') {
+                                  convertToBulletList();
+                                } else if (currentLine.trim().match(/^\d+\.$/)) {
+                                  createList(true); // true for ordered list
+                                } else if (currentLine.trim().match(/^-{3,}$/)) {
+                                  // For horizontal rule, we need to handle it differently
+                                  if (contentEditableRef.current) {
+                                    const selection = window.getSelection();
+                                    if (selection && selection.rangeCount > 0) {
+                                      const range = selection.getRangeAt(0);
+                                      const hr = document.createElement('hr');
+                                      hr.className = 'my-4 border-gray-300 dark:border-gray-600';
+                                      range.deleteContents();
+                                      range.insertNode(hr);
+                                      
+                                      // Move cursor after the HR
+                                      const newRange = document.createRange();
+                                      newRange.setStartAfter(hr);
+                                      newRange.collapse(true);
+                                      selection.removeAllRanges();
+                                      selection.addRange(newRange);
+                                      
                                       setHasChanges(true);
                                     }
                                   }
@@ -1840,7 +2461,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                           }
                         }
                       }
-                    }}
+                    }
                     suppressContentEditableWarning={true}
                                          style={{
                        fontFamily: 'inherit',
@@ -2061,19 +2682,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                   Document Tools
                 </h3>
                 <div className="space-y-2">
-                  <button
-                    onClick={() => {
-                      setShowSettingsModal(false);
-                      insertTable();
-                    }}
-                    className="w-full flex items-center space-x-3 px-4 py-3 bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
-                  >
-                    <Table size={20} />
-                    <div className="text-left">
-                      <div className="font-medium">Insert Table</div>
-                      <div className="text-sm text-purple-600 dark:text-purple-400">Add a table to your document</div>
-                    </div>
-                  </button>
+                  {/* Table option removed - now available in toolbar */}
                 </div>
               </div>
 
@@ -2105,6 +2714,92 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               >
                 Close
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MS Word-style Table Grid Selector */}
+      {showTableGrid && (
+        <div className="fixed inset-0 z-[9999]" onClick={() => {
+          setShowTableGrid(false);
+          removePreviewTable();
+        }}>
+          <div 
+            className="absolute bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-3"
+            style={{
+              left: tableGridPosition.x,
+              top: tableGridPosition.y,
+              zIndex: 10000,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center mb-3">
+              <div className="text-lg font-bold text-gray-800">
+                Insert Table
+              </div>
+              <button
+                onClick={() => {
+                  setShowTableGrid(false);
+                  removePreviewTable();
+                }}
+                className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+              >
+                ×
+              </button>
+            </div>
+            <div className="grid grid-cols-8 gap-1">
+              {Array.from({ length: 64 }, (_, index) => {
+                const row = Math.floor(index / 8) + 1;
+                const col = (index % 8) + 1;
+                return (
+                  <div
+                    key={index}
+                    className="w-4 h-4 border border-gray-400 hover:bg-blue-200 cursor-pointer transition-colors bg-gray-100"
+                    onMouseEnter={(e) => {
+                      // Set the hovered table size for preview
+                      setHoveredTableSize({ rows: row, cols: col });
+                      
+                      // Show preview table in the page content
+                      showPreviewTable(row, col);
+                      
+                      // Highlight the grid up to this point
+                      const cells = e.currentTarget.parentElement?.children;
+                      if (cells) {
+                        Array.from(cells).forEach((cell, i) => {
+                          const cellRow = Math.floor(i / 8) + 1;
+                          const cellCol = (i % 8) + 1;
+                          if (cellRow <= row && cellCol <= col) {
+                            (cell as HTMLElement).style.backgroundColor = '#3b82f6';
+                            (cell as HTMLElement).style.borderColor = '#1d4ed8';
+                          } else {
+                            (cell as HTMLElement).style.backgroundColor = '';
+                            (cell as HTMLElement).style.borderColor = '';
+                          }
+                        });
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      // Clear the preview
+                      setHoveredTableSize(null);
+                      removePreviewTable();
+                      
+                      // Reset all cells
+                      const cells = e.currentTarget.parentElement?.children;
+                      if (cells) {
+                        Array.from(cells).forEach((cell) => {
+                          (cell as HTMLElement).style.backgroundColor = '';
+                          (cell as HTMLElement).style.borderColor = '';
+                        });
+                      }
+                    }}
+                    onClick={() => insertTableFromGrid(row, col)}
+                  />
+                );
+              })}
+            </div>
+            <div className="text-sm text-gray-600 mt-3 text-center font-medium">
+              Hover over the grid to see table preview in the page
             </div>
           </div>
         </div>

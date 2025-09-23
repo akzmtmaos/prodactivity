@@ -9,6 +9,12 @@ interface StreakDay {
 
 interface StreaksCalendarProps {
   streakData: StreakDay[];
+  todaysProductivity?: {
+    completion_rate: number;
+    total_tasks: number;
+    completed_tasks: number;
+    status?: string;
+  } | null;
 }
 
 const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -57,7 +63,7 @@ const monthNames = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
-const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData }) => {
+const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData, todaysProductivity }) => {
   const today = new Date();
   const [displayedYear, setDisplayedYear] = useState(today.getFullYear());
   const [displayedMonth, setDisplayedMonth] = useState(today.getMonth());
@@ -86,7 +92,23 @@ const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData }) => {
     const todayStr = today.toISOString().split('T')[0];
     
     // Check if we have data for today
-    const todayData = sortedData.find(day => day.date === todayStr);
+    let todayData = sortedData.find(day => day.date === todayStr);
+    
+    // Fallback to todaysProductivity if streakData doesn't include today
+    if ((!todayData || !todayData.streak) && todaysProductivity) {
+      const fallbackStreak = (todaysProductivity.total_tasks > 0 && todaysProductivity.completed_tasks > 0);
+      console.log('🔥 StreaksCalendar using todaysProductivity fallback:', todaysProductivity, '-> streak:', fallbackStreak);
+      if (fallbackStreak) {
+        todayData = {
+          date: todayStr,
+          streak: true,
+          productivity: todaysProductivity.completion_rate,
+        };
+        // Ensure today is considered at the front
+        sortedData.unshift(todayData);
+      }
+    }
+    
     if (!todayData || !todayData.streak) {
       return 0; // No streak if today is not productive
     }

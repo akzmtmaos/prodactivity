@@ -23,19 +23,27 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
   
   if (process.env.NODE_ENV === 'development') {
     console.log('🔄 Starting weekly aggregation with', dailyLogs.length, 'daily logs');
+    console.log('🔄 Daily logs data:', dailyLogs);
   }
   
   const weeklyData: { [key: string]: any } = {};
+  // Use the same date logic as the rest of the app (local date string)
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Reset time to start of day
+  const todayStr = today.toISOString().split('T')[0];
+  
+  // Debug the date being used
+  console.log('🔄 Weekly aggregation using today:', todayStr);
   
   dailyLogs.forEach(log => {
     const date = new Date(log.period_start);
     
-    // Skip future dates
-    if (date > today) {
+    // Skip future dates (compare date strings to avoid timezone issues)
+    const logDateStr = log.period_start;
+    
+    if (logDateStr > todayStr) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🔄 Skipping future date:', log.period_start);
+        console.log('🔄 Skipping future date:', log.period_start, '(today is', todayStr + ')');
       }
       return;
     }
@@ -49,9 +57,25 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     const weekKey = monday.toISOString().split('T')[0];
     
     // Skip future weeks (where Monday is in the future)
-    if (monday > today) {
+    const mondayStr = monday.toISOString().split('T')[0];
+    
+    // Debug Sep 23 specifically
+    if (log.period_start === '2025-09-23') {
+      console.log('🔄 Processing Sep 23 log:', {
+        date: date.toISOString().split('T')[0],
+        dayOfWeek: date.getDay(),
+        daysSinceMonday,
+        monday: monday.toISOString().split('T')[0],
+        weekKey,
+        completion_rate: log.completion_rate,
+        todayStr,
+        isFutureDate: logDateStr > todayStr,
+        isFutureWeek: mondayStr > todayStr
+      });
+    }
+    if (mondayStr > todayStr) {
       if (process.env.NODE_ENV === 'development') {
-        console.log('🔄 Skipping future week starting:', weekKey);
+        console.log('🔄 Skipping future week starting:', weekKey, '(today is', todayStr + ')');
       }
       return;
     }
@@ -80,15 +104,31 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     const weekStart = new Date(week.period_start);
     const weekEnd = new Date(week.period_end);
     
-    // Check if this is the current week
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const isCurrentWeek = weekStart <= today && weekEnd >= today;
+    // Force debug for Sep 15 week and Sep 22 week
+    if (week.period_start === '2025-09-15' || week.period_start === '2025-09-22') {
+      console.log(`🚨 STARTING ${week.period_start} WEEK PROCESSING 🚨`);
+      console.log('Week object:', week);
+      console.log('Week start/end:', weekStart.toISOString(), weekEnd.toISOString());
+    }
+    
+    // Check if this is the current week (use string comparison to avoid timezone issues)
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    const isCurrentWeek = weekStartStr <= todayStr && weekEndStr >= todayStr;
     
     const dailyLogsForWeek = dailyLogs.filter(log => {
-      const logDate = new Date(log.period_start);
-      return logDate >= weekStart && logDate <= weekEnd;
+      const logDateStr = log.period_start; // Use string comparison to avoid timezone issues
+      return logDateStr >= weekStartStr && logDateStr <= weekEndStr;
     });
+    
+    // Debug Sep 22 week specifically
+    if (week.period_start === '2025-09-22') {
+      console.log('🚨 SEP 22 WEEK DEBUG 🚨');
+      console.log('Week range:', weekStartStr, 'to', weekEndStr);
+      console.log('All daily logs:', dailyLogs.map(log => ({ date: log.period_start, rate: log.completion_rate })));
+      console.log('Filtered logs for this week:', dailyLogsForWeek.map(log => ({ date: log.period_start, rate: log.completion_rate })));
+      console.log('Is current week:', isCurrentWeek);
+    }
     
     if (dailyLogsForWeek.length > 0) {
       // For current week, we need to include all days up to today, not just days with data
@@ -97,21 +137,67 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
       if (isCurrentWeek) {
         // For current week, generate completion rates for ALL days in the week (same as WeeklyBreakdownModal)
         // The WeeklyBreakdownModal includes all days from startDate to endDate, including future days
+        console.log(`🔄 Processing CURRENT WEEK ${week.period_start}:`, {
+          weekStart: week.period_start,
+          weekEnd: week.period_end,
+          today: today.toISOString().split('T')[0],
+          dailyLogsForWeek: dailyLogsForWeek.length
+        });
+        
         const currentDate = new Date(weekStart);
         while (currentDate <= weekEnd) {
           const dateStr = currentDate.toISOString().split('T')[0];
           const dayLog = dailyLogsForWeek.find(log => log.period_start === dateStr);
           completionRates.push(dayLog ? (dayLog.completion_rate || 0) : 0);
+          
+          // Debug each day in current week
+          if (week.period_start === '2025-09-22' || week.period_start === '2025-09-15') {
+            console.log(`  📅 ${dateStr}: ${dayLog ? dayLog.completion_rate + '%' : '0% (no data)'}`);
+          }
+          
+          // Extra debug for Sep 22 week
+          if (week.period_start === '2025-09-22') {
+            console.log(`🚨 SEP 22 WEEK DAY: ${dateStr} = ${dayLog ? dayLog.completion_rate + '%' : '0% (no data)'}`);
+          }
+          
           currentDate.setDate(currentDate.getDate() + 1);
         }
       } else {
-        // For past weeks, use the existing data (all days should have data)
-        completionRates = dailyLogsForWeek.map(log => log.completion_rate || 0);
+        // For past weeks, generate completion rates for ALL days in the week (same as current week logic)
+        console.log(`✅ Processing PAST WEEK ${week.period_start}:`, {
+          weekStart: week.period_start,
+          weekEnd: week.period_end,
+          dailyLogsForWeek: dailyLogsForWeek.length
+        });
+        
+        // Generate completion rates for ALL days in the week, not just days with data
+        const currentDate = new Date(weekStart);
+        while (currentDate <= weekEnd) {
+          const dateStr = currentDate.toISOString().split('T')[0];
+          const dayLog = dailyLogsForWeek.find(log => log.period_start === dateStr);
+          completionRates.push(dayLog ? (dayLog.completion_rate || 0) : 0);
+          
+          // Debug each day in past week
+          if (week.period_start === '2025-09-15' || week.period_start === '2025-09-08' || week.period_start === '2025-09-01') {
+            console.log(`  📅 ${dateStr}: ${dayLog ? dayLog.completion_rate + '%' : '0% (no data)'}`);
+          }
+          
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
       }
       
       // Calculate average of daily completion rates (same as WeeklyBreakdownModal)
       const totalDailyRate = completionRates.reduce((sum, rate) => sum + rate, 0);
       week.completion_rate = Math.round(totalDailyRate / completionRates.length);
+      
+      // Debug Sep 22 week calculation
+      if (week.period_start === '2025-09-22') {
+        console.log('🚨 SEP 22 WEEK CALCULATION 🚨');
+        console.log('Completion rates array:', completionRates);
+        console.log('Total daily rate:', totalDailyRate);
+        console.log('Number of days:', completionRates.length);
+        console.log('Calculated average:', week.completion_rate);
+      }
       
       if (week.completion_rate >= 80) {
         week.status = 'Highly Productive';
@@ -133,12 +219,148 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
           completionRates,
           average: week.completion_rate
         });
+        
+        // Debug specific problematic weeks (force debug for Sep 15 and Sep 22)
+        if (week.period_start === '2025-09-22' || week.period_start === '2025-09-15') {
+          console.log(`🚨 FORCED DEBUG FOR ${week.period_start} WEEK 🚨`);
+          console.log(`🔄 ${week.period_start} week calculation:`, {
+            weekStart: week.period_start,
+            weekEnd: week.period_end,
+            isCurrentWeek,
+            dailyLogsForWeek: dailyLogsForWeek.length,
+            completionRates,
+            average: week.completion_rate,
+            status: week.status,
+            dailyLogsDetails: dailyLogsForWeek.map(log => ({
+              date: log.period_start,
+              completion_rate: log.completion_rate,
+              status: log.status
+            })),
+            // Debug the filter logic
+            weekStartStr,
+            weekEndStr,
+            allLogsInRange: dailyLogs.filter(log => {
+              const logDateStr = log.period_start;
+              return logDateStr >= weekStartStr && logDateStr <= weekEndStr;
+            }).map(log => ({
+              date: log.period_start,
+              completion_rate: log.completion_rate
+            }))
+          });
+        }
+        
+        // Also debug correct weeks for comparison
+        if (week.period_start === '2025-09-08' || week.period_start === '2025-09-01') {
+          console.log(`✅ ${week.period_start} week calculation (CORRECT):`, {
+            weekStart: week.period_start,
+            weekEnd: week.period_end,
+            isCurrentWeek,
+            dailyLogsForWeek: dailyLogsForWeek.length,
+            completionRates,
+            average: week.completion_rate,
+            status: week.status,
+            dailyLogsDetails: dailyLogsForWeek.map(log => ({
+              date: log.period_start,
+              completion_rate: log.completion_rate,
+              status: log.status
+            }))
+          });
+        }
       }
     } else {
       week.completion_rate = 0;
       week.status = 'Low Productive';
     }
   });
+  
+  // Ensure we have an entry for the current week, even if it has no data
+  const currentDate = new Date();
+  currentDate.setHours(0, 0, 0, 0);
+  
+  // Get Monday of current week
+  const daysSinceMonday = currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1;
+  const currentWeekMonday = new Date(currentDate);
+  currentWeekMonday.setDate(currentDate.getDate() - daysSinceMonday);
+  const currentWeekKey = currentWeekMonday.toISOString().split('T')[0];
+  
+  // If current week doesn't exist in data, create it
+  if (!weeklyData[currentWeekKey]) {
+    console.log('🔄 Creating current week entry:', {
+      currentWeekKey,
+      currentWeekMonday: currentWeekMonday.toISOString().split('T')[0],
+      todayStr
+    });
+    weeklyData[currentWeekKey] = {
+      period_start: currentWeekKey,
+      period_end: new Date(currentWeekMonday.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      period_type: 'weekly',
+      user_id: dailyLogs.length > 0 ? dailyLogs[0].user_id : null,
+      total_tasks: 0,
+      completed_tasks: 0,
+      completion_rate: 0,
+      status: 'Low Productive', // Changed from 'No Tasks' to 'Low Productive'
+      logged_at: new Date().toISOString()
+    };
+    
+    // FORCE RECALCULATE the current week with today's data
+    console.log('🚨 FORCING RECALCULATION OF CURRENT WEEK 🚨');
+    const week = weeklyData[currentWeekKey];
+    const weekStart = new Date(week.period_start);
+    const weekEnd = new Date(week.period_end);
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    
+    const dailyLogsForWeek = dailyLogs.filter(log => {
+      const logDateStr = log.period_start;
+      return logDateStr >= weekStartStr && logDateStr <= weekEndStr;
+    });
+    
+    console.log('🚨 CURRENT WEEK RECALCULATION:', {
+      weekStart: weekStartStr,
+      weekEnd: weekEndStr,
+      dailyLogsForWeek: dailyLogsForWeek.length,
+      logs: dailyLogsForWeek.map(log => ({ date: log.period_start, rate: log.completion_rate }))
+    });
+    
+    if (dailyLogsForWeek.length > 0) {
+      // Generate completion rates for ALL days in the week
+      const completionRates = [];
+      const currentDate = new Date(weekStart);
+      while (currentDate <= weekEnd) {
+        const dateStr = currentDate.toISOString().split('T')[0];
+        const dayLog = dailyLogsForWeek.find(log => log.period_start === dateStr);
+        completionRates.push(dayLog ? (dayLog.completion_rate || 0) : 0);
+        console.log(`  📅 ${dateStr}: ${dayLog ? dayLog.completion_rate + '%' : '0% (no data)'}`);
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+      
+      // Calculate average
+      const totalDailyRate = completionRates.reduce((sum, rate) => sum + rate, 0);
+      week.completion_rate = Math.round(totalDailyRate / completionRates.length);
+      
+      if (week.completion_rate >= 80) {
+        week.status = 'Highly Productive';
+      } else if (week.completion_rate >= 60) {
+        week.status = 'Productive';
+      } else if (week.completion_rate >= 40) {
+        week.status = 'Moderately Productive';
+      } else {
+        week.status = 'Low Productive';
+      }
+      
+      console.log('🚨 CURRENT WEEK FINAL CALCULATION:', {
+        completionRates,
+        totalDailyRate,
+        average: week.completion_rate,
+        status: week.status
+      });
+    }
+  } else {
+    console.log('🔄 Current week already exists:', {
+      currentWeekKey,
+      existingData: weeklyData[currentWeekKey]
+    });
+  }
   
   const result = Object.values(weeklyData).sort((a: any, b: any) => 
     new Date(a.period_start).getTime() - new Date(b.period_start).getTime()
@@ -307,6 +529,39 @@ const Progress = () => {
     }
   }, [prodLogs]);
 
+  // Update streak when todaysProductivity changes
+  useEffect(() => {
+    if (todaysProductivity && streakData.length > 0) {
+      console.log('🔥 TodaysProductivity changed, recalculating streak...');
+      console.log('🔥 TodaysProductivity data:', todaysProductivity);
+      console.log('🔥 StreakData length:', streakData.length);
+      
+      const currentStreak = calculateCurrentStreakFromData(streakData, todaysProductivity);
+      console.log('🔥 Updated current streak:', currentStreak);
+      
+      // Update stats with new streak
+      setStats((prevStats: any) => ({
+        ...prevStats,
+        streak: currentStreak
+      }));
+    }
+  }, [todaysProductivity, streakData]);
+
+  // Also update streak when both data sources are available
+  useEffect(() => {
+    if (todaysProductivity && streakData.length > 0) {
+      console.log('🔥 FORCE STREAK RECALCULATION - Both data sources available');
+      const currentStreak = calculateCurrentStreakFromData(streakData, todaysProductivity);
+      console.log('🔥 FORCE RECALCULATION - Current streak:', currentStreak);
+      
+      // Force update stats
+      setStats((prevStats: any) => ({
+        ...prevStats,
+        streak: currentStreak
+      }));
+    }
+  }, [todaysProductivity, streakData]);
+
   // Centralized error handler
   const handleError = (error: any, message: string) => {
     console.error(message, error);
@@ -356,7 +611,12 @@ const Progress = () => {
         ]);
         
         // Calculate current streak from backend data for consistency
-        const currentStreak = calculateCurrentStreakFromData(streakData);
+        console.log('🔥 STREAK CALCULATION DEBUG:');
+        console.log('🔥 StreakData length:', streakData.length);
+        console.log('🔥 TodaysProductivity:', todaysProductivity);
+        console.log('🔥 StreakData sample:', streakData.slice(0, 3));
+        
+        const currentStreak = calculateCurrentStreakFromData(streakData, todaysProductivity);
         console.log('🔥 Current streak calculated from backend data:', currentStreak);
         
         // Update stats with the consistent streak value
@@ -452,29 +712,11 @@ const Progress = () => {
     console.log('🔄 Clearing todaysProductivity state on mount');
     setTodaysProductivity(null);
     
-    // Trigger a manual refresh when component mounts
+    // Trigger a single refresh when component mounts (reduced to prevent conflicts)
     setTimeout(() => {
-      console.log('🔄 Triggering dateChanged event on mount');
-      window.dispatchEvent(new CustomEvent('dateChanged'));
-    }, 500); // Reduced delay
-    
-    // Also trigger a manual refresh immediately
-    setTimeout(() => {
-      console.log('🔄 Triggering manual refresh on mount');
+      console.log('🔄 Triggering single refresh on mount');
       refreshProductivity();
-    }, 1000); // Reduced delay
-    
-    // Force another refresh after a longer delay
-    setTimeout(() => {
-      console.log('🔄 Final forced refresh on mount');
-      refreshProductivity();
-    }, 3000);
-    
-    // Force a complete component refresh
-    setTimeout(() => {
-      console.log('🔄 Force component refresh with new key');
-      setRefreshKey(prev => prev + 1);
-    }, 4000);
+    }, 1000);
   }, []);
 
   // Fetch today's productivity (daily) for the bar below XP bar
@@ -553,8 +795,8 @@ const Progress = () => {
     
     fetchTodaysProductivity();
     
-    // Set up periodic refresh every 30 seconds
-    const interval = setInterval(fetchTodaysProductivity, 30000);
+    // Set up periodic refresh every 30 seconds (disabled to prevent conflicts)
+    // const interval = setInterval(fetchTodaysProductivity, 30000);
     
     // Listen for date change events
     const handleDateChanged = () => {
@@ -565,7 +807,7 @@ const Progress = () => {
     window.addEventListener('dateChanged', handleDateChanged);
     
     return () => {
-      clearInterval(interval);
+      // clearInterval(interval);
       window.removeEventListener('dateChanged', handleDateChanged);
     };
   }, []);
@@ -635,6 +877,22 @@ const Progress = () => {
         console.log('No productivity data found for today');
         setTodaysProductivity(null);
       }
+      
+      // Also refresh weekly/monthly data if we're in those views
+      console.log('🔄 Manual refresh - Current progressView:', progressView);
+      if (progressView === 'Weekly' || progressView === 'Monthly') {
+        console.log('🔄 Manual refresh - Triggering productivity data refresh for', progressView, 'view');
+        // Force clear the productivity logs to trigger fresh fetch
+        setProdLogs([]);
+        // Trigger the main useEffect to refresh weekly/monthly data
+        setRefreshKey(prev => prev + 1);
+        // Force another refresh after a short delay
+        setTimeout(() => {
+          console.log('🔄 Manual refresh - Secondary refresh for', progressView, 'view');
+          setRefreshKey(prev => prev + 1);
+        }, 500);
+      }
+      
     } catch (e) {
       console.error('Error refreshing productivity:', e);
     }
@@ -726,6 +984,15 @@ const Progress = () => {
           const lastDay = new Date(year, month, 0).getDate(); // month is 1-based, so this gets last day
           const monthEnd = `${year}-${month.toString().padStart(2, '0')}-${lastDay.toString().padStart(2, '0')}`;
           
+          console.log('📊 Daily view query parameters:', {
+            selectedDate: selectedDate.toISOString(),
+            year,
+            month,
+            monthStart,
+            monthEnd,
+            isSeptember2025: year === 2025 && month === 9
+          });
+          
           const { data: logs, error } = await supabase
             .from('productivity_logs')
             .select('*')
@@ -783,6 +1050,7 @@ const Progress = () => {
           const year = selectedDate.getFullYear();
           const yearStart = `${year}-01-01`;
           const yearEnd = `${year}-12-31`;
+          console.log('🚨 WEEKLY VIEW: Starting aggregation process 🚨');
           console.log('📊 Weekly view: fetching data for year', year, 'from', yearStart, 'to', yearEnd);
           
           const { data: dailyLogs, error } = await supabase
@@ -794,13 +1062,109 @@ const Progress = () => {
             .lte('period_start', yearEnd)
             .order('period_start', { ascending: true });
           
+          // FORCE INCLUDE TODAY'S DATA - Use the same data as Today's Productivity Scale
+          const todayStr = new Date().toLocaleDateString('en-CA');
+          console.log('🚨 FORCING TODAY\'S DATA INTO WEEKLY CALCULATION 🚨');
+          console.log('Today string:', todayStr);
+          console.log('TodaysProductivity state:', todaysProductivity);
+          
+          // Always use todaysProductivity state if available (same as Today's Productivity Scale)
+          if (todaysProductivity) {
+            console.log('📊 USING TODAY\'S PRODUCTIVITY STATE FOR WEEKLY CALCULATION');
+            const todayLogFromState = {
+              period_start: todayStr,
+              period_end: todayStr,
+              period_type: 'daily',
+              user_id: userId,
+              total_tasks: todaysProductivity.total_tasks,
+              completed_tasks: todaysProductivity.completed_tasks,
+              completion_rate: todaysProductivity.completion_rate,
+              status: todaysProductivity.status,
+              logged_at: new Date().toISOString()
+            };
+            
+            // Remove any existing today's data and add fresh data
+            if (dailyLogs) {
+              const existingTodayIndex = dailyLogs.findIndex(log => log.period_start === todayStr);
+              if (existingTodayIndex !== -1) {
+                dailyLogs[existingTodayIndex] = todayLogFromState;
+                console.log('📊 REPLACED existing today\'s data in dailyLogs for weekly calculation');
+              } else {
+                dailyLogs.push(todayLogFromState);
+                console.log('📊 ADDED today\'s data to dailyLogs for weekly calculation');
+              }
+            }
+          } else {
+            // Fallback to direct Supabase query
+            const { data: todayLog, error: todayError } = await supabase
+              .from('productivity_logs')
+              .select('*')
+              .eq('user_id', userId)
+              .eq('period_type', 'daily')
+              .eq('period_start', todayStr)
+              .eq('period_end', todayStr)
+              .single();
+            
+            if (todayLog && !todayError) {
+              console.log('📊 Today\'s data fetched from Supabase:', todayLog);
+              if (dailyLogs) {
+                const existingTodayIndex = dailyLogs.findIndex(log => log.period_start === todayStr);
+                if (existingTodayIndex !== -1) {
+                  dailyLogs[existingTodayIndex] = todayLog;
+                } else {
+                  dailyLogs.push(todayLog);
+                }
+              }
+            } else {
+              console.log('📊 No today\'s data found in Supabase:', todayError);
+            }
+          }
+          
           if (error) {
             console.error('Error fetching daily logs for weekly aggregation:', error);
           } else {
             console.log('📊 Daily logs for weekly aggregation:', dailyLogs);
+            console.log('📊 Number of daily logs:', dailyLogs?.length || 0);
+            
+            // VERIFY TODAY'S DATA IS INCLUDED
+            const todayStr = new Date().toLocaleDateString('en-CA');
+            const todayLog = dailyLogs?.find(log => log.period_start === todayStr);
+            console.log('🚨 VERIFICATION: Today\'s data in dailyLogs:', todayLog);
+            if (todayLog) {
+              console.log('✅ Today\'s data found in dailyLogs for weekly calculation');
+              console.log('📊 Today\'s completion rate:', todayLog.completion_rate);
+              console.log('📊 Today\'s status:', todayLog.status);
+            } else {
+              console.log('❌ Today\'s data NOT found in dailyLogs for weekly calculation');
+            }
+            
+            // Log specific data for Sep 23
+            const sep23Log = dailyLogs?.find(log => log.period_start === '2025-09-23');
+            console.log('📊 Sep 23 log found:', sep23Log);
+            if (sep23Log) {
+              console.log('📊 Sep 23 completion rate:', sep23Log.completion_rate);
+              console.log('📊 Sep 23 status:', sep23Log.status);
+            }
+            
+            // Log specific data for Sep 15-21
+            const sep15_21Logs = dailyLogs?.filter(log => {
+              const date = log.period_start;
+              return date >= '2025-09-15' && date <= '2025-09-21';
+            });
+            console.log('🚨 SEP 15-21 LOGS FOUND:', sep15_21Logs);
+            if (sep15_21Logs) {
+              sep15_21Logs.forEach(log => {
+                console.log(`  📅 ${log.period_start}: ${log.completion_rate}%`);
+              });
+            }
+            
             // Aggregate daily logs into weekly data
+            console.log('🚨 CALLING aggregateDailyToWeekly FUNCTION 🚨');
             data = aggregateDailyToWeekly(dailyLogs || []);
             console.log('📊 Aggregated weekly data:', data);
+            // Log the specific week that should contain Sep 23
+            const sep21_27Week = data.find(week => week.period_start === '2025-09-22');
+            console.log('📊 Sep 22-28 week data:', sep21_27Week);
           }
         } else if (progressView === 'Monthly') {
           // For monthly view, fetch daily logs and aggregate them into months
@@ -818,6 +1182,60 @@ const Progress = () => {
             .lte('period_start', yearEnd)
             .order('period_start', { ascending: true });
           
+          // Also fetch today's data separately using the same query as Today's Productivity Scale
+          const todayStr = new Date().toLocaleDateString('en-CA');
+          const { data: todayLog, error: todayError } = await supabase
+            .from('productivity_logs')
+            .select('*')
+            .eq('user_id', userId)
+            .eq('period_type', 'daily')
+            .eq('period_start', todayStr)
+            .eq('period_end', todayStr)
+            .single();
+          
+          if (todayLog && !todayError) {
+            console.log('📊 Today\'s data fetched separately for monthly (same query as Today\'s Productivity):', todayLog);
+            // Add today's data to dailyLogs if it's not already there
+            const existingTodayIndex = dailyLogs?.findIndex(log => log.period_start === todayStr);
+            if (existingTodayIndex === -1 || existingTodayIndex === undefined) {
+              dailyLogs?.push(todayLog);
+              console.log('📊 Added today\'s data to dailyLogs for monthly calculation');
+            } else {
+              // Update existing entry with fresh data
+              if (dailyLogs) {
+                dailyLogs[existingTodayIndex] = todayLog;
+                console.log('📊 Updated existing today\'s data in dailyLogs for monthly calculation');
+              }
+            }
+          } else {
+            console.log('📊 No separate today\'s data found for monthly or error:', todayError);
+            // If no data found, also check if we have todaysProductivity state
+            if (todaysProductivity) {
+              console.log('📊 Using todaysProductivity state for monthly calculation:', todaysProductivity);
+              const todayLogFromState = {
+                period_start: todayStr,
+                period_end: todayStr,
+                period_type: 'daily',
+                user_id: userId,
+                total_tasks: todaysProductivity.total_tasks,
+                completed_tasks: todaysProductivity.completed_tasks,
+                completion_rate: todaysProductivity.completion_rate,
+                status: todaysProductivity.status,
+                logged_at: new Date().toISOString()
+              };
+              const existingTodayIndex = dailyLogs?.findIndex(log => log.period_start === todayStr);
+              if (existingTodayIndex === -1 || existingTodayIndex === undefined) {
+                dailyLogs?.push(todayLogFromState);
+                console.log('📊 Added today\'s data from state to dailyLogs for monthly calculation');
+              } else {
+                if (dailyLogs) {
+                  dailyLogs[existingTodayIndex] = todayLogFromState;
+                  console.log('📊 Updated existing today\'s data from state in dailyLogs for monthly calculation');
+                }
+              }
+            }
+          }
+          
           if (error) {
             console.error('Error fetching daily logs for monthly aggregation:', error);
           } else {
@@ -831,6 +1249,10 @@ const Progress = () => {
         if (process.env.NODE_ENV === 'development') {
           console.log('📊 Received productivity logs from Supabase:', data);
           console.log('📊 Total items received:', data.length);
+          
+          // Debug Sep 23 specifically
+          const sep23Data = data.find(log => log.period_start === '2025-09-23');
+          console.log('📊 Sep 23 data in Supabase response:', sep23Data);
         }
         
         // Transform the data to match what ProductivityHistory component expects
@@ -873,6 +1295,10 @@ const Progress = () => {
         
         if (process.env.NODE_ENV === 'development') {
           console.log('📊 Transformed data for ProductivityHistory:', transformedData);
+          
+          // Debug Sep 23 in transformed data
+          const sep23Transformed = transformedData.find(item => item.date === '2025-09-23');
+          console.log('📊 Sep 23 in transformed data:', sep23Transformed);
         }
         setProdLogs(transformedData);
       } catch (e) {
@@ -881,7 +1307,7 @@ const Progress = () => {
       }
     };
     fetchProdLogs();
-  }, [progressView, selectedDate]);
+  }, [progressView, selectedDate, refreshKey]);
 
   // Navigation handlers
   const handlePrev = () => {
@@ -1061,7 +1487,11 @@ const Progress = () => {
         <div className="space-y-6">
 
         {/* Stats Cards */}
-        <StatsCards stats={stats} />
+        <StatsCards
+          key={`stats-${stats.streak}`}
+          stats={{ ...stats, streakData }}
+          todaysProductivity={todaysProductivity}
+        />
 
         {/* Tabs */}
         <ProgressTabs
@@ -1112,7 +1542,7 @@ function handle401() {
 }
 
 // Calculate current streak from backend streak data (same logic as StreaksCalendar)
-function calculateCurrentStreakFromData(streakData: any[]) {
+function calculateCurrentStreakFromData(streakData: any[], todaysProductivity?: any) {
   // Sort by date (most recent first)
   const sortedData = [...streakData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
@@ -1123,11 +1553,28 @@ function calculateCurrentStreakFromData(streakData: any[]) {
   const todayStr = today.toISOString().split('T')[0];
   
   // Check if we have data for today
-  const todayData = sortedData.find(day => day.date === todayStr);
+  let todayData = sortedData.find(day => day.date === todayStr);
+  
+  // If no today's data in streakData, but we have todaysProductivity, use it
+  if (!todayData && todaysProductivity) {
+    console.log('🔥 Using todaysProductivity for streak calculation:', todaysProductivity);
+    todayData = {
+      date: todayStr,
+      streak: todaysProductivity.total_tasks > 0 && todaysProductivity.completed_tasks > 0,
+      productivity: todaysProductivity.completion_rate,
+      total_tasks: todaysProductivity.total_tasks,
+      completed_tasks: todaysProductivity.completed_tasks
+    };
+    // Add today's data to the beginning of sortedData for calculation
+    sortedData.unshift(todayData);
+  }
+  
   if (!todayData || !todayData.streak) {
+    console.log('🔥 No streak for today:', { todayData, todaysProductivity });
     return 0; // No streak if today is not productive
   }
   
+  console.log('🔥 Today has streak, calculating current streak...');
   let currentStreak = 1; // Start with today
   let currentDate = new Date(today);
   
@@ -1140,12 +1587,15 @@ function calculateCurrentStreakFromData(streakData: any[]) {
     
     if (dayData && dayData.streak) {
       currentStreak++;
+      console.log(`🔥 Day ${i}: ${dateStr} has streak, current streak: ${currentStreak}`);
     } else {
+      console.log(`🔥 Day ${i}: ${dateStr} no streak, breaking at ${currentStreak}`);
       // If no data for this day or day is not productive, streak is broken
       break;
     }
   }
   
+  console.log('🔥 Final current streak:', currentStreak);
   return currentStreak;
 }
 

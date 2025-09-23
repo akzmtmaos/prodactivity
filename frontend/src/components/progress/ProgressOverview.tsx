@@ -105,7 +105,7 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
       <div className="w-full md:w-1/2 flex justify-center items-center">
         <div className="bg-gradient-to-br from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-900 rounded-lg p-6 w-full flex flex-col items-center">
           <h3 className="text-lg font-semibold mb-2 text-gray-900 dark:text-white">Streaks</h3>
-          <StreaksCalendar streakData={streakData} />
+          <StreaksCalendar streakData={streakData} todaysProductivity={todaysProductivity} />
         </div>
       </div>
     </div>

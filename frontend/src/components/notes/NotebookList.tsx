@@ -102,7 +102,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
       </div>
       
       {/* Notebooks list */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 flex-1 overflow-y-auto">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 20rem)', alignContent: 'start' }}>
         {notebooks.map((notebook) => (
           <div key={notebook.id} className="group">
             {editingNotebook?.id === notebook.id ? (

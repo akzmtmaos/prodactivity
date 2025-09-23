@@ -101,6 +101,15 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose }) => {
     });
   };
 
+  const stripHtml = (html: string) => {
+    if (!html) return '';
+    // Create a temporary div element to parse HTML
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    // Get text content and clean it up
+    return temp.textContent || temp.innerText || '';
+  };
+
   const getResultIcon = (result: SearchResult) => {
     if (result.type === 'notebook') {
       return <Folder size={20} className="text-blue-500" />;
@@ -210,7 +219,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose }) => {
                           {getResultBadge(result)}
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400 line-clamp-2 mb-2">
-                          {result.content}
+                          {stripHtml(result.content)}
                         </p>
                         <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                           <Clock size={12} className="mr-1" />

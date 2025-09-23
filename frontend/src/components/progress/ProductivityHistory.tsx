@@ -67,13 +67,22 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     const selectedDateStr = selectedDate.toLocaleDateString('en-CA'); // Format as YYYY-MM-DD in local timezone
     const selectedDateData = prodLogs.find(item => item.date === selectedDateStr);
     
+    // Debug logging
+    console.log('🔍 ProductivityHistory renderDailyView debug:');
+    console.log('  Selected date:', selectedDate);
+    console.log('  Selected date string:', selectedDateStr);
+    console.log('  Total prodLogs:', prodLogs.length);
+    console.log('  ProdLogs data:', prodLogs);
+    console.log('  Found selectedDateData:', selectedDateData);
+    
     // Check if selected date is today
     const today = new Date();
     const isSelectedDateToday = selectedDate.toDateString() === today.toDateString();
+    console.log('  Is selected date today?', isSelectedDateToday);
     
     return (
     <>
-      {/* Show productivity for the selected date ONLY if it's today */}
+      {/* Show productivity for the selected date if data exists AND it's today */}
       {selectedDateData && isSelectedDateToday && (
         <ProductivityRow
           date={selectedDateData.date}

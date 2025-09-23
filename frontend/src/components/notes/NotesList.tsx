@@ -59,6 +59,7 @@ interface NotesListProps {
   onArchiveNote: (noteId: number, archive: boolean) => void;
   onToggleImportant: (noteId: number) => void;
   deletingNoteId?: number | null;
+  onSelectionChange?: (selectedIds: number[]) => void;
 }
 
 const NotesList: React.FC<NotesListProps> = ({
@@ -82,38 +83,33 @@ const NotesList: React.FC<NotesListProps> = ({
   onArchiveNote,
   onToggleImportant,
   deletingNoteId,
+  onSelectionChange,
 }) => {
   const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
-  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
   const handleNoteSelect = (noteId: number) => {
     setSelectedNotes(prev => {
-      if (prev.includes(noteId)) {
-        return prev.filter(id => id !== noteId);
-      } else {
-        return [...prev, noteId];
-      }
+      const next = prev.includes(noteId) ? prev.filter(id => id !== noteId) : [...prev, noteId];
+      if (onSelectionChange) onSelectionChange(next);
+      return next;
     });
   };
 
   const handleSelectAll = () => {
     if (selectedNotes.length === notes.length) {
       setSelectedNotes([]);
+      if (onSelectionChange) onSelectionChange([]);
     } else {
-      setSelectedNotes(notes.map(note => note.id));
+      const all = notes.map(note => note.id);
+      setSelectedNotes(all);
+      if (onSelectionChange) onSelectionChange(all);
     }
   };
 
-  const handleBulkDelete = () => {
-    if (selectedNotes.length > 0) {
-      setShowBulkDeleteModal(true);
-    }
-  };
-
-  const handleConfirmBulkDelete = () => {
-    onBulkDelete(selectedNotes);
-    setSelectedNotes([]);
-    setShowBulkDeleteModal(false);
+  // Expose a helper when parent wants to trigger bulk delete
+  // Keep for backward compatibility if needed in future
+  const triggerBulkDelete = () => {
+    if (selectedNotes.length > 0) onBulkDelete(selectedNotes);
   };
 
   if (!selectedNotebook) {
@@ -134,21 +130,6 @@ const NotesList: React.FC<NotesListProps> = ({
 
   return (
     <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-12rem)] flex flex-col">
-      {/* Bulk Delete Button - Only show when notes are selected */}
-      {selectedNotes.length > 0 && (
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex justify-end">
-            <button
-              onClick={handleBulkDelete}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-            >
-              <Trash2 size={16} />
-              <span>Delete Selected ({selectedNotes.length})</span>
-            </button>
-          </div>
-        </div>
-      )}
-      
       {/* Content */}
       <div className="p-5 flex-1 overflow-y-auto">
         {/* Add note form */}
@@ -212,15 +193,6 @@ const NotesList: React.FC<NotesListProps> = ({
           )}
         </div>
       </div>
-
-      {/* Bulk Delete Modal */}
-      <DeleteConfirmationModal
-        isOpen={showBulkDeleteModal}
-        onClose={() => setShowBulkDeleteModal(false)}
-        onConfirm={handleConfirmBulkDelete}
-        title="Delete Selected Notes"
-        message={`Are you sure you want to delete ${selectedNotes.length} selected note${selectedNotes.length > 1 ? 's' : ''}?`}
-      />
     </div>
   );
 };

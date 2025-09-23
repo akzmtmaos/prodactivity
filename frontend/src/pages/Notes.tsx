@@ -104,6 +104,9 @@ const Notes = () => {
 
   // Add toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  // Bulk selection state for inline Delete Selected
+  const [selectedForBulk, setSelectedForBulk] = useState<number[]>([]);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
 
   // Global search state
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
@@ -251,6 +254,7 @@ const Notes = () => {
     setSelectedNotebook(notebook);
     fetchNotes(notebook.id);
     setSearchTerm('');
+    setSelectedForBulk([]); // Clear selection when selecting a different notebook
     // Switch to notes view for both mobile and desktop
     setCurrentView('notes');
   };
@@ -264,6 +268,7 @@ const Notes = () => {
     setNotebookSearchTerm('');
     setFilterType('all');
     setNotebookFilterType('all');
+    setSelectedForBulk([]); // Clear selection when going back to notebooks
   };
 
   const handleAddNotebook = async () => {
@@ -277,6 +282,7 @@ const Notes = () => {
       setNotebooks([...notebooks, response.data]);
       setEditingNotebook(null);
       setNewNotebookName('');
+      setToast({ message: 'Notebook created successfully!', type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to create notebook');
     }
@@ -311,6 +317,7 @@ const Notes = () => {
       
       setEditingNotebook(null);
       setNewNotebookName('');
+      setToast({ message: 'Notebook updated successfully!', type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to update notebook');
     }
@@ -326,6 +333,7 @@ const Notes = () => {
         setSelectedNotebook(null);
         setNotes([]);
       }
+      setToast({ message: 'Notebook deleted successfully!', type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to delete notebook');
     }
@@ -401,6 +409,7 @@ const Notes = () => {
       );
       setNotebooks(updatedNotebooks);
       setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count + 1 });
+      setToast({ message: 'Note created successfully!', type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to create note');
     }
@@ -454,6 +463,7 @@ const Notes = () => {
       
       setEditingNote(null);
       setNewNote({ title: '', content: '' });
+      setToast({ message: 'Note updated successfully!', type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to update note');
     }
@@ -509,6 +519,7 @@ const Notes = () => {
         );
         setNotebooks(updatedNotebooks);
         setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count + 1 });
+        setToast({ message: 'Note created successfully!', type: 'success' });
         if (closeAfterSave) setShowNoteEditor(false);
       } catch (error) {
         handleError(error, 'Failed to create note');
@@ -538,7 +549,11 @@ const Notes = () => {
           await fetchNotes(selectedNotebook.id);
         }
         
-        if (closeAfterSave) setShowNoteEditor(false);
+        // Only show toast for manual saves, not autosaves
+        if (closeAfterSave) {
+          setToast({ message: 'Note updated successfully!', type: 'success' });
+          setShowNoteEditor(false);
+        }
       } catch (error) {
         handleError(error, 'Failed to update note');
       }
@@ -740,6 +755,7 @@ const Notes = () => {
       if (notebook) {
         setSelectedNotebook(notebook);
         fetchNotes(notebook.id);
+        setSelectedForBulk([]); // Clear selection when navigating to a notebook
         setCurrentView('notes');
       }
     }
@@ -828,6 +844,7 @@ const Notes = () => {
         setNotebooks(updatedNotebooks);
         setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count - noteIds.length });
       }
+      setToast({ message: `${noteIds.length} note${noteIds.length > 1 ? 's' : ''} deleted successfully!`, type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to delete notes');
     }
@@ -1135,13 +1152,23 @@ const Notes = () => {
                       </span>
                     </div>
                   </div>
-                  <button
-                    onClick={handleStartAddingNote}
-                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
-                  >
-                    <Plus size={16} />
-                    <span className="font-medium">Add Note</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {selectedForBulk.length > 0 && (
+                      <button
+                        onClick={() => setShowBulkDeleteModal(true)}
+                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+                      >
+                        <span>Delete Selected ({selectedForBulk.length})</span>
+                      </button>
+                    )}
+                    <button
+                      onClick={handleStartAddingNote}
+                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+                    >
+                      <Plus size={16} />
+                      <span className="font-medium">Add Note</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -1301,6 +1328,7 @@ const Notes = () => {
                   onArchiveNote={handleArchiveNote}
                   onToggleImportant={handleToggleImportant}
                   deletingNoteId={noteToDelete?.id || null}
+                  onSelectionChange={setSelectedForBulk}
                 />
               )}
               {/* Fallback for debugging */}
@@ -1349,6 +1377,20 @@ const Notes = () => {
             confirmLabel="Move to Trash"
             cancelLabel="Cancel"
           />
+          {/* Bulk Delete Confirmation Modal */}
+          <DeleteConfirmationModal
+            isOpen={showBulkDeleteModal}
+            onClose={() => setShowBulkDeleteModal(false)}
+            onConfirm={() => {
+              handleBulkDeleteNotes(selectedForBulk);
+              setSelectedForBulk([]);
+              setShowBulkDeleteModal(false);
+            }}
+            title="Delete Selected Notes"
+            message={`Are you sure you want to delete ${selectedForBulk.length} selected note${selectedForBulk.length > 1 ? 's' : ''}?`}
+            confirmLabel="Delete"
+            cancelLabel="Cancel"
+          />
           {currentView === 'notes' && activeTab === 'archived' && (
             <>
               {archivedNotes.length === 0 ? (
@@ -1390,6 +1432,7 @@ const Notes = () => {
                   onArchiveNote={handleArchiveNote}
                   onToggleImportant={handleToggleImportant}
                   deletingNoteId={noteToDelete?.id || null}
+                  onSelectionChange={setSelectedForBulk}
                 />
               )}
             </>
@@ -1420,6 +1463,7 @@ const Notes = () => {
           if (notebook) {
             setSelectedNotebook(notebook);
             fetchNotes(notebook.id);
+            setSelectedForBulk([]); // Clear selection when navigating to a notebook
             setCurrentView('notes');
             // Open the note in editor
             setNoteEditorNote(note);
@@ -1432,6 +1476,7 @@ const Notes = () => {
           setSelectedNotebook(notebook);
           fetchNotes(notebook.id);
           setCurrentView('notes');
+          setSelectedForBulk([]); // Clear selection when selecting a different notebook
           setShowImportantItemsPanel(false);
         }}
       />

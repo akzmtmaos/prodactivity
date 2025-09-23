@@ -6,18 +6,97 @@ interface WeeklyStats {
   totalStudyTime: number;
   averageProductivity: number;
   streak: number;
+  streakData?: any[];
 }
 
 interface StatsCardsProps {
   stats: WeeklyStats;
+  todaysProductivity?: {
+    completion_rate: number;
+    total_tasks: number;
+    completed_tasks: number;
+    status?: string;
+  } | null;
 }
 
-const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
+const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) => {
   // Debug: Log the stats received
   useEffect(() => {
     console.log('📊 StatsCards received stats:', stats);
     console.log('🔥 Day Streak value:', stats.streak);
   }, [stats]);
+
+  // Calculate current streak using the same logic as StreaksCalendar
+  const calculateCurrentStreak = () => {
+    console.log('🔥 StatsCards calculateCurrentStreak DEBUG:');
+    console.log('🔥 stats.streakData:', stats.streakData);
+    console.log('🔥 stats.streakData length:', stats.streakData?.length);
+    
+    if (!stats.streakData || stats.streakData.length === 0) {
+      console.log('🔥 No streakData available, returning 0');
+      return 0;
+    }
+    
+    const sortedData = [...stats.streakData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const todayStr = today.toISOString().split('T')[0];
+    
+    console.log('🔥 Today string:', todayStr);
+    console.log('🔥 Sorted data sample:', sortedData.slice(0, 3));
+    
+    // Check if we have data for today
+    let todayData = sortedData.find(day => day.date === todayStr);
+    console.log('🔥 Today data found:', todayData);
+    
+    // Fallback to todaysProductivity if streakData doesn't include today
+    if ((!todayData || !todayData.streak) && todaysProductivity) {
+      const fallbackStreak = (todaysProductivity.total_tasks > 0 && todaysProductivity.completed_tasks > 0);
+      console.log('🔥 Using todaysProductivity fallback:', todaysProductivity, '-> streak:', fallbackStreak);
+      if (fallbackStreak) {
+        todayData = {
+          date: todayStr,
+          streak: true,
+          productivity: todaysProductivity.completion_rate,
+          total_tasks: todaysProductivity.total_tasks,
+          completed_tasks: todaysProductivity.completed_tasks,
+        } as any;
+        // Ensure today is considered at the front
+        sortedData.unshift(todayData);
+      }
+    }
+    
+    if (!todayData || !todayData.streak) {
+      console.log('🔥 No streak for today after fallback, returning 0');
+      return 0; // No streak if today is not productive
+    }
+    
+    console.log('🔥 Today has streak, calculating current streak...');
+    let currentStreak = 1; // Start with today
+    let currentDate = new Date(today);
+    
+    // Go backwards day by day to check for consecutive productive days
+    for (let i = 1; i < 365; i++) { // Check up to 1 year back
+      currentDate.setDate(currentDate.getDate() - 1);
+      const dateStr = currentDate.toISOString().split('T')[0];
+      
+      const dayData = sortedData.find(day => day.date === dateStr);
+      
+      if (dayData && dayData.streak) {
+        currentStreak++;
+        console.log(`🔥 Day ${i}: ${dateStr} has streak, current streak: ${currentStreak}`);
+      } else {
+        console.log(`🔥 Day ${i}: ${dateStr} no streak, breaking at ${currentStreak}`);
+        // If no data for this day or day is not productive, streak is broken
+        break;
+      }
+    }
+    
+    console.log('🔥 Final current streak:', currentStreak);
+    return currentStreak;
+  };
+
+  const currentStreak = calculateCurrentStreak();
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -29,9 +108,9 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats }) => {
           </div>
           <div className="ml-4">
             <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {stats.streak}
+              {currentStreak}
             </h3>
-            <p className="text-gray-600 dark:text-gray-400">Day Streak</p>
+            <p className="text-gray-600 dark:text-gray-400">Current Streak</p>
           </div>
         </div>
       </div>
