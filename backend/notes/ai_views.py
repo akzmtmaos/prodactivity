@@ -3,6 +3,7 @@ from django.http import JsonResponse, StreamingHttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from django.conf import settings
+from django.utils import timezone
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
@@ -747,90 +748,254 @@ Please respond with ONLY a JSON object in this exact format:
 class SmartChunkingView(APIView):
     permission_classes = [IsAuthenticated]
 
+    def clean_html_content(self, text):
+        """Remove HTML tags and clean content for better processing."""
+        import re
+        # Remove HTML tags
+        cleaned = re.sub(r'<[^>]+>', '', text)
+        # Clean up extra whitespace
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        # Remove common HTML entities
+        cleaned = cleaned.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+        return cleaned.strip()
+
+    def analyze_content_complexity(self, text):
+        """Analyze content complexity to determine optimal chunking strategy."""
+        # Clean HTML first
+        clean_text = self.clean_html_content(text)
+        word_count = len(clean_text.split())
+        sentence_count = len([s for s in clean_text.split('.') if s.strip()])
+        
+        # Simple complexity indicators
+        has_headings = bool(re.search(r'^#{1,6}\s+', clean_text, re.MULTILINE))
+        has_lists = bool(re.search(r'^\s*[-*+]\s+', clean_text, re.MULTILINE))
+        has_code = bool(re.search(r'```|`[^`]+`', clean_text))
+        
+        complexity_score = 0
+        if word_count > 1000:
+            complexity_score += 3
+        elif word_count > 500:
+            complexity_score += 2
+        elif word_count > 200:
+            complexity_score += 1
+            
+        if has_headings:
+            complexity_score += 1
+        if has_lists:
+            complexity_score += 1
+        if has_code:
+            complexity_score += 2
+            
+        if complexity_score >= 5:
+            return "high"
+        elif complexity_score >= 3:
+            return "medium"
+        else:
+            return "low"
+
+    def get_adaptive_chunking_strategy(self, text, topic):
+        """Determine the best chunking strategy based on content analysis."""
+        # Clean HTML content first
+        clean_text = self.clean_html_content(text)
+        complexity = self.analyze_content_complexity(clean_text)
+        word_count = len(clean_text.split())
+        
+        # Determine optimal number of chunks
+        if complexity == "high":
+            target_chunks = min(8, max(4, word_count // 200))
+        elif complexity == "medium":
+            target_chunks = min(6, max(3, word_count // 300))
+        else:
+            target_chunks = min(4, max(2, word_count // 400))
+            
+        return {
+            "target_chunks": target_chunks,
+            "complexity": complexity,
+            "strategy": "hierarchical" if complexity == "high" else "sequential"
+        }
+
     def post(self, request):
         try:
             text = request.data.get('text', '')
             topic = request.data.get('topic', '')
             
-            if not text:
+            if not text or not text.strip():
                 return Response(
                     {"error": "No text provided"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            # Clean HTML content first
+            clean_text = self.clean_html_content(text)
+            
+            # Analyze content and get adaptive strategy
+            content_analysis = self.get_adaptive_chunking_strategy(clean_text, topic)
+            
             # Get smart chunking prompt from database configuration
             try:
-                chunking_prompt = get_ai_config('smart_chunking_prompt', content=text)
-            except ValueError:
-                # Fallback prompt if configuration not found
-                chunking_prompt = f"""Analyze the following content and suggest how to break it down into multiple focused notes. Consider:
+                chunking_prompt = get_ai_config('smart_chunking_prompt', content=clean_text, topic=topic)
+                logger.info("Using database smart chunking prompt")
+            except ValueError as e:
+                logger.warning(f"Database prompt not found, using fallback: {e}")
+                # Enhanced fallback prompt with adaptive strategy
+                chunking_prompt = f"""You are an expert learning strategist. Analyze the following content and suggest optimal note chunking.
 
-1. Logical topic divisions
-2. Complexity of concepts
-3. Study efficiency (not too many small notes, not too few large ones)
-4. Related subtopics that could be grouped together
-5. Optimal note size for effective learning
+Content Analysis:
+- Complexity: {content_analysis['complexity']}
+- Target chunks: {content_analysis['target_chunks']}
+- Strategy: {content_analysis['strategy']}
 
 Topic: {topic}
-Content: {text}
+Content: {clean_text}
 
 Please respond with ONLY a JSON object in this exact format:
 {{
     "suggested_chunks": [
         {{
-            "title": "Suggested note title",
-            "content_preview": "Brief preview of what this note would contain",
-            "key_concepts": ["concept1", "concept2"],
+            "title": "Clear, descriptive title for this note",
+            "content_preview": "Brief preview of what this note would contain (2-3 sentences)",
+            "key_concepts": ["concept1", "concept2", "concept3"],
             "estimated_length": "short|medium|long",
-            "priority": "low|medium|high"
+            "priority": "low|medium|high",
+            "prerequisites": ["note_title_1", "note_title_2"],
+            "learning_objectives": ["objective1", "objective2"],
+            "difficulty_level": "beginner|intermediate|advanced"
         }}
     ],
-    "total_notes_suggested": 3,
-    "reasoning": "Explanation of why this chunking approach was chosen",
-    "study_recommendations": ["recommendation1", "recommendation2"]
+    "total_notes_suggested": {content_analysis['target_chunks']},
+    "reasoning": "Detailed explanation of why this chunking approach was chosen, including learning theory principles",
+    "study_recommendations": [
+        "Specific recommendation 1",
+        "Specific recommendation 2"
+    ],
+    "chunking_strategy": "{content_analysis['strategy']}",
+    "estimated_study_time": "X hours total",
+    "content_complexity": "{content_analysis['complexity']}"
 }}"""
+            
+            # Adjust AI parameters based on content complexity
+            if content_analysis['complexity'] == 'high':
+                temperature = 0.2
+                num_predict = 800
+            elif content_analysis['complexity'] == 'medium':
+                temperature = 0.3
+                num_predict = 600
+            else:
+                temperature = 0.4
+                num_predict = 400
             
             payload = {
                 "model": OLLAMA_MODEL,
                 "prompt": chunking_prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.3,
+                    "temperature": temperature,
                     "top_p": 0.8,
                     "top_k": 40,
-                    "num_predict": 500,
+                    "num_predict": num_predict,
                     "repeat_penalty": 1.1
                 }
             }
             
+            logger.info(f"Sending request to Ollama with {len(clean_text)} characters of content")
             response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
             
             if response.status_code == 200:
                 result = response.json()
                 ai_response = result.get('response', '').strip()
+                logger.info(f"Received AI response of {len(ai_response)} characters")
                 
                 try:
                     # Try to parse JSON response
                     import json
-                    chunking_data = json.loads(ai_response)
+                    
+                    # Clean the AI response first
+                    cleaned_response = ai_response.strip()
+                    
+                    # Try to extract JSON from the response if it's wrapped in other text
+                    if '```json' in cleaned_response:
+                        start = cleaned_response.find('```json') + 7
+                        end = cleaned_response.find('```', start)
+                        if end != -1:
+                            cleaned_response = cleaned_response[start:end].strip()
+                    elif '```' in cleaned_response:
+                        start = cleaned_response.find('```') + 3
+                        end = cleaned_response.find('```', start)
+                        if end != -1:
+                            cleaned_response = cleaned_response[start:end].strip()
+                    
+                    # Try to find JSON object boundaries
+                    if cleaned_response.startswith('{') and cleaned_response.endswith('}'):
+                        pass  # Already looks like JSON
+                    else:
+                        # Try to extract JSON object
+                        start = cleaned_response.find('{')
+                        end = cleaned_response.rfind('}') + 1
+                        if start != -1 and end > start:
+                            cleaned_response = cleaned_response[start:end]
+                    
+                    chunking_data = json.loads(cleaned_response)
+                    
+                    # Validate and enhance the response
+                    if 'suggested_chunks' not in chunking_data:
+                        raise ValueError("Invalid response structure")
+                    
+                    # Add metadata
+                    chunking_data['content_analysis'] = content_analysis
+                    chunking_data['processing_timestamp'] = timezone.now().isoformat()
                     
                     return Response(chunking_data)
-                except json.JSONDecodeError:
-                    # If JSON parsing fails, return a structured response
-                    logger.warning("AI response was not valid JSON, returning structured fallback")
+                    
+                except (json.JSONDecodeError, ValueError) as e:
+                    logger.warning(f"AI response parsing failed: {str(e)}")
+                    logger.warning(f"Raw AI response: {ai_response[:200]}...")
+                    
+                    # Enhanced fallback with content analysis
+                    fallback_chunks = []
+                    word_count = len(clean_text.split())
+                    chunk_size = max(100, word_count // content_analysis['target_chunks'])
+                    
+                    # Try to extract better titles from the content
+                    sentences = [s.strip() for s in clean_text.split('.') if s.strip()]
+                    
+                    for i in range(content_analysis['target_chunks']):
+                        start_idx = i * chunk_size
+                        end_idx = min((i + 1) * chunk_size, word_count)
+                        words = clean_text.split()[start_idx:end_idx]
+                        chunk_text = ' '.join(words)
+                        
+                        # Try to create a better title from the first sentence
+                        first_sentence = sentences[i] if i < len(sentences) else chunk_text.split('.')[0]
+                        title = first_sentence[:50] + "..." if len(first_sentence) > 50 else first_sentence
+                        
+                        # Determine difficulty based on content complexity
+                        difficulty = "beginner" if len(chunk_text.split()) < 50 else "intermediate" if len(chunk_text.split()) < 150 else "advanced"
+                        
+                        fallback_chunks.append({
+                            "title": title,
+                            "content_preview": chunk_text[:100] + "..." if len(chunk_text) > 100 else chunk_text,
+                            "key_concepts": ["content", "analysis"],
+                            "estimated_length": "short" if len(chunk_text.split()) < 100 else "long" if len(chunk_text.split()) > 300 else "medium",
+                            "priority": "low" if i == 0 else "high" if i == content_analysis['target_chunks'] - 1 else "medium",
+                            "prerequisites": [],
+                            "learning_objectives": ["Understand key concepts"],
+                            "difficulty_level": difficulty
+                        })
+                    
                     return Response({
-                        "suggested_chunks": [
-                            {
-                                "title": "Content Analysis",
-                                "content_preview": "AI analysis completed but response format was unexpected",
-                                "key_concepts": ["analysis"],
-                                "estimated_length": "medium",
-                                "priority": "medium"
-                            }
+                        "suggested_chunks": fallback_chunks,
+                        "total_notes_suggested": content_analysis['target_chunks'],
+                        "reasoning": f"AI analysis completed but response format was unexpected. Content automatically divided into {content_analysis['target_chunks']} sections based on complexity analysis.",
+                        "study_recommendations": [
+                            "Review each section carefully",
+                            "Create connections between related concepts",
+                            "Practice active recall for each chunk"
                         ],
-                        "total_notes_suggested": 1,
-                        "reasoning": "AI analysis completed but response format was unexpected",
-                        "study_recommendations": ["Review the content manually"],
+                        "chunking_strategy": content_analysis['strategy'],
+                        "estimated_study_time": f"{content_analysis['target_chunks'] * 0.5} hours total",
+                        "content_complexity": content_analysis['complexity'],
+                        "content_analysis": content_analysis,
+                        "processing_timestamp": timezone.now().isoformat(),
                         "raw_ai_response": ai_response
                     })
                 

@@ -45,6 +45,7 @@ class AIConfiguration(models.Model):
         ('flashcard_prompt', 'Flashcard Generation Prompt'),
         ('flashcard_qa_prompt', 'Q&A Pattern Flashcard Prompt'),
         ('flashcard_heading_prompt', 'Heading Pattern Flashcard Prompt'),
+        ('smart_chunking_prompt', 'Smart Chunking Analysis Prompt'),
     ]
     
     config_type = models.CharField(

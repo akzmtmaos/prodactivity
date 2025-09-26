@@ -306,6 +306,63 @@ def clean_ai_response(response_text):
     
     return cleaned
 
+def validate_quiz_content(content):
+    """
+    Validate that the content is actually quiz questions and not CSS/JSON configuration.
+    """
+    import re
+    
+    if not content:
+        return False, "Empty content"
+    
+    # Check for CSS/JSON configuration patterns
+    css_patterns = [
+        r'ring-offset-width',
+        r'border-spacing',
+        r'translate-[xy]',
+        r'rotation',
+        r'skew-[xy]',
+        r'scale-[xy]',
+        r'gradient-',
+        r'backdrop-',
+        r'contain-',
+        r'shadow-colored',
+        r'blur',
+        r'brightness',
+        r'contrast',
+        r'grayscale',
+        r'hue-rotate',
+        r'invert',
+        r'saturate',
+        r'drop-shadow'
+    ]
+    
+    for pattern in css_patterns:
+        if re.search(pattern, content, re.IGNORECASE):
+            return False, f"Content contains CSS configuration data: {pattern}"
+    
+    # Check for JSON-like structure
+    if re.search(r'\{[^}]*"[^"]*":[^}]*\}', content):
+        return False, "Content appears to be JSON configuration data"
+    
+    # Check for quiz question patterns
+    quiz_patterns = [
+        r'Q\d+\.',
+        r'Question \d+:',
+        r'Correct Answer:',
+        r'[A-D]\)'
+    ]
+    
+    quiz_score = 0
+    for pattern in quiz_patterns:
+        if re.search(pattern, content, re.IGNORECASE):
+            quiz_score += 1
+    
+    if quiz_score < 2:
+        return False, "Content does not appear to contain quiz questions"
+    
+    return True, "Valid quiz content"
+
 class AIAutomaticReviewerView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -390,6 +447,18 @@ class AIAutomaticReviewerView(APIView):
                         {"error": "Failed to generate reviewer content. Please try again."},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
+
+                # For quiz generation, validate that we got actual quiz questions
+                if title.lower().startswith('quiz:'):
+                    is_valid, validation_message = validate_quiz_content(reviewer_content)
+                    if not is_valid:
+                        logger.error(f"Quiz content validation failed: {validation_message}")
+                        logger.error(f"Raw content that failed validation: {reviewer_content[:500]}...")
+                        return Response(
+                            {"error": f"AI generated invalid content: {validation_message}. Please try again with different content."},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    logger.info("Quiz content validation passed")
 
                 # Save the reviewer
                 reviewer_data = {

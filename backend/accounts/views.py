@@ -75,6 +75,14 @@ def register(request):
     if not is_valid_password:
         return Response({'success': False, 'message': password_error}, status=status.HTTP_400_BAD_REQUEST)
 
+    # Check for existing email BEFORE creating user
+    if User.objects.filter(email=email).exists():
+        return Response({'success': False, 'message': 'Email is already registered'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check for existing username BEFORE creating user
+    if User.objects.filter(username=username).exists():
+        return Response({'success': False, 'message': 'Username is already taken'}, status=status.HTTP_400_BAD_REQUEST)
+
     try:
         user = User.objects.create_user(username=username, email=email, password=password)
         user.is_active = not settings.EMAIL_VERIFICATION_REQUIRED  # Deactivate if email verification required

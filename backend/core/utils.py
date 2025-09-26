@@ -56,17 +56,36 @@ Content:
         },
         'quiz_prompt': {
             'title': 'Default Quiz Generation Prompt',
-            'description': 'Default prompt for generating quiz questions from content',
-            'prompt_template': """Generate 5 multiple choice questions based on the following content. Format each question as:
+            'description': 'Default prompt for generating quiz questions from content using Bloom\'s Taxonomy',
+            'prompt_template': """You are an educational expert. Generate exactly 10 multiple choice questions based on the following content. Do NOT output any CSS, JSON configuration, or technical data. Only output quiz questions.
 
-Q1. [Question text]
-A) [Option A]
-B) [Option B]
-C) [Option C]
-D) [Option D]
-Correct Answer: [A/B/C/D]
+**IMPORTANT: Output ONLY quiz questions in this exact format:**
 
-Content:
+Q1. What is the main topic discussed in this content?
+A) Option A text here
+B) Option B text here  
+C) Option C text here
+D) Option D text here
+Correct Answer: A
+
+Q2. According to the content, which statement is true?
+A) Option A text here
+B) Option B text here
+C) Option C text here
+D) Option D text here
+Correct Answer: B
+
+[Continue for Q3 through Q10...]
+
+**Requirements:**
+- Generate exactly 10 questions
+- Each question must have 4 options (A, B, C, D)
+- Include "Correct Answer: [letter]" after each question
+- Base questions on the actual content provided
+- Make questions educational and meaningful
+- Do NOT include any CSS, JSON, or technical configuration data
+
+Content to analyze:
 {content}"""
         },
         'summary_prompt': {
@@ -149,5 +168,46 @@ Content:
 {content}
 
 Generate flashcards now:"""
+        },
+        'smart_chunking_prompt': {
+            'title': 'Smart Chunking Analysis Prompt',
+            'description': 'Advanced prompt for analyzing content and suggesting optimal note chunking strategies',
+            'prompt_template': """You are an expert learning strategist and content analyst. Analyze the following content and suggest how to break it down into multiple focused notes for optimal learning and retention.
+
+Content Analysis Guidelines:
+1. Identify logical topic divisions and natural breakpoints
+2. Consider cognitive load and information processing limits
+3. Balance between comprehensive coverage and manageable chunks
+4. Group related concepts that should be studied together
+5. Consider prerequisite relationships between concepts
+6. Optimize for spaced repetition and active recall
+
+Topic: {topic}
+Content: {content}
+
+Please respond with ONLY a JSON object in this exact format:
+{{
+    "suggested_chunks": [
+        {{
+            "title": "Clear, descriptive title for this note",
+            "content_preview": "Brief preview of what this note would contain (2-3 sentences)",
+            "key_concepts": ["concept1", "concept2", "concept3"],
+            "estimated_length": "short|medium|long",
+            "priority": "low|medium|high",
+            "prerequisites": ["note_title_1", "note_title_2"],
+            "learning_objectives": ["objective1", "objective2"],
+            "difficulty_level": "beginner|intermediate|advanced"
+        }}
+    ],
+    "total_notes_suggested": 3,
+    "reasoning": "Detailed explanation of why this chunking approach was chosen, including learning theory principles",
+    "study_recommendations": [
+        "Specific recommendation 1",
+        "Specific recommendation 2"
+    ],
+    "chunking_strategy": "sequential|hierarchical|modular|mixed",
+    "estimated_study_time": "X hours total",
+    "content_complexity": "low|medium|high"
+}}"""
         }
     }
