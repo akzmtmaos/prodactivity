@@ -93,8 +93,8 @@ const Notes = () => {
 
   // Search and filter state
   const [notebookSearchTerm, setNotebookSearchTerm] = useState('');
-  const [filterType, setFilterType] = useState<'all' | 'title' | 'content' | 'date'>('all');
-  const [notebookFilterType, setNotebookFilterType] = useState<'all' | 'name' | 'date'>('all');
+  const [filterType, setFilterType] = useState<'title' | 'content' | 'date'>('title');
+  const [notebookFilterType, setNotebookFilterType] = useState<'name' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [notebookSortOrder, setNotebookSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -266,8 +266,8 @@ const Notes = () => {
     setNotes([]);
     setSearchTerm('');
     setNotebookSearchTerm('');
-    setFilterType('all');
-    setNotebookFilterType('all');
+    setFilterType('title');
+    setNotebookFilterType('name');
     setSelectedForBulk([]); // Clear selection when going back to notebooks
   };
 
@@ -631,13 +631,8 @@ const Notes = () => {
         const updatedDate = new Date(note.updated_at).toLocaleDateString().toLowerCase();
         return createdDate.includes(term) || updatedDate.includes(term);
       }
-      // 'all' - search in all fields
-      return (
-        note.title.toLowerCase().includes(term) ||
-        note.content.toLowerCase().includes(term) ||
-        new Date(note.created_at).toLocaleDateString().toLowerCase().includes(term) ||
-        new Date(note.updated_at).toLocaleDateString().toLowerCase().includes(term)
-      );
+      // Default to title search
+      return note.title.toLowerCase().includes(term);
     })
     .sort((a, b) => {
       let comparison = 0;
@@ -669,12 +664,8 @@ const Notes = () => {
         const updatedDate = new Date(notebook.updated_at).toLocaleDateString().toLowerCase();
         return createdDate.includes(term) || updatedDate.includes(term);
       }
-      // 'all' - search in all fields
-      return (
-        notebook.name.toLowerCase().includes(term) ||
-        new Date(notebook.created_at).toLocaleDateString().toLowerCase().includes(term) ||
-        new Date(notebook.updated_at).toLocaleDateString().toLowerCase().includes(term)
-      );
+      // Default to name search
+      return notebook.name.toLowerCase().includes(term);
     })
     .sort((a, b) => {
       let comparison = 0;

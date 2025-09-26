@@ -616,6 +616,11 @@ const Progress = () => {
         console.log('🔥 TodaysProductivity:', todaysProductivity);
         console.log('🔥 StreakData sample:', streakData.slice(0, 3));
         
+        // Debug: Check if today's data is in the deduplicated streak data
+        const today = new Date().toISOString().split('T')[0];
+        const todayInStreakData = streakData.find(day => day.date === today);
+        console.log('🔥 Today in initial streak data:', todayInStreakData);
+        
         const currentStreak = calculateCurrentStreakFromData(streakData, todaysProductivity);
         console.log('🔥 Current streak calculated from backend data:', currentStreak);
         
@@ -680,6 +685,22 @@ const Progress = () => {
       window.removeEventListener('taskCreated', handleTaskCreated);
     };
   }, []);
+
+  // Recalculate streak when todaysProductivity or streakData changes
+  useEffect(() => {
+    if (streakData.length > 0) {
+      console.log('🔥 Streak recalculation triggered by data change');
+      console.log('🔥 TodaysProductivity:', todaysProductivity);
+      console.log('🔥 StreakData length:', streakData.length);
+      console.log('🔥 StreakData sample:', streakData.slice(0, 3));
+      
+      const currentStreak = calculateCurrentStreakFromData(streakData, todaysProductivity);
+      console.log('🔥 Recalculated current streak:', currentStreak);
+      
+      // Update stats with the recalculated streak value
+      setStats((prevStats: any) => ({ ...prevStats, streak: currentStreak }));
+    }
+  }, [todaysProductivity, streakData]);
 
   // Check for date changes and refresh productivity data
   useEffect(() => {
@@ -877,6 +898,24 @@ const Progress = () => {
         console.log('No productivity data found for today');
         setTodaysProductivity(null);
       }
+      
+      // Refresh streak data and recalculate current streak
+      console.log('🔄 Manual refresh - Refreshing streak data...');
+      const freshStreakData = await fetchStreakData();
+      setStreakData(freshStreakData);
+      
+      // Recalculate current streak with fresh data
+      const currentStreak = calculateCurrentStreakFromData(freshStreakData, productivityData ? {
+        status: productivityData.status,
+        completion_rate: productivityData.completion_rate,
+        total_tasks: productivityData.total_tasks,
+        completed_tasks: productivityData.completed_tasks
+      } : null);
+      
+      console.log('🔄 Manual refresh - Updated current streak:', currentStreak);
+      
+      // Update stats with the fresh streak value
+      setStats((prevStats: any) => ({ ...prevStats, streak: currentStreak }));
       
       // Also refresh weekly/monthly data if we're in those views
       console.log('🔄 Manual refresh - Current progressView:', progressView);
@@ -1488,7 +1527,7 @@ const Progress = () => {
 
         {/* Stats Cards */}
         <StatsCards
-          key={`stats-${stats.streak}`}
+          key={`stats-${stats.streak}-${refreshKey}`}
           stats={{ ...stats, streakData }}
           todaysProductivity={todaysProductivity}
         />
@@ -1543,17 +1582,38 @@ function handle401() {
 
 // Calculate current streak from backend streak data (same logic as StreaksCalendar)
 function calculateCurrentStreakFromData(streakData: any[], todaysProductivity?: any) {
+  console.log('🔥 calculateCurrentStreakFromData called with:', { 
+    streakDataLength: streakData.length, 
+    todaysProductivity 
+  });
+  
   // Sort by date (most recent first)
   const sortedData = [...streakData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   
-  if (sortedData.length === 0) return 0;
+  console.log('🔥 Sorted data:', sortedData.slice(0, 3));
   
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const todayStr = today.toISOString().split('T')[0];
+  if (sortedData.length === 0) {
+    console.log('🔥 No streak data, returning 0');
+    return 0;
+  }
+  
+  // Use the same date logic as the rest of the app (local date string)
+  const now = new Date();
+  const todayStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD format (local date)
+  
+  console.log('🔥 Current time debug:');
+  console.log('🔥 Full date object:', now);
+  console.log('🔥 ISO string (UTC):', now.toISOString());
+  console.log('🔥 Local date string:', todayStr);
+  console.log('🔥 Timezone offset (minutes):', now.getTimezoneOffset());
+  console.log('🔥 Timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
   
   // Check if we have data for today
   let todayData = sortedData.find(day => day.date === todayStr);
+  
+  console.log('🔥 Today data from streakData:', todayData);
+  console.log('🔥 Today string:', todayStr);
+  console.log('🔥 Sorted data sample (first 5):', sortedData.slice(0, 5).map(d => ({ date: d.date, streak: d.streak, productivity: d.productivity })));
   
   // If no today's data in streakData, but we have todaysProductivity, use it
   if (!todayData && todaysProductivity) {
@@ -1567,6 +1627,7 @@ function calculateCurrentStreakFromData(streakData: any[], todaysProductivity?: 
     };
     // Add today's data to the beginning of sortedData for calculation
     sortedData.unshift(todayData);
+    console.log('🔥 Added todaysProductivity to sortedData');
   }
   
   if (!todayData || !todayData.streak) {
@@ -1576,20 +1637,22 @@ function calculateCurrentStreakFromData(streakData: any[], todaysProductivity?: 
   
   console.log('🔥 Today has streak, calculating current streak...');
   let currentStreak = 1; // Start with today
-  let currentDate = new Date(today);
+  let currentDate = new Date();
   
   // Go backwards day by day to check for consecutive productive days
   for (let i = 1; i < 365; i++) { // Check up to 1 year back
     currentDate.setDate(currentDate.getDate() - 1);
-    const dateStr = currentDate.toISOString().split('T')[0];
+    const dateStr = currentDate.toLocaleDateString('en-CA'); // Use local date format
     
     const dayData = sortedData.find(day => day.date === dateStr);
     
+    console.log(`🔥 Checking day ${i}: ${dateStr} - Found data:`, dayData ? `${dayData.productivity}% (streak: ${dayData.streak})` : 'No data');
+    
     if (dayData && dayData.streak) {
       currentStreak++;
-      console.log(`🔥 Day ${i}: ${dateStr} has streak, current streak: ${currentStreak}`);
+      console.log(`🔥 ✅ Found streak day ${i}: ${dateStr} (streak: ${currentStreak})`);
     } else {
-      console.log(`🔥 Day ${i}: ${dateStr} no streak, breaking at ${currentStreak}`);
+      console.log(`🔥 ❌ No streak for ${dateStr}, stopping at ${currentStreak}`);
       // If no data for this day or day is not productive, streak is broken
       break;
     }
@@ -1760,14 +1823,17 @@ async function fetchStreakData() {
     
     console.log('🔄 Fetching streak data from Supabase for user:', userId);
     
-    // Get productivity logs from Supabase (same source as ProductivityHistory)
+    // Get productivity logs from Supabase (last 30 days to focus on recent data with potential duplicates)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    
     const { data: productivityLogs, error } = await supabase
       .from('productivity_logs')
-      .select('period_start, completion_rate, total_tasks, completed_tasks')
+      .select('period_start, completion_rate, total_tasks, completed_tasks, logged_at')
       .eq('user_id', userId)
       .eq('period_type', 'daily')
-      .gte('period_start', '2025-01-01') // Get data for current year
-      .lte('period_start', '2025-12-31')
+      .gte('period_start', thirtyDaysAgoStr) // Get data for last 30 days
       .order('period_start', { ascending: true });
     
     if (error) {
@@ -1776,16 +1842,68 @@ async function fetchStreakData() {
     }
     
     // Convert productivity logs to streak data format
-    const streakData = productivityLogs?.map(log => ({
+    const rawStreakData = productivityLogs?.map(log => ({
       date: log.period_start,
       streak: log.total_tasks > 0 && log.completed_tasks > 0, // Same logic as backend
       productivity: log.completion_rate,
       total_tasks: log.total_tasks,
-      completed_tasks: log.completed_tasks
+      completed_tasks: log.completed_tasks,
+      logged_at: log.logged_at
     })) || [];
     
-    console.log('✅ Streak data from Supabase:', streakData.length, 'days');
+    // Deduplicate by date - keep the most recent entry for each date
+    const dateMap = new Map();
+    rawStreakData.forEach(entry => {
+      const existing = dateMap.get(entry.date);
+      if (!existing || new Date(entry.logged_at) > new Date(existing.logged_at)) {
+        dateMap.set(entry.date, entry);
+      }
+    });
+    
+    const streakData = Array.from(dateMap.values());
+    
+    console.log('✅ Raw streak data from Supabase:', rawStreakData.length, 'entries');
+    console.log('✅ Deduplicated streak data:', streakData.length, 'days');
     console.log('🔍 Streak days:', streakData.filter((d: any) => d.streak).length);
+    
+    // Debug: Show recent entries specifically
+    const recentEntries = streakData.filter(entry => 
+      entry.date >= '2025-09-20' && entry.date <= '2025-09-25'
+    );
+    console.log('🔍 Recent entries (Sep 20-25):', recentEntries.length);
+    console.log('🔍 Recent entries data:', JSON.stringify(recentEntries, null, 2));
+    recentEntries.forEach(entry => {
+      console.log(`  📅 ${entry.date}: ${entry.productivity}% (${entry.completed_tasks}/${entry.total_tasks}) - Streak: ${entry.streak}`);
+    });
+    
+    // Debug: Show deduplication results
+    console.log('🔍 Deduplication debug:');
+    streakData.forEach(entry => {
+      console.log(`  📅 ${entry.date}: ${entry.productivity}% (${entry.completed_tasks}/${entry.total_tasks}) - Streak: ${entry.streak}`);
+    });
+    
+    // Debug: Show what would be the current streak
+    const today = new Date().toISOString().split('T')[0];
+    const todayData = streakData.find(day => day.date === today);
+    console.log('🔥 TODAY DEBUG:', { today, todayData });
+    if (todayData && todayData.streak) {
+      console.log('🔥 Today has streak, checking consecutive days...');
+      let testStreak = 1;
+      let testDate = new Date(today);
+      for (let i = 1; i < 10; i++) {
+        testDate.setDate(testDate.getDate() - 1);
+        const dateStr = testDate.toISOString().split('T')[0];
+        const dayData = streakData.find(day => day.date === dateStr);
+        if (dayData && dayData.streak) {
+          testStreak++;
+          console.log(`🔥 Day ${i}: ${dateStr} has streak, test streak: ${testStreak}`);
+        } else {
+          console.log(`🔥 Day ${i}: ${dateStr} no streak, breaking at ${testStreak}`);
+          break;
+        }
+      }
+      console.log('🔥 EXPECTED CURRENT STREAK:', testStreak);
+    }
     
     return streakData;
   } catch (e) {

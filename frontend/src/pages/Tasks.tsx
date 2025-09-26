@@ -184,7 +184,8 @@ const TasksContent = ({ user }: { user: any }) => {
       }
       
       const user = JSON.parse(userData);
-      const userId = user.id || 11; // Fallback to your user ID
+      // Ensure user_id is an integer (database expects integer, not UUID)
+      const userId = typeof user.id === 'number' ? user.id : parseInt(user.id) || 11;
       
       console.log('📊 Fetching task stats from Supabase for user:', userId);
       
@@ -260,7 +261,8 @@ const TasksContent = ({ user }: { user: any }) => {
       }
       
       const user = JSON.parse(userData);
-      const userId = user.id || 11; // Fallback to your user ID
+      // Ensure user_id is an integer (database expects integer, not UUID)
+      const userId = typeof user.id === 'number' ? user.id : parseInt(user.id) || 11;
       
       console.log('Fetching tasks from Supabase for user:', userId);
       
@@ -377,9 +379,10 @@ const TasksContent = ({ user }: { user: any }) => {
       }
       
       const user = JSON.parse(userData);
-      const userId = user.id || 11; // Fallback to your user ID
+      // Ensure user_id is an integer (database expects integer, not UUID)
+      const userId = typeof user.id === 'number' ? user.id : parseInt(user.id) || 11;
       
-      // Map dueDate to due_date for Supabase compatibility
+      // Map dueDate to due_date for Supabase compatibility and ensure no id field is included
       const { dueDate, ...rest } = taskData;
       const supabaseTaskData = { 
         ...rest, 
@@ -388,6 +391,12 @@ const TasksContent = ({ user }: { user: any }) => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
+      
+      // Double-check that no id field is present (safety check)
+      if ('id' in supabaseTaskData) {
+        console.error('ERROR: id field found in task data for new task creation:', supabaseTaskData);
+        delete (supabaseTaskData as any).id;
+      }
       
       console.log('Sending task data to Supabase:', supabaseTaskData);
       
@@ -399,7 +408,17 @@ const TasksContent = ({ user }: { user: any }) => {
       
       if (error) {
         console.error('Supabase error:', error);
-        setError(`Failed to add task: ${error.message}`);
+        
+        // Handle specific error types
+        if (error.code === '23505' || error.message.includes('duplicate key value violates unique constraint')) {
+          setError('Task creation failed. This usually happens when there\'s a temporary database issue. Please try again in a moment.');
+        } else if (error.code === '23503' || error.message.includes('foreign key constraint')) {
+          setError('Invalid user or reference data. Please refresh the page and try again.');
+        } else if (error.code === '23514' || error.message.includes('check constraint')) {
+          setError('Invalid task data. Please check your task details and try again.');
+        } else {
+          setError(`Failed to add task: ${error.message}`);
+        }
         return;
       }
       
@@ -450,7 +469,17 @@ const TasksContent = ({ user }: { user: any }) => {
       
       if (error) {
         console.error('Supabase error:', error);
-        setError(`Failed to update task: ${error.message}`);
+        
+        // Handle specific error types
+        if (error.code === '23505' || error.message.includes('duplicate key value violates unique constraint')) {
+          setError('Task update failed. This usually happens when there\'s a temporary database issue. Please try again in a moment.');
+        } else if (error.code === '23503' || error.message.includes('foreign key constraint')) {
+          setError('Invalid user or reference data. Please refresh the page and try again.');
+        } else if (error.code === '23514' || error.message.includes('check constraint')) {
+          setError('Invalid task data. Please check your task details and try again.');
+        } else {
+          setError(`Failed to update task: ${error.message}`);
+        }
         return;
       }
       

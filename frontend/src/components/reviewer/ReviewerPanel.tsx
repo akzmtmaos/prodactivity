@@ -26,6 +26,8 @@ import ReviewerDocument from './ReviewerDocument';
 import { useNavigate } from 'react-router-dom';
 import ReviewerCard from './ReviewerCard';
 import Toast from '../../components/common/Toast';
+import DeleteConfirmationModal from './DeleteConfirmationModal';
+import GenerateModal from './GenerateModal';
 
 interface Reviewer {
   id: number;
@@ -67,6 +69,28 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
   const [quizLoadingId, setQuizLoadingId] = useState<number | null>(null);
   const [filterType, setFilterType] = useState('all');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  
+  // Delete confirmation modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    reviewerId: number | null;
+    reviewerTitle: string;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    reviewerId: null,
+    reviewerTitle: '',
+    isLoading: false
+  });
+
+  // Generate modal state
+  const [generateModal, setGenerateModal] = useState<{
+    isOpen: boolean;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    isLoading: false
+  });
 
   const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.56.1:8000/api';
   const REVIEWERS_URL = `${API_URL}/reviewers/`;
@@ -213,18 +237,129 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
   };
 
   // This DELETE request performs a soft delete (moves reviewer to Trash)
-  const deleteReviewer = async (reviewerId: number) => {
-    if (!window.confirm('Are you sure you want to delete this reviewer?')) return;
+  // Open delete confirmation modal
+  const openDeleteModal = (reviewerId: number, reviewerTitle: string) => {
+    setDeleteModal({
+      isOpen: true,
+      reviewerId,
+      reviewerTitle,
+      isLoading: false
+    });
+  };
+
+  // Close delete confirmation modal
+  const closeDeleteModal = () => {
+    setDeleteModal({
+      isOpen: false,
+      reviewerId: null,
+      reviewerTitle: '',
+      isLoading: false
+    });
+  };
+
+  // Confirm delete action
+  const confirmDelete = async () => {
+    if (!deleteModal.reviewerId) return;
+    
+    setDeleteModal(prev => ({ ...prev, isLoading: true }));
+    
     try {
-      await axios.delete(`${REVIEWERS_URL}${reviewerId}/`, {
+      await axios.delete(`${REVIEWERS_URL}${deleteModal.reviewerId}/`, {
         headers: getAuthHeaders()
       });
-      setReviewers(prev => prev.filter(r => r.id !== reviewerId));
+      setReviewers(prev => prev.filter(r => r.id !== deleteModal.reviewerId));
       setToast({ message: 'Reviewer moved to Trash.', type: 'success' });
+      closeDeleteModal();
     } catch (error: any) {
       console.error('Failed to delete reviewer:', error);
       setError('Failed to delete reviewer');
       setToast({ message: 'Failed to delete reviewer.', type: 'error' });
+      setDeleteModal(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  // Generate modal functions
+  const openGenerateModal = () => {
+    setGenerateModal({ isOpen: true, isLoading: false });
+  };
+
+  const closeGenerateModal = () => {
+    setGenerateModal({ isOpen: false, isLoading: false });
+  };
+
+  const handleGenerateReviewer = async (data: { title: string; sourceNote: number | null; sourceNotebook: number | null }) => {
+    setGenerateModal(prev => ({ ...prev, isLoading: true }));
+    
+    try {
+      const sourceNote = notes.find(n => n.id === data.sourceNote);
+      const sourceNotebook = notebooks.find(n => n.id === data.sourceNotebook);
+      
+      const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
+        text: sourceNote?.content || sourceNotebook?.name || '',
+        title: data.title,
+        source_note: data.sourceNote,
+        source_notebook: data.sourceNotebook,
+        note_type: sourceNote?.note_type || sourceNotebook?.notebook_type
+      }, {
+        headers: getAuthHeaders()
+      });
+
+      const saveResponse = await axios.post(REVIEWERS_URL, {
+        title: response.data.title,
+        content: response.data.content,
+        source_note: data.sourceNote,
+        source_notebook: data.sourceNotebook,
+        tags: ['reviewer']
+      }, {
+        headers: getAuthHeaders()
+      });
+
+      setReviewers(prev => [saveResponse.data, ...prev]);
+      setToast({ message: 'Reviewer generated successfully!', type: 'success' });
+      closeGenerateModal();
+    } catch (error: any) {
+      console.error('Failed to generate reviewer:', error);
+      setError('Failed to generate reviewer');
+      setToast({ message: 'Failed to generate reviewer.', type: 'error' });
+      setGenerateModal(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleGenerateQuiz = async (data: { title: string; sourceNote: number | null; sourceNotebook: number | null }) => {
+    setGenerateModal(prev => ({ ...prev, isLoading: true }));
+    
+    try {
+      const sourceNote = notes.find(n => n.id === data.sourceNote);
+      const sourceNotebook = notebooks.find(n => n.id === data.sourceNotebook);
+      
+      const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
+        text: sourceNote?.content || sourceNotebook?.name || '',
+        title: `Quiz: ${data.title}`,
+        source_note: data.sourceNote,
+        source_notebook: data.sourceNotebook,
+        note_type: sourceNote?.note_type || sourceNotebook?.notebook_type
+      }, {
+        headers: getAuthHeaders()
+      });
+
+      const saveResponse = await axios.post(REVIEWERS_URL, {
+        title: response.data.title,
+        content: response.data.content,
+        source_note: data.sourceNote,
+        source_notebook: data.sourceNotebook,
+        tags: ['quiz']
+      }, {
+        headers: getAuthHeaders()
+      });
+
+      setReviewers(prev => [saveResponse.data, ...prev]);
+      setToast({ message: 'Quiz generated successfully!', type: 'success' });
+      closeGenerateModal();
+    } catch (error: any) {
+      console.error('Failed to generate quiz:', error);
+      setError('Failed to generate quiz');
+      setToast({ message: 'Failed to generate quiz.', type: 'error' });
+      setGenerateModal(prev => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -370,13 +505,13 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
               <option value="notebook">By Notebook</option>
               <option value="note">By Note</option>
             </select>
-            {/* Generate Reviewer Button */}
+            {/* Generate Button */}
             <button
-              onClick={() => setShowCreateForm(true)}
+              onClick={openGenerateModal}
               className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
             >
               <Plus size={16} className="mr-2" />
-              Generate Reviewer
+              Generate
             </button>
           </div>
         </div>
@@ -525,7 +660,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                         ) : (
                           <>
                             <Brain size={16} className="mr-2" />
-                            Generate Reviewer
+                            Generate
                           </>
                         )}
                       </button>
@@ -564,7 +699,12 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                     key={reviewer.id}
                     reviewer={reviewer}
                     onFavorite={toggleFavorite}
-                    onDelete={deleteReviewer}
+                    onDelete={(id) => {
+                      const reviewer = reviewers.find(r => r.id === id);
+                      if (reviewer) {
+                        openDeleteModal(id, reviewer.title);
+                      }
+                    }}
                     onGenerateQuiz={generateQuizForReviewer}
                     onClick={() => navigate(`/reviewer/r/${reviewer.id}`)}
                     quizLoadingId={quizLoadingId}
@@ -596,7 +736,12 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                 <ReviewerCard
                   key={quiz.id}
                   reviewer={quiz}
-                  onDelete={deleteReviewer}
+                  onDelete={(id) => {
+                    const reviewer = reviewers.find(r => r.id === id);
+                    if (reviewer) {
+                      openDeleteModal(id, reviewer.title);
+                    }
+                  }}
                   onClick={() => navigate(`/reviewer/q/${quiz.id}`)}
                   showFavorite={false}
                   showGenerateQuiz={false}
@@ -613,6 +758,27 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           onClose={() => setToast(null)}
         />
       )}
+      
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmationModal
+        isOpen={deleteModal.isOpen}
+        onClose={closeDeleteModal}
+        onConfirm={confirmDelete}
+        title="Delete Reviewer"
+        itemName={deleteModal.reviewerTitle}
+        isLoading={deleteModal.isLoading}
+      />
+      
+      {/* Generate Modal */}
+      <GenerateModal
+        isOpen={generateModal.isOpen}
+        onClose={closeGenerateModal}
+        onGenerateReviewer={handleGenerateReviewer}
+        onGenerateQuiz={handleGenerateQuiz}
+        notes={notes}
+        notebooks={notebooks}
+        isLoading={generateModal.isLoading}
+      />
     </div>
   );
 };

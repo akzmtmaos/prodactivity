@@ -87,9 +87,15 @@ const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData, todaysPro
     
     if (sortedData.length === 0) return 0;
     
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
+    // Use the same date logic as Progress.tsx (local timezone)
+    const now = new Date();
+    const todayStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD format (local date)
+    
+    console.log('🔥 StreaksCalendar timezone debug:');
+    console.log('🔥 Full date object:', now);
+    console.log('🔥 ISO string (UTC):', now.toISOString());
+    console.log('🔥 Local date string:', todayStr);
+    console.log('🔥 Timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
     
     // Check if we have data for today
     let todayData = sortedData.find(day => day.date === todayStr);
@@ -114,12 +120,12 @@ const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData, todaysPro
     }
     
     let currentStreak = 1; // Start with today
-    let currentDate = new Date(today);
+    let currentDate = new Date();
     
     // Go backwards day by day to check for consecutive productive days
     for (let i = 1; i < 365; i++) { // Check up to 1 year back
       currentDate.setDate(currentDate.getDate() - 1);
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = currentDate.toLocaleDateString('en-CA'); // Use local date format
       
       const dayData = sortedData.find(day => day.date === dateStr);
       

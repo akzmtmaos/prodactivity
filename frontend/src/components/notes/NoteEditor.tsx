@@ -2005,12 +2005,33 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                        .note-editor .notion-table-wrapper {
                          position: relative !important;
                          margin: 16px 0 !important;
-                         display: inline-block !important;
+                         display: block !important;
                          border-radius: 6px !important;
-                         overflow: hidden !important;
+                         overflow-x: auto !important;
+                         overflow-y: hidden !important;
                          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
                          min-width: 500px !important;
                          min-height: 120px !important;
+                         max-width: 100% !important;
+                       }
+                       
+                       /* Custom scrollbar for table wrapper */
+                       .note-editor .notion-table-wrapper::-webkit-scrollbar {
+                         height: 8px !important;
+                       }
+                       
+                       .note-editor .notion-table-wrapper::-webkit-scrollbar-track {
+                         background: #f1f5f9 !important;
+                         border-radius: 4px !important;
+                       }
+                       
+                       .note-editor .notion-table-wrapper::-webkit-scrollbar-thumb {
+                         background: #cbd5e1 !important;
+                         border-radius: 4px !important;
+                       }
+                       
+                       .note-editor .notion-table-wrapper::-webkit-scrollbar-thumb:hover {
+                         background: #94a3b8 !important;
                        }
                        
                        .note-editor .notion-table {
@@ -2019,9 +2040,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          border-radius: 6px !important;
                          overflow: hidden !important;
                          background: white !important;
-                         width: 100% !important;
+                         width: max-content !important;
                          min-width: 500px !important;
                          min-height: 120px !important;
+                         table-layout: fixed !important;
                        }
                        
                        .note-editor .notion-table th,
@@ -2431,7 +2453,27 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                                 } else if (currentLine.trim() === '#') {
                                   toggleFormatting('formatBlock', 'h1');
                                 } else if (currentLine.trim() === '-') {
-                                  convertToBulletList();
+                                  // For bullet list, we need to create it manually since convertToBulletList expects "- " format
+                                  const list = document.createElement('ul');
+                                  const listItem = document.createElement('li');
+                                  listItem.className = 'ml-4 mb-1 list-disc';
+                                  listItem.innerHTML = '<br>'; // Make it editable
+                                  list.appendChild(listItem);
+                                  
+                                  // Replace the paragraph with the list
+                                  if (newParagraph.parentNode) {
+                                    newParagraph.parentNode.replaceChild(list, newParagraph);
+                                    
+                                    // Move cursor to the list item
+                                    const selection = window.getSelection();
+                                    if (selection) {
+                                      const newRange = document.createRange();
+                                      newRange.setStart(listItem, 0);
+                                      newRange.collapse(true);
+                                      selection.removeAllRanges();
+                                      selection.addRange(newRange);
+                                    }
+                                  }
                                 } else if (currentLine.trim().match(/^\d+\.$/)) {
                                   createList(true); // true for ordered list
                                 } else if (currentLine.trim().match(/^-{3,}$/)) {

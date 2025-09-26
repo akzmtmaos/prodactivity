@@ -71,6 +71,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingC
       return;
     }
     
+    // Submit form data (already guaranteed to be Omit<Task, 'id'> type)
     onSubmit(formData);
   };
 

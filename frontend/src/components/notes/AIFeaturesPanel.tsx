@@ -44,6 +44,9 @@ interface ChunkingSuggestion {
   key_concepts: string[];
   estimated_length: 'short' | 'medium' | 'long';
   priority: 'low' | 'medium' | 'high';
+  prerequisites?: string[];
+  learning_objectives?: string[];
+  difficulty_level?: 'beginner' | 'intermediate' | 'advanced';
 }
 
 interface ChunkingAnalysis {
@@ -51,12 +54,40 @@ interface ChunkingAnalysis {
   total_notes_suggested: number;
   reasoning: string;
   study_recommendations: string[];
+  chunking_strategy?: string;
+  estimated_study_time?: string;
+  content_complexity?: string;
+  content_analysis?: {
+    target_chunks: number;
+    complexity: string;
+    strategy: string;
+  };
+  processing_timestamp?: string;
 }
 
 interface Flashcard {
   front: string;
   back: string;
 }
+
+// Function to clean HTML content
+const cleanHTMLContent = (text: string): string => {
+  if (!text) return '';
+  
+  return text
+    // Remove HTML tags
+    .replace(/<[^>]*>/g, '')
+    // Clean up HTML entities
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    // Clean up extra whitespace
+    .replace(/\s+/g, ' ')
+    .trim();
+};
 
 // Function to convert markdown to HTML
 const convertMarkdownToHTML = (text: string): string => {
@@ -110,6 +141,7 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
 
   // Smart chunking state
   const [chunkingAnalysis, setChunkingAnalysis] = useState<ChunkingAnalysis | null>(null);
+  const [isCreatingNote, setIsCreatingNote] = useState(false);
 
   // Notebook summary state
   const [notebookSummary, setNotebookSummary] = useState<string>('');
@@ -269,6 +301,48 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
       setError(errorMessage);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Create note from chunk
+  const handleCreateNoteFromChunk = async (chunk: ChunkingSuggestion) => {
+    if (!sourceNotebookId) {
+      setError('No notebook selected for creating the note');
+      return;
+    }
+
+    setIsCreatingNote(true);
+    setError(null);
+    
+    try {
+      const noteData = {
+        title: chunk.title,
+        content: chunk.content_preview,
+        notebook: sourceNotebookId,
+        priority: chunk.priority === 'high' ? 3 : chunk.priority === 'medium' ? 2 : 1,
+        tags: chunk.key_concepts,
+        note_type: 'other'
+      };
+
+      const response = await axiosInstance.post('/notes/', noteData);
+      
+      if (response.data && response.data.id) {
+        // Show success message
+        setError(null);
+        // You could add a success state here or show a toast notification
+        console.log('Note created successfully:', response.data);
+        
+        // Optionally close the AI panel or reset chunking analysis
+        // setChunkingAnalysis(null);
+      } else {
+        throw new Error('Failed to create note');
+      }
+    } catch (error: any) {
+      console.error('Failed to create note from chunk:', error);
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to create note. Please try again.';
+      setError(errorMessage);
+    } finally {
+      setIsCreatingNote(false);
     }
   };
 
@@ -832,26 +906,65 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                         </button>
                         
                         {chunkingAnalysis && (
-                          <div className="space-y-3">
-                            <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                              AI suggests breaking this content into {chunkingAnalysis.total_notes_suggested} focused notes
+                          <div className="space-y-4">
+                            {/* Analysis Summary */}
+                            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                              <div className="flex items-center justify-between mb-2">
+                                <h4 className="font-medium text-blue-900 dark:text-blue-100">Analysis Summary</h4>
+                                {chunkingAnalysis.content_complexity && (
+                                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                    chunkingAnalysis.content_complexity === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                    chunkingAnalysis.content_complexity === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                                    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                  }`}>
+                                    {chunkingAnalysis.content_complexity} complexity
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-sm text-blue-800 dark:text-blue-200">
+                                AI suggests breaking this content into <strong>{chunkingAnalysis.total_notes_suggested}</strong> focused notes
+                                {chunkingAnalysis.chunking_strategy && (
+                                  <span> using a <strong>{chunkingAnalysis.chunking_strategy}</strong> approach</span>
+                                )}
+                                {chunkingAnalysis.estimated_study_time && (
+                                  <span> (~{chunkingAnalysis.estimated_study_time})</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="space-y-2">
+
+                            {/* Suggested Chunks */}
+                            <div className="space-y-3">
                               {chunkingAnalysis.suggested_chunks.map((chunk, index) => (
-                                <div key={index} className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                                  <div className="font-medium text-gray-900 dark:text-white">{chunk.title}</div>
-                                  <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">{chunk.content_preview}</div>
-                                  <div className="flex items-center gap-2 mt-2">
-                                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(chunk.priority)}`}>
-                                      {chunk.priority}
-                                    </span>
-                                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                                      {chunk.estimated_length}
-                                    </span>
+                                <div key={index} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
+                                  <div className="flex items-start justify-between mb-2">
+                                    <h5 className="font-medium text-gray-900 dark:text-white">{cleanHTMLContent(chunk.title)}</h5>
+                                    <div className="flex items-center gap-2">
+                                      {chunk.difficulty_level && (
+                                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                                          chunk.difficulty_level === 'advanced' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                          chunk.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                                          'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                        }`}>
+                                          {chunk.difficulty_level}
+                                        </span>
+                                      )}
+                                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(chunk.priority)}`}>
+                                        {chunk.priority}
+                                      </span>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {chunk.estimated_length}
+                                      </span>
+                                    </div>
                                   </div>
-                                  <div className="mt-2">
-                                    <div className="text-xs text-gray-500 dark:text-gray-400">Key concepts:</div>
-                                    <div className="flex flex-wrap gap-1 mt-1">
+                                  
+                                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                                    {cleanHTMLContent(chunk.content_preview)}
+                                  </div>
+                                  
+                                  {/* Key Concepts */}
+                                  <div className="mb-3">
+                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Key concepts:</div>
+                                    <div className="flex flex-wrap gap-1">
                                       {chunk.key_concepts.map((concept, idx) => (
                                         <span key={idx} className="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 rounded">
                                           {concept}
@@ -859,22 +972,63 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                                       ))}
                                     </div>
                                   </div>
+
+                                  {/* Learning Objectives */}
+                                  {chunk.learning_objectives && chunk.learning_objectives.length > 0 && (
+                                    <div className="mb-3">
+                                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Learning objectives:</div>
+                                      <ul className="text-xs text-gray-600 dark:text-gray-400 list-disc list-inside">
+                                        {chunk.learning_objectives.map((objective, idx) => (
+                                          <li key={idx}>{objective}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  )}
+
+                                  {/* Prerequisites */}
+                                  {chunk.prerequisites && chunk.prerequisites.length > 0 && (
+                                    <div className="mb-3">
+                                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Prerequisites:</div>
+                                      <div className="flex flex-wrap gap-1">
+                                        {chunk.prerequisites.map((prereq, idx) => (
+                                          <span key={idx} className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded">
+                                            {prereq}
+                                          </span>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Action Button */}
+                                  <button 
+                                    className="w-full mt-3 px-3 py-2 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white rounded-md transition-colors"
+                                    onClick={() => handleCreateNoteFromChunk(chunk)}
+                                    disabled={isCreatingNote}
+                                  >
+                                    {isCreatingNote ? 'Creating Note...' : 'Create Note from This Chunk'}
+                                  </button>
                                 </div>
                               ))}
                             </div>
-                            <div className="text-sm text-gray-700 dark:text-gray-300">
-                              <strong>Reasoning:</strong> {chunkingAnalysis.reasoning}
-                            </div>
-                            {chunkingAnalysis.study_recommendations.length > 0 && (
-                              <div className="text-sm text-gray-700 dark:text-gray-300">
-                                <strong>Study Tips:</strong>
-                                <ul className="list-disc list-inside mt-1">
-                                  {chunkingAnalysis.study_recommendations.map((rec, idx) => (
-                                    <li key={idx}>{rec}</li>
-                                  ))}
-                                </ul>
+
+                            {/* Analysis Details */}
+                            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                              <h5 className="font-medium text-gray-900 dark:text-white mb-2">Analysis Details</h5>
+                              <div className="text-sm text-gray-700 dark:text-gray-300 mb-3">
+                                <strong>Reasoning:</strong> {chunkingAnalysis.reasoning}
                               </div>
-                            )}
+                              
+                              {chunkingAnalysis.study_recommendations.length > 0 && (
+                                <div className="text-sm text-gray-700 dark:text-gray-300">
+                                  <strong>Study Recommendations:</strong>
+                                  <ul className="list-disc list-inside mt-1">
+                                    {chunkingAnalysis.study_recommendations.map((rec, idx) => (
+                                      <li key={idx}>{rec}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
                           </div>
                         )}
                       </>

@@ -31,6 +31,8 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
     console.log('🔥 StatsCards calculateCurrentStreak DEBUG:');
     console.log('🔥 stats.streakData:', stats.streakData);
     console.log('🔥 stats.streakData length:', stats.streakData?.length);
+    console.log('🔥 stats.streakData sample:', stats.streakData?.slice(0, 3));
+    console.log('🔥 todaysProductivity:', todaysProductivity);
     
     if (!stats.streakData || stats.streakData.length === 0) {
       console.log('🔥 No streakData available, returning 0');
@@ -38,11 +40,16 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
     }
     
     const sortedData = [...stats.streakData].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const todayStr = today.toISOString().split('T')[0];
     
-    console.log('🔥 Today string:', todayStr);
+    // Use the same date logic as Progress.tsx (local timezone)
+    const now = new Date();
+    const todayStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD format (local date)
+    
+    console.log('🔥 StatsCards timezone debug:');
+    console.log('🔥 Full date object:', now);
+    console.log('🔥 ISO string (UTC):', now.toISOString());
+    console.log('🔥 Local date string:', todayStr);
+    console.log('🔥 Timezone:', Intl.DateTimeFormat().resolvedOptions().timeZone);
     console.log('🔥 Sorted data sample:', sortedData.slice(0, 3));
     
     // Check if we have data for today
@@ -73,12 +80,12 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
     
     console.log('🔥 Today has streak, calculating current streak...');
     let currentStreak = 1; // Start with today
-    let currentDate = new Date(today);
+    let currentDate = new Date();
     
     // Go backwards day by day to check for consecutive productive days
     for (let i = 1; i < 365; i++) { // Check up to 1 year back
       currentDate.setDate(currentDate.getDate() - 1);
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = currentDate.toLocaleDateString('en-CA'); // Use local date format
       
       const dayData = sortedData.find(day => day.date === dateStr);
       
