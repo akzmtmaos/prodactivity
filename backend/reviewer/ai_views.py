@@ -374,6 +374,7 @@ class AIAutomaticReviewerView(APIView):
             source_notebook = request.data.get('source_notebook')
             tags = request.data.get('tags', [])
             note_type = request.data.get('note_type')  # Get note type for better context
+            question_count = request.data.get('question_count', 10)  # Get question count for quiz generation
 
             logger.info(f"AIAutomaticReviewerView POST: text length={len(text)}, title={title}, note_type={note_type}")
 
@@ -388,7 +389,7 @@ class AIAutomaticReviewerView(APIView):
             # Use adaptive prompt for reviewer generation, fallback to database config for quiz
             if title.lower().startswith('quiz:'):
                 try:
-                    prompt = get_ai_config('quiz_prompt', content=text)
+                    prompt = get_ai_config('quiz_prompt', content=text, question_count=question_count)
                 except ValueError as e:
                     logger.error(f"Failed to get AI configuration: {e}")
                     return Response(

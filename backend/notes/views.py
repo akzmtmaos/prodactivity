@@ -135,6 +135,97 @@ class NoteRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         serializer = self.get_serializer(note)
         return Response(serializer.data)
 
+def convert_docx_to_html(doc):
+    """Convert DOCX document to HTML while preserving formatting like bullet lists and tables"""
+    html_parts = []
+    
+    for element in doc.element.body:
+        if element.tag.endswith('p'):  # Paragraph
+            paragraph = None
+            for p in doc.paragraphs:
+                if p._element == element:
+                    paragraph = p
+                    break
+            
+            if paragraph:
+                # Check if it's a list item
+                if paragraph.style.name.startswith('List'):
+                    # Extract list level and create appropriate HTML
+                    list_level = 0
+                    if hasattr(paragraph.style, 'name') and 'List' in paragraph.style.name:
+                        try:
+                            list_level = int(paragraph.style.name.split()[-1]) if paragraph.style.name.split()[-1].isdigit() else 0
+                        except:
+                            list_level = 0
+                    
+                    # Create list item
+                    indent = '  ' * list_level
+                    html_parts.append(f'{indent}<li>{paragraph.text}</li>')
+                else:
+                    # Regular paragraph
+                    if paragraph.text.strip():
+                        html_parts.append(f'<p>{paragraph.text}</p>')
+        
+        elif element.tag.endswith('tbl'):  # Table
+            table_html = convert_table_to_html(element, doc)
+            if table_html:
+                html_parts.append(table_html)
+    
+    # Post-process to create proper list structure
+    final_html = []
+    in_list = False
+    list_level = 0
+    
+    for line in html_parts:
+        if line.strip().startswith('<li>'):
+            if not in_list:
+                final_html.append('<ul>')
+                in_list = True
+            final_html.append(line)
+        else:
+            if in_list:
+                final_html.append('</ul>')
+                in_list = False
+            final_html.append(line)
+    
+    if in_list:
+        final_html.append('</ul>')
+    
+    return '\n'.join(final_html)
+
+def convert_table_to_html(table_element, doc):
+    """Convert DOCX table to HTML"""
+    try:
+        html_parts = ['<table class="notion-table">']
+        
+        # Find the table in the document
+        table = None
+        for t in doc.tables:
+            if t._element == table_element:
+                table = t
+                break
+        
+        if not table:
+            return ""
+        
+        # Add table rows
+        for i, row in enumerate(table.rows):
+            if i == 0:  # Header row
+                html_parts.append('<thead><tr>')
+                for cell in row.cells:
+                    html_parts.append(f'<th>{cell.text}</th>')
+                html_parts.append('</tr></thead><tbody>')
+            else:  # Data rows
+                html_parts.append('<tr>')
+                for cell in row.cells:
+                    html_parts.append(f'<td>{cell.text}</td>')
+                html_parts.append('</tr>')
+        
+        html_parts.append('</tbody></table>')
+        return '\n'.join(html_parts)
+    except Exception as e:
+        return f"<p>Table conversion error: {str(e)}</p>"
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def convert_doc(request):
@@ -154,13 +245,13 @@ def convert_doc(request):
         # Open and read the document
         doc = docx.Document(temp_file_path)
         
-        # Extract text from paragraphs
-        text = '\n\n'.join([paragraph.text for paragraph in doc.paragraphs])
+        # Extract content with formatting preserved
+        html_content = convert_docx_to_html(doc)
         
         # Clean up the temporary file
         default_storage.delete(temp_path)
         
-        return Response({'text': text})
+        return Response({'text': html_content})
     except Exception as e:
         # Clean up in case of error
         if 'temp_path' in locals():

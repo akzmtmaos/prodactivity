@@ -67,13 +67,26 @@ def parse_flashcards_from_ai_response(response_text):
                 json_str += ']' * (json_str.count('[') - json_str.count(']'))
             
             parsed_data = json.loads(json_str)
+            
+            # Check if it's wrapped in a 'flashcards' object
+            if isinstance(parsed_data, dict) and 'flashcards' in parsed_data:
+                parsed_data = parsed_data['flashcards']
+            
             if isinstance(parsed_data, list):
                 for item in parsed_data:
-                    if isinstance(item, dict) and 'question' in item and 'answer' in item:
-                        flashcards.append({
-                            'question': item['question'].strip(),
-                            'answer': item['answer'].strip()
-                        })
+                    if isinstance(item, dict):
+                        # Check for new format (front/back) first
+                        if 'front' in item and 'back' in item:
+                            flashcards.append({
+                                'question': item['front'].strip(),
+                                'answer': item['back'].strip()
+                            })
+                        # Fallback to old format (question/answer)
+                        elif 'question' in item and 'answer' in item:
+                            flashcards.append({
+                                'question': item['question'].strip(),
+                                'answer': item['answer'].strip()
+                            })
                 if flashcards:
                     return flashcards
     except (json.JSONDecodeError, KeyError):
@@ -88,10 +101,72 @@ def parse_flashcards_from_ai_response(response_text):
         question = question.strip()
         answer = answer.strip()
         if question and answer:
+            # AGGRESSIVE POST-PROCESSING: Convert Q&A to Definition-Term format
+            # The "question" is actually the term, "answer" is the definition
+            # We want: question = definition, answer = term
             flashcards.append({
-                'question': question,
-                'answer': answer
+                'question': answer,  # Definition becomes the question
+                'answer': question   # Term becomes the answer
             })
+    
+    # ULTRA-AGGRESSIVE POST-PROCESSING: Convert ANY Q&A format to Definition-Term
+    if flashcards:
+        # Check if we have Q&A format and convert it
+        converted_flashcards = []
+        seen_flashcards = set()  # Track duplicates
+        
+        for card in flashcards:
+            question = card.get('question', '')
+            answer = card.get('answer', '')
+            
+            # If the "question" looks like a term (short, no question words) and "answer" looks like a definition
+            if (len(question) < 50 and 
+                not any(word in question.lower() for word in ['what', 'how', 'why', 'when', 'where', 'which', 'who']) and
+                len(answer) > len(question)):
+                # Swap them: definition becomes question, term becomes answer
+                definition = answer.strip()
+                term = question.strip()
+                
+                # Clean the definition by removing the term name if it appears at the beginning
+                clean_definition = definition
+                if definition.lower().startswith(term.lower()):
+                    # Remove the term from the beginning of the definition
+                    clean_definition = definition[len(term):].strip()
+                    # Remove any leading punctuation and capitalize first letter
+                    clean_definition = clean_definition.lstrip('.,:;!?').strip()
+                    if clean_definition:
+                        clean_definition = clean_definition[0].upper() + clean_definition[1:]
+                
+                # Additional cleaning: remove common patterns that include the term
+                clean_definition = clean_definition.replace(f"{term} is", "").replace(f"{term} allows", "").replace(f"{term} hides", "").replace(f"{term} focuses", "").strip()
+                if clean_definition.startswith("is "):
+                    clean_definition = clean_definition[3:].strip()
+                if clean_definition.startswith("allows "):
+                    clean_definition = clean_definition[7:].strip()
+                if clean_definition.startswith("hides "):
+                    clean_definition = clean_definition[6:].strip()
+                if clean_definition.startswith("focuses "):
+                    clean_definition = clean_definition[8:].strip()
+                
+                # Create a unique key to prevent duplicates
+                unique_key = f"{clean_definition.lower()}|{term.lower()}"
+                
+                if unique_key not in seen_flashcards:
+                    seen_flashcards.add(unique_key)
+                    converted_flashcards.append({
+                        'question': clean_definition,  # Clean definition becomes the question
+                        'answer': term   # Term becomes the answer
+                    })
+            else:
+                # Keep as is, but also check for duplicates
+                unique_key = f"{question.lower()}|{answer.lower()}"
+                if unique_key not in seen_flashcards:
+                    seen_flashcards.add(unique_key)
+                    converted_flashcards.append(card)
+        
+        if converted_flashcards:
+            # Limit to maximum 10 flashcards to prevent spam
+            return converted_flashcards[:10]
     
     # If still no flashcards, try alternative patterns
     if not flashcards:
@@ -183,10 +258,12 @@ class AIGenerateFlashcardsView(APIView):
 
                 # Clean and parse the AI response
                 cleaned_response = clean_ai_response(ai_response)
+                logger.info(f"AI Response: {cleaned_response[:200]}...")  # Log first 200 chars
                 flashcards_data = parse_flashcards_from_ai_response(cleaned_response)
                 
                 if not flashcards_data:
                     logger.warning("No flashcards could be parsed from AI response")
+                    logger.warning(f"Full AI response: {cleaned_response}")
                     return Response({
                         'error': 'Could not generate flashcards from the content. Please try a different strategy or check your content format.',
                         'ai_response': cleaned_response[:500] + '...' if len(cleaned_response) > 500 else cleaned_response

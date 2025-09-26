@@ -57,7 +57,7 @@ Content:
         'quiz_prompt': {
             'title': 'Default Quiz Generation Prompt',
             'description': 'Default prompt for generating quiz questions from content using Bloom\'s Taxonomy',
-            'prompt_template': """You are an educational expert. Generate exactly 10 multiple choice questions based on the following content. Do NOT output any CSS, JSON configuration, or technical data. Only output quiz questions.
+            'prompt_template': """You are an educational expert. Generate exactly {question_count} multiple choice questions based on the following content. Do NOT output any CSS, JSON configuration, or technical data. Only output quiz questions.
 
 **IMPORTANT: Output ONLY quiz questions in this exact format:**
 
@@ -75,10 +75,10 @@ C) Option C text here
 D) Option D text here
 Correct Answer: B
 
-[Continue for Q3 through Q10...]
+[Continue for Q3 through Q{question_count}...]
 
 **Requirements:**
-- Generate exactly 10 questions
+- Generate exactly {question_count} questions
 - Each question must have 4 options (A, B, C, D)
 - Include "Correct Answer: [letter]" after each question
 - Base questions on the actual content provided
@@ -98,76 +98,165 @@ Content to analyze:
         'chat_prompt': {
             'title': 'Default AI Chat Prompt',
             'description': 'Default prompt for AI chat interactions',
-            'prompt_template': """You are a helpful AI assistant. Please respond to the following user message in a helpful and informative way:
-
-User: {message}
-
-Assistant:"""
+            'prompt_template': """{message}"""
         },
         'flashcard_prompt': {
             'title': 'Default Flashcard Generation Prompt',
             'description': 'Default prompt for generating flashcards from content using AI',
-            'prompt_template': """You are an expert at creating educational flashcards. Convert the following content into high-quality flashcards.
+            'prompt_template': """🚨 CRITICAL INSTRUCTION 🚨
 
-Instructions:
-1. Create 5-10 flashcards that cover the most important concepts
-2. Make questions clear and specific
-3. Provide comprehensive but concise answers
-4. Focus on key facts, definitions, and important details
-5. Format your response as a JSON array of objects with "question" and "answer" fields
+YOU MUST CREATE DEFINITION-TERM FLASHCARDS ONLY!
 
-Example format:
-[
-  {
-    "question": "What is the main concept?",
-    "answer": "The main concept is..."
-  }
-]
+FORMAT REQUIRED:
+- FRONT: The definition/explanation (NO QUESTIONS!)
+- BACK: The term name (NO ANSWERS!)
 
-Content Title: {title}
+ABSOLUTELY FORBIDDEN:
+- NO "Q:" or "A:" format
+- NO "What is", "Define", "Explain" 
+- NO question marks
+- NO questions at all
 
-Content:
-{content}
+EXAMPLE FORMAT:
+{{
+  "flashcards": [
+    {{
+      "front": "Focuses on the behavior of an object without detailing its internal workings",
+      "back": "Abstraction"
+    }},
+    {{
+      "front": "Allows methods to be called on objects of different classes with different implementations", 
+      "back": "Polymorphism"
+    }},
+    {{
+      "front": "Hides internal data and only exposes necessary information",
+      "back": "Encapsulation"
+    }}
+  ]
+}}
 
-Generate flashcards now:"""
+Content: {content}
+
+REMEMBER: FRONT = DEFINITION, BACK = TERM NAME
+NO QUESTIONS! NO Q&A FORMAT! DEFINITION-TERM ONLY!
+
+Respond with valid JSON:"""
         },
         'flashcard_qa_prompt': {
             'title': 'Q&A Pattern Flashcard Prompt',
             'description': 'Prompt for generating flashcards from Q&A formatted content',
-            'prompt_template': """You are an expert at creating educational flashcards. The following content appears to be in Q&A format. Extract and enhance the question-answer pairs to create high-quality flashcards.
+            'prompt_template': """STOP! DO NOT CREATE QUESTIONS! CREATE DEFINITION-TERM FLASHCARDS!
 
-Instructions:
-1. Identify existing Q&A patterns in the content
-2. Enhance questions to be clear and specific
-3. Improve answers to be comprehensive but concise
-4. Create additional flashcards for important concepts not in Q&A format
-5. Format your response as a JSON array of objects with "question" and "answer" fields
+You must create flashcards in this EXACT format:
+- FRONT: The definition/explanation (NO QUESTIONS!)
+- BACK: The term name (NO ANSWERS!)
+
+FORBIDDEN: Do NOT use "Q:", "What is", "Define", "Explain", "How does" or any question format!
+
+REQUIRED FORMAT:
+{{
+  "flashcards": [
+    {{
+      "front": "Focuses on the behavior of an object without detailing its internal workings",
+      "back": "Abstraction"
+    }},
+    {{
+      "front": "Allows methods to be called on objects of different classes with different implementations",
+      "back": "Polymorphism"
+    }},
+    {{
+      "front": "Hides internal data and only exposes necessary information",
+      "back": "Encapsulation"
+    }},
+    {{
+      "front": "Allows one class to inherit properties and methods from another class",
+      "back": "Inheritance"
+    }},
+    {{
+      "front": "A blueprint that defines the structure and behavior of objects",
+      "back": "Class"
+    }},
+    {{
+      "front": "A real instance or implementation of a class",
+      "back": "Object"
+    }}
+  ]
+}}
 
 Content Title: {title}
 
 Content:
 {content}
 
-Generate flashcards now:"""
+CRITICAL RULES:
+1. NEVER start with "Q:" or "What is" or "Define" or "Explain"
+2. FRONT must be a definition/explanation, NOT a question
+3. BACK must be a single term name, NOT an answer
+4. NO question marks anywhere
+5. NO "What", "How", "Why", "Define", "Explain" in the front
+6. Extract key programming concepts and their definitions
+7. Make definitions clear and descriptive
+8. Keep terms short and specific
+
+Create 5-10 flashcards following this EXACT pattern. Respond ONLY with valid JSON:"""
         },
         'flashcard_heading_prompt': {
             'title': 'Heading Pattern Flashcard Prompt',
             'description': 'Prompt for generating flashcards from content with headings',
-            'prompt_template': """You are an expert at creating educational flashcards. The following content has headings and structured information. Convert headings into questions and their content into answers.
+            'prompt_template': """STOP! DO NOT CREATE QUESTIONS! CREATE DEFINITION-TERM FLASHCARDS!
 
-Instructions:
-1. Use headings as the basis for questions
-2. Convert heading content into comprehensive answers
-3. Create additional flashcards for important sub-concepts
-4. Make questions clear and specific
-5. Format your response as a JSON array of objects with "question" and "answer" fields
+You must create flashcards in this EXACT format:
+- FRONT: The definition/explanation (NO QUESTIONS!)
+- BACK: The term name (NO ANSWERS!)
+
+FORBIDDEN: Do NOT use "Q:", "What is", "Define", "Explain", "How does" or any question format!
+
+REQUIRED FORMAT:
+{{
+  "flashcards": [
+    {{
+      "front": "Focuses on the behavior of an object without detailing its internal workings",
+      "back": "Abstraction"
+    }},
+    {{
+      "front": "Allows methods to be called on objects of different classes with different implementations",
+      "back": "Polymorphism"
+    }},
+    {{
+      "front": "Hides internal data and only exposes necessary information",
+      "back": "Encapsulation"
+    }},
+    {{
+      "front": "Allows one class to inherit properties and methods from another class",
+      "back": "Inheritance"
+    }},
+    {{
+      "front": "A blueprint that defines the structure and behavior of objects",
+      "back": "Class"
+    }},
+    {{
+      "front": "A real instance or implementation of a class",
+      "back": "Object"
+    }}
+  ]
+}}
 
 Content Title: {title}
 
 Content:
 {content}
 
-Generate flashcards now:"""
+CRITICAL RULES:
+1. NEVER start with "Q:" or "What is" or "Define" or "Explain"
+2. FRONT must be a definition/explanation, NOT a question
+3. BACK must be a single term name, NOT an answer
+4. NO question marks anywhere
+5. NO "What", "How", "Why", "Define", "Explain" in the front
+6. Extract key programming concepts and their definitions
+7. Make definitions clear and descriptive
+8. Keep terms short and specific
+
+Create 5-10 flashcards following this EXACT pattern. Respond ONLY with valid JSON:"""
         },
         'smart_chunking_prompt': {
             'title': 'Smart Chunking Analysis Prompt',

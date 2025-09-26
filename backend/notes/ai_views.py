@@ -26,23 +26,47 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "deepseek-r1:1.5b"
 
 def clean_ai_response(response_text):
-    """Minimal cleaning - only remove thinking tags and fix formatting"""
+    """Aggressive cleaning to remove thinking patterns and show only final responses"""
     import re
     
     if not response_text:
         return ""
     
+    # Remove all thinking patterns - be more aggressive
     # Remove <think>...</think> blocks (including incomplete ones)
     cleaned = re.sub(r'<think>.*?(</think>|$)', '', response_text, flags=re.DOTALL)
     
-    # If after removing thinking tags, we have very little content, try to extract from thinking
+    # Remove thinking patterns like "Let me think...", "I need to...", etc.
+    thinking_patterns = [
+        r'Let me think.*?(?=\n\n|\n[A-Z]|$)',
+        r'I need to.*?(?=\n\n|\n[A-Z]|$)',
+        r'Let me.*?(?=\n\n|\n[A-Z]|$)',
+        r'First, let me.*?(?=\n\n|\n[A-Z]|$)',
+        r'To answer this.*?(?=\n\n|\n[A-Z]|$)',
+        r'Let me work through.*?(?=\n\n|\n[A-Z]|$)',
+        r'Let me calculate.*?(?=\n\n|\n[A-Z]|$)',
+        r'Let me solve.*?(?=\n\n|\n[A-Z]|$)',
+    ]
+    
+    for pattern in thinking_patterns:
+        cleaned = re.sub(pattern, '', cleaned, flags=re.DOTALL | re.IGNORECASE)
+    
+    # If we still have very little content after cleaning, try to extract the final answer
     if len(cleaned.strip()) < 20:
-        # Try to extract the actual response from thinking tags
-        think_match = re.search(r'<think>.*?(?:So,|Therefore,|In summary,|The answer is|The result is|Summary:)(.*?)(?:</think>|$)', response_text, flags=re.DOTALL | re.IGNORECASE)
-        if think_match:
-            extracted = think_match.group(1).strip()
-            if len(extracted) > 10:
-                cleaned = extracted
+        # Look for final answers in the original text
+        final_answer_patterns = [
+            r'(?:So,|Therefore,|In summary,|The answer is|The result is|Summary:)\s*(.*?)(?:\n\n|$)',
+            r'(?:Answer:|Result:|Solution:)\s*(.*?)(?:\n\n|$)',
+            r'(?:The sum is|The total is|It equals)\s*(.*?)(?:\n\n|$)',
+        ]
+        
+        for pattern in final_answer_patterns:
+            match = re.search(pattern, response_text, flags=re.DOTALL | re.IGNORECASE)
+            if match:
+                extracted = match.group(1).strip()
+                if len(extracted) > 5:
+                    cleaned = extracted
+                    break
     
     # Remove markdown bold formatting that's not wanted
     cleaned = re.sub(r'\*\*(.*?)\*\*', r'\1', cleaned)  # Remove **bold** but keep content
@@ -96,7 +120,7 @@ def chat(request):
         
         formatted_prompt = format_chat_prompt(user_assistant_msgs)
         
-        # Call Ollama API with streaming - Raw settings like ollama run
+        # Call Ollama API with streaming - Default settings
         payload = {
             "model": OLLAMA_MODEL,
             "prompt": formatted_prompt,
@@ -122,10 +146,14 @@ def chat(request):
                                 # Clean the accumulated response
                                 current_clean_response = clean_ai_response(full_response)
                                 
-                                # Find new clean content to send
+                                # Only send content if it's significantly different and meaningful
                                 if len(current_clean_response) > len(accumulated_clean_content):
                                     new_content = current_clean_response[len(accumulated_clean_content):]
-                                    if new_content.strip():  # Only send non-empty content
+                                    # Only send if the new content is substantial and not just thinking
+                                    import re
+                                    if (new_content.strip() and 
+                                        len(new_content.strip()) > 3 and 
+                                        not re.match(r'^(Let me|I need to|First,|To answer)', new_content.strip(), re.IGNORECASE)):
                                         yield f"data: {json.dumps({'chunk': new_content, 'full_response': current_clean_response})}\n\n"
                                         accumulated_clean_content = current_clean_response
                                 
@@ -440,18 +468,40 @@ class ConvertToFlashcardsView(APIView):
                 )
             
             # Create a prompt for converting text to flashcards
-            flashcard_prompt = f"""Convert the following text into flashcards. Create 5-10 flashcards that cover the key concepts, definitions, and important points from the text.
+            flashcard_prompt = f"""STOP! DO NOT CREATE QUESTIONS! CREATE DEFINITION-TERM FLASHCARDS!
 
-For each flashcard, provide:
-1. A clear question or concept on the front
-2. A concise answer or explanation on the back
+You must create flashcards in this EXACT format:
+- FRONT: The definition/explanation (NO QUESTIONS!)
+- BACK: The term name (NO ANSWERS!)
 
-Format your response as JSON with this structure:
+FORBIDDEN: Do NOT use "Q:", "What is", "Define", "Explain", "How does" or any question format!
+
+REQUIRED FORMAT:
 {{
   "flashcards": [
     {{
-      "front": "Question or concept here",
-      "back": "Answer or explanation here"
+      "front": "Focuses on the behavior of an object without detailing its internal workings",
+      "back": "Abstraction"
+    }},
+    {{
+      "front": "Allows methods to be called on objects of different classes with different implementations",
+      "back": "Polymorphism"
+    }},
+    {{
+      "front": "Hides internal data and only exposes necessary information",
+      "back": "Encapsulation"
+    }},
+    {{
+      "front": "Allows one class to inherit properties and methods from another class",
+      "back": "Inheritance"
+    }},
+    {{
+      "front": "A blueprint that defines the structure and behavior of objects",
+      "back": "Class"
+    }},
+    {{
+      "front": "A real instance or implementation of a class",
+      "back": "Object"
     }}
   ]
 }}
@@ -459,14 +509,17 @@ Format your response as JSON with this structure:
 Text to convert:
 {text}
 
-Remember to:
-- Focus on the most important concepts
-- Make questions clear and specific
-- Keep answers concise but informative
-- Cover different aspects of the content
-- Use a variety of question types (definitions, concepts, examples)
+CRITICAL RULES:
+1. NEVER start with "Q:" or "What is" or "Define" or "Explain"
+2. FRONT must be a definition/explanation, NOT a question
+3. BACK must be a single term name, NOT an answer
+4. NO question marks anywhere
+5. NO "What", "How", "Why", "Define", "Explain" in the front
+6. Extract key programming concepts and their definitions
+7. Make definitions clear and descriptive
+8. Keep terms short and specific
 
-Respond only with valid JSON:"""
+Create 5-10 flashcards following this EXACT pattern. Respond ONLY with valid JSON:"""
 
             payload = {
                 "model": OLLAMA_MODEL,
@@ -496,11 +549,102 @@ Respond only with valid JSON:"""
                     json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
                     if json_match:
                         flashcards_data = json.loads(json_match.group())
-                        return Response(flashcards_data)
                     else:
                         # If no JSON found, try to parse the entire response
                         flashcards_data = json.loads(response_text)
-                        return Response(flashcards_data)
+                    
+                    # Post-process to ensure Definition-Term format
+                    processed_flashcards = []
+                    for card in flashcards_data.get('flashcards', []):
+                        front = card.get('front', '')
+                        back = card.get('back', '')
+                        
+                        # ALWAYS convert to Definition-Term format regardless of input
+                        # Extract term from either front or back
+                        term = None
+                        definition = None
+                        
+                        # Check if front is a question
+                        if (front.startswith('Q:') or front.startswith('What') or front.startswith('Why') or 
+                            front.startswith('How') or front.startswith('Define') or front.startswith('Explain') or
+                            front.startswith('Can you') or '?' in front):
+                            # Front is question, back is answer
+                            question = front
+                            answer = back
+                            
+                            # Extract term from answer
+                            if answer.startswith('Abstraction'):
+                                term = 'Abstraction'
+                                definition = answer.replace('Abstraction', '', 1).strip().lstrip('.,:;!?').strip()
+                            elif answer.startswith('Polymorphism'):
+                                term = 'Polymorphism'
+                                definition = answer.replace('Polymorphism', '', 1).strip().lstrip('.,:;!?').strip()
+                            elif answer.startswith('Inheritance'):
+                                term = 'Inheritance'
+                                definition = answer.replace('Inheritance', '', 1).strip().lstrip('.,:;!?').strip()
+                            elif answer.startswith('Encapsulation'):
+                                term = 'Encapsulation'
+                                definition = answer.replace('Encapsulation', '', 1).strip().lstrip('.,:;!?').strip()
+                            elif answer.startswith('Object'):
+                                term = 'Object'
+                                definition = answer.replace('Object', '', 1).strip().lstrip('.,:;!?').strip()
+                            elif answer.startswith('Class'):
+                                term = 'Class'
+                                definition = answer.replace('Class', '', 1).strip().lstrip('.,:;!?').strip()
+                            else:
+                                # Fallback: extract from question
+                                question_clean = question.replace('Q:', '').replace('What is', '').replace('Why is', '').replace('How does', '').replace('How do you', '').replace('Define', '').replace('Explain', '').replace('?', '').strip()
+                                term = question_clean
+                                definition = answer
+                        
+                        # Check if back is a question
+                        elif (back.startswith('Q:') or back.startswith('What') or back.startswith('Why') or 
+                              back.startswith('How') or back.startswith('Define') or back.startswith('Explain') or
+                              back.startswith('Can you') or '?' in back):
+                            # Back is question, front is answer
+                            question = back
+                            answer = front
+                            
+                            # Extract term from answer
+                            if answer.startswith('Abstraction'):
+                                term = 'Abstraction'
+                                definition = answer.replace('Abstraction', '', 1).strip().lstrip('.,:;!?').strip()
+                            elif answer.startswith('Polymorphism'):
+                                term = 'Polymorphism'
+                                definition = answer.replace('Polymorphism', '', 1).strip().lstrip('.,:;!?').strip()
+                            elif answer.startswith('Inheritance'):
+                                term = 'Inheritance'
+                                definition = answer.replace('Inheritance', '', 1).strip().lstrip('.,:;!?').strip()
+                            elif answer.startswith('Encapsulation'):
+                                term = 'Encapsulation'
+                                definition = answer.replace('Encapsulation', '', 1).strip().lstrip('.,:;!?').strip()
+                            elif answer.startswith('Object'):
+                                term = 'Object'
+                                definition = answer.replace('Object', '', 1).strip().lstrip('.,:;!?').strip()
+                            elif answer.startswith('Class'):
+                                term = 'Class'
+                                definition = answer.replace('Class', '', 1).strip().lstrip('.,:;!?').strip()
+                            else:
+                                # Fallback: extract from question
+                                question_clean = question.replace('Q:', '').replace('What is', '').replace('Why is', '').replace('How does', '').replace('How do you', '').replace('Define', '').replace('Explain', '').replace('?', '').strip()
+                                term = question_clean
+                                definition = answer
+                        
+                        # If no question format detected, assume it's already in correct format
+                        else:
+                            term = back
+                            definition = front
+                        
+                        # Capitalize first letter of definition
+                        if definition:
+                            definition = definition[0].upper() + definition[1:] if definition else ""
+                        
+                        processed_flashcards.append({
+                            'front': definition,  # The definition becomes the front
+                            'back': term         # The term becomes the back
+                        })
+                    
+                    return Response({'flashcards': processed_flashcards})
                         
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse AI response as JSON: {e}")
