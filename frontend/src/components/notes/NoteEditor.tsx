@@ -61,11 +61,11 @@ const convertMarkdownToHTML = (text: string): string => {
   
   return text
     // Convert ### headings to h3
-    .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-4">$1</h3>')
+    .replace(/^### (.+)$/gm, '<h3 class="text-lg font-bold text-black dark:text-white mb-2 mt-4">$1</h3>')
     // Convert ## headings to h2
-    .replace(/^## (.+)$/gm, '<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3 mt-5">$1</h2>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold text-black dark:text-white mb-3 mt-5">$1</h2>')
     // Convert # headings to h1
-    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4 mt-6">$1</h1>')
+    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-black dark:text-white mb-4 mt-6">$1</h1>')
     // Convert **bold** to <strong>
     .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
     // Convert *italic* to <em>
@@ -116,6 +116,68 @@ const HIGHLIGHT_COLORS = [
   { name: 'Light Yellow', value: '#fff9c4' }
 ];
 
+// Function to convert plain text to HTML with formatting detection
+const convertTextToHtml = (text: string): string => {
+  const lines = text.split('\n');
+  const htmlLines: string[] = [];
+  let inList = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    if (!line) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push('<br>');
+      continue;
+    }
+    
+    // Detect bullet points (various formats)
+    if (line.match(/^[\•\*\-\+]\s/) || line.match(/^\d+\.\s/)) {
+      if (!inList) {
+        htmlLines.push('<ul>');
+        inList = true;
+      }
+      const listItem = line.replace(/^[\•\*\-\+]\s/, '').replace(/^\d+\.\s/, '');
+      htmlLines.push(`<li>${listItem}</li>`);
+    }
+    // Detect table-like content (lines with multiple spaces or tabs)
+    else if (line.includes('\t') || (line.split(/\s{2,}/).length > 2)) {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      // Convert tab-separated or space-separated content to table
+      const cells = line.split(/\t|\s{2,}/).filter(cell => cell.trim());
+      if (cells.length > 1) {
+        htmlLines.push('<table class="notion-table"><tr>');
+        cells.forEach(cell => {
+          htmlLines.push(`<td>${cell.trim()}</td>`);
+        });
+        htmlLines.push('</tr></table>');
+      } else {
+        htmlLines.push(`<p>${line}</p>`);
+      }
+    }
+    // Regular paragraph
+    else {
+      if (inList) {
+        htmlLines.push('</ul>');
+        inList = false;
+      }
+      htmlLines.push(`<p>${line}</p>`);
+    }
+  }
+  
+  if (inList) {
+    htmlLines.push('</ul>');
+  }
+  
+  return htmlLines.join('\n');
+};
+
 const NoteEditor: React.FC<NoteEditorProps> = ({
   note,
   isNewNote,
@@ -135,7 +197,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const lastAutoSaveTime = useRef<number>(0);
   const isUpdatingFromAutosave = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.56.1:8000/api/notes';
+  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.56.1:8000/api';
   const [colorPickerPosition, setColorPickerPosition] = useState({ x: 0, y: 0 });
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [selectedColor, setSelectedColor] = useState<string>('#ffeb3b');
@@ -502,7 +564,102 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   }, [isInitialized]);
 
-  // Enhanced Notion-style Table functionality
+  // Simple table creation (matching import feature style)
+  const createSimpleTable = (rows: number = 3, cols: number = 3) => {
+    const table = document.createElement('table');
+    table.className = 'notion-table';
+    
+    // Create simple table structure like import feature
+    for (let i = 0; i < rows; i++) {
+      const tr = document.createElement('tr');
+      for (let j = 0; j < cols; j++) {
+        const td = document.createElement('td');
+        td.contentEditable = 'true';
+        td.innerHTML = '&nbsp;';
+        td.style.cursor = 'text';
+        td.setAttribute('data-row', i.toString());
+        td.setAttribute('data-col', j.toString());
+        
+        // Add keyboard navigation
+        addSimpleCellNavigation(td, table);
+        
+        tr.appendChild(td);
+      }
+      table.appendChild(tr);
+    }
+    
+    return table;
+  };
+
+  // Simple cell navigation for arrow keys
+  const addSimpleCellNavigation = (cell: HTMLTableCellElement, table: HTMLTableElement) => {
+    cell.addEventListener('keydown', (e) => {
+      const currentRow = parseInt(cell.getAttribute('data-row') || '0');
+      const currentCol = parseInt(cell.getAttribute('data-col') || '0');
+      const totalRows = table.rows.length;
+      const totalCols = table.rows[0]?.cells.length || 0;
+      
+      let targetCell: HTMLTableCellElement | null = null;
+      
+      switch (e.key) {
+        case 'ArrowDown':
+          e.preventDefault();
+          if (currentRow < totalRows - 1) {
+            targetCell = table.rows[currentRow + 1]?.cells[currentCol] as HTMLTableCellElement;
+          }
+          break;
+        case 'ArrowUp':
+          e.preventDefault();
+          if (currentRow > 0) {
+            targetCell = table.rows[currentRow - 1]?.cells[currentCol] as HTMLTableCellElement;
+          }
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          if (currentCol < totalCols - 1) {
+            targetCell = table.rows[currentRow]?.cells[currentCol + 1] as HTMLTableCellElement;
+          }
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          if (currentCol > 0) {
+            targetCell = table.rows[currentRow]?.cells[currentCol - 1] as HTMLTableCellElement;
+          }
+          break;
+        case 'Tab':
+          e.preventDefault();
+          if (e.shiftKey) {
+            // Shift+Tab: Move to previous cell
+            if (currentCol > 0) {
+              targetCell = table.rows[currentRow]?.cells[currentCol - 1] as HTMLTableCellElement;
+            } else if (currentRow > 0) {
+              targetCell = table.rows[currentRow - 1]?.cells[totalCols - 1] as HTMLTableCellElement;
+            }
+          } else {
+            // Tab: Move to next cell
+            if (currentCol < totalCols - 1) {
+              targetCell = table.rows[currentRow]?.cells[currentCol + 1] as HTMLTableCellElement;
+            } else if (currentRow < totalRows - 1) {
+              targetCell = table.rows[currentRow + 1]?.cells[0] as HTMLTableCellElement;
+            }
+          }
+          break;
+      }
+      
+      if (targetCell) {
+        targetCell.focus();
+        // Move cursor to end of content
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.selectNodeContents(targetCell);
+        range.collapse(false);
+        sel?.removeAllRanges();
+        sel?.addRange(range);
+      }
+    });
+  };
+
+  // Enhanced Notion-style Table functionality (keeping for compatibility)
   const createTable = (rows: number = 3, cols: number = 3) => {
     const table = document.createElement('table');
     table.className = 'notion-table';
@@ -518,6 +675,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       th.textContent = `Column ${i + 1}`;
       th.className = 'notion-table-header';
       th.setAttribute('data-column', i.toString());
+      th.style.cursor = 'text';
       
       // Add placeholder for empty headers
       th.addEventListener('blur', () => {
@@ -543,6 +701,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         td.className = 'notion-table-cell';
         td.setAttribute('data-column', j.toString());
         td.setAttribute('data-row', i.toString());
+        td.style.cursor = 'text';
         
         // Add cell selection and navigation
         addCellNavigation(td, table);
@@ -558,6 +717,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
   // Add cell navigation (Tab, Enter, Arrow keys)
   const addCellNavigation = (cell: HTMLTableCellElement, table: HTMLTableElement) => {
+    // Ensure cursor is always visible
+    cell.style.cursor = 'text';
+    
     cell.addEventListener('keydown', (e) => {
       const currentRow = parseInt(cell.getAttribute('data-row') || '0');
       const currentCol = parseInt(cell.getAttribute('data-column') || '0');
@@ -656,17 +818,25 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     if (!selection || !contentEditableRef.current) return;
     
     const range = selection.getRangeAt(0);
-    const table = createTable(rows, cols);
+    const table = createSimpleTable(rows, cols);
+    
+    // Wrap table in a container to prevent overflow
+    const wrapper = document.createElement('div');
+    wrapper.className = 'table-wrapper';
+    wrapper.style.cssText = `
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      margin: 16px 0;
+    `;
+    wrapper.appendChild(table);
     
     // Insert table at cursor position
     range.deleteContents();
-    range.insertNode(table);
-    
-    // Add table controls
-    addTableControls(table);
+    range.insertNode(wrapper);
     
           // Focus on first cell
-    const firstCell = table.querySelector('th') as HTMLElement;
+    const firstCell = table.querySelector('td') as HTMLElement;
       if (firstCell) {
         const newRange = document.createRange();
         newRange.setStart(firstCell, 0);
@@ -681,6 +851,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const [tableGridPosition, setTableGridPosition] = useState({ x: 0, y: 0 });
   const [hoveredTableSize, setHoveredTableSize] = useState<{ rows: number; cols: number } | null>(null);
   const [previewTable, setPreviewTable] = useState<HTMLTableElement | null>(null);
+  const [customRows, setCustomRows] = useState(3);
+  const [customCols, setCustomCols] = useState(3);
   const isConvertingMarkdown = useRef(false);
 
   // Image upload functionality
@@ -869,9 +1041,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       previewTable.style.border = '';
       previewTable.style.backgroundColor = '';
       
-      // Add table controls
-      addTableControls(previewTable);
-      
       // Clear the preview reference
       setPreviewTable(null);
       console.log('Table converted successfully');
@@ -882,17 +1051,35 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   };
 
+  const insertCustomTable = () => {
+    insertTable(customRows, customCols);
+    setShowTableGrid(false);
+    setHoveredTableSize(null);
+    setPreviewTable(null);
+  };
+
   const showPreviewTable = (rows: number, cols: number) => {
     // Remove existing preview
     removePreviewTable();
     
     // Create preview table
-    const table = createTable(rows, cols);
+    const table = createSimpleTable(rows, cols);
     table.className = 'notion-table-preview';
     table.style.opacity = '0.7';
     table.style.border = '2px dashed #3b82f6';
     table.style.backgroundColor = '#f0f9ff';
     table.style.margin = '8px 0';
+    
+    // Wrap in container
+    const wrapper = document.createElement('div');
+    wrapper.className = 'table-wrapper';
+    wrapper.style.cssText = `
+      width: 100%;
+      max-width: 100%;
+      overflow-x: auto;
+      margin: 16px 0;
+    `;
+    wrapper.appendChild(table);
     
     // Insert at cursor position
     const selection = window.getSelection();
@@ -906,7 +1093,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         range.collapse(true);
       }
       
-      range.insertNode(table);
+      range.insertNode(wrapper);
       setPreviewTable(table);
       
       // Move cursor after the table
@@ -941,6 +1128,34 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Insert wrapper before table and move table into it
     table.parentNode?.insertBefore(wrapper, table);
     wrapper.appendChild(table);
+    
+    // Add smart scrollbar behavior - only show when absolutely necessary
+    const checkScrollbar = () => {
+      // Always start with hidden scrollbar
+      wrapper.style.overflow = 'hidden';
+      wrapper.classList.remove('needs-scroll');
+      
+      // Check if content actually overflows the container
+      const table = wrapper.querySelector('table');
+      if (table) {
+        const tableWidth = table.offsetWidth;
+        const wrapperWidth = wrapper.offsetWidth;
+        
+        // Only show scrollbar if table is significantly wider than wrapper
+        if (tableWidth > wrapperWidth + 20) { // 20px buffer
+          wrapper.classList.add('needs-scroll');
+        }
+      }
+    };
+    
+    // Check on load and resize
+    setTimeout(checkScrollbar, 200); // Longer delay to ensure everything is rendered
+    window.addEventListener('resize', checkScrollbar);
+    
+    // Store the cleanup function
+    (wrapper as any).__cleanupScrollbar = () => {
+      window.removeEventListener('resize', checkScrollbar);
+    };
     
     // Add floating toolbar (appears on hover)
     const toolbar = document.createElement('div');
@@ -1104,6 +1319,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       td.className = 'notion-table-cell';
       td.setAttribute('data-column', i.toString());
       td.setAttribute('data-row', currentRows.toString());
+      td.style.cursor = 'text';
       
       // Add cell navigation
       addCellNavigation(td, table);
@@ -1129,6 +1345,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     th.textContent = `Column ${newColIndex + 1}`;
     th.className = 'notion-table-header';
     th.setAttribute('data-column', newColIndex.toString());
+    th.style.cursor = 'text';
     
     // Add placeholder for empty headers
     th.addEventListener('blur', () => {
@@ -1147,6 +1364,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       td.className = 'notion-table-cell';
       td.setAttribute('data-column', newColIndex.toString());
       td.setAttribute('data-row', rowIndex.toString());
+      td.style.cursor = 'text';
       
       // Add cell navigation
       addCellNavigation(td, table);
@@ -1268,9 +1486,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               throw new Error('No text could be extracted from the PDF. The file might be scanned or contain only images.');
             }
             
-            // Remove extra blank lines between paragraphs
+            // Remove extra blank lines between paragraphs and convert to HTML with formatting
             const cleanedText = text.replace(/\n{2,}/g, '\n');
-            setContent(cleanedText);
+            const htmlContent = convertTextToHtml(cleanedText);
+            setContent(htmlContent);
             setHasChanges(true);
             resolve(true);
           } catch (error) {
@@ -1296,6 +1515,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       
       // Always use the correct endpoint regardless of API_URL
       const endpoint = `${API_URL.replace(/\/?$/, '')}/notes/convert-doc/`;
+      
       const response = await axios.post(endpoint, formData, {
         headers: {
           ...getAuthHeaders(),
@@ -1311,12 +1531,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         throw new Error('No text could be extracted from the document.');
       }
       
-      // Remove extra blank lines between paragraphs
-      const cleanedText = response.data.text.replace(/\n{2,}/g, '\n');
-      setContent(cleanedText);
+      // The backend now returns HTML with preserved formatting
+      setContent(response.data.text);
       setHasChanges(true);
     } catch (error: any) {
-      console.error('Error processing document:', error);
       throw new Error(error.response?.data?.error || 'Failed to process document. Please try again.');
     }
   };
@@ -1662,6 +1880,20 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   }, [isInitialized]); // Removed content dependency to prevent re-initialization
 
+  // Handle content updates from imports - this runs when content changes externally
+  useEffect(() => {
+    if (contentEditableRef.current && isInitialized && content && content.trim()) {
+      // Check if the current DOM content is different from the state content
+      const currentDOMContent = contentEditableRef.current.innerHTML;
+      
+      // Only update if the content is significantly different (like from import)
+      if (currentDOMContent !== content) {
+        console.log('Updating content in editor:', content.substring(0, 100) + '...');
+        contentEditableRef.current.innerHTML = content;
+      }
+    }
+  }, [content, isInitialized]);
+
   // DISABLED: This useEffect was causing text to disappear after autosave
   // The editor now works purely from DOM during typing, and only updates state when needed
   // useEffect(() => {
@@ -1919,26 +2151,29 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          display: block !important;
                          max-width: 100% !important;
                          width: 100% !important;
+                         color: #000000 !important;
                        }
                        .note-editor h2 {
                          font-size: 1.5rem !important;
-                         font-weight: 600 !important;
+                         font-weight: 700 !important;
                          line-height: 1.3 !important;
                          margin-bottom: 0.75rem !important;
                          margin-top: 1.25rem !important;
                          display: block !important;
                          max-width: 100% !important;
                          width: 100% !important;
+                         color: #000000 !important;
                        }
                        .note-editor h3 {
                          font-size: 1.25rem !important;
-                         font-weight: 600 !important;
+                         font-weight: 700 !important;
                          line-height: 1.4 !important;
                          margin-bottom: 0.5rem !important;
                          margin-top: 1rem !important;
                          display: block !important;
                          max-width: 100% !important;
                          width: 100% !important;
+                         color: #000000 !important;
                        }
                        .note-editor p, .note-editor div {
                          max-width: 100% !important;
@@ -2007,18 +2242,32 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          margin: 16px 0 !important;
                          display: block !important;
                          border-radius: 6px !important;
-                         overflow-x: auto !important;
-                         overflow-y: hidden !important;
                          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1) !important;
-                         min-width: 500px !important;
                          min-height: 120px !important;
                          max-width: 100% !important;
+                         width: 100% !important;
+                         /* Completely hide scrollbar by default */
+                         overflow: hidden !important;
+                         scrollbar-width: none !important;
+                         -ms-overflow-style: none !important;
                        }
                        
-                       /* Custom scrollbar for table wrapper */
                        .note-editor .notion-table-wrapper::-webkit-scrollbar {
+                         display: none !important;
+                       }
+                       
+                       /* Show scrollbar only when JavaScript adds the 'needs-scroll' class */
+                       .note-editor .notion-table-wrapper.needs-scroll {
+                         overflow-x: auto !important;
+                         scrollbar-width: thin !important;
+                         -ms-overflow-style: auto !important;
+                       }
+                       
+                       .note-editor .notion-table-wrapper.needs-scroll::-webkit-scrollbar {
+                         display: block !important;
                          height: 8px !important;
                        }
+                       
                        
                        .note-editor .notion-table-wrapper::-webkit-scrollbar-track {
                          background: #f1f5f9 !important;
@@ -2040,23 +2289,55 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          border-radius: 6px !important;
                          overflow: hidden !important;
                          background: white !important;
-                         width: max-content !important;
-                         min-width: 500px !important;
+                         width: 100% !important;
+                         min-width: auto !important;
                          min-height: 120px !important;
-                         table-layout: fixed !important;
+                         table-layout: auto !important;
                        }
                        
                        .note-editor .notion-table th,
                        .note-editor .notion-table td {
                          border: 1px solid #e1e5e9 !important;
-                         padding: 12px 16px !important;
+                         padding: 8px 12px !important;
                          text-align: left !important;
                          vertical-align: top !important;
-                         min-width: 120px !important;
-                         min-height: 40px !important;
+                         min-width: 80px !important;
+                         min-height: 32px !important;
                          position: relative !important;
                          font-size: 14px !important;
                          line-height: 1.4 !important;
+                         cursor: text !important;
+                         white-space: nowrap !important;
+                       }
+                       
+                       /* Simple table styling (matching import feature) */
+                       .note-editor .notion-table {
+                         border-collapse: collapse !important;
+                         width: 100% !important;
+                         max-width: 100% !important;
+                         margin: 16px 0 !important;
+                         background: white !important;
+                         border: 1px solid #e1e5e9 !important;
+                         border-radius: 6px !important;
+                         table-layout: fixed !important;
+                         word-wrap: break-word !important;
+                         overflow-wrap: break-word !important;
+                       }
+                       
+                       .note-editor .notion-table td {
+                         border: 1px solid #e1e5e9 !important;
+                         padding: 8px 12px !important;
+                         background: white !important;
+                         cursor: text !important;
+                         min-height: 32px !important;
+                         max-width: 200px !important;
+                         word-wrap: break-word !important;
+                         overflow-wrap: break-word !important;
+                         white-space: normal !important;
+                       }
+                       
+                       .note-editor .notion-table td:hover {
+                         background: #f8f9fa !important;
                        }
                        
                        .note-editor .notion-table-header {
@@ -2087,6 +2368,23 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          outline: none !important;
                          background-color: #e3f2fd !important;
                          box-shadow: inset 0 0 0 2px #2196f3 !important;
+                         cursor: text !important;
+                       }
+                       
+                       /* Force cursor to be visible on table cells */
+                       .note-editor .notion-table th:hover,
+                       .note-editor .notion-table td:hover,
+                       .note-editor .notion-table th:focus,
+                       .note-editor .notion-table td:focus,
+                       .note-editor .notion-table th:active,
+                       .note-editor .notion-table td:active {
+                         cursor: text !important;
+                       }
+                       
+                       /* Ensure cursor is visible when clicking on table cells */
+                       .note-editor .notion-table th[contenteditable="true"],
+                       .note-editor .notion-table td[contenteditable="true"] {
+                         cursor: text !important;
                        }
                        
                        /* Notion-style table controls */
@@ -2842,6 +3140,41 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             </div>
             <div className="text-sm text-gray-600 mt-3 text-center font-medium">
               Hover over the grid to see table preview in the page
+            </div>
+            
+            {/* Custom Table Input */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="text-sm font-medium text-gray-700 mb-3">Custom Table Size</div>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600">Rows:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={customRows}
+                    onChange={(e) => setCustomRows(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                    className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-gray-600">Columns:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="20"
+                    value={customCols}
+                    onChange={(e) => setCustomCols(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                    className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <button
+                  onClick={insertCustomTable}
+                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                >
+                  Insert
+                </button>
+              </div>
             </div>
           </div>
         </div>

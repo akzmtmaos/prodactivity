@@ -327,19 +327,6 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
         <ListOrdered size={16} />
       </button>
       
-      <div className="w-px h-6 bg-gray-300 dark:bg-gray-600 mx-2" />
-      
-      <select
-        onChange={(e) => handleFormattingClick('formatBlock', e.target.value)}
-        className="px-3 py-1 text-sm bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded text-gray-700 dark:text-gray-300"
-        defaultValue=""
-      >
-        <option value="">Normal</option>
-        <option value="h1">Heading 1</option>
-        <option value="h2">Heading 2</option>
-        <option value="h3">Heading 3</option>
-        <option value="p">Paragraph</option>
-      </select>
       
 
     </div>

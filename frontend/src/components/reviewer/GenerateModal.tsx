@@ -5,7 +5,7 @@ interface GenerateModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGenerateReviewer: (data: { title: string; sourceNote: number | null; sourceNotebook: number | null }) => void;
-  onGenerateQuiz: (data: { title: string; sourceNote: number | null; sourceNotebook: number | null }) => void;
+  onGenerateQuiz: (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; questionCount: number }) => void;
   notes: Array<{ id: number; title: string; content: string; notebook_name: string; note_type?: string }>;
   notebooks: Array<{ id: number; name: string; notebook_type?: string }>;
   isLoading: boolean;
@@ -25,6 +25,10 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
   const [selectedNote, setSelectedNote] = useState<number | null>(null);
   const [selectedNotebook, setSelectedNotebook] = useState<number | null>(null);
   const [title, setTitle] = useState('');
+  
+  // Quiz question count options
+  const [questionCountOption, setQuestionCountOption] = useState<'10' | '20' | 'custom'>('10');
+  const [customQuestionCount, setCustomQuestionCount] = useState<number>(10);
 
   if (!isOpen) return null;
 
@@ -44,10 +48,12 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
         sourceNotebook: selectedSource === 'notebook' ? selectedNotebook : null
       });
     } else {
+      const questionCount = questionCountOption === 'custom' ? customQuestionCount : parseInt(questionCountOption);
       onGenerateQuiz({
         title: title.trim(),
         sourceNote: selectedSource === 'note' ? selectedNote : null,
-        sourceNotebook: selectedSource === 'notebook' ? selectedNotebook : null
+        sourceNotebook: selectedSource === 'notebook' ? selectedNotebook : null,
+        questionCount: questionCount
       });
     }
   };
@@ -57,6 +63,8 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
     setSelectedNote(null);
     setSelectedNotebook(null);
     setSelectedSource('note');
+    setQuestionCountOption('10');
+    setCustomQuestionCount(10);
   };
 
   const handleClose = () => {
@@ -216,6 +224,74 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
             )}
           </div>
 
+          {/* Quiz Question Count Options - Only show for Quiz tab */}
+          {activeTab === 'quiz' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Number of Questions
+              </label>
+              <div className="space-y-3">
+                {/* Option 1: 10 questions */}
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="questionCount"
+                    value="10"
+                    checked={questionCountOption === '10'}
+                    onChange={(e) => setQuestionCountOption(e.target.value as '10' | '20' | 'custom')}
+                    className="mr-3"
+                    disabled={isLoading}
+                  />
+                  <span className="text-sm text-gray-700">10 questions (Standard)</span>
+                </label>
+
+                {/* Option 2: 20 questions */}
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="questionCount"
+                    value="20"
+                    checked={questionCountOption === '20'}
+                    onChange={(e) => setQuestionCountOption(e.target.value as '10' | '20' | 'custom')}
+                    className="mr-3"
+                    disabled={isLoading}
+                  />
+                  <span className="text-sm text-gray-700">20 questions (Extended)</span>
+                </label>
+
+                {/* Option 3: Custom */}
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="questionCount"
+                    value="custom"
+                    checked={questionCountOption === 'custom'}
+                    onChange={(e) => setQuestionCountOption(e.target.value as '10' | '20' | 'custom')}
+                    className="mr-3"
+                    disabled={isLoading}
+                  />
+                  <span className="text-sm text-gray-700">Custom (1-100 questions)</span>
+                </label>
+
+                {/* Custom input field */}
+                {questionCountOption === 'custom' && (
+                  <div className="ml-6 mt-2">
+                    <input
+                      type="number"
+                      min="1"
+                      max="100"
+                      value={customQuestionCount}
+                      onChange={(e) => setCustomQuestionCount(Math.max(1, Math.min(100, parseInt(e.target.value) || 1)))}
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      disabled={isLoading}
+                    />
+                    <span className="ml-2 text-sm text-gray-500">questions</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Description */}
           <div className="bg-gray-50 p-4 rounded-md">
             <div className="flex items-start space-x-3">
@@ -233,7 +309,7 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
                 <p className="text-sm text-gray-600">
                   {activeTab === 'reviewer' 
                     ? 'Generate a comprehensive reviewer with summary, terminology, key points, and main ideas.'
-                    : 'Generate a quiz with 10 multiple choice questions using Bloom\'s Taxonomy for effective learning assessment.'
+                    : `Generate a quiz with ${questionCountOption === 'custom' ? customQuestionCount : questionCountOption} multiple choice questions using Bloom's Taxonomy for effective learning assessment.`
                   }
                 </p>
               </div>

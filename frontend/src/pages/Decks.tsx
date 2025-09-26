@@ -114,9 +114,6 @@ const Decks = () => {
   const [selectedNoteIds, setSelectedNoteIds] = useState<Set<number>>(new Set());
   const [loadingNotes, setLoadingNotes] = useState<boolean>(false);
   const [deckName, setDeckName] = useState<string>('AI Generated Deck');
-  const [previewCount, setPreviewCount] = useState<number>(0);
-  const [aiPreviewCards, setAiPreviewCards] = useState<{ question: string; answer: string }[]>([]);
-  const [showAiPreview, setShowAiPreview] = useState<boolean>(false);
   const [aiLoading, setAiLoading] = useState<boolean>(false);
 
   const getAuthHeaders = () => {
@@ -130,6 +127,9 @@ const Decks = () => {
   const API_BASE = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
 
   const [modalSelectedNotebookId, setModalSelectedNotebookId] = useState<number | null>(null);
+  const [previewCount, setPreviewCount] = useState<number>(0);
+  const [aiPreviewCards, setAiPreviewCards] = useState<FlashcardData[]>([]);
+  const [showAiPreview, setShowAiPreview] = useState<boolean>(false);
 
   const ensureNotebooksLoaded = async () => {
     if (notebooks.length > 0) return;
@@ -217,50 +217,6 @@ const Decks = () => {
     }
   };
 
-  const handleAiPreview = async () => {
-    if (modalSelectedNotebookId == null) return;
-    const notes = notesByNotebook[modalSelectedNotebookId] || [];
-    const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
-    
-    if (selectedNotes.length === 0) {
-      setToast({ message: 'Select at least one note to preview', type: 'error' });
-      return;
-    }
-
-    setAiLoading(true);
-    try {
-      // Combine all selected notes content
-      const combinedContent = selectedNotes.map(note => 
-        `Title: ${note.title}\nContent: ${note.content}`
-      ).join('\n\n---\n\n');
-      
-      const response = await fetch('http://192.168.56.1:8000/api/decks/ai/preview-flashcards/', {
-        method: 'POST',
-        headers: getAuthHeaders(),
-        body: JSON.stringify({
-          content: combinedContent,
-          title: deckName || 'AI Generated Deck',
-          strategy: 'ai_enhanced'
-        })
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to preview flashcards');
-      }
-
-      const data = await response.json();
-      setAiPreviewCards(data.flashcards || []);
-      setPreviewCount(data.count || 0);
-      setShowAiPreview(true);
-    } catch (error) {
-      console.error('AI preview error:', error);
-      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
-      setToast({ message: `Preview failed: ${errorMessage}`, type: 'error' });
-    } finally {
-      setAiLoading(false);
-    }
-  };
 
   const convertSelectedNotes = async () => {
     if (modalSelectedNotebookId == null) return;
@@ -268,6 +224,16 @@ const Decks = () => {
     const selectedNotes = notes.filter(n => selectedNoteIds.has(n.id));
     if (selectedNotes.length === 0) {
       setToast({ message: 'Select at least one note', type: 'error' });
+      return;
+    }
+    
+    // Check if any selected notes are empty
+    const emptyNotes = selectedNotes.filter(note => !note.content || note.content.trim() === '');
+    if (emptyNotes.length > 0) {
+      setToast({ 
+        message: `Cannot generate flashcards from empty notes. Please add content to: ${emptyNotes.map(n => n.title).join(', ')}`, 
+        type: 'error' 
+      });
       return;
     }
     const token = localStorage.getItem('accessToken');
@@ -1428,51 +1394,6 @@ const Decks = () => {
                         <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                           🤖 DeepSeek-R1 will intelligently analyze your notes and create high-quality flashcards automatically.
                         </p>
-                      </div>
-                      {/* Preview */}
-                      <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                          <div className="text-sm text-gray-700 dark:text-gray-300">
-                            Estimated cards: <span className="font-semibold">{previewCount}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleAiPreview}
-                            disabled={aiLoading || selectedNoteIds.size === 0}
-                            className="inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-md bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-900/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {aiLoading ? (
-                              <>
-                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-emerald-600 mr-1"></div>
-                                Generating...
-                              </>
-                            ) : (
-                              '🔍 Preview with AI'
-                            )}
-                          </button>
-                        </div>
-                        
-                        {/* AI Preview Cards */}
-                        {showAiPreview && aiPreviewCards.length > 0 && (
-                          <div className="border border-gray-200 dark:border-gray-700 rounded-lg p-3 bg-gray-50 dark:bg-gray-800/50">
-                            <div className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">
-                              AI Preview ({aiPreviewCards.length} cards):
-                            </div>
-                            <div className="max-h-40 overflow-y-auto space-y-2">
-                              {aiPreviewCards.slice(0, 3).map((card, index) => (
-                                <div key={index} className="text-xs">
-                                  <div className="font-medium text-gray-800 dark:text-gray-200">Q: {card.question}</div>
-                                  <div className="text-gray-600 dark:text-gray-400 ml-2">A: {card.answer}</div>
-                                </div>
-                              ))}
-                              {aiPreviewCards.length > 3 && (
-                                <div className="text-xs text-gray-500 dark:text-gray-400 italic">
-                                  ... and {aiPreviewCards.length - 3} more cards
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
                       </div>
                     </div>
                   </div>

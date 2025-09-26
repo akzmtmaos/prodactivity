@@ -325,7 +325,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     }
   };
 
-  const handleGenerateQuiz = async (data: { title: string; sourceNote: number | null; sourceNotebook: number | null }) => {
+  const handleGenerateQuiz = async (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; questionCount: number }) => {
     setGenerateModal(prev => ({ ...prev, isLoading: true }));
     
     try {
@@ -337,7 +337,8 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         title: `Quiz: ${data.title}`,
         source_note: data.sourceNote,
         source_notebook: data.sourceNotebook,
-        note_type: sourceNote?.note_type || sourceNotebook?.notebook_type
+        note_type: sourceNote?.note_type || sourceNotebook?.notebook_type,
+        question_count: data.questionCount
       }, {
         headers: getAuthHeaders()
       });

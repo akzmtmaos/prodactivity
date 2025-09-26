@@ -204,6 +204,7 @@ const LandingPage = () => {
         <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 tracking-tight select-none">
           ProdActivity
         </div>
+      //Icons
         <div className="space-x-4">
           <button
             onClick={() => navigate('/login')}

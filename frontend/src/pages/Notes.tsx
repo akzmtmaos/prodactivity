@@ -396,6 +396,8 @@ const Notes = () => {
       const response = await axiosInstance.post(`/notes/`, {
         title: (newNote.title && newNote.title.trim()) ? newNote.title.trim() : 'Untitled Note',
         content: newNote.content,
+        note_type: 'other',
+        priority: 'medium',
         notebook: selectedNotebook.id
       });
       setNotes([response.data, ...notes]);
@@ -501,6 +503,7 @@ const Notes = () => {
           title: title.trim() || 'Untitled Note',
           content,
           priority,
+          note_type: 'other',
           notebook: selectedNotebook.id
         });
         setNotes([response.data, ...notes]);

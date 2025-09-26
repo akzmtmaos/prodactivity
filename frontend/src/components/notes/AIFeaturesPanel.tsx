@@ -70,7 +70,7 @@ interface Flashcard {
   back: string;
 }
 
-// Function to clean HTML content
+// Function to clean HTML content and improve formatting
 const cleanHTMLContent = (text: string): string => {
   if (!text) return '';
   
@@ -84,9 +84,43 @@ const cleanHTMLContent = (text: string): string => {
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
-    // Clean up extra whitespace
+    // Clean up extra whitespace and line breaks
     .replace(/\s+/g, ' ')
+    .replace(/\n\s*\n/g, '\n')
     .trim();
+};
+
+// Function to format content preview better
+const formatContentPreview = (text: string): string => {
+  if (!text) return '';
+  
+  // Clean the content first
+  let cleaned = cleanHTMLContent(text);
+  
+  // Truncate if too long
+  if (cleaned.length > 200) {
+    cleaned = cleaned.substring(0, 200) + '...';
+  }
+  
+  return cleaned;
+};
+
+// Function to extract a better title from content
+const extractTitle = (content: string): string => {
+  if (!content) return 'Untitled Chunk';
+  
+  // Try to find the first line that looks like a title
+  const lines = content.split('\n').filter(line => line.trim());
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.length > 10 && trimmed.length < 100 && !trimmed.includes('Example:') && !trimmed.includes('Output:')) {
+      return trimmed;
+    }
+  }
+  
+  // Fallback to first meaningful line
+  const firstLine = lines[0]?.trim();
+  return firstLine && firstLine.length < 100 ? firstLine : 'Study Chunk';
 };
 
 // Function to convert markdown to HTML
@@ -95,11 +129,11 @@ const convertMarkdownToHTML = (text: string): string => {
   
   return text
     // Convert ### headings to h3
-    .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-4">$1</h3>')
+    .replace(/^### (.+)$/gm, '<h3 class="text-lg font-bold text-black dark:text-white mb-2 mt-4">$1</h3>')
     // Convert ## headings to h2
-    .replace(/^## (.+)$/gm, '<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3 mt-5">$1</h2>')
+    .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold text-black dark:text-white mb-3 mt-5">$1</h2>')
     // Convert # headings to h1
-    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4 mt-6">$1</h1>')
+    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-black dark:text-white mb-4 mt-6">$1</h1>')
     // Convert **bold** to <strong>
     .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
     // Convert *italic* to <em>
@@ -933,101 +967,124 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                             </div>
 
                             {/* Suggested Chunks */}
-                            <div className="space-y-3">
+                            <div className="space-y-4">
                               {chunkingAnalysis.suggested_chunks.map((chunk, index) => (
-                                <div key={index} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg border border-gray-200 dark:border-gray-600">
-                                  <div className="flex items-start justify-between mb-2">
-                                    <h5 className="font-medium text-gray-900 dark:text-white">{cleanHTMLContent(chunk.title)}</h5>
-                                    <div className="flex items-center gap-2">
-                                      {chunk.difficulty_level && (
-                                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                          chunk.difficulty_level === 'advanced' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                                          chunk.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                                          'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                        }`}>
-                                          {chunk.difficulty_level}
+                                <div key={index} className="p-5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-shadow">
+                                  {/* Header */}
+                                  <div className="flex items-start justify-between mb-4">
+                                    <div className="flex-1">
+                                      <h5 className="font-semibold text-lg text-gray-900 dark:text-white mb-2">
+                                        {extractTitle(chunk.content_preview)}
+                                      </h5>
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        {chunk.difficulty_level && (
+                                          <span className={`px-3 py-1 text-xs font-medium rounded-full ${
+                                            chunk.difficulty_level === 'advanced' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                                            chunk.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
+                                            'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                                          }`}>
+                                            {chunk.difficulty_level}
+                                          </span>
+                                        )}
+                                        <span className={`px-3 py-1 text-xs font-medium rounded-full ${getPriorityColor(chunk.priority)}`}>
+                                          {chunk.priority} priority
                                         </span>
-                                      )}
-                                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(chunk.priority)}`}>
-                                        {chunk.priority}
-                                      </span>
-                                      <span className="text-xs text-gray-500 dark:text-gray-400">
-                                        {chunk.estimated_length}
-                                      </span>
+                                        <span className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
+                                          {chunk.estimated_length} read
+                                        </span>
+                                      </div>
                                     </div>
                                   </div>
                                   
-                                  <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-                                    {cleanHTMLContent(chunk.content_preview)}
+                                  {/* Content Preview */}
+                                  <div className="mb-4">
+                                    <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
+                                      {formatContentPreview(chunk.content_preview)}
+                                    </div>
                                   </div>
                                   
                                   {/* Key Concepts */}
-                                  <div className="mb-3">
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Key concepts:</div>
-                                    <div className="flex flex-wrap gap-1">
-                                      {chunk.key_concepts.map((concept, idx) => (
-                                        <span key={idx} className="px-2 py-1 text-xs bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 rounded">
-                                          {concept}
-                                        </span>
-                                      ))}
-                                    </div>
-                                  </div>
-
-                                  {/* Learning Objectives */}
-                                  {chunk.learning_objectives && chunk.learning_objectives.length > 0 && (
-                                    <div className="mb-3">
-                                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Learning objectives:</div>
-                                      <ul className="text-xs text-gray-600 dark:text-gray-400 list-disc list-inside">
-                                        {chunk.learning_objectives.map((objective, idx) => (
-                                          <li key={idx}>{objective}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-
-                                  {/* Prerequisites */}
-                                  {chunk.prerequisites && chunk.prerequisites.length > 0 && (
-                                    <div className="mb-3">
-                                      <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Prerequisites:</div>
-                                      <div className="flex flex-wrap gap-1">
-                                        {chunk.prerequisites.map((prereq, idx) => (
-                                          <span key={idx} className="px-2 py-1 text-xs bg-orange-100 dark:bg-orange-900 text-orange-800 dark:text-orange-200 rounded">
-                                            {prereq}
+                                  {chunk.key_concepts && chunk.key_concepts.length > 0 && (
+                                    <div className="mb-4">
+                                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Key Topics:</div>
+                                      <div className="flex flex-wrap gap-2">
+                                        {chunk.key_concepts.slice(0, 5).map((concept, idx) => (
+                                          <span key={idx} className="px-3 py-1 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full border border-blue-200 dark:border-blue-700">
+                                            {concept}
                                           </span>
                                         ))}
+                                        {chunk.key_concepts.length > 5 && (
+                                          <span className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
+                                            +{chunk.key_concepts.length - 5} more
+                                          </span>
+                                        )}
                                       </div>
                                     </div>
                                   )}
 
+                                  {/* Learning Objectives */}
+                                  {chunk.learning_objectives && chunk.learning_objectives.length > 0 && (
+                                    <div className="mb-4">
+                                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">What you'll learn:</div>
+                                      <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
+                                        {chunk.learning_objectives.slice(0, 3).map((objective, idx) => (
+                                          <li key={idx} className="flex items-start">
+                                            <span className="text-green-500 mr-2">✓</span>
+                                            {objective}
+                                          </li>
+                                        ))}
+                                        {chunk.learning_objectives.length > 3 && (
+                                          <li className="text-xs text-gray-500 dark:text-gray-500">
+                                            +{chunk.learning_objectives.length - 3} more objectives
+                                          </li>
+                                        )}
+                                      </ul>
+                                    </div>
+                                  )}
+
                                   {/* Action Button */}
-                                  <button 
-                                    className="w-full mt-3 px-3 py-2 text-xs bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white rounded-md transition-colors"
-                                    onClick={() => handleCreateNoteFromChunk(chunk)}
-                                    disabled={isCreatingNote}
-                                  >
-                                    {isCreatingNote ? 'Creating Note...' : 'Create Note from This Chunk'}
-                                  </button>
+                                  <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
+                                    <button 
+                                      className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white rounded-lg transition-colors font-medium"
+                                      onClick={() => handleCreateNoteFromChunk(chunk)}
+                                      disabled={isCreatingNote}
+                                    >
+                                      {isCreatingNote ? 'Creating Note...' : 'Create Study Note'}
+                                    </button>
+                                  </div>
                                 </div>
                               ))}
                             </div>
 
                             {/* Analysis Details */}
-                            <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
-                              <h5 className="font-medium text-gray-900 dark:text-white mb-2">Analysis Details</h5>
-                              <div className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-                                <strong>Reasoning:</strong> {chunkingAnalysis.reasoning}
-                              </div>
+                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 p-6 rounded-xl border border-blue-200 dark:border-gray-600">
+                              <h5 className="font-semibold text-lg text-gray-900 dark:text-white mb-4 flex items-center">
+                                <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
+                                Analysis Summary
+                              </h5>
                               
-                              {chunkingAnalysis.study_recommendations.length > 0 && (
-                                <div className="text-sm text-gray-700 dark:text-gray-300">
-                                  <strong>Study Recommendations:</strong>
-                                  <ul className="list-disc list-inside mt-1">
-                                    {chunkingAnalysis.study_recommendations.map((rec, idx) => (
-                                      <li key={idx}>{rec}</li>
-                                    ))}
-                                  </ul>
+                              <div className="space-y-4">
+                                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">AI Analysis:</div>
+                                  <div className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
+                                    {formatContentPreview(chunkingAnalysis.reasoning)}
+                                  </div>
                                 </div>
-                              )}
+                                
+                                {chunkingAnalysis.study_recommendations.length > 0 && (
+                                  <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
+                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Study Tips:</div>
+                                    <ul className="space-y-2">
+                                      {chunkingAnalysis.study_recommendations.map((rec, idx) => (
+                                        <li key={idx} className="text-sm text-gray-600 dark:text-gray-400 flex items-start">
+                                          <span className="text-blue-500 mr-2 mt-1">•</span>
+                                          {rec}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         )}
@@ -1087,17 +1144,27 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                         <h3 className="text-sm font-medium text-gray-900 dark:text-white">
                           Generated Flashcards ({flashcards.length})
                         </h3>
-                        <div className="max-h-64 overflow-y-auto space-y-2">
+                        <div className="max-h-64 overflow-y-auto space-y-3">
                           {flashcards.map((flashcard, index) => (
-                            <div key={index} className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
-                              <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
+                            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600 shadow-sm">
+                              <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
                                 Card {index + 1}
                               </div>
-                              <div className="text-sm font-medium text-gray-900 dark:text-white mb-1">
-                                {flashcard.front}
+                              <div className="mb-3">
+                                <div className="flex items-center mb-1">
+                                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full">Definition</span>
+                                </div>
+                                <div className="text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 p-2 rounded">
+                                  {flashcard.front}
+                                </div>
                               </div>
-                              <div className="text-sm text-gray-600 dark:text-gray-300">
-                                {flashcard.back}
+                              <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
+                                <div className="flex items-center mb-1">
+                                  <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full">Term</span>
+                                </div>
+                                <div className="text-sm font-semibold text-gray-900 dark:text-white bg-green-50 dark:bg-green-900/30 p-2 rounded border border-green-200 dark:border-green-700">
+                                  {flashcard.back}
+                                </div>
                               </div>
                             </div>
                           ))}
