@@ -88,26 +88,26 @@ const Decks = () => {
   const PAGE_SIZE = 12;
 
   // Notes -> Flashcards conversion modal state
-  interface Notebook {
-    id: number;
-    name: string;
-    created_at: string;
-    updated_at: string;
-    is_archived: boolean;
-    archived_at: string | null;
-  }
-  interface NoteItem {
-    id: number;
-    title: string;
-    content: string;
-    notebook: number;
-    notebook_name: string;
-    created_at: string;
-    updated_at: string;
-    is_deleted: boolean;
-    is_archived: boolean;
-    archived_at: string | null;
-  }
+interface Notebook {
+  id: number;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  is_archived: boolean;
+  archived_at: string | null;
+}
+interface NoteItem {
+  id: number;
+  title: string;
+  content: string;
+  notebook: number;
+  notebook_name: string;
+  created_at: string;
+  updated_at: string;
+  is_deleted: boolean;
+  is_archived: boolean;
+  archived_at: string | null;
+}
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [notesByNotebook, setNotesByNotebook] = useState<Record<number, NoteItem[]>>({});
@@ -380,19 +380,19 @@ const Decks = () => {
           const archivedDecks = archivedData.results || archivedData;
           const archivedTopLevelDecks = archivedDecks.filter((deck: any) => !deck.parent).map((deck: any) => {
             return {
-              id: deck.id.toString(),
-              title: deck.title,
-              flashcardCount: deck.flashcard_count || 0,
-              progress: deck.progress || 0,
-              created_at: deck.created_at,
-              updated_at: deck.updated_at,
-              createdAt: deck.created_at,
-              flashcards: (deck.flashcards || []).map((fc: any) => ({
-                id: fc.id.toString(),
-                question: fc.front,
-                answer: fc.back,
-                front: fc.front,
-                back: fc.back,
+          id: deck.id.toString(),
+          title: deck.title,
+          flashcardCount: deck.flashcard_count || 0,
+          progress: deck.progress || 0,
+          created_at: deck.created_at,
+          updated_at: deck.updated_at,
+          createdAt: deck.created_at,
+          flashcards: (deck.flashcards || []).map((fc: any) => ({
+            id: fc.id.toString(),
+            question: fc.front,
+            answer: fc.back,
+            front: fc.front,
+            back: fc.back,
                 difficulty: undefined
               })),
               subDecks: (deck.sub_decks || []).map((sd: any) => ({
@@ -402,8 +402,8 @@ const Decks = () => {
                 parentDeckId: sd.parent_deck_id.toString(),
                 created_at: sd.created_at,
                 updated_at: sd.updated_at
-              })),
-              is_deleted: false,
+          })),
+          is_deleted: false,
               is_archived: true,
               archived_at: deck.archived_at,
             };
@@ -421,7 +421,7 @@ const Decks = () => {
   const handleCreateDeck = async (deckData: { title: string }) => {
     try {
       const token = localStorage.getItem('accessToken');
-              const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
+      const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -435,13 +435,13 @@ const Decks = () => {
         id: data.id.toString(),
         title: data.title,
         flashcardCount: data.flashcard_count || 0,
-        progress: 0,
+          progress: 0,
         created_at: data.created_at,
         updated_at: data.updated_at,
         createdAt: data.created_at,
-        flashcards: [],
+          flashcards: [],
         subDecks: [],
-        is_deleted: false,
+          is_deleted: false,
         is_archived: false,
       }]);
     } catch (error) {
@@ -533,8 +533,8 @@ const Decks = () => {
         setSelectedDeck(deck);
         setShowNoFlashcardsModal(true);
       } else {
-        setSelectedDeck(deck);
-        setShowStudySession(true);
+    setSelectedDeck(deck);
+    setShowStudySession(true);
       }
     }
   };
@@ -546,8 +546,8 @@ const Decks = () => {
         setSelectedDeck(deck);
         setShowNoFlashcardsModal(true);
       } else {
-        setSelectedDeck(deck);
-        setShowQuizSession(true);
+    setSelectedDeck(deck);
+    setShowQuizSession(true);
       }
     }
   };
@@ -746,7 +746,7 @@ const Decks = () => {
     try {
       const token = localStorage.getItem('accessToken');
       const res = await fetch('http://192.168.56.1:8000/api/decks/flashcards/', {
-        method: 'POST',
+          method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': token ? `Bearer ${token}` : '',
@@ -913,13 +913,13 @@ const Decks = () => {
           onComplete={async (results) => {
             // Refetch deck from backend for updated progress
             const token = localStorage.getItem('accessToken');
-            const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${selectedDeck.id}/`, {
+      const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${selectedDeck.id}/`, {
               headers: {
                 'Authorization': token ? `Bearer ${token}` : '',
               },
-            });
-            if (res.ok) {
-              const data = await res.json();
+      });
+      if (res.ok) {
+        const data = await res.json();
               setDecks(decks.map(d =>
                 d.id === selectedDeck.id
                   ? {
@@ -947,7 +947,7 @@ const Decks = () => {
           onAddFlashcard={handleAddFlashcard}
           onUpdateFlashcard={(id, flashcard) => {
             setDecks(decks.map(deck =>
-              deck.id === selectedDeck.id
+          deck.id === selectedDeck.id 
                 ? {
                     ...deck,
                     flashcards: deck.flashcards.map(f =>
@@ -957,8 +957,8 @@ const Decks = () => {
                     ),
                     updated_at: new Date().toISOString()
                   }
-                : deck
-            ));
+            : deck
+        ));
           }}
           onDeleteFlashcard={(id) => {
             setDecks(decks.map(deck =>
@@ -994,7 +994,7 @@ const Decks = () => {
                         <li>• <strong>Sub-decks:</strong> Organize cards into smaller groups</li>
                         <li>• <strong>Statistics:</strong> View detailed study analytics</li>
                       </ul>
-                    </div>
+            </div>
                   } 
                   title="Flashcards Help" 
                 />
@@ -1043,7 +1043,7 @@ const Decks = () => {
                 </select>
               </div>
               {/* AI Generate Flashcards button */}
-              <button
+            <button
                 onClick={() => setShowConvertModal(true)}
                 className="inline-flex items-center h-10 min-w-[200px] px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
               >
@@ -1054,11 +1054,11 @@ const Decks = () => {
               <button
                 onClick={() => setShowCreateModal(true)}
                 className="inline-flex items-center h-10 min-w-[140px] px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                <Plus size={20} className="mr-2" />
+            >
+              <Plus size={20} className="mr-2" />
                 Add Deck
-              </button>
-            </div>
+            </button>
+          </div>
           </div>
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -1140,8 +1140,8 @@ const Decks = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {pagedDecks.map((deck) => (
                   <div key={deck.id} className="relative">
-                    <DeckCard
-                      deck={deck}
+                <DeckCard
+                  deck={deck}
                       onStudy={handleStudy}
                       onQuiz={handleQuiz}
                       onEdit={handleEdit}
@@ -1162,10 +1162,10 @@ const Decks = () => {
                       </div>
                     )}
                     {/* Removed Manage Subdecks button as requested */}
-                  </div>
+          </div>
                   ))}
-                </div>
-              </div>
+        </div>
+      </div>
               {/* Empty State */}
               {filteredDecks.length === 0 && (
                 <div className="text-center py-12">
@@ -1189,14 +1189,14 @@ const Decks = () => {
                   )}
                 </div>
               )}
-              {/* Modals */}
+      {/* Modals */}
               {showCreateModal && (
-                <CreateDeckModal
+        <CreateDeckModal
                   isOpen={showCreateModal}
                   onClose={() => setShowCreateModal(false)}
-                  onCreateDeck={handleCreateDeck}
-                />
-              )}
+          onCreateDeck={handleCreateDeck}
+        />
+      )}
               {showEditModal && selectedDeck && (
                 <EditDeckModal
                   isOpen={showEditModal}
@@ -1204,40 +1204,40 @@ const Decks = () => {
                     id: selectedDeck.id,
                     title: selectedDeck.title
                   }}
-                  onClose={() => {
+        onClose={() => {
                     setShowEditModal(false);
                     setSelectedDeck(null);
-                  }}
+        }}
                   onUpdateDeck={handleUpdateDeck}
-                />
+      />
               )}
               {showDeleteModal && selectedDeck && (
-                <DeleteConfirmationModal
-                  isOpen={showDeleteModal}
+        <DeleteConfirmationModal
+          isOpen={showDeleteModal}
                   deckTitle={selectedDeck.title}
-                  onClose={() => {
-                    setShowDeleteModal(false);
-                    setSelectedDeck(null);
-                  }}
-                  onConfirm={() => {
+          onClose={() => {
+            setShowDeleteModal(false);
+            setSelectedDeck(null);
+          }}
+          onConfirm={() => {
                     handleDeleteDeck(selectedDeck);
                     setShowDeleteModal(false);
                     setSelectedDeck(null);
-                  }}
-                />
-              )}
+          }}
+        />
+      )}
               {showStatsModal && selectedDeck && selectedDeckStats && (
                 <DeckStatsModal
                   isOpen={showStatsModal}
-                  deckTitle={selectedDeck.title}
+          deckTitle={selectedDeck.title}
                   stats={selectedDeckStats}
                   onClose={() => {
                     setShowStatsModal(false);
                     setSelectedDeck(null);
                     setSelectedDeckStats(null);
-                  }}
-                />
-              )}
+          }}
+        />
+      )}
                           {showSubDeckModal && selectedDeck && (
         <SubDeckModal
           isOpen={showSubDeckModal}
@@ -1471,7 +1471,7 @@ const Decks = () => {
             </div>
           )}
         </div>
-      </PageLayout>
+    </PageLayout>
       {toast && (
         <Toast
           message={toast.message}
