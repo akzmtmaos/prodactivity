@@ -204,7 +204,7 @@ const LandingPage = () => {
         <div className="text-2xl font-bold text-indigo-700 dark:text-indigo-300 tracking-tight select-none">
           ProdActivity
         </div>
-      //Icons
+      //Icons 
         <div className="space-x-4">
           <button
             onClick={() => navigate('/login')}
@@ -234,6 +234,7 @@ const LandingPage = () => {
           <h1 className="text-5xl md:text-7xl font-extrabold mb-6 text-gray-900 dark:text-white drop-shadow-lg transition-all duration-300 animate-fade-in">
             Boost Your Productivity
           </h1>
+          
           <p className="text-xl md:text-2xl text-gray-700 dark:text-gray-300 mb-10 max-w-3xl mx-auto transition-all duration-300 animate-fade-in-delay">
             All your notes, tasks, flashcards, and schedules—organized and accessible in one beautiful workspace. Stay focused, motivated, and on track with ProdActivity.
           </p>

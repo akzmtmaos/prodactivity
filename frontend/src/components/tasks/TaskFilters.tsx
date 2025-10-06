@@ -4,8 +4,8 @@ import { Task } from '../../types/task';
 interface TaskFiltersProps {
   searchTerm: string;
   onSearchChange: (value: string) => void;
-  filterCompleted: boolean | null;
-  onFilterCompletedChange: (value: boolean | null) => void;
+  filterCompleted?: boolean | null;
+  onFilterCompletedChange?: (value: boolean | null) => void;
   filterPriority: Task['priority'] | 'all';
   onFilterPriorityChange: (value: Task['priority'] | 'all') => void;
   filterTaskCategory: string;
@@ -46,21 +46,6 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
       
       {/* Filter controls */}
       <div className="flex flex-wrap gap-3 w-full sm:w-auto items-center">
-        {/* Status filter */}
-        <select
-          className="rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"
-          value={filterCompleted === null ? 'all' : (filterCompleted ? 'completed' : 'pending')}
-          onChange={(e) => {
-            const val = e.target.value;
-            if (val === 'all') onFilterCompletedChange(null);
-            else onFilterCompletedChange(val === 'completed');
-          }}
-        >
-          <option value="all">All Status</option>
-          <option value="completed">Completed</option>
-          <option value="pending">Pending</option>
-        </select>
-        
         {/* Priority filter */}
         <select
           className="rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"

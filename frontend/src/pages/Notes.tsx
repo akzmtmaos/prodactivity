@@ -183,6 +183,8 @@ const Notes = () => {
       if (archivedNotebooksData) {
         // Get saved colors from localStorage
         const savedColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+
+        // this is a comment statement statement j
         
         // Ensure each archived notebook has a color field with a default value
         const archivedNotebooksWithColors = archivedNotebooksData.map((notebook: any) => ({

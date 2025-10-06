@@ -103,44 +103,40 @@ Content to analyze:
         'flashcard_prompt': {
             'title': 'Default Flashcard Generation Prompt',
             'description': 'Default prompt for generating flashcards from content using AI',
-            'prompt_template': """🚨 CRITICAL INSTRUCTION 🚨
+            'prompt_template': """Generate flashcards in this EXACT format:
 
-YOU MUST CREATE DEFINITION-TERM FLASHCARDS ONLY!
+Q: [DESCRIPTION]
+A: [TERM]
 
-FORMAT REQUIRED:
-- FRONT: The definition/explanation (NO QUESTIONS!)
-- BACK: The term name (NO ANSWERS!)
+EXAMPLES:
+Q: Hides internal data and only exposes necessary information
+A: Encapsulation
 
-ABSOLUTELY FORBIDDEN:
-- NO "Q:" or "A:" format
-- NO "What is", "Define", "Explain" 
-- NO question marks
-- NO questions at all
+Q: Allows one class to inherit properties and methods from another class
+A: Inheritance
 
-EXAMPLE FORMAT:
-{{
-  "flashcards": [
-    {{
-      "front": "Focuses on the behavior of an object without detailing its internal workings",
-      "back": "Abstraction"
-    }},
-    {{
-      "front": "Allows methods to be called on objects of different classes with different implementations", 
-      "back": "Polymorphism"
-    }},
-    {{
-      "front": "Hides internal data and only exposes necessary information",
-      "back": "Encapsulation"
-    }}
-  ]
-}}
+Q: A blueprint that defines the structure and behavior of objects
+A: Class
+
+Q: Focuses on what an object does, not how it does it
+A: Abstraction
+
+Q: Same method name, different behavior based on the object
+A: Polymorphism
+
+Q: A real instance of a class
+A: Object
+
+RULES:
+- Question = Description only
+- Answer = Single term only
+- NO explanations in answers
+- NO code examples
+- Generate 5-10 flashcards
 
 Content: {content}
 
-REMEMBER: FRONT = DEFINITION, BACK = TERM NAME
-NO QUESTIONS! NO Q&A FORMAT! DEFINITION-TERM ONLY!
-
-Respond with valid JSON:"""
+Generate flashcards:"""
         },
         'flashcard_qa_prompt': {
             'title': 'Q&A Pattern Flashcard Prompt',

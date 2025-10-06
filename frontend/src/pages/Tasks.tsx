@@ -33,6 +33,8 @@ const getAuthHeaders = () => {
   // Temporarily disabled to test basic functionality
   // const timezoneOffset = getTimezoneOffset();
   // headers['X-Timezone-Offset'] = timezoneOffset.toString();
+
+  // this is a comment
   
   return headers;
 };
@@ -91,7 +93,6 @@ const TasksContent = ({ user }: { user: any }) => {
   // Sorting and filtering
   const [sortField, setSortField] = useState<keyof Task>('dueDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-  const [filterCompleted, setFilterCompleted] = useState<boolean | null>(null);
   const [filterPriority, setFilterPriority] = useState<Task['priority'] | 'all'>('all');
   const [filterTaskCategory, setFilterTaskCategory] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
@@ -127,7 +128,7 @@ const TasksContent = ({ user }: { user: any }) => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterCompleted, filterPriority, filterTaskCategory, sortField, sortDirection]);
+  }, [searchTerm, filterPriority, filterTaskCategory, sortField, sortDirection]);
 
   // Fetch tasks and stats whenever filters/search change
   useEffect(() => {
@@ -141,7 +142,7 @@ const TasksContent = ({ user }: { user: any }) => {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, filterCompleted, filterPriority, filterTaskCategory, sortField, sortDirection, currentPage]);
+  }, [searchTerm, filterPriority, filterTaskCategory, sortField, sortDirection, currentPage]);
 
   // Fetch tasks when activeTab changes
   useEffect(() => {
@@ -196,10 +197,7 @@ const TasksContent = ({ user }: { user: any }) => {
         .eq('user_id', userId)
         .eq('is_deleted', false);
       
-      // Apply filters but NOT tab-based completion filtering
-      if (filterCompleted !== null) {
-        query = query.eq('completed', filterCompleted);
-      }
+      // Note: No completion filtering in stats - we want all tasks for accurate stats
       
       if (filterPriority !== 'all') {
         query = query.eq('priority', filterPriority);
@@ -245,7 +243,7 @@ const TasksContent = ({ user }: { user: any }) => {
     } catch (err: any) {
       console.error('Error fetching task stats from Supabase:', err);
     }
-  }, [filterCompleted, filterPriority, searchTerm, filterTaskCategory]);
+  }, [filterPriority, searchTerm, filterTaskCategory]);
 
   // Fetch tasks from Supabase
   const fetchTasks = useCallback(async () => {
@@ -285,11 +283,7 @@ const TasksContent = ({ user }: { user: any }) => {
         query = query.eq('completed', false);
       }
       
-      // Apply additional filters if they don't conflict with tab filtering
-      if (filterCompleted !== null) {
-        // Override tab setting with user's filter preference
-        query = query.eq('completed', filterCompleted);
-      }
+      // Note: Tab-based filtering is handled above, no additional completion filtering needed
       
       if (filterPriority !== 'all') {
         query = query.eq('priority', filterPriority);
@@ -346,7 +340,7 @@ const TasksContent = ({ user }: { user: any }) => {
     } finally {
       setLoading(false);
     }
-  }, [navigate, activeTab, filterCompleted, filterPriority, searchTerm, filterTaskCategory, sortField, sortDirection, currentPage, pageSize]);
+  }, [navigate, activeTab, filterPriority, searchTerm, filterTaskCategory, sortField, sortDirection, currentPage, pageSize]);
 
   // Real-time refresh callbacks
   const handleTasksRefresh = useCallback(() => {
@@ -973,15 +967,14 @@ const TasksContent = ({ user }: { user: any }) => {
               <TaskFilters
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
-                filterCompleted={filterCompleted}
-                onFilterCompletedChange={setFilterCompleted}
+                filterCompleted={null}
+                onFilterCompletedChange={() => {}}
                 filterPriority={filterPriority}
                 onFilterPriorityChange={setFilterPriority}
                 filterTaskCategory={filterTaskCategory}
                 onFilterTaskCategoryChange={setFilterTaskCategory}
                 onResetFilters={() => {
                   setSearchTerm('');
-                  setFilterCompleted(null);
                   setFilterPriority('all');
                   setFilterTaskCategory('');
                 }}
@@ -1010,7 +1003,7 @@ const TasksContent = ({ user }: { user: any }) => {
                 }`}
                 onClick={() => setActiveTab('tasks')}
               >
-                Tasks
+                All Tasks
               </button>
               <button
                 className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
@@ -1176,11 +1169,11 @@ const TasksContent = ({ user }: { user: any }) => {
                 </svg>
                 <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tasks found</h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {searchTerm || filterCompleted !== null || filterPriority !== 'all' || filterTaskCategory
+                  {searchTerm || filterPriority !== 'all' || filterTaskCategory
                     ? 'Try changing your search or filter criteria.'
                     : 'Get started by creating a new task.'}
                 </p>
-                {!searchTerm && filterCompleted === null && filterPriority === 'all' && filterTaskCategory === '' && (
+                {!searchTerm && filterPriority === 'all' && filterTaskCategory === '' && (
                   <div className="mt-6">
                     <button
                       type="button"
