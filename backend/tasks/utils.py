@@ -4,12 +4,10 @@ from datetime import datetime, timedelta
 def get_user_local_date():
     """
     Get the current date in the user's local timezone.
-    For now, we'll use UTC+8 (Philippines timezone) as a default.
+    Uses the system's local timezone.
     """
-    # Get current UTC time and add 8 hours for Philippines timezone
-    utc_now = timezone.now()
-    local_now = utc_now + timedelta(hours=8)
-    return local_now.date()
+    # Use system's local timezone
+    return timezone.now().date()
 
 def get_user_local_date_from_request(request):
     """
@@ -33,5 +31,5 @@ def get_user_local_date_from_request(request):
             print(f"Error processing timezone offset: {e}")
             pass
     
-    # Fallback to default timezone (UTC+8)
+    # Fallback to system timezone
     return get_user_local_date() 

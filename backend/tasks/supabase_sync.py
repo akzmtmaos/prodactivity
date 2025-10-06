@@ -124,11 +124,15 @@ def sync_productivity_log_to_supabase(productivity_log):
         bool: True if successful, False otherwise
     """
     try:
+        print(f"🔄 [sync_productivity_log_to_supabase] STARTING - Log ID: {productivity_log.id}, User: {productivity_log.user.username}")
+        
         # Get Supabase user ID
         supabase_user_id = get_user_supabase_id(productivity_log.user)
         if not supabase_user_id:
             print(f"⚠️  Cannot sync productivity log - user '{productivity_log.user.username}' not found in Supabase")
             return False
+        
+        print(f"✅ [sync_productivity_log_to_supabase] Found Supabase user ID: {supabase_user_id}")
         
         # Prepare data for Supabase
         data = {
@@ -144,6 +148,8 @@ def sync_productivity_log_to_supabase(productivity_log):
             'logged_at': productivity_log.logged_at.isoformat()
         }
         
+        print(f"📤 [sync_productivity_log_to_supabase] Sending data to Supabase: {data}")
+        
         # Insert into Supabase
         response = requests.post(
             f"{SUPABASE_URL}/rest/v1/productivity_logs",
@@ -151,11 +157,13 @@ def sync_productivity_log_to_supabase(productivity_log):
             json=data
         )
         
+        print(f"📥 [sync_productivity_log_to_supabase] Supabase response: {response.status_code}")
+        
         if response.status_code == 201:
-            print(f"✅ Synced productivity log to Supabase: {productivity_log.user.username} - {productivity_log.period_type} (ID: {productivity_log.id})")
+            print(f"✅ [sync_productivity_log_to_supabase] SUCCESS - Synced productivity log: {productivity_log.user.username} - {productivity_log.period_type} (ID: {productivity_log.id})")
             return True
         else:
-            print(f"❌ Failed to sync productivity log to Supabase: {response.status_code} - {response.text}")
+            print(f"❌ [sync_productivity_log_to_supabase] FAILED - Status: {response.status_code}, Response: {response.text}")
             return False
             
     except Exception as e:

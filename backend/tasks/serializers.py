@@ -11,7 +11,7 @@ class TaskSerializer(serializers.ModelSerializer):
                  'completed', 'category', 'task_category', 'created_at', 'updated_at', 'subtasks',
                  'has_activity', 'activity_notes', 'time_spent_minutes', 'last_activity_at',
                  'evidence_uploaded', 'evidence_description', 'evidence_file', 'evidence_uploaded_at',
-                 'can_be_completed']
+                 'is_deleted', 'was_completed_on_delete', 'can_be_completed']
         read_only_fields = ['created_at', 'updated_at'] 
 
     def get_subtasks(self, obj):

@@ -154,10 +154,8 @@ def user_productivity(request):
     date_str = request.GET.get('date')
     lock = request.GET.get('lock') == '1'
     
-    # Use Philippine time (UTC+8) to match task creation logic
-    utc_now = timezone.now()
-    ph_time = utc_now + timedelta(hours=8)
-    today = ph_time.date()
+    # Use local time (system timezone) to match task creation logic
+    today = timezone.now().date()
 
     # Determine period
     if view == 'daily':
@@ -194,6 +192,14 @@ def user_productivity(request):
         
         total_tasks = non_deleted.count() + deleted_completed.count()
         completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+        
+        # DEBUG: Print calculation values
+        print(f"[DEBUG] Daily calculation for {start} to {end}:")
+        print(f"[DEBUG] Total tasks: {total_tasks}")
+        print(f"[DEBUG] Completed tasks: {completed_tasks}")
+        print(f"[DEBUG] Non-deleted count: {non_deleted.count()}")
+        print(f"[DEBUG] Deleted completed count: {deleted_completed.count()}")
+        print(f"[DEBUG] Non-deleted completed: {non_deleted.filter(completed=True).count()}")
     else:
         # For weekly and monthly views, aggregate daily productivity data
         # This gives a more accurate picture by using daily completion rates
@@ -279,7 +285,7 @@ def user_productivity(request):
                 total_tasks = 0
                 completed_tasks = 0
     
-    print(f"[DEBUG] Productivity endpoint - Today (Philippine): {today}")
+    print(f"[DEBUG] Productivity endpoint - Today (local): {today}")
     print(f"[DEBUG] Productivity endpoint - Start: {start}, End: {end}")
     print(f"[DEBUG] Productivity endpoint - View: {view}")
     print(f"[DEBUG] Productivity endpoint - Total tasks found: {total_tasks}")
@@ -298,6 +304,7 @@ def user_productivity(request):
         else:
             # For daily view, use traditional calculation
             completion_rate = completed_tasks / total_tasks * 100
+            print(f"[DEBUG] Daily completion rate calculation: {completed_tasks} / {total_tasks} * 100 = {completion_rate:.2f}%")
         
         if completion_rate >= 90:
             status = 'Highly Productive'

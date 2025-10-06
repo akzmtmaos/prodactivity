@@ -54,12 +54,10 @@ class TaskViewSet(viewsets.ModelViewSet):
             
             # Update productivity for today if the new task is due today
             
-            # Use Philippine time (UTC+8)
-            utc_now = timezone.now()
-            ph_time = utc_now + timedelta(hours=8)
-            today = ph_time.date()
+            # Use local time (system timezone)
+            today = timezone.now().date()
             
-            logger.debug(f"[TaskViewSet] Task due_date: {task.due_date}, Today (Philippine): {today}, Equal: {task.due_date == today}")
+            logger.debug(f"[TaskViewSet] Task due_date: {task.due_date}, Today (local): {today}, Equal: {task.due_date == today}")
             
             if task.due_date == today:
                 logger.debug(f"[TaskViewSet] Updating productivity for today's task")
@@ -107,31 +105,35 @@ class TaskViewSet(viewsets.ModelViewSet):
     def _update_today_productivity(self, user):
         """Update productivity for today's tasks"""
         
-        # Use Philippine time (UTC+8)
-        utc_now = timezone.now()
-        ph_time = utc_now + timedelta(hours=8)
-        today = ph_time.date()
+        # Use local time (system timezone)
+        today = timezone.now().date()
         
-        logger.debug(f"[_update_today_productivity] Using Philippine date: {today}")
+        print(f"🚀 [_update_today_productivity] STARTING - User: {user.id}, Date: {today}")
+        logger.debug(f"[_update_today_productivity] Using local date: {today}")
         
         tasks = Task.all_objects.filter(user=user, due_date=today, is_deleted=False)
         total_tasks = tasks.count()
         completed_tasks = tasks.filter(completed=True).count()
         
+        print(f"📊 [_update_today_productivity] TASK STATS - Total: {total_tasks}, Completed: {completed_tasks}")
         logger.debug(f"[_update_today_productivity] Total tasks: {total_tasks}, Completed: {completed_tasks}")
         
         logger.debug(f"[_update_today_productivity] Today: {today}")
         logger.debug(f"[_update_today_productivity] Total tasks: {total_tasks}, Completed: {completed_tasks}")
         
         # Log all tasks for debugging
+        print(f"📋 [_update_today_productivity] TASK LIST:")
         for task in tasks:
+            print(f"  - {task.title}: {'✅' if task.completed else '❌'} (ID: {task.id})")
             logger.debug(f"[_update_today_productivity] Task: {task.title}, Completed: {task.completed}")
         
         if total_tasks == 0:
             completion_rate = 0
             status = 'No Tasks'
+            print(f"⚠️ [_update_today_productivity] NO TASKS FOUND for date: {today}")
         else:
             completion_rate = completed_tasks / total_tasks * 100
+            print(f"📈 [_update_today_productivity] COMPLETION RATE: {completion_rate:.1f}%")
             logger.debug(f"[_update_today_productivity] Completion rate: {completion_rate}%")
             
             if completion_rate >= 90:
@@ -143,9 +145,11 @@ class TaskViewSet(viewsets.ModelViewSet):
             else:
                 status = 'Low Productive'
         
+        print(f"🏆 [_update_today_productivity] FINAL STATUS: {status}")
         logger.debug(f"[_update_today_productivity] Final status: {status}")
         
         # Update or create productivity log for today
+        print(f"💾 [_update_today_productivity] CREATING/UPDATING PRODUCTIVITY LOG...")
         log, created = ProductivityLog.objects.get_or_create(
             user=user,
             period_type='daily',
@@ -161,16 +165,23 @@ class TaskViewSet(viewsets.ModelViewSet):
         
         # Update existing log if completion rate is higher
         if not created and completion_rate > log.completion_rate:
+            print(f"🔄 [_update_today_productivity] UPDATING existing log (ID: {log.id})")
             log.completion_rate = completion_rate
             log.total_tasks = total_tasks
             log.completed_tasks = completed_tasks
             log.status = status
             log.save()
+            print(f"✅ [_update_today_productivity] UPDATED log: {completion_rate:.1f}%")
             logger.debug(f"[_update_today_productivity] Updated existing log")
         elif created:
+            print(f"🆕 [_update_today_productivity] CREATED new log (ID: {log.id}): {completion_rate:.1f}%")
             logger.debug(f"[_update_today_productivity] Created new log")
         else:
+            print(f"ℹ️ [_update_today_productivity] No update needed - existing rate: {log.completion_rate:.1f}%")
             logger.debug(f"[_update_today_productivity] No update needed")
+        
+        print(f"🎯 [_update_today_productivity] FINAL LOG: ID={log.id}, Rate={log.completion_rate:.1f}%, Status={log.status}")
+        print(f"🔄 [_update_today_productivity] Supabase sync should be triggered...")
 
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
