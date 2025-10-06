@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import PageLayout from '../components/PageLayout';
 import StatsCards from '../components/progress/StatsCards';
 import MainChart from '../components/progress/MainChart';
@@ -498,6 +498,7 @@ const Progress = () => {
   const [todaysProductivity, setTodaysProductivity] = useState<any | null>(null);
   const [currentDate, setCurrentDate] = useState(new Date().toLocaleDateString('en-CA'));
   const [refreshKey, setRefreshKey] = useState(0);
+  const lastNonZeroUpdateRef = useRef<number | null>(null);
 
   // Add state for selected date/period
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -739,10 +740,6 @@ const Progress = () => {
   useEffect(() => {
     console.log('🔄 Component mounted - forcing productivity refresh');
     
-    // Immediately clear the state to force fresh data
-    console.log('🔄 Clearing todaysProductivity state on mount');
-    setTodaysProductivity(null);
-    
     // Trigger a single refresh when component mounts (reduced to prevent conflicts)
     setTimeout(() => {
       console.log('🔄 Triggering single refresh on mount');
@@ -750,14 +747,90 @@ const Progress = () => {
     }, 1000);
   }, []);
 
-  // Fetch today's productivity (daily) for the bar below XP bar
+  // Realtime: Subscribe to task changes for today to update productivity instantly
+  useEffect(() => {
+    try {
+      const userData = localStorage.getItem('user');
+      if (!userData) return;
+      const user = JSON.parse(userData);
+      const userId = user.id || 11;
+      const todayStr = new Date().toLocaleDateString('en-CA');
+
+      console.log('🛰️ Subscribing to realtime task changes for', { userId, todayStr });
+
+      const channel = supabase
+        .channel('realtime-tasks-today')
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'tasks',
+          filter: `user_id=eq.${userId}`
+        }, async (payload: any) => {
+          const row = payload.new || payload.old;
+          if (!row) return;
+          
+          // Only care about tasks for today
+          if (row.due_date === todayStr) {
+            console.log('🛰️ Realtime task update for today:', payload.eventType, row.id);
+            
+            // Recompute productivity from tasks
+            const { data: tasksToday, error: tasksError } = await supabase
+              .from('tasks')
+              .select('id, completed, is_deleted, due_date')
+              .eq('user_id', userId)
+              .eq('is_deleted', false)
+              .eq('due_date', todayStr);
+            
+            if (!tasksError && tasksToday) {
+              const totalTasks = tasksToday.length;
+              const completedTasks = tasksToday.filter((t: any) => t.completed).length;
+              const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+              
+              let status = 'Low Productive';
+              if (completionRate >= 80) status = 'Highly Productive';
+              else if (completionRate >= 60) status = 'Productive';
+              else if (completionRate >= 40) status = 'Moderately Productive';
+              
+              console.log('🛰️ Realtime productivity update:', { totalTasks, completedTasks, completionRate, status });
+              
+              setTodaysProductivity((prev: any) => {
+                const now = Date.now();
+                if (completionRate > 0) {
+                  lastNonZeroUpdateRef.current = now;
+                } else if (lastNonZeroUpdateRef.current && now - lastNonZeroUpdateRef.current < 2000 && prev) {
+                  return prev;
+                }
+                return {
+                  status,
+                  completion_rate: completionRate,
+                  total_tasks: totalTasks,
+                  completed_tasks: completedTasks
+                } as any;
+              });
+            }
+          }
+        })
+        .subscribe((status) => {
+          console.log('🛰️ Realtime channel status:', status);
+        });
+
+      return () => {
+        console.log('🛰️ Unsubscribing realtime tasks');
+        supabase.removeChannel(channel);
+      };
+    } catch (e) {
+      console.error('Realtime subscription error:', e);
+    }
+  }, []);
+
+  // Fetch today's productivity (daily) for the bar below XP bar - compute directly from tasks
   useEffect(() => {
     const fetchTodaysProductivity = async () => {
       try {
         // Use local time (system timezone) like backend to ensure date consistency
         const todayStr = new Date().toLocaleDateString('en-CA');
         
-        console.log('📊 Fetching today\'s productivity from SUPABASE for date:', todayStr);
+        console.log('📊 Computing today\'s productivity from tasks for date:', todayStr);
         console.log('📊 Current date state:', currentDate);
         console.log('📊 Date comparison - todayStr:', todayStr, 'currentDate:', currentDate);
         
@@ -772,46 +845,49 @@ const Progress = () => {
         const user = JSON.parse(userData);
         const userId = user.id || 11;
         
-        console.log('📊 Querying Supabase productivity_logs for user:', userId);
+        console.log('📊 Computing productivity directly from tasks for user:', userId);
         
-        // Get today's productivity from Supabase
-        const { data: productivityData, error: productivityError } = await supabase
-          .from('productivity_logs')
-          .select('*')
+        // Compute productivity directly from tasks (no dependency on productivity_logs)
+        const { data: tasksToday, error: tasksError } = await supabase
+          .from('tasks')
+          .select('id, completed, is_deleted, due_date')
           .eq('user_id', userId)
-          .eq('period_type', 'daily')
-          .eq('period_start', todayStr)
-          .eq('period_end', todayStr)
-          .single();
+          .eq('is_deleted', false)
+          .eq('due_date', todayStr);
         
-        if (productivityError) {
-          console.error('Supabase error fetching productivity:', productivityError);
-          setTodaysProductivity(null);
+        if (tasksError) {
+          console.error('Error fetching tasks for productivity:', tasksError);
           return;
         }
         
-        console.log('📊 Supabase productivity data:', productivityData);
+        const totalTasks = (tasksToday || []).length;
+        const completedTasks = (tasksToday || []).filter((t: any) => t.completed).length;
+        const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
         
-        if (productivityData) {
-          console.log('🔄 Setting todaysProductivity state with Supabase data:', {
-            status: productivityData.status,
-            completion_rate: productivityData.completion_rate,
-            total_tasks: productivityData.total_tasks,
-            completed_tasks: productivityData.completed_tasks
-          });
-          setTodaysProductivity({
-            status: productivityData.status,
-            completion_rate: productivityData.completion_rate,
-            total_tasks: productivityData.total_tasks,
-            completed_tasks: productivityData.completed_tasks
-          });
-        } else {
-          console.log('No productivity data found for today');
-          setTodaysProductivity(null);
-        }
+        let status = 'Low Productive';
+        if (completionRate >= 80) status = 'Highly Productive';
+        else if (completionRate >= 60) status = 'Productive';
+        else if (completionRate >= 40) status = 'Moderately Productive';
+        
+        console.log('📊 Computed productivity from tasks:', { totalTasks, completedTasks, completionRate, status });
+        
+        setTodaysProductivity((prev: any) => {
+          const now = Date.now();
+          if (completionRate > 0) {
+            lastNonZeroUpdateRef.current = now;
+          } else if (lastNonZeroUpdateRef.current && now - lastNonZeroUpdateRef.current < 2000 && prev) {
+            return prev;
+          }
+          return {
+            status,
+            completion_rate: completionRate,
+            total_tasks: totalTasks,
+            completed_tasks: completedTasks
+          } as any;
+        });
       } catch (e) {
-        console.error('Error fetching today productivity from Supabase:', e);
-        setTodaysProductivity(null);
+        console.error('Error computing today productivity from tasks:', e);
+        // Don't set to null to avoid 0% flicker
       }
     };
     
@@ -823,6 +899,7 @@ const Progress = () => {
     // Listen for date change events
     const handleDateChanged = () => {
       console.log('🔄 Date change event received, refreshing productivity data...');
+      // Guard: don't overwrite with null if Supabase hasn't surfaced yet
       fetchTodaysProductivity();
     };
     
@@ -855,7 +932,7 @@ const Progress = () => {
       console.log('📅 [refreshProductivity] User ID:', userId);
       
       // Retry mechanism to wait for backend to process the task completion
-      let productivityData = null;
+      let productivityData: { status: string; completion_rate: number; total_tasks: number; completed_tasks: number } | null = null;
       let retryCount = 0;
       const maxRetries = 5;
       
@@ -878,29 +955,41 @@ const Progress = () => {
           period_end: todayStr
         });
         
-        // Use Supabase for consistent data
-        const { data, error: productivityError } = await supabase
-          .from('productivity_logs')
-          .select('*')
+        // Compute productivity directly from tasks (no dependency on productivity_logs)
+        const { data: tasksToday, error: tasksError } = await supabase
+          .from('tasks')
+          .select('id, completed, is_deleted, due_date')
           .eq('user_id', userId)
-          .eq('period_type', 'daily')
-          .eq('period_start', todayStr)
-          .eq('period_end', todayStr)
-          .single();
+          .eq('is_deleted', false)
+          .eq('due_date', todayStr);
         
-        if (productivityError) {
-          console.error(`❌ [refreshProductivity] Supabase error: ${productivityError.message}`);
+        if (tasksError) {
+          console.error(`❌ [refreshProductivity] Tasks error: ${tasksError.message}`);
           retryCount++;
           continue;
         }
         
-        console.log(`📥 [refreshProductivity] ATTEMPT ${retryCount + 1} - Supabase result:`, { data, error: productivityError });
+        console.log(`📥 [refreshProductivity] ATTEMPT ${retryCount + 1} - Tasks result:`, { data: tasksToday, error: tasksError });
         
-        if (data) {
-          productivityData = data;
-          console.log(`✅ [refreshProductivity] FOUND DATA on attempt ${retryCount + 1}:`, data);
+        if (tasksToday) {
+          const totalTasks = tasksToday.length;
+          const completedTasks = tasksToday.filter((t: any) => t.completed).length;
+          const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+          
+          let status = 'Low Productive';
+          if (completionRate >= 80) status = 'Highly Productive';
+          else if (completionRate >= 60) status = 'Productive';
+          else if (completionRate >= 40) status = 'Moderately Productive';
+          
+          productivityData = {
+            status,
+            completion_rate: completionRate,
+            total_tasks: totalTasks,
+            completed_tasks: completedTasks
+          };
+          console.log(`✅ [refreshProductivity] COMPUTED DATA on attempt ${retryCount + 1}:`, productivityData);
         } else {
-          console.log(`⏳ [refreshProductivity] No data found on attempt ${retryCount + 1}, retrying...`);
+          console.log(`⏳ [refreshProductivity] No tasks found on attempt ${retryCount + 1}, retrying...`);
           retryCount++;
         }
       }
@@ -913,17 +1002,24 @@ const Progress = () => {
           total_tasks: productivityData.total_tasks,
           completed_tasks: productivityData.completed_tasks
         });
-        setTodaysProductivity({
-          status: productivityData.status,
-          completion_rate: productivityData.completion_rate,
-          total_tasks: productivityData.total_tasks,
-          completed_tasks: productivityData.completed_tasks
+        setTodaysProductivity((prev: any) => {
+          const now = Date.now();
+          if (productivityData && (productivityData.completion_rate ?? 0) > 0) {
+            lastNonZeroUpdateRef.current = now;
+          } else if (lastNonZeroUpdateRef.current && now - lastNonZeroUpdateRef.current < 2000 && prev) {
+            return prev;
+          }
+          return {
+            status: productivityData?.status || 'Low Productive',
+            completion_rate: productivityData?.completion_rate || 0,
+            total_tasks: productivityData?.total_tasks || 0,
+            completed_tasks: productivityData?.completed_tasks || 0
+          } as any;
         });
       } else {
-        console.log(`❌ [refreshProductivity] FAILED - No productivity data found after ${maxRetries} attempts`);
-        console.log('⚠️ [refreshProductivity] Keeping existing data to avoid showing 0%');
-        // Don't clear the existing data if we can't fetch new data
-        // setTodaysProductivity(null);
+        console.log(`❌ [refreshProductivity] FAILED - No tasks found after ${maxRetries} attempts`);
+        console.log('⚠️ [refreshProductivity] No tasks for today - keeping existing data to avoid 0% flicker');
+        // Don't set to null to avoid 0% drop
       }
       
       // Refresh streak data and recalculate current streak
@@ -931,13 +1027,16 @@ const Progress = () => {
       const freshStreakData = await fetchStreakData();
       setStreakData(freshStreakData);
       
-      // Recalculate current streak with fresh data
-      const currentStreak = calculateCurrentStreakFromData(freshStreakData, productivityData ? {
+      // Recalculate current streak with fresh data (use latest todaysProductivity state)
+      const latestToday = (typeof window !== 'undefined') ? undefined : undefined; // placeholder to avoid SSR warnings
+      const todayForStreak = (productivityData ? {
         status: productivityData.status,
         completion_rate: productivityData.completion_rate,
         total_tasks: productivityData.total_tasks,
         completed_tasks: productivityData.completed_tasks
-      } : null);
+      } : null) || (typeof todaysProductivity === 'object' ? todaysProductivity : null);
+
+      const currentStreak = calculateCurrentStreakFromData(freshStreakData, todayForStreak as any);
       
       console.log('🔄 Manual refresh - Updated current streak:', currentStreak);
       
@@ -1161,28 +1260,51 @@ const Progress = () => {
               }
             }
           } else {
-            // Fallback to direct Supabase query
-            const { data: todayLog, error: todayError } = await supabase
-              .from('productivity_logs')
-              .select('*')
+            // Fallback: Compute today's data directly from tasks
+            console.log('📊 COMPUTING TODAY\'S DATA FROM TASKS FOR WEEKLY CALCULATION');
+            const { data: tasksToday, error: tasksError } = await supabase
+              .from('tasks')
+              .select('id, completed, is_deleted, due_date')
               .eq('user_id', userId)
-              .eq('period_type', 'daily')
-              .eq('period_start', todayStr)
-              .eq('period_end', todayStr)
-              .single();
+              .eq('is_deleted', false)
+              .eq('due_date', todayStr);
             
-            if (todayLog && !todayError) {
-              console.log('📊 Today\'s data fetched from Supabase:', todayLog);
+            if (!tasksError && tasksToday) {
+              const totalTasks = tasksToday.length;
+              const completedTasks = tasksToday.filter((t: any) => t.completed).length;
+              const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+              
+              let status = 'Low Productive';
+              if (completionRate >= 80) status = 'Highly Productive';
+              else if (completionRate >= 60) status = 'Productive';
+              else if (completionRate >= 40) status = 'Moderately Productive';
+              
+              const todayLogFromTasks = {
+                period_start: todayStr,
+                period_end: todayStr,
+                period_type: 'daily',
+                user_id: userId,
+                total_tasks: totalTasks,
+                completed_tasks: completedTasks,
+                completion_rate: completionRate,
+                status: status,
+                logged_at: new Date().toISOString()
+              };
+              
+              console.log('📊 Computed today\'s data from tasks for weekly:', todayLogFromTasks);
+              
               if (dailyLogs) {
                 const existingTodayIndex = dailyLogs.findIndex(log => log.period_start === todayStr);
                 if (existingTodayIndex !== -1) {
-                  dailyLogs[existingTodayIndex] = todayLog;
+                  dailyLogs[existingTodayIndex] = todayLogFromTasks;
+                  console.log('📊 REPLACED existing today\'s data with computed data');
                 } else {
-                  dailyLogs.push(todayLog);
+                  dailyLogs.push(todayLogFromTasks);
+                  console.log('📊 ADDED computed today\'s data to dailyLogs');
                 }
               }
             } else {
-              console.log('📊 No today\'s data found in Supabase:', todayError);
+              console.log('📊 No tasks found for today or error:', tasksError);
             }
           }
           
@@ -1298,6 +1420,53 @@ const Progress = () => {
                   dailyLogs[existingTodayIndex] = todayLogFromState;
                   console.log('📊 Updated existing today\'s data from state in dailyLogs for monthly calculation');
                 }
+              }
+            } else {
+              // Final fallback: Compute today's data directly from tasks for monthly
+              console.log('📊 COMPUTING TODAY\'S DATA FROM TASKS FOR MONTHLY CALCULATION');
+              const { data: tasksToday, error: tasksError } = await supabase
+                .from('tasks')
+                .select('id, completed, is_deleted, due_date')
+                .eq('user_id', userId)
+                .eq('is_deleted', false)
+                .eq('due_date', todayStr);
+              
+              if (!tasksError && tasksToday) {
+                const totalTasks = tasksToday.length;
+                const completedTasks = tasksToday.filter((t: any) => t.completed).length;
+                const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+                
+                let status = 'Low Productive';
+                if (completionRate >= 80) status = 'Highly Productive';
+                else if (completionRate >= 60) status = 'Productive';
+                else if (completionRate >= 40) status = 'Moderately Productive';
+                
+                const todayLogFromTasks = {
+                  period_start: todayStr,
+                  period_end: todayStr,
+                  period_type: 'daily',
+                  user_id: userId,
+                  total_tasks: totalTasks,
+                  completed_tasks: completedTasks,
+                  completion_rate: completionRate,
+                  status: status,
+                  logged_at: new Date().toISOString()
+                };
+                
+                console.log('📊 Computed today\'s data from tasks for monthly:', todayLogFromTasks);
+                
+                const existingTodayIndex = dailyLogs?.findIndex(log => log.period_start === todayStr);
+                if (existingTodayIndex === -1 || existingTodayIndex === undefined) {
+                  dailyLogs?.push(todayLogFromTasks);
+                  console.log('📊 Added computed today\'s data to dailyLogs for monthly');
+                } else {
+                  if (dailyLogs) {
+                    dailyLogs[existingTodayIndex] = todayLogFromTasks;
+                    console.log('📊 Updated existing today\'s data with computed data for monthly');
+                  }
+                }
+              } else {
+                console.log('📊 No tasks found for today or error for monthly:', tasksError);
               }
             }
           }
@@ -1946,6 +2115,30 @@ async function fetchStreakData() {
         dateMap.set(entry.date, entry);
       }
     });
+    
+    // Inject today's status from tasks to avoid flicker if logs lag
+    const todayStr = new Date().toLocaleDateString('en-CA');
+    const { data: tasksToday } = await supabase
+      .from('tasks')
+      .select('id, completed, is_deleted, due_date')
+      .eq('user_id', userId)
+      .eq('is_deleted', false)
+      .eq('due_date', todayStr);
+    const totalTasksToday = (tasksToday || []).length;
+    const completedTasksToday = (tasksToday || []).filter((t: any) => t.completed).length;
+    const completionRateToday = totalTasksToday > 0 ? Math.round((completedTasksToday / totalTasksToday) * 100) : 0;
+    const todayEntry = {
+      date: todayStr,
+      streak: totalTasksToday > 0 && completedTasksToday > 0,
+      productivity: completionRateToday,
+      total_tasks: totalTasksToday,
+      completed_tasks: completedTasksToday,
+      logged_at: new Date().toISOString()
+    } as any;
+    const existingToday = dateMap.get(todayStr);
+    if (!existingToday || existingToday.productivity !== todayEntry.productivity || existingToday.streak !== todayEntry.streak) {
+      dateMap.set(todayStr, todayEntry);
+    }
     
     const streakData = Array.from(dateMap.values());
     
