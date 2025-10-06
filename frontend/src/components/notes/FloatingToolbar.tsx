@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Bold, Italic, Underline, Type, List, Link, Quote, Code } from 'lucide-react';
+import { Bold, Italic, Underline, Type, List, Link, Code } from 'lucide-react';
 
 interface FloatingToolbarProps {
   onFormat: (command: string, value?: string) => void;
@@ -89,24 +89,33 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       shortcut: 'Ctrl+Shift+8'
     },
     {
-      icon: Quote,
-      command: 'formatBlock',
-      value: 'blockquote',
-      label: 'Quote',
-      shortcut: 'Ctrl+Shift+>'
-    },
-    {
       icon: Code,
       command: 'formatBlock',
       value: 'pre',
       label: 'Code Block',
-      shortcut: 'Ctrl+Shift+`'
+      shortcut: 'Ctrl+Shift+`',
+      isToggle: true
     }
   ];
 
   const handleFormat = (command: string, value?: string) => {
     onFormat(command, value);
     // Don't close the toolbar - let it stay visible while text is selected
+  };
+
+  // Check if we're currently in a code block
+  const isInCodeBlock = () => {
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return false;
+    
+    const range = selection.getRangeAt(0);
+    const container = range.commonAncestorContainer;
+    
+    const preElement = container.nodeType === Node.TEXT_NODE 
+      ? container.parentElement?.closest('pre')
+      : (container as Element).closest('pre');
+    
+    return !!preElement;
   };
 
   return (
@@ -121,14 +130,20 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     >
       {formatButtons.map((button, index) => {
         const Icon = button.icon;
+        const isActive = button.isToggle && button.command === 'formatBlock' && button.value === 'pre' && isInCodeBlock();
+        
         return (
           <button
             key={index}
             onClick={() => handleFormat(button.command, button.value)}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors group relative"
+            className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors group relative ${
+              isActive ? 'bg-blue-100 dark:bg-blue-900' : ''
+            }`}
             title={`${button.label} (${button.shortcut})`}
           >
-            <Icon size={16} className="text-gray-600 dark:text-gray-300" />
+            <Icon size={16} className={`${
+              isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
+            }`} />
             
             {/* Tooltip */}
             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">

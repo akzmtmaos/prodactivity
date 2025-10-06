@@ -4,6 +4,7 @@ import { Clock, Calendar, BookOpen, CheckSquare, ChevronLeft, ChevronRight, Sear
 import { useNavbar } from '../context/NavbarContext';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
+import PageLayout from '../components/PageLayout';
 import { Task } from '../types/task';
 import { ScheduleEvent } from '../types/schedule';
 import { format } from 'date-fns';
@@ -70,6 +71,8 @@ const Home = () => {
   const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const searchInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Home now uses shared PageLayout for consistent spacing and transitions
 
   // Function to generate consistent hash for category colors
   const getCategoryColorHash = (category: string) => {
@@ -777,9 +780,8 @@ const Home = () => {
   }
 
   return (
-    <div className="relative w-full min-h-screen">
-      <div className={`px-4 py-6 sm:px-6 lg:px-8 transition-[margin] duration-300 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-64'} pb-32 md:pb-6 pt-20 md:pt-6`}>
-        <div className="max-w-7xl mx-auto">
+    <PageLayout>
+      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
           {/* Centered Greeting section */}
           <div className="text-center mb-16 mt-16">
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
@@ -1263,11 +1265,8 @@ const Home = () => {
               </div>
             </div>
           </div>
-        </div>
       </div>
-
-
-    </div>
+    </PageLayout>
   );
 };
 

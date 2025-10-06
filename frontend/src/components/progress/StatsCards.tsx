@@ -162,7 +162,7 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
             <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
               {stats.averageProductivity}%
             </h3>
-            <p className="text-gray-600 dark:text-gray-400">Productivity Score</p>
+            <p className="text-gray-600 dark:text-gray-400">Overall Productivity</p>
           </div>
         </div>
       </div>

@@ -485,8 +485,30 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Restore focus to the contentEditable div
     contentEditableRef.current.focus();
     
-    // Execute the formatting command
-    document.execCommand(command, false, value);
+    // Special handling for code blocks - check if already in a code block
+    if (command === 'formatBlock' && value === 'pre') {
+      const selection = window.getSelection();
+      if (selection && selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        const container = range.commonAncestorContainer;
+        
+        // Check if we're already inside a <pre> element
+        const preElement = container.nodeType === Node.TEXT_NODE 
+          ? container.parentElement?.closest('pre')
+          : (container as Element).closest('pre');
+        
+        if (preElement) {
+          // If already in a code block, convert it back to normal paragraph
+          document.execCommand('formatBlock', false, 'div');
+        } else {
+          // If not in a code block, create one
+          document.execCommand('formatBlock', false, 'pre');
+        }
+      }
+    } else {
+      // Execute the formatting command for other formats
+      document.execCommand(command, false, value);
+    }
     
     // Mark as having changes
     setHasChanges(true);

@@ -42,7 +42,7 @@ const PrivateRoute = ({ isAuthenticated, children }: PrivateRouteProps) => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
       <Navbar setIsAuthenticated={() => {}} />
-      <main className="relative w-full transition-all duration-300 ease-in-out">
+      <main className="relative w-full">
         {children}
       </main>
       <TimerWidget />
