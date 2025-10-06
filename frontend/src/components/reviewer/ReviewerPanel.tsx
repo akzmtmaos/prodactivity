@@ -331,9 +331,18 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     try {
       const sourceNote = notes.find(n => n.id === data.sourceNote);
       const sourceNotebook = notebooks.find(n => n.id === data.sourceNotebook);
-      
+
+      // Build source content: use note content, or aggregate all notes from the selected notebook
+      let sourceContent = '';
+      if (sourceNote) {
+        sourceContent = sourceNote.content;
+      } else if (sourceNotebook) {
+        const notebookNotes = notes.filter(n => n.notebook_name === sourceNotebook.name);
+        sourceContent = notebookNotes.map(n => `${n.title}\n${n.content}`).join('\n\n');
+      }
+
       const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
-        text: sourceNote?.content || sourceNotebook?.name || '',
+        text: sourceContent,
         title: `Quiz: ${data.title}`,
         source_note: data.sourceNote,
         source_notebook: data.sourceNotebook,
@@ -458,7 +467,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
   return (
     <div className="space-y-6 h-full">
       {/* Sticky Header and Tabs */}
-      <div className="sticky top-0 z-10 bg-white dark:bg-gray-900 pb-2">
+      <div className="bg-transparent dark:bg-transparent pb-2">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
@@ -492,12 +501,12 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                 placeholder="Search reviewers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-48 sm:w-64 pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                className="w-48 sm:w-64 pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-transparent text-gray-900 dark:text-white placeholder-gray-500"
               />
             </div>
             {/* Filter Dropdown */}
             <select
-              className="ml-2 px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              className="ml-2 px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-transparent text-gray-900 dark:text-white"
               value={filterType}
               onChange={e => setFilterType(e.target.value)}
             >

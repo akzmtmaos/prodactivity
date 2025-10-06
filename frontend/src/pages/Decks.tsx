@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, Filter, BookOpen, TrendingUp, Clock, Target, FileText } from 'lucide-react';
+import { Plus, Search, BookOpen, TrendingUp, Clock, Target, FileText } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
 import Pagination from '../components/common/Pagination';
@@ -1029,19 +1029,7 @@ interface NoteItem {
                   <option value="progress">Progress</option>
                 </select>
               </div>
-              {/* Filter */}
-              <div className="flex items-center gap-2">
-                <Filter size={20} className="text-gray-400" />
-                <select
-                  value={filterBy}
-                  onChange={(e) => setFilterBy(e.target.value as 'all' | 'studied' | 'new')}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="all">All Decks</option>
-                  <option value="studied">Studied</option>
-                  <option value="new">New</option>
-                </select>
-              </div>
+              {/* Filter dropdown removed as requested */}
               {/* AI Generate Flashcards button */}
             <button
                 onClick={() => setShowConvertModal(true)}

@@ -25,6 +25,7 @@ import LandingPage from "./pages/LandingPage";
 import QuizSessionPage from './pages/QuizSessionPage';
 import StudySessionPage from './pages/StudySessionPage';
 import TimerWidget from './components/studytimer/TimerWidget';
+import Profile from './pages/Profile';
 // Import axios configuration to set up interceptors
 import './utils/axiosConfig';
 
@@ -180,6 +181,16 @@ function App() {
                    <Route path="/reset-password" element={<ResetPassword />} />
                    <Route path="/verify-email" element={<VerifyEmail />} />
             <Route
+              path="/profile"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Profile />
+                </PrivateRoute>
+              }
+            />
+            
+            {/* existing routes */}
+            <Route
               path="/"
               element={
                 authState.isAuthenticated ? (
@@ -330,7 +341,7 @@ function App() {
           </Routes>
         </Router>
       </NavbarProvider>
-        </TimerProvider>
+      </TimerProvider>
     </ThemeProvider>
   );
 }

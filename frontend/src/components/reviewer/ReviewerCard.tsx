@@ -1,4 +1,5 @@
 import React from 'react';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { Star, StarOff, Trash2, Download, Share2 } from 'lucide-react';
 import { truncateHtmlContent } from '../../utils/htmlUtils';
 
@@ -37,6 +38,72 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
   showFavorite = true,
   showGenerateQuiz = true,
 }) => {
+  const handleDownload = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const title = reviewer.title || 'reviewer';
+    const safeTitle = title
+      .toLowerCase()
+      .replace(/[^a-z0-9-_ ]/gi, '')
+      .trim()
+      .replace(/\s+/g, '_')
+      .slice(0, 80) || 'reviewer';
+
+    const header = `# ${reviewer.title}\n\n`;
+    const body = reviewer.content || '';
+    const text = `${header}${body}`;
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeTitle}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadDocx = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const title = reviewer.title || 'Reviewer';
+    const safeTitle = title
+      .toLowerCase()
+      .replace(/[^a-z0-9-_ ]/gi, '')
+      .trim()
+      .replace(/\s+/g, '_')
+      .slice(0, 80) || 'reviewer';
+
+    const contentText = reviewer.content || '';
+    const lines = contentText.split(/\r?\n/);
+
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: [
+            new Paragraph({
+              text: title,
+              heading: HeadingLevel.HEADING_1,
+            }),
+            ...lines.map((line) =>
+              new Paragraph({
+                children: [new TextRun(line)],
+              })
+            ),
+          ],
+        },
+      ],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${safeTitle}.docx`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
   return (
     <div
       className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow cursor-pointer"
@@ -112,10 +179,10 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
           <span>Created: {new Date(reviewer.created_at).toLocaleDateString()}</span>
         </div>
         <div className="flex items-center gap-2">
-          <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <button onClick={handleDownloadDocx} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Download as Word (.docx)">
             <Download size={16} />
           </button>
-          <button className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors">
+          <button onClick={handleDownload} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Download as Markdown (.md)">
             <Share2 size={16} />
           </button>
         </div>

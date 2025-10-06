@@ -187,8 +187,9 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         {/* User actions */}
         <div className="p-4 border-t border-gray-200 dark:border-gray-700">
           <div className="relative">
-            <div
-              className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors ${isCollapsed ? 'justify-center' : ''}`}
+            <button
+              onClick={() => navigate('/profile')}
+              className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${isCollapsed ? 'justify-center' : ''}`}
               title={isCollapsed ? (user?.username || "Profile") : undefined}
             >
               {user?.avatar ? (
@@ -207,7 +208,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                 </span>
               )}
               <span className={`ml-3 text-gray-800 dark:text-gray-200 font-medium ${isCollapsed ? 'hidden' : 'inline'}`}>{user?.displayName || user?.username || "User"}</span>
-            </div>
+            </button>
           </div>
         </div>
       </aside>
@@ -327,11 +328,12 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
               </div>
             </nav>
 
-            {/* Logout Button */}
+            {/* Profile / User Section */}
             <div className="p-4 border-t border-gray-200 dark:border-gray-700">
               <div className="relative">
-                <div
-                  className="flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors"
+                <button
+                  onClick={() => navigate('/profile')}
+                  className="flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
                   {user?.avatar ? (
                     <img src={user.avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover" />
@@ -341,7 +343,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                     </span>
                   )}
                   <span className="ml-3 text-gray-800 dark:text-gray-200 font-medium">{user?.displayName || user?.username || "User"}</span>
-                </div>
+                </button>
               </div>
             </div>
           </div>
