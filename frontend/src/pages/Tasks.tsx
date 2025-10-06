@@ -651,7 +651,7 @@ const TasksContent = ({ user }: { user: any }) => {
       });
       
       // Determine productivity status
-      let status = 'Low Productivity';
+      let status = 'Low Productive';
       if (completionRate >= 90) status = 'Highly Productive';
       else if (completionRate >= 70) status = 'Productive';
       else if (completionRate >= 40) status = 'Moderately Productive';

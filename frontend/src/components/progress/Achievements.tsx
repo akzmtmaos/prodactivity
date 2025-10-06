@@ -17,6 +17,7 @@ interface UserLevel {
 interface AchievementsProps {
   stats: WeeklyStats;
   userLevel?: UserLevel;
+  longestStreak?: number;
 }
 
 interface Achievement {
@@ -30,7 +31,7 @@ interface Achievement {
   rarity: 'common' | 'rare' | 'epic' | 'legendary';
 }
 
-const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel }) => {
+const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestStreak = 0 }) => {
   // Define all achievements
   const allAchievements: Achievement[] = [
     // Streak Achievements
@@ -41,7 +42,7 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel }) => {
       icon: <Flame size={20} className="text-orange-500" />,
       category: 'streak',
       requirement: 3,
-      unlocked: stats.streak >= 3,
+      unlocked: longestStreak >= 3,
       rarity: 'common'
     },
     {
@@ -51,7 +52,7 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel }) => {
       icon: <Flame size={20} className="text-red-500" />,
       category: 'streak',
       requirement: 7,
-      unlocked: stats.streak >= 7,
+      unlocked: longestStreak >= 7,
       rarity: 'rare'
     },
     {
@@ -61,7 +62,7 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel }) => {
       icon: <Flame size={20} className="text-purple-500" />,
       category: 'streak',
       requirement: 30,
-      unlocked: stats.streak >= 30,
+      unlocked: longestStreak >= 30,
       rarity: 'legendary'
     },
     

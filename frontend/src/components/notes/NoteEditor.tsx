@@ -20,6 +20,7 @@ import Toast from '../../components/common/Toast';
 import AIFeaturesPanel from './AIFeaturesPanel';
 import TextFormatting from './TextFormatting';
 import DeleteConfirmationModal from '../../components/common/DeleteConfirmationModal';
+import FloatingToolbar from './FloatingToolbar';
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 interface Note {
@@ -214,6 +215,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   // Settings modal state
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   
+  // Floating toolbar state
+  const [showFloatingToolbar, setShowFloatingToolbar] = useState(false);
+  const [toolbarPosition, setToolbarPosition] = useState({ x: 0, y: 0 });
+  const [selectedText, setSelectedText] = useState('');
   
   // Simple contentEditable ref
   const contentEditableRef = useRef<HTMLDivElement>(null);
@@ -442,6 +447,81 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     setContent(newContent);
     setHasChanges(true);
   };
+
+  // Text selection and floating toolbar functions
+  const handleTextSelection = (e: React.MouseEvent | React.KeyboardEvent) => {
+    // Use a small delay to ensure the selection is properly updated
+    setTimeout(() => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0) {
+        setShowFloatingToolbar(false);
+        return;
+      }
+
+      const range = selection.getRangeAt(0);
+      const selectedText = selection.toString().trim();
+      
+      if (selectedText.length > 0) {
+        // Get the bounding rectangle of the selection
+        const rect = range.getBoundingClientRect();
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollLeft = window.pageXOffset || document.documentElement.scrollLeft;
+        
+        setSelectedText(selectedText);
+        setToolbarPosition({
+          x: rect.left + scrollLeft + (rect.width / 2),
+          y: rect.top + scrollTop
+        });
+        setShowFloatingToolbar(true);
+      } else {
+        setShowFloatingToolbar(false);
+      }
+    }, 10);
+  };
+
+  const handleFloatingToolbarFormat = (command: string, value?: string) => {
+    if (!contentEditableRef.current) return;
+
+    // Restore focus to the contentEditable div
+    contentEditableRef.current.focus();
+    
+    // Execute the formatting command
+    document.execCommand(command, false, value);
+    
+    // Mark as having changes
+    setHasChanges(true);
+    
+    // Don't hide the toolbar - let it stay visible while text is selected
+  };
+
+  const handleCloseFloatingToolbar = () => {
+    setShowFloatingToolbar(false);
+  };
+
+  // Close floating toolbar when clicking outside or when selection changes
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showFloatingToolbar && !(event.target as Element).closest('.floating-toolbar')) {
+        setShowFloatingToolbar(false);
+      }
+    };
+
+    const handleSelectionChange = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.rangeCount === 0 || selection.toString().trim().length === 0) {
+        setShowFloatingToolbar(false);
+      }
+    };
+
+    if (showFloatingToolbar) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('selectionchange', handleSelectionChange);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+        document.removeEventListener('selectionchange', handleSelectionChange);
+      };
+    }
+  }, [showFloatingToolbar]);
 
   const handleSave = () => {
     if (autoSaveTimeout.current) {
@@ -2153,6 +2233,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          width: 100% !important;
                          color: #000000 !important;
                        }
+                       .dark .note-editor h1 {
+                         color: #ffffff !important;
+                       }
                        .note-editor h2 {
                          font-size: 1.5rem !important;
                          font-weight: 700 !important;
@@ -2164,6 +2247,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          width: 100% !important;
                          color: #000000 !important;
                        }
+                       .dark .note-editor h2 {
+                         color: #ffffff !important;
+                       }
                        .note-editor h3 {
                          font-size: 1.25rem !important;
                          font-weight: 700 !important;
@@ -2174,6 +2260,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                          max-width: 100% !important;
                          width: 100% !important;
                          color: #000000 !important;
+                       }
+                       .dark .note-editor h3 {
+                         color: #ffffff !important;
                        }
                        .note-editor p, .note-editor div {
                          max-width: 100% !important;
@@ -2571,7 +2660,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                       // Don't call handleFormattingChange to prevent any interference
                     }}
                     onBlur={() => {}} // DISABLED: No formatting change handling
-                    onKeyUp={() => {}} // DISABLED: No formatting change handling
+                    onMouseUp={(e) => {
+                      handleTextSelection(e);
+                    }}
+                    onKeyUp={(e) => {
+                      // DISABLED: No formatting change handling
+                      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                        handleTextSelection(e);
+                      }
+                    }}
                     onKeyDown={(e) => {
                       // Handle Backspace key for lists
                       if (e.key === 'Backspace') {
@@ -3178,6 +3275,16 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Floating Toolbar */}
+      {showFloatingToolbar && (
+        <FloatingToolbar
+          onFormat={handleFloatingToolbarFormat}
+          onClose={handleCloseFloatingToolbar}
+          position={toolbarPosition}
+          selectedText={selectedText}
+        />
       )}
     </div>
   );

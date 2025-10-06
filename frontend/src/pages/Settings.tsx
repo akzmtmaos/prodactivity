@@ -28,8 +28,6 @@ const Settings: React.FC = () => {
     language: 'en',
     timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
   });
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'logs' | 'other' | 'logout'>('profile');
 
   // Profile management state
@@ -207,24 +205,15 @@ const Settings: React.FC = () => {
   const handleSettingChange = (key: keyof UserSettings, value: any) => {
     const newSettings = { ...settings, [key]: value };
     setSettings(newSettings);
+    
+    // Auto-save settings to localStorage
+    localStorage.setItem('userSettings', JSON.stringify(newSettings));
+    
     if (key === 'theme') {
       setTheme(value);
     }
   };
 
-  const saveSettings = async () => {
-    setIsSaving(true);
-    setSaveMessage(null);
-    try {
-      localStorage.setItem('userSettings', JSON.stringify(settings));
-      setSaveMessage({ type: 'success', text: 'Settings saved successfully!' });
-    } catch (error) {
-      setSaveMessage({ type: 'error', text: 'Failed to save settings. Please try again.' });
-    } finally {
-      setIsSaving(false);
-      setTimeout(() => setSaveMessage(null), 3000);
-    }
-  };
 
   // Profile management handlers
   const handleProfileChange = (key: keyof typeof profile, value: string) => {
@@ -660,16 +649,6 @@ const Settings: React.FC = () => {
 
               {activeTab === 'general' && (
                 <div className="space-y-6">
-                  {/* Save Message */}
-                  {saveMessage && (
-                    <div className={`mb-6 p-4 rounded-lg ${
-                      saveMessage.type === 'success' 
-                        ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400' 
-                        : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400'
-                    }`}>
-                      {saveMessage.text}
-                    </div>
-                  )}
                   {/* Appearance Section */}
                   <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl shadow-md border border-indigo-100 dark:border-indigo-700">
                     <div className="p-6">
@@ -796,23 +775,6 @@ const Settings: React.FC = () => {
                         </div>
                       </div>
                     </div>
-                  </div>
-                  {/* Save Button */}
-                  <div className="mt-8 flex justify-end">
-                    <button
-                      onClick={saveSettings}
-                      disabled={isSaving}
-                      className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {isSaving ? (
-                        <>
-                          <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                          Saving...
-                        </>
-                      ) : (
-                        'Save Changes'
-                      )}
-                    </button>
                   </div>
                 </div>
               )}

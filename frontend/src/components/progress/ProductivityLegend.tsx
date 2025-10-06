@@ -9,7 +9,7 @@ const ProductivityLegend: React.FC<ProductivityLegendProps> = ({ getProductivity
     { range: '90-100%', status: 'Highly Productive', color: 'bg-green-600 dark:bg-green-400' },
     { range: '70-89%', status: 'Productive', color: 'bg-green-500 dark:bg-green-300' },
     { range: '40-69%', status: 'Moderately Productive', color: 'bg-yellow-500 dark:bg-yellow-400' },
-    { range: '0-39%', status: 'Low Productivity', color: 'bg-red-500 dark:bg-red-400' }
+    { range: '0-39%', status: 'Low Productive', color: 'bg-red-500 dark:bg-red-400' }
   ];
 
   return (

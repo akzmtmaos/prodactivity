@@ -645,8 +645,12 @@ const Progress = () => {
     
     // Listen for task completion events to refresh progress data
     const handleTaskCompleted = async () => {
-      console.log('🔄 Task completion event received, refreshing progress data...');
+      console.log('🚀 [handleTaskCompleted] EVENT RECEIVED - Starting refresh process...');
       try {
+        // Add a small delay to allow backend to process the task completion
+        console.log('⏳ [handleTaskCompleted] Waiting for backend to process task completion...');
+        await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second
+        
         // Run stats and level updates in parallel
         const [statsData, levelData] = await Promise.all([
           fetchUserStats(),
@@ -654,12 +658,14 @@ const Progress = () => {
         ]);
         
         // Refresh productivity data separately
+        console.log('🔄 [handleTaskCompleted] Calling refreshProductivity...');
         await refreshProductivity();
         
         setStats(statsData);
         setUserLevel(levelData);
+        console.log('✅ [handleTaskCompleted] Refresh process completed successfully');
       } catch (error) {
-        console.error('Error refreshing progress data:', error);
+        console.error('❌ [handleTaskCompleted] Error refreshing progress data:', error);
       }
     };
     
@@ -667,6 +673,10 @@ const Progress = () => {
     const handleTaskCreated = async () => {
       console.log('🔄 Task creation event received, refreshing productivity data...');
       try {
+        // Add a small delay to allow backend to process the task creation
+        console.log('🔄 Waiting for backend to process task creation...');
+        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 0.5 seconds
+        
         const statsData = await fetchUserStats();
         
         // Refresh productivity data separately
@@ -744,35 +754,27 @@ const Progress = () => {
   useEffect(() => {
     const fetchTodaysProductivity = async () => {
       try {
+        // Use local time (system timezone) like backend to ensure date consistency
+        const todayStr = new Date().toLocaleDateString('en-CA');
+        
+        console.log('📊 Fetching today\'s productivity from SUPABASE for date:', todayStr);
+        console.log('📊 Current date state:', currentDate);
+        console.log('📊 Date comparison - todayStr:', todayStr, 'currentDate:', currentDate);
+        
         // Get current user ID
         const userData = localStorage.getItem('user');
         if (!userData) {
-          handle401();
+          console.error('No user data found');
+          setTodaysProductivity(null);
           return;
         }
         
         const user = JSON.parse(userData);
         const userId = user.id || 11;
         
-        const todayStr = new Date().toLocaleDateString('en-CA'); // Use local date to match database
+        console.log('📊 Querying Supabase productivity_logs for user:', userId);
         
-        console.log('📊 Fetching today\'s productivity from Supabase for user:', userId, 'date:', todayStr);
-        console.log('📊 Current date state:', currentDate);
-        console.log('📊 Date comparison - todayStr:', todayStr, 'currentDate:', currentDate);
-        
-        // Get today's productivity log from Supabase
-        console.log('🔍 Supabase query parameters:', {
-          user_id: userId,
-          period_type: 'daily',
-          period_start: todayStr,
-          period_end: todayStr
-        });
-        
-        // Add cache-busting parameter to ensure fresh data
-        const cacheBuster = Date.now();
-        console.log('🔍 Cache buster:', cacheBuster);
-        
-        // Force fresh data by adding a timestamp parameter
+        // Get today's productivity from Supabase
         const { data: productivityData, error: productivityError } = await supabase
           .from('productivity_logs')
           .select('*')
@@ -781,18 +783,17 @@ const Progress = () => {
           .eq('period_start', todayStr)
           .eq('period_end', todayStr)
           .single();
-          
-        console.log('🔍 Supabase query result:', { productivityData, productivityError });
         
-        if (productivityError && productivityError.code !== 'PGRST116') { // PGRST116 = no rows found
-          console.error('Error fetching today\'s productivity:', productivityError);
+        if (productivityError) {
+          console.error('Supabase error fetching productivity:', productivityError);
           setTodaysProductivity(null);
           return;
         }
         
+        console.log('📊 Supabase productivity data:', productivityData);
+        
         if (productivityData) {
-          console.log('Today\'s productivity data from Supabase:', productivityData);
-          console.log('🔄 Setting todaysProductivity state with fresh data:', {
+          console.log('🔄 Setting todaysProductivity state with Supabase data:', {
             status: productivityData.status,
             completion_rate: productivityData.completion_rate,
             total_tasks: productivityData.total_tasks,
@@ -809,7 +810,7 @@ const Progress = () => {
           setTodaysProductivity(null);
         }
       } catch (e) {
-        console.error('Error fetching today productivity:', e);
+        console.error('Error fetching today productivity from Supabase:', e);
         setTodaysProductivity(null);
       }
     };
@@ -835,6 +836,7 @@ const Progress = () => {
 
   // Manual refresh function for debugging
   const refreshProductivity = async () => {
+    console.log('🚀 [refreshProductivity] STARTING - Manual productivity refresh...');
     try {
       // Get current user ID
       const userData = localStorage.getItem('user');
@@ -846,43 +848,66 @@ const Progress = () => {
       const user = JSON.parse(userData);
       const userId = user.id || 11;
       
-      const todayStr = new Date().toLocaleDateString('en-CA'); // Use local date to match database
-      console.log('🔄 Manual refresh - Refreshing productivity for date:', todayStr);
-      console.log('🔄 Manual refresh - Current date state:', currentDate);
-      console.log('🔄 Manual refresh - Force clearing todaysProductivity state');
+      // Use local time (system timezone) like backend to ensure date consistency
+      const todayStr = new Date().toLocaleDateString('en-CA');
+      console.log('📅 [refreshProductivity] Refreshing productivity for date:', todayStr);
+      console.log('📅 [refreshProductivity] Current date state:', currentDate);
+      console.log('📅 [refreshProductivity] User ID:', userId);
       
-      // Force clear the state first
-      console.log('🔄 Manual refresh - Clearing todaysProductivity state');
-      setTodaysProductivity(null);
+      // Retry mechanism to wait for backend to process the task completion
+      let productivityData = null;
+      let retryCount = 0;
+      const maxRetries = 5;
       
-      // Force component refresh
-      setRefreshKey(prev => prev + 1);
-      
-      // Add a small delay to ensure state is cleared
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
-      // Get today's productivity log from Supabase with cache-busting
-      const cacheBuster = Date.now();
-      console.log('🔄 Manual refresh - Cache buster:', cacheBuster);
-      
-      const { data: productivityData, error: productivityError } = await supabase
-        .from('productivity_logs')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('period_type', 'daily')
-        .eq('period_start', todayStr)
-        .eq('period_end', todayStr)
-        .single();
-      
-      if (productivityError && productivityError.code !== 'PGRST116') { // PGRST116 = no rows found
-        console.error('Error refreshing productivity:', productivityError);
-        setTodaysProductivity(null);
-        return;
+      while (retryCount < maxRetries && !productivityData) {
+        console.log(`🔄 [refreshProductivity] ATTEMPT ${retryCount + 1}/${maxRetries} to fetch productivity data...`);
+        
+        // Add delay between retries
+        if (retryCount > 0) {
+          console.log(`⏳ [refreshProductivity] Waiting 1 second before retry...`);
+          await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second between retries
+        }
+        
+        const cacheBuster = Date.now();
+        console.log(`📊 [refreshProductivity] Cache buster: ${cacheBuster}`);
+        
+        console.log(`🔍 [refreshProductivity] Querying Supabase with params:`, {
+          user_id: userId,
+          period_type: 'daily',
+          period_start: todayStr,
+          period_end: todayStr
+        });
+        
+        // Use Supabase for consistent data
+        const { data, error: productivityError } = await supabase
+          .from('productivity_logs')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('period_type', 'daily')
+          .eq('period_start', todayStr)
+          .eq('period_end', todayStr)
+          .single();
+        
+        if (productivityError) {
+          console.error(`❌ [refreshProductivity] Supabase error: ${productivityError.message}`);
+          retryCount++;
+          continue;
+        }
+        
+        console.log(`📥 [refreshProductivity] ATTEMPT ${retryCount + 1} - Supabase result:`, { data, error: productivityError });
+        
+        if (data) {
+          productivityData = data;
+          console.log(`✅ [refreshProductivity] FOUND DATA on attempt ${retryCount + 1}:`, data);
+        } else {
+          console.log(`⏳ [refreshProductivity] No data found on attempt ${retryCount + 1}, retrying...`);
+          retryCount++;
+        }
       }
       
       if (productivityData) {
-        console.log('Refreshed productivity data from Supabase:', productivityData);
-        console.log('🔄 Manual refresh - Setting todaysProductivity state with fresh data:', {
+        console.log('✅ [refreshProductivity] SUCCESS - Found productivity data:', productivityData);
+        console.log('🔄 [refreshProductivity] Setting todaysProductivity state:', {
           status: productivityData.status,
           completion_rate: productivityData.completion_rate,
           total_tasks: productivityData.total_tasks,
@@ -895,8 +920,10 @@ const Progress = () => {
           completed_tasks: productivityData.completed_tasks
         });
       } else {
-        console.log('No productivity data found for today');
-        setTodaysProductivity(null);
+        console.log(`❌ [refreshProductivity] FAILED - No productivity data found after ${maxRetries} attempts`);
+        console.log('⚠️ [refreshProductivity] Keeping existing data to avoid showing 0%');
+        // Don't clear the existing data if we can't fetch new data
+        // setTodaysProductivity(null);
       }
       
       // Refresh streak data and recalculate current streak
@@ -1557,7 +1584,7 @@ const Progress = () => {
         <MainChart view={progressView} data={chartData} prodLogs={prodLogs} />
 
         {/* Achievements */}
-        <Achievements stats={stats} userLevel={userLevel} />
+        <Achievements stats={stats} userLevel={userLevel} longestStreak={calculateLongestStreak(streakData)} />
         </div>
       </div>
     </PageLayout>
@@ -1660,6 +1687,64 @@ function calculateCurrentStreakFromData(streakData: any[], todaysProductivity?: 
   
   console.log('🔥 Final current streak:', currentStreak);
   return currentStreak;
+}
+
+// Calculate longest streak from historical data
+function calculateLongestStreak(streakData: any[]) {
+  if (!streakData || streakData.length === 0) return 0;
+  
+  // Create a set of productive dates for quick lookup
+  const productiveDates = new Set();
+  streakData.forEach(day => {
+    if (day.streak) {
+      productiveDates.add(day.date);
+    }
+  });
+  
+  if (productiveDates.size === 0) return 0;
+  
+  // Find all consecutive streaks by checking every day
+  const streaks = [];
+  let currentStreak = [];
+  
+  // Get date range from streak data
+  const dates = Array.from(productiveDates).sort() as string[];
+  const startDate = new Date(dates[0]);
+  const endDate = new Date(dates[dates.length - 1]);
+  
+  // Check every day in the range
+  const currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
+    const dateStr = currentDate.toISOString().split('T')[0];
+    
+    if (productiveDates.has(dateStr)) {
+      currentStreak.push(dateStr);
+    } else {
+      if (currentStreak.length > 0) {
+        streaks.push(currentStreak);
+        currentStreak = [];
+      }
+    }
+    
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  
+  // Don't forget the last streak
+  if (currentStreak.length > 0) {
+    streaks.push(currentStreak);
+  }
+  
+  // Find the longest streak
+  const longestStreak = Math.max(...streaks.map(streak => streak.length), 0);
+  
+  console.log('🏆 Longest streak calculation:', {
+    totalProductiveDays: productiveDates.size,
+    consecutiveStreaks: streaks.length,
+    streakLengths: streaks.map(s => s.length),
+    longestStreak
+  });
+  
+  return longestStreak;
 }
 
 async function fetchUserStats() {
@@ -1823,17 +1908,19 @@ async function fetchStreakData() {
     
     console.log('🔄 Fetching streak data from Supabase for user:', userId);
     
-    // Get productivity logs from Supabase (last 30 days to focus on recent data with potential duplicates)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().split('T')[0];
+    // Get productivity logs from Supabase (last 365 days for complete streak calculation)
+    const oneYearAgo = new Date();
+    oneYearAgo.setDate(oneYearAgo.getDate() - 365);
+    const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+    
+    console.log('🔄 Date range: from', oneYearAgoStr, 'to today (365 days)');
     
     const { data: productivityLogs, error } = await supabase
       .from('productivity_logs')
       .select('period_start, completion_rate, total_tasks, completed_tasks, logged_at')
       .eq('user_id', userId)
       .eq('period_type', 'daily')
-      .gte('period_start', thirtyDaysAgoStr) // Get data for last 30 days
+      .gte('period_start', oneYearAgoStr) // Get data for last 365 days
       .order('period_start', { ascending: true });
     
     if (error) {
@@ -1862,7 +1949,7 @@ async function fetchStreakData() {
     
     const streakData = Array.from(dateMap.values());
     
-    console.log('✅ Raw streak data from Supabase:', rawStreakData.length, 'entries');
+    console.log('✅ Raw streak data from Supabase (365 days):', rawStreakData.length, 'entries');
     console.log('✅ Deduplicated streak data:', streakData.length, 'days');
     console.log('🔍 Streak days:', streakData.filter((d: any) => d.streak).length);
     

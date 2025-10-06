@@ -17,7 +17,7 @@ const WeeklyProgress: React.FC<WeeklyProgressProps> = ({ dailyProgress }) => {
     if (score >= 80) return { text: 'Highly Productive', color: 'text-green-600 dark:text-green-400' };
     if (score >= 60) return { text: 'Productive', color: 'text-blue-600 dark:text-blue-400' };
     if (score >= 40) return { text: 'Moderately Productive', color: 'text-yellow-600 dark:text-yellow-400' };
-    return { text: 'Low Productivity', color: 'text-red-600 dark:text-red-400' };
+    return { text: 'Low Productive', color: 'text-red-600 dark:text-red-400' };
   };
 
   return (
