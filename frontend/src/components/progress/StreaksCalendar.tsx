@@ -274,10 +274,17 @@ const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData, todaysPro
           // Format date as YYYY-MM-DD without timezone issues
           const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
           const dayData = streakData.find(d => d.date === dateStr);
-          const streak = dayData?.streak || false;
-          const productivity = dayData?.productivity;
           const isToday = date.toDateString() === today.toDateString();
           const isSelected = selectedDate?.toDateString() === date.toDateString();
+          
+          // Use todaysProductivity for today if available
+          let streak = dayData?.streak || false;
+          let productivity = dayData?.productivity;
+          
+          if (isToday && todaysProductivity) {
+            streak = todaysProductivity.total_tasks > 0 && todaysProductivity.completed_tasks > 0;
+            productivity = todaysProductivity.completion_rate;
+          }
           
           return (
             <div

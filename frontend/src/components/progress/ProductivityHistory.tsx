@@ -198,7 +198,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
   };
 
   const renderWeeklyView = () => {
-    console.log('renderWeeklyView called with:', {
+    console.log('🔍🔍🔍 renderWeeklyView called with:', {
       prodLogsLength: prodLogs.length,
       prodLogs: prodLogs
     });
@@ -206,11 +206,32 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     // Reverse the array to show most recent weeks first
     const reversedProdLogs = [...prodLogs].reverse();
     
+    // DEBUG: Check for duplicates in the array
+    console.log('🔍 DETAILED Weekly rendering debug:');
+    console.log('Raw prodLogs:', JSON.stringify(prodLogs, null, 2));
+    reversedProdLogs.forEach((item, idx) => {
+      console.log(`  Week ${idx}: ${item.week_start} to ${item.week_end} = ${item.log?.completion_rate}%`);
+    });
+    
+    // Remove duplicates based on week_start (in case aggregation created duplicates)
+    const seenWeeks = new Set();
+    const uniqueWeeks = reversedProdLogs.filter(item => {
+      if (seenWeeks.has(item.week_start)) {
+        console.warn('⚠️ Duplicate week found and removed:', item.week_start);
+        return false;
+      }
+      seenWeeks.add(item.week_start);
+      return true;
+    });
+    
+    console.log(`Filtered from ${reversedProdLogs.length} to ${uniqueWeeks.length} unique weeks`);
+    
     return (
     <>
-      {reversedProdLogs.map((item, idx) => {
-        const weekStart = item.week_start ? new Date(item.week_start) : null;
-        const weekEnd = item.week_end ? new Date(item.week_end) : null;
+      {uniqueWeeks.map((item, idx) => {
+        // Parse dates in local timezone to avoid timezone shifts
+        const weekStart = item.week_start ? new Date(item.week_start + 'T00:00:00') : null;
+        const weekEnd = item.week_end ? new Date(item.week_end + 'T00:00:00') : null;
         if (!weekStart || isNaN(weekStart.getTime()) || !weekEnd || isNaN(weekEnd.getTime())) {
           console.log('Invalid week dates for item:', item);
           return null;

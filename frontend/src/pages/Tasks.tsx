@@ -562,91 +562,33 @@ const TasksContent = ({ user }: { user: any }) => {
         return;
       }
       
-      // Get all active tasks for the user (not deleted)
-      const { data: allTasks, error: tasksError } = await supabase
+      // Get tasks for TODAY ONLY (by due_date)
+      const { data: todayTasks, error: tasksError } = await supabase
         .from('tasks')
         .select('id, title, completed, created_at, due_date, updated_at')
         .eq('user_id', userId)
-        .eq('is_deleted', false);
+        .eq('is_deleted', false)
+        .eq('due_date', today);  // CRITICAL: Only get tasks for today
       
       if (tasksError) {
         console.error('Error fetching tasks:', tasksError);
         return;
       }
       
-      // Use a realistic approach: only count tasks that were actually worked on today
-      // This gives a true picture of daily productivity
-      
-      // Get yesterday's date for late task detection
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toLocaleDateString('en-CA');
-      
-      // Count tasks that are relevant for today's productivity
-      const todayTasks = allTasks?.filter(task => {
-        const createdDate = new Date(task.created_at).toLocaleDateString('en-CA');
-        const updatedDate = task.updated_at ? new Date(task.updated_at).toLocaleDateString('en-CA') : null;
-        const dueDate = task.due_date;
-        const completed = task.completed;
-        
-        // Task is relevant for today's productivity if:
-        // 1. Created today (new work)
-        // 2. Updated today and not completed (work in progress)
-        // 3. Due today (regardless of completion status)
-        
-        const isRelevant = (createdDate === today) || 
-                          (updatedDate === today && !completed) || 
-                          (dueDate === today);
-        
-        return isRelevant;
-      }) || [];
-      
-      // Count completed tasks, but exclude late tasks (due yesterday but completed today)
-      const completedTasks = todayTasks.filter(task => {
-        const updatedDate = task.updated_at ? new Date(task.updated_at).toLocaleDateString('en-CA') : null;
-        const dueDate = task.due_date;
-        const completed = task.completed;
-        
-        // Task is completed on time if:
-        // 1. It's completed AND
-        // 2. It's not a late task (due yesterday but completed today)
-        const isLate = dueDate === yesterdayStr && completed && updatedDate === today;
-        
-        return completed && !isLate;
-      }).length;
-      
-      const totalTasks = todayTasks.length;
+      const totalTasks = (todayTasks || []).length;
+      const completedTasks = (todayTasks || []).filter(task => task.completed).length;
       const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
       
-      console.log('📊 Productivity calculation:', {
+      console.log('📊 Productivity calculation for TODAY:', {
         today,
-        yesterday: yesterdayStr,
         totalTasks,
         completedTasks,
         completionRate,
-        todayTasks: todayTasks.map(t => ({ 
+        todayTasks: todayTasks?.map(t => ({ 
           id: t.id, 
           title: t.title || 'No title',
           completed: t.completed, 
-          created_at: t.created_at, 
-          updated_at: t.updated_at,
           due_date: t.due_date
-        }))
-      });
-      
-      console.log('📊 Task details:', {
-        allTasksCount: allTasks?.length || 0,
-        todayTasksCount: todayTasks.length,
-        completedTasks,
-        today,
-        yesterday: yesterdayStr,
-        todayTaskDetails: todayTasks.map(task => ({
-          id: task.id,
-          title: task.title || 'No title',
-          completed: task.completed,
-          created_at: task.created_at,
-          due_date: task.due_date,
-          updated_at: task.updated_at
         }))
       });
       
@@ -656,7 +598,35 @@ const TasksContent = ({ user }: { user: any }) => {
       else if (completionRate >= 70) status = 'Productive';
       else if (completionRate >= 40) status = 'Moderately Productive';
       
+      console.log('📊 Productivity log decision:', {
+        existingLog: existingLog ? {
+          id: existingLog.id,
+          period_start: existingLog.period_start,
+          period_end: existingLog.period_end,
+          current_total: existingLog.total_tasks,
+          current_completed: existingLog.completed_tasks
+        } : null,
+        today,
+        newData: { totalTasks, completedTasks, completionRate, status }
+      });
+      
       if (existingLog) {
+        // SAFETY CHECK #1: Only update if the log is actually for today
+        if (existingLog.period_start !== today || existingLog.period_end !== today) {
+          console.warn('⚠️ SAFETY CHECK #1 BLOCKED - log date mismatch:', existingLog.period_start, 'vs', today);
+          console.warn('⚠️ This prevents overwriting historical data!');
+          return; // CRITICAL: Stop here, don't update
+        }
+        
+        // SAFETY CHECK #2: Never downgrade a log with data to 0/0
+        if (existingLog.total_tasks > 0 && totalTasks === 0) {
+          console.warn('⚠️ SAFETY CHECK #2 BLOCKED - refusing to overwrite', existingLog.total_tasks, 'tasks with 0');
+          console.warn('⚠️ Existing log:', existingLog);
+          console.warn('⚠️ New data would be: 0/0 - This is likely wrong!');
+          return; // CRITICAL: Stop here, don't downgrade
+        }
+        
+        console.log('✅ All safety checks passed - updating log for', today);
         // Update existing log
         const { error: updateError } = await supabase
           .from('productivity_logs')
@@ -672,10 +642,10 @@ const TasksContent = ({ user }: { user: any }) => {
         if (updateError) {
           console.error('Error updating productivity log:', updateError);
         } else {
-          console.log('✅ Productivity log updated successfully');
+          console.log('✅ Productivity log updated successfully for', today);
         }
       } else {
-        // Create new log
+        // Create new log only for today
         const { error: insertError } = await supabase
           .from('productivity_logs')
           .insert([{
@@ -693,7 +663,7 @@ const TasksContent = ({ user }: { user: any }) => {
         if (insertError) {
           console.error('Error creating productivity log:', insertError);
         } else {
-          console.log('✅ Productivity log created successfully');
+          console.log('✅ Productivity log created successfully for', today);
         }
       }
     } catch (err) {

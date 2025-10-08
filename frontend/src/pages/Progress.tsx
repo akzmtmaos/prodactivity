@@ -36,7 +36,19 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
   console.log('🔄 Weekly aggregation using today:', todayStr);
   
   dailyLogs.forEach(log => {
+    // Skip logs with missing period_start
+    if (!log.period_start) {
+      console.warn('⚠️ Skipping log with undefined period_start:', log);
+      return;
+    }
+    
     const date = new Date(log.period_start);
+    
+    // Skip invalid dates
+    if (isNaN(date.getTime())) {
+      console.warn('⚠️ Skipping log with invalid date:', log.period_start);
+      return;
+    }
     
     // Skip future dates (compare date strings to avoid timezone issues)
     const logDateStr = log.period_start;
@@ -51,10 +63,22 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     // Get the Monday of the week (week starts on Monday)
     // date.getDay() returns 0 for Sunday, 1 for Monday, etc.
     // To get Monday: if Sunday (0), go back 6 days; if Monday (1), stay; etc.
-    const daysSinceMonday = date.getDay() === 0 ? 6 : date.getDay() - 1;
+    const dayOfWeek = date.getDay(); // 0=Sun, 1=Mon, 2=Tue, ..., 6=Sat
+    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
     const monday = new Date(date);
     monday.setDate(date.getDate() - daysSinceMonday);
+    monday.setHours(0, 0, 0, 0); // Ensure midnight to avoid timezone issues
     const weekKey = monday.toISOString().split('T')[0];
+    
+    // Debug Oct 5-8 specifically
+    if (log.period_start >= '2025-10-05' && log.period_start <= '2025-10-08') {
+      console.log(`🔍 Debug ${log.period_start}:`, {
+        dateStr: log.period_start,
+        dayOfWeek,
+        daysSinceMonday,
+        calculatedMonday: weekKey
+      });
+    }
     
     // Skip future weeks (where Monday is in the future)
     const mondayStr = monday.toISOString().split('T')[0];
@@ -81,9 +105,14 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     }
     
     if (!weeklyData[weekKey]) {
+      // Calculate Sunday properly (avoid timezone issues)
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      const sundayStr = sunday.toISOString().split('T')[0];
+      
       weeklyData[weekKey] = {
         period_start: weekKey,
-        period_end: new Date(monday.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        period_end: sundayStr,
         period_type: 'weekly',
         user_id: log.user_id,
         total_tasks: 0,
@@ -199,9 +228,9 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
         console.log('Calculated average:', week.completion_rate);
       }
       
-      if (week.completion_rate >= 80) {
+      if (week.completion_rate >= 90) {
         week.status = 'Highly Productive';
-      } else if (week.completion_rate >= 60) {
+      } else if (week.completion_rate >= 70) {
         week.status = 'Productive';
       } else if (week.completion_rate >= 40) {
         week.status = 'Moderately Productive';
@@ -290,9 +319,14 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
       currentWeekMonday: currentWeekMonday.toISOString().split('T')[0],
       todayStr
     });
+    // Calculate Sunday properly
+    const currentWeekSunday = new Date(currentWeekMonday);
+    currentWeekSunday.setDate(currentWeekMonday.getDate() + 6);
+    const currentWeekSundayStr = currentWeekSunday.toISOString().split('T')[0];
+    
     weeklyData[currentWeekKey] = {
       period_start: currentWeekKey,
-      period_end: new Date(currentWeekMonday.getTime() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+      period_end: currentWeekSundayStr,
       period_type: 'weekly',
       user_id: dailyLogs.length > 0 ? dailyLogs[0].user_id : null,
       total_tasks: 0,
@@ -338,9 +372,9 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
       const totalDailyRate = completionRates.reduce((sum, rate) => sum + rate, 0);
       week.completion_rate = Math.round(totalDailyRate / completionRates.length);
       
-      if (week.completion_rate >= 80) {
+      if (week.completion_rate >= 90) {
         week.status = 'Highly Productive';
-      } else if (week.completion_rate >= 60) {
+      } else if (week.completion_rate >= 70) {
         week.status = 'Productive';
       } else if (week.completion_rate >= 40) {
         week.status = 'Moderately Productive';
@@ -445,9 +479,9 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
       const totalDailyRate = dailyLogsForMonth.reduce((sum, log) => sum + (log.completion_rate || 0), 0);
       month.completion_rate = Math.round(totalDailyRate / dailyLogsForMonth.length);
       
-      if (month.completion_rate >= 80) {
+      if (month.completion_rate >= 90) {
         month.status = 'Highly Productive';
-      } else if (month.completion_rate >= 60) {
+      } else if (month.completion_rate >= 70) {
         month.status = 'Productive';
       } else if (month.completion_rate >= 40) {
         month.status = 'Moderately Productive';
@@ -787,8 +821,8 @@ const Progress = () => {
               const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
               
               let status = 'Low Productive';
-              if (completionRate >= 80) status = 'Highly Productive';
-              else if (completionRate >= 60) status = 'Productive';
+              if (completionRate >= 90) status = 'Highly Productive';
+              else if (completionRate >= 70) status = 'Productive';
               else if (completionRate >= 40) status = 'Moderately Productive';
               
               console.log('🛰️ Realtime productivity update:', { totalTasks, completedTasks, completionRate, status });
@@ -865,8 +899,8 @@ const Progress = () => {
         const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
         
         let status = 'Low Productive';
-        if (completionRate >= 80) status = 'Highly Productive';
-        else if (completionRate >= 60) status = 'Productive';
+        if (completionRate >= 90) status = 'Highly Productive';
+        else if (completionRate >= 70) status = 'Productive';
         else if (completionRate >= 40) status = 'Moderately Productive';
         
         console.log('📊 Computed productivity from tasks:', { totalTasks, completedTasks, completionRate, status });
@@ -977,8 +1011,8 @@ const Progress = () => {
           const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
           
           let status = 'Low Productive';
-          if (completionRate >= 80) status = 'Highly Productive';
-          else if (completionRate >= 60) status = 'Productive';
+          if (completionRate >= 90) status = 'Highly Productive';
+          else if (completionRate >= 70) status = 'Productive';
           else if (completionRate >= 40) status = 'Moderately Productive';
           
           productivityData = {
@@ -1065,57 +1099,11 @@ const Progress = () => {
 
   // Fetch productivity status when progressView changes
   useEffect(() => {
-    const fetchProductivity = async () => {
-      try {
-        const headers = getAuthHeaders();
-        let url: string | undefined;
-        if (progressView === 'Daily') {
-          const todayStr = format(selectedDate, 'yyyy-MM-dd'); // Use local date formatting
-          url = `${API_BASE_URL}/progress/productivity/?view=daily&date=${todayStr}`;
-        } else if (progressView === 'Weekly') {
-          const monday = new Date(selectedDate);
-          monday.setDate(monday.getDate() - monday.getDay() + 1);
-          const weekStr = format(monday, 'yyyy-MM-dd'); // Use local date formatting
-          url = `${API_BASE_URL}/progress/productivity/?view=weekly&date=${weekStr}`;
-        } else if (progressView === 'Monthly') {
-          const firstOfMonth = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), 1);
-          const monthStr = format(firstOfMonth, 'yyyy-MM-dd'); // Use local date formatting
-          url = `${API_BASE_URL}/progress/productivity/?view=monthly&date=${monthStr}`;
-        } else {
-          throw new Error('Invalid progressView');
-        }
-        const res = await fetch(url, {
-          ...(headers && { headers })
-        });
-        if (res.status === 401) {
-          handle401();
-          return;
-        }
-        if (!res.ok) throw new Error('Failed to fetch productivity');
-        setProductivity(await res.json());
-        // Fetch yesterday (only for daily view)
-        if (progressView === 'Daily') {
-          const yesterday = new Date(selectedDate);
-          yesterday.setDate(yesterday.getDate() - 1);
-          const yDate = format(yesterday, 'yyyy-MM-dd'); // Use local date formatting
-          const yRes = await fetch(`${API_BASE_URL}/progress/productivity/?view=daily&date=${yDate}`, {
-            ...(headers && { headers })
-          });
-          if (yRes.status === 401) {
-            handle401();
-            return;
-          }
-          if (!yRes.ok) throw new Error('Failed to fetch yesterday productivity');
-          setYesterdayProductivity(await yRes.json());
-        } else {
-          setYesterdayProductivity(null);
-        }
-      } catch (e) {
-        setProductivity(null);
-        setYesterdayProductivity(null);
-      }
-    };
-    fetchProductivity();
+    // DISABLED: Django backend API calls are corrupting data
+    // Now using Supabase only (fetchProdLogs handles all data)
+    console.log('⚠️ Django backend API disabled - using Supabase only');
+    setProductivity(null);
+    setYesterdayProductivity(null);
   }, [progressView, selectedDate]);
 
   // Fetch productivity logs for the selected period from Supabase
@@ -1275,8 +1263,8 @@ const Progress = () => {
               const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
               
               let status = 'Low Productive';
-              if (completionRate >= 80) status = 'Highly Productive';
-              else if (completionRate >= 60) status = 'Productive';
+              if (completionRate >= 90) status = 'Highly Productive';
+              else if (completionRate >= 70) status = 'Productive';
               else if (completionRate >= 40) status = 'Moderately Productive';
               
               const todayLogFromTasks = {
@@ -1437,8 +1425,8 @@ const Progress = () => {
                 const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
                 
                 let status = 'Low Productive';
-                if (completionRate >= 80) status = 'Highly Productive';
-                else if (completionRate >= 60) status = 'Productive';
+                if (completionRate >= 90) status = 'Highly Productive';
+                else if (completionRate >= 70) status = 'Productive';
                 else if (completionRate >= 40) status = 'Moderately Productive';
                 
                 const todayLogFromTasks = {
@@ -1534,6 +1522,24 @@ const Progress = () => {
           // Debug Sep 23 in transformed data
           const sep23Transformed = transformedData.find(item => item.date === '2025-09-23');
           console.log('📊 Sep 23 in transformed data:', sep23Transformed);
+          
+          // Debug weekly duplicates
+          if (progressView === 'Weekly') {
+            console.log('🔍 WEEKLY DATA DEBUG:');
+            console.log('Total weeks:', transformedData.length);
+            transformedData.forEach((week, idx) => {
+              console.log(`  Week ${idx + 1}: ${week.week_start} to ${week.week_end} = ${week.log.completion_rate}%`);
+            });
+            
+            // Check for duplicates
+            const weekKeys = transformedData.map(w => w.week_start);
+            const uniqueKeys = new Set(weekKeys);
+            if (weekKeys.length !== uniqueKeys.size) {
+              console.error('❌ DUPLICATE WEEKS FOUND!');
+              const duplicates = weekKeys.filter((key, idx) => weekKeys.indexOf(key) !== idx);
+              console.error('Duplicate week_start dates:', duplicates);
+            }
+          }
         }
         setProdLogs(transformedData);
       } catch (e) {
