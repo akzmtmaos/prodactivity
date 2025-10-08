@@ -4,6 +4,7 @@ from .views import login_view
 from .views import update_avatar
 from .views import password_reset_request, password_reset_confirm, change_password
 from .views import verify_email, resend_verification
+from .views import me
 
 urlpatterns = [
     path('register/', register, name='register'),
@@ -14,4 +15,5 @@ urlpatterns = [
     path('change-password/', change_password, name='change_password'),
     path('verify-email/', verify_email, name='verify_email'),
     path('resend-verification/', resend_verification, name='resend_verification'),
+    path('me/', me, name='me'),
 ]

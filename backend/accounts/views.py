@@ -168,6 +168,7 @@ def login_view(request):
                 'email': user.email,
                 'avatar': avatar_url,
                 'email_verified': user.profile.email_verified,
+                'date_joined': user.date_joined,
             },
         })
     else:
@@ -194,6 +195,24 @@ def update_avatar(request):
             'avatar': avatar_url
         })
     return Response({'message': 'No avatar file provided'}, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def me(request):
+    user = request.user
+    avatar_url = None
+    if hasattr(user, 'profile') and user.profile.avatar:
+        request_scheme = request.scheme
+        request_host = request.get_host()
+        avatar_url = f"{request_scheme}://{request_host}{user.profile.avatar.url}"
+    return Response({
+        'id': user.id,
+        'username': user.username,
+        'email': user.email,
+        'avatar': avatar_url,
+        'email_verified': getattr(user.profile, 'email_verified', False),
+        'date_joined': user.date_joined,
+    })
 
 # Email verification endpoint
 @api_view(['POST'])

@@ -86,6 +86,43 @@ def analyze_content_type(content):
     else:
         return 'general', 0
 
+def get_default_quiz_prompt(content: str, question_count: int = 10) -> str:
+    """Fallback quiz prompt when DB config is missing."""
+    return f"""Generate {question_count} multiple-choice questions strictly in this format. Do not include any extra commentary, headings or Markdown, only the questions block:
+
+Q1. [Question text]
+A) [Option A]
+B) [Option B]
+C) [Option C]
+D) [Option D]
+Correct Answer: [A/B/C/D]
+
+Repeat for all questions from Q1 to Q{question_count}. Make each distractor plausible and only one correct option. Base questions ONLY on the content below.
+
+Content:
+{content}
+"""
+
+def get_default_quiz_repair_prompt(content: str, question_count: int = 10) -> str:
+    """Fallback repair prompt to coerce free-form text into strict quiz format."""
+    return f"""You are given content that should contain quiz questions but may be unstructured. Convert it into EXACTLY {question_count} multiple-choice questions with this strict format and nothing else:
+
+Q1. [Question text]
+A) [Option A]
+B) [Option B]
+C) [Option C]
+D) [Option D]
+Correct Answer: [A/B/C/D]
+
+Rules:
+- Output ONLY the questions block, no explanations, no extra headings.
+- Ensure exactly one correct answer per question.
+- Use only information present in the source content.
+
+Source content to repair:
+{content}
+"""
+
 def get_adaptive_prompt(content_type, content, note_type=None):
     """Get adaptive prompt based on content analysis"""
     
@@ -391,11 +428,9 @@ class AIAutomaticReviewerView(APIView):
                 try:
                     prompt = get_ai_config('quiz_prompt', content=text, question_count=question_count)
                 except ValueError as e:
-                    logger.error(f"Failed to get AI configuration: {e}")
-                    return Response(
-                        {'error': 'AI configuration not found. Please contact administrator.'}, 
-                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                    )
+                    logger.error(f"Failed to get AI configuration: {e}. Falling back to default quiz prompt.")
+                    # Fallback to built-in default prompt
+                    prompt = get_default_quiz_prompt(text, question_count)
             else:
                 # Use adaptive prompt based on content analysis
                 prompt = get_adaptive_prompt(content_type, text, note_type)
@@ -455,11 +490,58 @@ class AIAutomaticReviewerView(APIView):
                     if not is_valid:
                         logger.error(f"Quiz content validation failed: {validation_message}")
                         logger.error(f"Raw content that failed validation: {reviewer_content[:500]}...")
-                        return Response(
-                            {"error": f"AI generated invalid content: {validation_message}. Please try again with different content."},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
-                    logger.info("Quiz content validation passed")
+
+                        # Attempt a strict reformatting pass to coerce quiz structure using Admin-managed config
+                        try:
+                            repair_prompt = get_ai_config('quiz_repair_prompt', question_count=question_count, content=reviewer_content)
+                        except ValueError as e:
+                            logger.error(f"Failed to get quiz_repair_prompt configuration: {e}. Using default repair prompt.")
+                            # Fallback to built-in repair prompt
+                            repair_prompt = get_default_quiz_repair_prompt(reviewer_content, question_count)
+
+                        repair_payload = {
+                            "model": OLLAMA_MODEL,
+                            "prompt": repair_prompt,
+                            "stream": False,
+                            "options": {
+                                "temperature": 0.2,
+                                "top_p": 0.7,
+                                "top_k": 40,
+                                "num_predict": 3000,
+                                "repeat_penalty": 1.1
+                            }
+                        }
+
+                        try:
+                            repair_response = requests.post(OLLAMA_API_URL, json=repair_payload, timeout=300)
+                            if repair_response.status_code == 200:
+                                repair_result = repair_response.json()
+                                repaired_raw = repair_result.get('response', '').strip()
+                                repaired = clean_ai_response(repaired_raw)
+                                is_valid, validation_message = validate_quiz_content(repaired)
+                                if is_valid:
+                                    reviewer_content = repaired
+                                    logger.info("Quiz content validation passed after repair")
+                                else:
+                                    logger.error(f"Quiz content still invalid after repair: {validation_message}")
+                                    return Response(
+                                        {"error": f"AI generated invalid content: {validation_message}. Please try again with different content."},
+                                        status=status.HTTP_400_BAD_REQUEST
+                                    )
+                            else:
+                                logger.error(f"Ollama repair API error: {repair_response.status_code} - {repair_response.text}")
+                                return Response(
+                                    {"error": "Failed to generate valid quiz content. Please try again."},
+                                    status=status.HTTP_400_BAD_REQUEST
+                                )
+                        except Exception as e:
+                            logger.error(f"Repair attempt failed: {e}")
+                            return Response(
+                                {"error": "Failed to generate valid quiz content. Please try again."},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                    else:
+                        logger.info("Quiz content validation passed")
 
                 # Save the reviewer
                 reviewer_data = {
