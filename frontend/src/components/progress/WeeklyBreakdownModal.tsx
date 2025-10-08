@@ -125,6 +125,13 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
     return total / dailyData.length;
   };
 
+  const getWeeklyStatus = () => {
+    if (weekPercentage >= 90) return 'Highly Productive';
+    if (weekPercentage >= 70) return 'Productive';
+    if (weekPercentage >= 40) return 'Moderately Productive';
+    return 'Low Productive';
+  };
+
   if (!isOpen) return null;
 
   return createPortal(
@@ -173,11 +180,22 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
             <>
               {/* Summary */}
               <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="text-center">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Weekly Average</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {weekPercentage.toFixed(2)}%
-                  </p>
+                <div className="flex items-center justify-between gap-6">
+                  {/* Left: Weekly Average */}
+                  <div className="flex-1 text-center">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Weekly Average</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {weekPercentage.toFixed(2)}%
+                    </p>
+                  </div>
+                  
+                  {/* Right: Productivity Scale */}
+                  <div className="flex-1 text-center">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Productivity Scale</p>
+                    <span className={`inline-block text-lg font-bold px-4 py-1.5 rounded-full ${getProductivityColor(getWeeklyStatus())}`}>
+                      {getWeeklyStatus()}
+                    </span>
+                  </div>
                 </div>
               </div>
 

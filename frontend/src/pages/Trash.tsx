@@ -39,6 +39,8 @@ const Trash = () => {
   const [restoreTarget, setRestoreTarget] = useState<{ id: string; type: 'note' | 'deck' | 'reviewer'; title: string } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'note' | 'deck' | 'reviewer'; title: string } | null>(null);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [showDeleteSelectedModal, setShowDeleteSelectedModal] = useState(false);
 
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
@@ -144,6 +146,7 @@ const Trash = () => {
 
   useEffect(() => {
     setCurrentPage(1);
+    setSelectedItems(new Set()); // Clear selection when tab changes
   }, [activeTab, notes, decks, reviewers]);
 
   const handleTabClick = (tab: TabType) => {
@@ -239,6 +242,50 @@ const Trash = () => {
     fetchTrash();
   };
 
+  const handleToggleSelection = (id: string) => {
+    const newSelection = new Set(selectedItems);
+    if (newSelection.has(id)) {
+      newSelection.delete(id);
+    } else {
+      newSelection.add(id);
+    }
+    setSelectedItems(newSelection);
+  };
+
+  const handleSelectAll = () => {
+    if (selectedItems.size === paginatedItems.length) {
+      setSelectedItems(new Set());
+    } else {
+      setSelectedItems(new Set(paginatedItems.map(item => item.id)));
+    }
+  };
+
+  const handleDeleteSelected = async () => {
+    setShowDeleteSelectedModal(false);
+    const token = localStorage.getItem('accessToken');
+    const itemsToDelete = filteredItems.filter(item => selectedItems.has(item.id));
+    
+    for (const item of itemsToDelete) {
+      let url = '';
+      if (item.type === 'note') url = `${API_URL}/notes/${item.id}/`;
+      if (item.type === 'deck') url = `${API_URL}/decks/decks/${item.id}/`;
+      if (item.type === 'reviewer') url = `${API_URL}/reviewers/${item.id}/`;
+      try {
+        await fetch(url, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+        });
+      } catch (error) {
+        // Continue deleting others even if one fails
+      }
+    }
+    setToast({ message: `${selectedItems.size} item(s) permanently deleted.`, type: 'success' });
+    setSelectedItems(new Set());
+    fetchTrash();
+  };
+
   let filteredItems: TrashItem[] = [];
   if (activeTab === 'all') {
     filteredItems = [...notes, ...decks, ...reviewers]
@@ -312,6 +359,15 @@ const Trash = () => {
                 </div>
               </div>
             </div>
+            {selectedItems.size > 0 && (
+              <button
+                className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center"
+                onClick={() => setShowDeleteSelectedModal(true)}
+              >
+                <Trash2 className="mr-2" size={18} />
+                Delete Selected ({selectedItems.size})
+              </button>
+            )}
             <button
               className={`bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center ${filteredItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={() => filteredItems.length > 0 && setShowDeleteAllModal(true)}
@@ -372,6 +428,9 @@ const Trash = () => {
               items={paginatedItems}
               onRestore={(id, type) => handleRestore(id, type)}
               onDelete={(id, type) => handleDelete(id, type)}
+              selectedItems={selectedItems}
+              onToggleSelection={handleToggleSelection}
+              onSelectAll={handleSelectAll}
             />
             <Pagination
               currentPage={currentPage}
@@ -407,6 +466,16 @@ const Trash = () => {
           title="Delete Item?"
           message={`Are you sure you want to permanently delete "${deleteTarget?.title || ''}"? This action cannot be undone.`}
           confirmLabel="Delete"
+          cancelLabel="Cancel"
+        />
+        {/* Delete Selected Confirmation Modal */}
+        <DeleteConfirmationModal
+          isOpen={showDeleteSelectedModal}
+          onClose={() => setShowDeleteSelectedModal(false)}
+          onConfirm={handleDeleteSelected}
+          title="Delete Selected Items?"
+          message={`Are you sure you want to permanently delete ${selectedItems.size} selected item(s)? This action cannot be undone.`}
+          confirmLabel="Delete Selected"
           cancelLabel="Cancel"
         />
       </div>
