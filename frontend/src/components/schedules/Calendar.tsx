@@ -51,6 +51,14 @@ const Calendar: React.FC<CalendarProps> = ({
       a.startTime.localeCompare(b.startTime)
     );
   };
+  
+  const isEventPast = (event: ScheduleEvent) => {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const eventDate = new Date(event.date);
+    eventDate.setHours(0, 0, 0, 0);
+    return eventDate < now;
+  };
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
@@ -98,32 +106,44 @@ const Calendar: React.FC<CalendarProps> = ({
         {weekDays.map((day, dayIndex) => (
           <div key={dayIndex} className="border-r border-b border-gray-200 dark:border-gray-700 p-2 h-full overflow-y-auto">
             {getEventsForDate(day.date).length > 0 ? (
-              getEventsForDate(day.date).map((event, eventIndex) => (
-                <div
-                  key={eventIndex}
-                  className={`mb-2 p-2 rounded ${getCategoryColor(event.category)} relative`}
-                >
-                  <div className="flex justify-between items-start">
-                    <h3 className="font-medium text-sm">{event.title}</h3>
-                    <button
-                      onClick={() => onDeleteEvent(event.id)}
-                      className="text-xs hover:text-red-600 dark:hover:text-red-400"
-                    >
-                      ×
-                    </button>
-                  </div>
-                  <div className="text-xs mt-1">
-                    {event.startTime} - {event.endTime}
-                  </div>
-                  {event.description && (
-                    <div className="text-xs mt-1 text-gray-600 dark:text-gray-300">
-                      {event.description.length > 40
-                        ? `${event.description.substring(0, 40)}...`
-                        : event.description}
+              getEventsForDate(day.date).map((event, eventIndex) => {
+                const isPast = isEventPast(event);
+                return (
+                  <div
+                    key={eventIndex}
+                    className={`mb-2 p-2 rounded ${getCategoryColor(event.category)} relative ${
+                      isPast ? 'opacity-60' : ''
+                    }`}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-1">
+                        <h3 className="font-medium text-sm">{event.title}</h3>
+                        {isPast && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400" title="Past event">
+                            📅
+                          </span>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => onDeleteEvent(event.id)}
+                        className="text-xs hover:text-red-600 dark:hover:text-red-400"
+                      >
+                        ×
+                      </button>
                     </div>
-                  )}
-                </div>
-              ))
+                    <div className="text-xs mt-1">
+                      {event.startTime} - {event.endTime}
+                    </div>
+                    {event.description && (
+                      <div className="text-xs mt-1 text-gray-600 dark:text-gray-300">
+                        {event.description.length > 40
+                          ? `${event.description.substring(0, 40)}...`
+                          : event.description}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
             ) : (
               <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
                 No events

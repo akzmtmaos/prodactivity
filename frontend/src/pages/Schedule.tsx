@@ -50,7 +50,15 @@ const Schedule = () => {
     
     // Load all data from localStorage
     loadAllData();
+    
+    // Check for past events every time the component mounts
+    checkAndMovePastEvents();
   }, []);
+  
+  // Also check for past events when events change
+  useEffect(() => {
+    checkAndMovePastEvents();
+  }, [events]);
 
   const loadAllData = () => {
     try {
@@ -235,6 +243,25 @@ const Schedule = () => {
     // For now, just log the event. You could open a modal with more details
     console.log('Viewing past event:', event);
   };
+  
+  const handleMarkPastEventCompleted = (eventId: string, completed: boolean) => {
+    try {
+      const updatedPastEvents = pastEvents.map(event =>
+        event.id === eventId
+          ? {
+              ...event,
+              completedAt: completed ? new Date() : undefined,
+              notes: completed ? 'Marked as completed' : 'Marked as not completed'
+            }
+          : event
+      );
+      setPastEvents(updatedPastEvents);
+      saveAllData(undefined, undefined, updatedPastEvents);
+    } catch (e) {
+      console.error('Error updating past event completion status:', e);
+      setError('Failed to update event status. Please try again.');
+    }
+  };
 
   const moveEventToPast = (event: ScheduleEvent, completed: boolean = true) => {
     try {
@@ -254,6 +281,47 @@ const Schedule = () => {
     } catch (e) {
       console.error('Error moving event to past:', e);
       setError('Failed to update event status. Please try again.');
+    }
+  };
+  
+  const checkAndMovePastEvents = () => {
+    try {
+      const now = new Date();
+      now.setHours(0, 0, 0, 0); // Set to start of today
+      
+      // Find events that are in the past (before today)
+      const pastEventsList = events.filter(event => {
+        const eventDate = new Date(event.date);
+        eventDate.setHours(0, 0, 0, 0);
+        return eventDate < now;
+      });
+      
+      if (pastEventsList.length > 0) {
+        // Check if these events are already in pastEvents to avoid duplicates
+        const existingPastEventIds = new Set(pastEvents.map(pe => pe.id));
+        const newPastEvents = pastEventsList.filter(e => !existingPastEventIds.has(e.id));
+        
+        if (newPastEvents.length > 0) {
+          console.log(`📅 Moving ${newPastEvents.length} past events to Past Events list`);
+          
+          // Move all past events to pastEvents array
+          const convertedPastEvents: PastEvent[] = newPastEvents.map(event => ({
+            ...event,
+            completedAt: undefined, // Not automatically marked as completed
+            notes: 'Automatically moved to past events',
+            wasRecurring: false,
+          }));
+          
+          const updatedPastEvents = [...pastEvents, ...convertedPastEvents];
+          const updatedEvents = events.filter(e => !newPastEvents.some(pe => pe.id === e.id));
+          
+          setPastEvents(updatedPastEvents);
+          setEvents(updatedEvents);
+          saveAllData(updatedEvents, undefined, updatedPastEvents);
+        }
+      }
+    } catch (e) {
+      console.error('Error checking and moving past events:', e);
     }
   };
 
@@ -401,6 +469,7 @@ const Schedule = () => {
                 <PastEvents
                   pastEvents={pastEvents}
                   onViewEvent={handleViewPastEvent}
+                  onMarkCompleted={handleMarkPastEventCompleted}
                 />
               )}
             </div>

@@ -6,9 +6,10 @@ import { Calendar, Clock, CheckCircle, Circle, FileText, Repeat } from 'lucide-r
 interface PastEventsProps {
   pastEvents: PastEvent[];
   onViewEvent: (event: PastEvent) => void;
+  onMarkCompleted?: (eventId: string, completed: boolean) => void;
 }
 
-const PastEvents: React.FC<PastEventsProps> = ({ pastEvents, onViewEvent }) => {
+const PastEvents: React.FC<PastEventsProps> = ({ pastEvents, onViewEvent, onMarkCompleted }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const getCategoryColor = (category: string) => {
@@ -115,6 +116,19 @@ const PastEvents: React.FC<PastEventsProps> = ({ pastEvents, onViewEvent }) => {
                 </div>
 
                 <div className="flex items-center space-x-2 ml-4">
+                  {onMarkCompleted && (
+                    <button
+                      onClick={() => onMarkCompleted(event.id, !event.completedAt)}
+                      className={`px-3 py-1 text-sm rounded-md transition-colors ${
+                        event.completedAt
+                          ? 'text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400'
+                          : 'text-green-600 hover:bg-green-100 dark:hover:bg-green-900 dark:text-green-400'
+                      }`}
+                      title={event.completedAt ? 'Mark as not completed' : 'Mark as completed'}
+                    >
+                      {event.completedAt ? 'Undo' : 'Complete'}
+                    </button>
+                  )}
                   <button
                     onClick={() => onViewEvent(event)}
                     className="px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-md transition-colors"
