@@ -44,26 +44,40 @@ const TaskActivityModal: React.FC<TaskActivityModalProps> = ({
       // Upload file to Supabase Storage if provided
       if (evidenceFile) {
         console.log('📁 Uploading evidence file to Supabase Storage:', evidenceFile.name);
+        console.log('📁 File type:', evidenceFile.type);
+        console.log('📁 File size:', evidenceFile.size, 'bytes');
         
         // Get current user ID
         const userData = localStorage.getItem('user');
         const user = userData ? JSON.parse(userData) : null;
         const userId = user?.id || 11;
         
-        // Create a unique filename
+        // Create a unique filename with sanitized original name
         const fileExt = evidenceFile.name.split('.').pop();
-        const fileName = `evidence_${taskId}_${Date.now()}.${fileExt}`;
-        const filePath = `task_evidence/${userId}/${fileName}`;
+        const sanitizedName = evidenceFile.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileName = `${userId}_task${taskId}_${Date.now()}_${sanitizedName}`;
+        const filePath = `${fileName}`;
+        
+        console.log('📁 Uploading to path:', filePath);
+        console.log('📁 Bucket: task_evidence');
         
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('task_evidence')
-          .upload(filePath, evidenceFile);
+          .upload(filePath, evidenceFile, {
+            cacheControl: '3600',
+            upsert: false
+          });
         
         if (uploadError) {
-          console.error('Supabase storage error:', uploadError);
-          setError(`Failed to upload file: ${uploadError.message}`);
+          console.error('❌ Supabase storage error:', uploadError);
+          console.error('❌ Error code:', uploadError.message);
+          console.error('❌ Error details:', uploadError);
+          setError(`Failed to upload file: ${uploadError.message}. Please check if the storage bucket exists and is configured correctly.`);
+          setLoading(false);
           return;
         }
+        
+        console.log('✅ Upload response:', uploadData);
         
         // Get the public URL
         const { data: urlData } = supabase.storage

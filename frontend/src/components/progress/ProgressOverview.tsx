@@ -1,6 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import LevelProgressRing from './LevelProgressRing';
 import StreaksCalendar from './StreaksCalendar';
+import PendingTasksModal from './PendingTasksModal';
+import { List } from 'lucide-react';
 
 interface ProgressOverviewProps {
   userLevel: {
@@ -19,6 +21,8 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
   streakData,
   refreshProductivity
 }) => {
+  const [showPendingTasksModal, setShowPendingTasksModal] = useState(false);
+  
   // Debug: Log the props received
   console.log('🔍 ProgressOverview received props:', {
     userLevel,
@@ -68,6 +72,14 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
             <div className="flex items-center gap-2">
               <span className="text-xs text-gray-500 dark:text-gray-400">{new Date().toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' })}</span>
               <button 
+                onClick={() => setShowPendingTasksModal(true)}
+                className="text-xs bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 flex items-center gap-1"
+                title="View pending tasks"
+              >
+                <List size={12} />
+                Pending
+              </button>
+              <button 
                 onClick={refreshProductivity}
                 className="text-xs bg-indigo-600 text-white px-2 py-1 rounded hover:bg-indigo-700"
                 title="Refresh productivity data"
@@ -108,6 +120,12 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
           <StreaksCalendar streakData={streakData} todaysProductivity={todaysProductivity} />
         </div>
       </div>
+      
+      {/* Pending Tasks Modal */}
+      <PendingTasksModal
+        isOpen={showPendingTasksModal}
+        onClose={() => setShowPendingTasksModal(false)}
+      />
     </div>
   );
 };

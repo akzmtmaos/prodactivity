@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import ProductivityRow from './ProductivityRow';
 import WeeklyBreakdownModal from './WeeklyBreakdownModal';
 import MonthlyBreakdownModal from './MonthlyBreakdownModal';
+import DailyBreakdownModal from './DailyBreakdownModal';
 import ProductivityLegend from './ProductivityLegend';
 
 interface ProductivityHistoryProps {
@@ -31,6 +32,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
 }) => {
   const [weeklyModalOpen, setWeeklyModalOpen] = useState(false);
   const [monthlyModalOpen, setMonthlyModalOpen] = useState(false);
+  const [dailyModalOpen, setDailyModalOpen] = useState(false);
   const [selectedWeek, setSelectedWeek] = useState<{
     weekStart: string;
     weekEnd: string;
@@ -39,6 +41,10 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
   const [selectedMonth, setSelectedMonth] = useState<{
     month: number;
     year: number;
+    percentage: number;
+  } | null>(null);
+  const [selectedDay, setSelectedDay] = useState<{
+    date: string;
     percentage: number;
   } | null>(null);
 
@@ -52,6 +58,11 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     setMonthlyModalOpen(true);
   };
 
+  const handleDayClick = (date: string, percentage: number) => {
+    setSelectedDay({ date, percentage });
+    setDailyModalOpen(true);
+  };
+
   const closeWeeklyModal = () => {
     setWeeklyModalOpen(false);
     setSelectedWeek(null);
@@ -60,6 +71,11 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
   const closeMonthlyModal = () => {
     setMonthlyModalOpen(false);
     setSelectedMonth(null);
+  };
+
+  const closeDailyModal = () => {
+    setDailyModalOpen(false);
+    setSelectedDay(null);
   };
   const renderDailyView = () => {
     // Find the productivity data for the selected date
@@ -90,6 +106,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           status={selectedDateData.log.status}
           isToday={isSelectedDateToday}
           getProductivityColor={getProductivityColor}
+          onClick={() => handleDayClick(selectedDateData.date, selectedDateData.log.completion_rate)}
         />
       )}
       
@@ -157,6 +174,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
               completionRate={item.log.completion_rate}
               status={item.log.status}
               getProductivityColor={getProductivityColor}
+              onClick={() => handleDayClick(item.date, item.log.completion_rate)}
             />
           );
         })}
@@ -456,6 +474,17 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           month={selectedMonth.month}
           year={selectedMonth.year}
           monthPercentage={selectedMonth.percentage}
+          getProductivityColor={getProductivityColor}
+        />
+      )}
+
+      {/* Daily Breakdown Modal */}
+      {selectedDay && (
+        <DailyBreakdownModal
+          isOpen={dailyModalOpen}
+          onClose={closeDailyModal}
+          date={selectedDay.date}
+          dailyPercentage={selectedDay.percentage}
           getProductivityColor={getProductivityColor}
         />
       )}

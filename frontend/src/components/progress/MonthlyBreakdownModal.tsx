@@ -130,6 +130,13 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   };
 
+  const getMonthlyStatus = () => {
+    if (monthPercentage >= 90) return 'Highly Productive';
+    if (monthPercentage >= 70) return 'Productive';
+    if (monthPercentage >= 40) return 'Moderately Productive';
+    return 'Low Productive';
+  };
+
   if (!isOpen) return null;
 
   return createPortal(
@@ -178,11 +185,22 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
             <>
               {/* Summary */}
               <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="text-center">
-                  <p className="text-sm text-gray-600 dark:text-gray-400">Monthly Average</p>
-                  <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                    {calculateAverage().toFixed(2)}%
-                  </p>
+                <div className="flex items-center justify-between gap-6">
+                  {/* Left: Monthly Average */}
+                  <div className="flex-1 text-center">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Monthly Average</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      {monthPercentage.toFixed(2)}%
+                    </p>
+                  </div>
+                  
+                  {/* Right: Productivity Scale */}
+                  <div className="flex-1 text-center">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Productivity Scale</p>
+                    <span className={`inline-block text-lg font-bold px-4 py-1.5 rounded-full ${getProductivityColor(getMonthlyStatus())}`}>
+                      {getMonthlyStatus()}
+                    </span>
+                  </div>
                 </div>
               </div>
 

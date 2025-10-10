@@ -803,21 +803,33 @@ const Progress = () => {
           const row = payload.new || payload.old;
           if (!row) return;
           
-          // Only care about tasks for today
-          if (row.due_date === todayStr) {
-            console.log('🛰️ Realtime task update for today:', payload.eventType, row.id);
+          // NEW: Care about tasks completed today OR due today (not just due today)
+          const affectsToday = (row.due_date === todayStr) || 
+                              (row.completed && row.completed_at && row.completed_at.startsWith(todayStr));
+          
+          if (affectsToday) {
+            console.log('🛰️ Realtime task update affecting today:', payload.eventType, row.id);
             
-            // Recompute productivity from tasks
-            const { data: tasksToday, error: tasksError } = await supabase
-              .from('tasks')
-              .select('id, completed, is_deleted, due_date')
-              .eq('user_id', userId)
-              .eq('is_deleted', false)
-              .eq('due_date', todayStr);
+            // Recompute productivity from tasks (NEW: by work date, not due date)
+            const [allCompletedRT, pendingResult] = await Promise.all([
+              supabase.from('tasks').select('id, completed_at').eq('user_id', userId).eq('is_deleted', false)
+                .eq('completed', true).not('completed_at', 'is', null),
+              supabase.from('tasks').select('id').eq('user_id', userId).eq('is_deleted', false).eq('completed', false).eq('due_date', todayStr)
+            ]);
             
-            if (!tasksError && tasksToday) {
-              const totalTasks = tasksToday.length;
-              const completedTasks = tasksToday.filter((t: any) => t.completed).length;
+            if (!allCompletedRT.error && !pendingResult.error) {
+              // Filter by local completion date
+              const completedTodayRT = (allCompletedRT.data || []).filter(task => {
+                if (!task.completed_at) return false;
+                const completedDate = new Date(task.completed_at);
+                const completedDateStr = completedDate.toLocaleDateString('en-CA');
+                return completedDateStr === todayStr;
+              });
+              
+              const completedCount = completedTodayRT.length;
+              const pendingCount = (pendingResult.data || []).length;
+              const totalTasks = completedCount + pendingCount;
+              const completedTasks = completedCount;
               const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
               
               let status = 'Low Productive';
@@ -881,22 +893,56 @@ const Progress = () => {
         
         console.log('📊 Computing productivity directly from tasks for user:', userId);
         
-        // Compute productivity directly from tasks (no dependency on productivity_logs)
-        const { data: tasksToday, error: tasksError } = await supabase
+        // NEW LOGIC: Compute productivity based on when work was done
+        // - Completed tasks: count by completed_at date (when work was done)
+        // - Pending tasks: count by due_date (when they're scheduled)
+        
+        // Get ALL completed tasks, then filter by local completion date
+        // This avoids timezone issues with timestamp filtering
+        const { data: allCompleted, error: completedError } = await supabase
           .from('tasks')
-          .select('id, completed, is_deleted, due_date')
+          .select('id, completed, completed_at, due_date')
           .eq('user_id', userId)
           .eq('is_deleted', false)
+          .eq('completed', true)
+          .not('completed_at', 'is', null);
+        
+        // Filter to tasks completed today (local date from timestamp)
+        const completedToday = (allCompleted || []).filter(task => {
+          if (!task.completed_at) return false;
+          const completedDate = new Date(task.completed_at);
+          const completedDateStr = completedDate.toLocaleDateString('en-CA');
+          return completedDateStr === todayStr;
+        });
+        
+        // Get pending tasks due today
+        const { data: pendingToday, error: pendingError } = await supabase
+          .from('tasks')
+          .select('id, completed, due_date')
+          .eq('user_id', userId)
+          .eq('is_deleted', false)
+          .eq('completed', false)
           .eq('due_date', todayStr);
         
-        if (tasksError) {
-          console.error('Error fetching tasks for productivity:', tasksError);
+        if (completedError || pendingError) {
+          console.error('Error fetching tasks for productivity:', completedError || pendingError);
           return;
         }
         
-        const totalTasks = (tasksToday || []).length;
-        const completedTasks = (tasksToday || []).filter((t: any) => t.completed).length;
+        const completedCount = completedToday.length;
+        const pendingCount = (pendingToday || []).length;
+        const totalTasks = completedCount + pendingCount;
+        const completedTasks = completedCount;
         const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+        
+        console.log('📊 Productivity calculation:', {
+          todayStr,
+          allCompletedCount: allCompleted?.length || 0,
+          completedTodayCount: completedCount,
+          pendingCount,
+          totalTasks,
+          completionRate
+        });
         
         let status = 'Low Productive';
         if (completionRate >= 90) status = 'Highly Productive';
@@ -989,25 +1035,39 @@ const Progress = () => {
           period_end: todayStr
         });
         
-        // Compute productivity directly from tasks (no dependency on productivity_logs)
-        const { data: tasksToday, error: tasksError } = await supabase
-          .from('tasks')
-          .select('id, completed, is_deleted, due_date')
-          .eq('user_id', userId)
-          .eq('is_deleted', false)
-          .eq('due_date', todayStr);
+        // NEW: Compute productivity based on work date (completed_at), not due_date
+        const [allCompletedRP, pendingResult] = await Promise.all([
+          supabase.from('tasks').select('id, completed_at').eq('user_id', userId).eq('is_deleted', false)
+            .eq('completed', true).not('completed_at', 'is', null),
+          supabase.from('tasks').select('id').eq('user_id', userId).eq('is_deleted', false).eq('completed', false).eq('due_date', todayStr)
+        ]);
         
-        if (tasksError) {
-          console.error(`❌ [refreshProductivity] Tasks error: ${tasksError.message}`);
+        if (allCompletedRP.error || pendingResult.error) {
+          console.error(`❌ [refreshProductivity] Tasks error:`, allCompletedRP.error || pendingResult.error);
           retryCount++;
           continue;
         }
         
-        console.log(`📥 [refreshProductivity] ATTEMPT ${retryCount + 1} - Tasks result:`, { data: tasksToday, error: tasksError });
+        // Filter to tasks completed today (local date)
+        const completedTodayRP = (allCompletedRP.data || []).filter(task => {
+          if (!task.completed_at) return false;
+          const completedDate = new Date(task.completed_at);
+          const completedDateStr = completedDate.toLocaleDateString('en-CA');
+          return completedDateStr === todayStr;
+        });
         
-        if (tasksToday) {
-          const totalTasks = tasksToday.length;
-          const completedTasks = tasksToday.filter((t: any) => t.completed).length;
+        const completedCount = completedTodayRP.length;
+        const pendingCount = (pendingResult.data || []).length;
+        
+        console.log(`📥 [refreshProductivity] ATTEMPT ${retryCount + 1} - Tasks result:`, { 
+          allCompleted: allCompletedRP.data?.length || 0,
+          completedToday: completedCount, 
+          pendingToday: pendingCount 
+        });
+        
+        if (allCompletedRP.data || pendingResult.data) {
+          const totalTasks = completedCount + pendingCount;
+          const completedTasks = completedCount;
           const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
           
           let status = 'Low Productive';
@@ -1248,18 +1308,27 @@ const Progress = () => {
               }
             }
           } else {
-            // Fallback: Compute today's data directly from tasks
+            // Fallback: Compute today's data directly from tasks (NEW: by work date)
             console.log('📊 COMPUTING TODAY\'S DATA FROM TASKS FOR WEEKLY CALCULATION');
-            const { data: tasksToday, error: tasksError } = await supabase
-              .from('tasks')
-              .select('id, completed, is_deleted, due_date')
-              .eq('user_id', userId)
-              .eq('is_deleted', false)
-              .eq('due_date', todayStr);
+            const [allCompletedW, pendingTodayW] = await Promise.all([
+              supabase.from('tasks').select('id, completed_at').eq('user_id', userId).eq('is_deleted', false)
+                .eq('completed', true).not('completed_at', 'is', null),
+              supabase.from('tasks').select('id').eq('user_id', userId).eq('is_deleted', false).eq('completed', false).eq('due_date', todayStr)
+            ]);
             
-            if (!tasksError && tasksToday) {
-              const totalTasks = tasksToday.length;
-              const completedTasks = tasksToday.filter((t: any) => t.completed).length;
+            if (!allCompletedW.error && !pendingTodayW.error) {
+              // Filter by local completion date
+              const completedTodayW = (allCompletedW.data || []).filter(task => {
+                if (!task.completed_at) return false;
+                const completedDate = new Date(task.completed_at);
+                const completedDateStr = completedDate.toLocaleDateString('en-CA');
+                return completedDateStr === todayStr;
+              });
+              
+              const completedCount = completedTodayW.length;
+              const pendingCount = (pendingTodayW.data || []).length;
+              const totalTasks = completedCount + pendingCount;
+              const completedTasks = completedCount;
               const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
               
               let status = 'Low Productive';
@@ -1292,7 +1361,7 @@ const Progress = () => {
                 }
               }
             } else {
-              console.log('📊 No tasks found for today or error:', tasksError);
+              console.log('📊 No tasks found for today or error:', allCompletedW.error || pendingTodayW.error);
             }
           }
           
@@ -1410,18 +1479,27 @@ const Progress = () => {
                 }
               }
             } else {
-              // Final fallback: Compute today's data directly from tasks for monthly
+              // Final fallback: Compute today's data directly from tasks for monthly (NEW: by work date)
               console.log('📊 COMPUTING TODAY\'S DATA FROM TASKS FOR MONTHLY CALCULATION');
-              const { data: tasksToday, error: tasksError } = await supabase
-                .from('tasks')
-                .select('id, completed, is_deleted, due_date')
-                .eq('user_id', userId)
-                .eq('is_deleted', false)
-                .eq('due_date', todayStr);
+              const [allCompletedM, pendingTodayM] = await Promise.all([
+                supabase.from('tasks').select('id, completed_at').eq('user_id', userId).eq('is_deleted', false)
+                  .eq('completed', true).not('completed_at', 'is', null),
+                supabase.from('tasks').select('id').eq('user_id', userId).eq('is_deleted', false).eq('completed', false).eq('due_date', todayStr)
+              ]);
               
-              if (!tasksError && tasksToday) {
-                const totalTasks = tasksToday.length;
-                const completedTasks = tasksToday.filter((t: any) => t.completed).length;
+              if (!allCompletedM.error && !pendingTodayM.error) {
+                // Filter by local completion date
+                const completedTodayM = (allCompletedM.data || []).filter(task => {
+                  if (!task.completed_at) return false;
+                  const completedDate = new Date(task.completed_at);
+                  const completedDateStr = completedDate.toLocaleDateString('en-CA');
+                  return completedDateStr === todayStr;
+                });
+                
+                const completedCount = completedTodayM.length;
+                const pendingCount = (pendingTodayM.data || []).length;
+                const totalTasks = completedCount + pendingCount;
+                const completedTasks = completedCount;
                 const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
                 
                 let status = 'Low Productive';
@@ -1454,7 +1532,7 @@ const Progress = () => {
                   }
                 }
               } else {
-                console.log('📊 No tasks found for today or error for monthly:', tasksError);
+                console.log('📊 No tasks found for today or error for monthly:', allCompletedM.error || pendingTodayM.error);
               }
             }
           }
@@ -2160,16 +2238,26 @@ async function fetchStreakData() {
       }
     });
     
-    // Inject today's status from tasks to avoid flicker if logs lag
+    // Inject today's status from tasks to avoid flicker if logs lag (NEW: by work date)
     const todayStr = new Date().toLocaleDateString('en-CA');
-    const { data: tasksToday } = await supabase
-      .from('tasks')
-      .select('id, completed, is_deleted, due_date')
-      .eq('user_id', userId)
-      .eq('is_deleted', false)
-      .eq('due_date', todayStr);
-    const totalTasksToday = (tasksToday || []).length;
-    const completedTasksToday = (tasksToday || []).filter((t: any) => t.completed).length;
+    const [allCompletedStreak, pendingTodayStreak] = await Promise.all([
+      supabase.from('tasks').select('id, completed_at').eq('user_id', userId).eq('is_deleted', false)
+        .eq('completed', true).not('completed_at', 'is', null),
+      supabase.from('tasks').select('id').eq('user_id', userId).eq('is_deleted', false).eq('completed', false).eq('due_date', todayStr)
+    ]);
+    
+    // Filter by local completion date
+    const completedTodayStreak = (allCompletedStreak.data || []).filter(task => {
+      if (!task.completed_at) return false;
+      const completedDate = new Date(task.completed_at);
+      const completedDateStr = completedDate.toLocaleDateString('en-CA');
+      return completedDateStr === todayStr;
+    });
+    
+    const completedCountToday = completedTodayStreak.length;
+    const pendingCountToday = (pendingTodayStreak.data || []).length;
+    const totalTasksToday = completedCountToday + pendingCountToday;
+    const completedTasksToday = completedCountToday;
     const completionRateToday = totalTasksToday > 0 ? Math.round((completedTasksToday / totalTasksToday) * 100) : 0;
     const todayEntry = {
       date: todayStr,

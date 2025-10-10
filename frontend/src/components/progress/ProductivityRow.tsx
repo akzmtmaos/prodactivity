@@ -7,6 +7,7 @@ interface ProductivityRowProps {
   status: string;
   isToday?: boolean;
   getProductivityColor: (status: string) => string;
+  onClick?: () => void;
 }
 
 const ProductivityRow: React.FC<ProductivityRowProps> = ({
@@ -14,7 +15,8 @@ const ProductivityRow: React.FC<ProductivityRowProps> = ({
   completionRate,
   status,
   isToday = false,
-  getProductivityColor
+  getProductivityColor,
+  onClick
 }) => {
   const bgColor = isToday 
     ? 'bg-indigo-100 dark:bg-indigo-900/40 border-2 border-indigo-400 dark:border-indigo-500 shadow-md mb-3'
@@ -25,7 +27,10 @@ const ProductivityRow: React.FC<ProductivityRowProps> = ({
     : 'text-gray-900 dark:text-white';
 
   return (
-    <div className={`grid grid-cols-3 gap-4 items-center rounded-lg px-6 py-4 ${bgColor}`}>
+    <div 
+      className={`grid grid-cols-3 gap-4 items-center rounded-lg px-6 py-4 ${bgColor} ${onClick ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
+      onClick={onClick}
+    >
       <div className="text-left">
         <div className={`text-sm font-semibold ${textColor}`}>
           {format(new Date(date), 'MMMM d, yyyy')}
