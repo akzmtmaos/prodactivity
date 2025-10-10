@@ -1832,35 +1832,73 @@ function calculateCurrentStreakFromData(streakData: any[], todaysProductivity?: 
     console.log('🔥 Added todaysProductivity to sortedData');
   }
   
-  if (!todayData || !todayData.streak) {
-    console.log('🔥 No streak for today:', { todayData, todaysProductivity });
-    return 0; // No streak if today is not productive
+  // NEW LOGIC: If today has no completed tasks yet, maintain yesterday's streak
+  // Grace period: streak persists through midnight and only breaks if user doesn't complete tasks by end of day
+  
+  // Check if today has a streak (has completed tasks)
+  const todayHasStreak = todayData && todayData.streak;
+  
+  let currentStreak = 0;
+  let startFromDate: Date;
+  
+  if (!todayHasStreak) {
+    console.log('🔥 Today has no completed tasks yet - checking yesterday to maintain streak');
+    // Get yesterday
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toLocaleDateString('en-CA');
+    const yesterdayData = sortedData.find(day => day.date === yesterdayStr);
+    
+    console.log('🔥 Yesterday:', yesterdayStr);
+    console.log('🔥 Yesterday data:', yesterdayData);
+    console.log('🔥 ALL streak data around yesterday:');
+    const relevantDays = sortedData.filter(d => d.date >= '2025-10-05' && d.date <= '2025-10-10');
+    relevantDays.forEach(d => {
+      console.log(`  ${d.date}: ${d.completed_tasks}/${d.total_tasks} tasks (${d.productivity}%) - Streak: ${d.streak}`);
+    });
+    
+    // If yesterday had NO streak, the streak is broken
+    if (!yesterdayData || !yesterdayData.streak) {
+      console.log('🔥 ❌ Yesterday had no completed tasks - streak is broken, returning 0');
+      console.log('🔥 DEBUG: yesterdayData exists?', !!yesterdayData);
+      if (yesterdayData) {
+        console.log('🔥 DEBUG: yesterdayData.streak value:', yesterdayData.streak);
+        console.log('🔥 DEBUG: yesterdayData.total_tasks:', yesterdayData.total_tasks);
+        console.log('🔥 DEBUG: yesterdayData.completed_tasks:', yesterdayData.completed_tasks);
+      }
+      return 0;
+    }
+    
+    // Yesterday had a streak - count from yesterday (not including today since it has no tasks yet)
+    console.log('🔥 ✅ Yesterday had a streak! Counting from yesterday backwards...');
+    currentStreak = 1; // Count yesterday as day 1 of streak
+    startFromDate = yesterday; // Start traversing from yesterday
+  } else {
+    console.log('🔥 Today has completed tasks - counting from today');
+    currentStreak = 1; // Count today as day 1 of streak
+    startFromDate = new Date(); // Start traversing from today
   }
   
-  console.log('🔥 Today has streak, calculating current streak...');
-  let currentStreak = 1; // Start with today
-  let currentDate = new Date();
-  
-  // Go backwards day by day to check for consecutive productive days
-  for (let i = 1; i < 365; i++) { // Check up to 1 year back
-    currentDate.setDate(currentDate.getDate() - 1);
-    const dateStr = currentDate.toLocaleDateString('en-CA'); // Use local date format
-    
+  // Count backwards from the start date to find consecutive streak days
+  for (let i = 1; i < 365; i++) {
+    // Create a new Date object to avoid mutation issues
+    const checkDate = new Date(startFromDate);
+    checkDate.setDate(checkDate.getDate() - i);
+    const dateStr = checkDate.toLocaleDateString('en-CA');
     const dayData = sortedData.find(day => day.date === dateStr);
     
-    console.log(`🔥 Checking day ${i}: ${dateStr} - Found data:`, dayData ? `${dayData.productivity}% (streak: ${dayData.streak})` : 'No data');
+    console.log(`🔥 Day -${i} (${dateStr}):`, dayData ? `${dayData.productivity}% (streak: ${dayData.streak})` : 'No data');
     
     if (dayData && dayData.streak) {
       currentStreak++;
-      console.log(`🔥 ✅ Found streak day ${i}: ${dateStr} (streak: ${currentStreak})`);
+      console.log(`🔥 ✅ Consecutive day found! Total streak now: ${currentStreak}`);
     } else {
-      console.log(`🔥 ❌ No streak for ${dateStr}, stopping at ${currentStreak}`);
-      // If no data for this day or day is not productive, streak is broken
+      console.log(`🔥 ❌ Streak broken at ${dateStr}. Final streak: ${currentStreak}`);
       break;
     }
   }
   
-  console.log('🔥 Final current streak:', currentStreak);
+  console.log('🔥 Final current streak:', currentStreak, todayHasStreak ? '(counting from today)' : '(counting from yesterday - grace period)');
   return currentStreak;
 }
 
