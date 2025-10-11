@@ -185,13 +185,36 @@ def user_productivity(request):
 
     # Always calculate current data (live calculation)
     if view == 'daily':
-        # For daily view, count tasks due on that specific day
-        tasks = Task.all_objects.filter(user=user, due_date__range=(start, end))
-        non_deleted = tasks.filter(is_deleted=False)
-        deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
+        # NEW LOGIC: Count tasks by when they were actually worked on
+        # - Completed tasks: count by completed_at date (when work was done)
+        # - Pending tasks: count by due_date (when they're scheduled)
         
-        total_tasks = non_deleted.count() + deleted_completed.count()
-        completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+        # Get completed tasks that were completed on this day (regardless of due date)
+        completed_on_this_day = Task.all_objects.filter(
+            user=user,
+            completed=True,
+            is_deleted=False,
+            completed_at__date=start  # Match completion date
+        )
+        
+        # Get tasks that are due today but not yet completed (to show in total)
+        pending_due_today = Task.all_objects.filter(
+            user=user,
+            due_date=start,
+            completed=False,
+            is_deleted=False
+        )
+        
+        # Get deleted tasks that were completed on this day
+        deleted_completed_on_this_day = Task.all_objects.filter(
+            user=user,
+            is_deleted=True,
+            was_completed_on_delete=True,
+            completed_at__date=start
+        )
+        
+        total_tasks = completed_on_this_day.count() + pending_due_today.count() + deleted_completed_on_this_day.count()
+        completed_tasks = completed_on_this_day.count() + deleted_completed_on_this_day.count()
         
         # DEBUG: Print calculation values
         print(f"[DEBUG] Daily calculation for {start} to {end}:")
@@ -413,12 +436,28 @@ def productivity_log_list(request):
             
             # If no log exists for this day, create one
             if not log:
-                tasks = Task.all_objects.filter(user=user, due_date=d)
-                non_deleted = tasks.filter(is_deleted=False)
-                deleted_completed = tasks.filter(is_deleted=True, was_completed_on_delete=True)
+                # NEW LOGIC: Count by work date (completed_at) not just due_date
+                completed_on_this_day = Task.all_objects.filter(
+                    user=user,
+                    completed=True,
+                    is_deleted=False,
+                    completed_at__date=d
+                )
+                pending_due_today = Task.all_objects.filter(
+                    user=user,
+                    due_date=d,
+                    completed=False,
+                    is_deleted=False
+                )
+                deleted_completed_on_this_day = Task.all_objects.filter(
+                    user=user,
+                    is_deleted=True,
+                    was_completed_on_delete=True,
+                    completed_at__date=d
+                )
                 
-                total_tasks = non_deleted.count() + deleted_completed.count()
-                completed_tasks = non_deleted.filter(completed=True).count() + deleted_completed.count()
+                total_tasks = completed_on_this_day.count() + pending_due_today.count() + deleted_completed_on_this_day.count()
+                completed_tasks = completed_on_this_day.count() + deleted_completed_on_this_day.count()
                 
                 if total_tasks == 0:
                     completion_rate = 0
