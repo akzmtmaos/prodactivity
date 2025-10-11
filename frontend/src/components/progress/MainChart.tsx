@@ -199,12 +199,12 @@ const MainChart: React.FC<MainChartProps> = ({ view, data, prodLogs }) => {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 mb-8">
+    <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 rounded-2xl shadow-sm mb-8 overflow-hidden">
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
+            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
               <BarChart3 size={20} className="text-indigo-600 dark:text-indigo-400" />
             </div>
             <h2 className="ml-3 text-xl font-semibold text-gray-900 dark:text-white">
@@ -213,40 +213,42 @@ const MainChart: React.FC<MainChartProps> = ({ view, data, prodLogs }) => {
           </div>
           
           {/* Metric Selector */}
-          <div className="flex bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
-            <button
-              onClick={() => setSelectedMetric('productivity')}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                selectedMetric === 'productivity'
-                  ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-              }`}
-            >
-              <Activity size={14} className="inline mr-1" />
-              Productivity
-            </button>
-            <button
-              onClick={() => setSelectedMetric('tasks')}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                selectedMetric === 'tasks'
-                  ? 'bg-white dark:bg-gray-600 text-green-600 dark:text-green-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-              }`}
-            >
-              <Calendar size={14} className="inline mr-1" />
-              Tasks
-            </button>
-            <button
-              onClick={() => setSelectedMetric('study')}
-              className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${
-                selectedMetric === 'study'
-                  ? 'bg-white dark:bg-gray-600 text-purple-600 dark:text-purple-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
-              }`}
-            >
-              <TrendingUp size={14} className="inline mr-1" />
-              Study
-            </button>
+          <div className="bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-1">
+            <div className="flex space-x-1">
+              <button
+                onClick={() => setSelectedMetric('productivity')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  selectedMetric === 'productivity'
+                    ? 'bg-indigo-500 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50'
+                }`}
+              >
+                <Activity size={14} className="inline mr-1" />
+                Productivity
+              </button>
+              <button
+                onClick={() => setSelectedMetric('tasks')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  selectedMetric === 'tasks'
+                    ? 'bg-green-500 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50'
+                }`}
+              >
+                <Calendar size={14} className="inline mr-1" />
+                Tasks
+              </button>
+              <button
+                onClick={() => setSelectedMetric('study')}
+                className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
+                  selectedMetric === 'study'
+                    ? 'bg-purple-500 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50'
+                }`}
+              >
+                <TrendingUp size={14} className="inline mr-1" />
+                Study
+              </button>
+            </div>
           </div>
         </div>
 

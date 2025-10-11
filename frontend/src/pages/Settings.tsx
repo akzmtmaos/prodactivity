@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Moon, Sun, Bell, User, Shield, Globe, Image as ImageIcon, Lock, LogOut, Trash2, Mail, User as UserIcon, Info, Phone, Calendar, MapPin } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import PageLayout from '../components/PageLayout';
+import ActivityLogs from '../components/settings/ActivityLogs';
 
 interface UserSettings {
   theme: 'light' | 'dark' | 'system';
@@ -780,13 +781,7 @@ const Settings: React.FC = () => {
               )}
 
               {activeTab === 'logs' && (
-                <div className="space-y-6">
-                  <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 max-w-xl mx-auto text-center">
-                    <Info size={32} className="mx-auto mb-4 text-indigo-500 dark:text-indigo-400" />
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Logs</h2>
-                    <p className="text-gray-600 dark:text-gray-400">This section will display your recent activity logs and system events in the future.</p>
-                  </div>
-                </div>
+                <ActivityLogs />
               )}
 
               {activeTab === 'other' && (

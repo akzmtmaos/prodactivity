@@ -16,6 +16,8 @@ interface ProductivityHistoryProps {
   isNextDisabled: boolean;
   getDateDisplay: () => string;
   getProductivityColor: (status: string) => string;
+  setProgressView: (view: string) => void;
+  tabs: string[];
 }
 
 const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
@@ -28,7 +30,9 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
   isPrevDisabled,
   isNextDisabled,
   getDateDisplay,
-  getProductivityColor
+  getProductivityColor,
+  setProgressView,
+  tabs
 }) => {
   const [weeklyModalOpen, setWeeklyModalOpen] = useState(false);
   const [monthlyModalOpen, setMonthlyModalOpen] = useState(false);
@@ -423,22 +427,43 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       {/* Productivity Legend - Outside Container */}
       <ProductivityLegend getProductivityColor={getProductivityColor} />
       
+      {/* Tabs - Below Legend */}
+      <div className="flex justify-center mb-6">
+        <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 rounded-2xl p-2 shadow-sm inline-flex">
+          <div className="flex space-x-1">
+            {tabs.map(tab => (
+              <button
+                key={tab}
+                className={`min-w-[110px] px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
+                  progressView === tab 
+                    ? 'bg-indigo-500 text-white shadow-sm' 
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                }`}
+                onClick={() => setProgressView(tab)}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+      
       <div className="w-full mb-4">
-        <div className="bg-white dark:bg-gray-800 shadow-md border border-gray-200 dark:border-gray-700 rounded-xl w-full flex flex-col" style={{ height: 520 }}>
-          <div className="flex items-center justify-between bg-gray-100 dark:bg-gray-700 rounded-t-xl px-12 py-2 border-b border-gray-200 dark:border-gray-600">
-            <span className="text-base font-semibold text-gray-900 dark:text-white">Productivity Scale History</span>
+        <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 shadow-sm rounded-2xl w-full flex flex-col overflow-hidden" style={{ height: 520 }}>
+          <div className="flex items-center justify-between bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur-sm px-6 py-4 border-b border-gray-100 dark:border-gray-700/50">
+            <span className="text-lg font-semibold text-gray-900 dark:text-white">Productivity Scale History</span>
             <div className="flex items-center space-x-2">
               <button 
                 onClick={handlePrev} 
-                className={`px-2 py-1 rounded ${isPrevDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                className={`px-3 py-2 rounded-xl transition-all duration-200 ${isPrevDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
                 disabled={isPrevDisabled}
               >
                 &#60;
               </button>
-              <span className="text-sm font-semibold text-gray-900 dark:text-white">{getDateDisplay()}</span>
+              <span className="text-sm font-semibold text-gray-900 dark:text-white px-4 py-2 bg-white/80 dark:bg-gray-800/80 rounded-xl">{getDateDisplay()}</span>
               <button
                 onClick={handleNext}
-                className={`px-2 py-1 rounded ${isNextDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+                className={`px-3 py-2 rounded-xl transition-all duration-200 ${isNextDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
                 disabled={isNextDisabled}
               >
                 &#62;
@@ -446,7 +471,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
             </div>
           </div>
           {/* Scrollable list of productivity logs */}
-          <div className="flex-1 overflow-y-scroll px-12 py-4">
+          <div className="flex-1 overflow-y-scroll px-6 py-4">
             {progressView === 'Daily' && renderDailyView()}
             {progressView === 'Weekly' && renderWeeklyView()}
             {progressView === 'Monthly' && renderMonthlyView()}

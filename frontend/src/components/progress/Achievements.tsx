@@ -220,18 +220,18 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
   const lockedAchievements = allAchievements.filter(achievement => !achievement.unlocked);
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
+    <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 rounded-2xl shadow-sm overflow-hidden">
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <div className="p-3 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
+            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
               <Award size={24} className="text-yellow-600 dark:text-yellow-400" />
             </div>
             <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
               Achievements
             </h2>
           </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
+          <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50/80 dark:bg-gray-800/80 px-3 py-1 rounded-xl">
             {unlockedAchievements.length} / {allAchievements.length} unlocked
           </div>
         </div>
@@ -248,22 +248,24 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
               {unlockedAchievements.map((achievement) => (
                 <div 
                   key={achievement.id}
-                  className={`p-4 rounded-lg border-2 transition-all duration-200 hover:scale-105 ${getRarityColor(achievement.rarity)}`}
+                  className={`p-4 rounded-xl border-2 transition-all duration-300 hover:scale-[1.02] hover:shadow-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm ${getRarityColor(achievement.rarity)}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      {achievement.icon}
-                      <h4 className="ml-2 text-sm font-medium text-gray-900 dark:text-white">
+                      <div className="p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                        {achievement.icon}
+                      </div>
+                      <h4 className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
                         {achievement.title}
                       </h4>
                     </div>
                     <CheckCircle size={16} className="text-green-500" />
                   </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
                     {achievement.description}
                   </p>
-                  <div className="mt-2">
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${getRarityTextColor(achievement.rarity)} bg-opacity-20`}>
+                  <div className="mt-3">
+                    <span className={`text-xs font-medium px-3 py-1 rounded-full ${getRarityTextColor(achievement.rarity)} bg-opacity-20`}>
                       {achievement.rarity.toUpperCase()}
                     </span>
                   </div>
@@ -284,24 +286,24 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
               {lockedAchievements.map((achievement) => (
                 <div 
                   key={achievement.id}
-                  className="p-4 rounded-lg border-2 border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/30 opacity-60"
+                  className="p-4 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur-sm opacity-60"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="opacity-50">
+                      <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg opacity-50">
                         {achievement.icon}
                       </div>
-                      <h4 className="ml-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+                      <h4 className="ml-3 text-sm font-medium text-gray-500 dark:text-gray-400">
                         {achievement.title}
                       </h4>
                     </div>
                     <Lock size={16} className="text-gray-400" />
                   </div>
-                  <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                  <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
                     {achievement.description}
                   </p>
-                  <div className="mt-2">
-                    <span className="text-xs font-medium px-2 py-1 rounded-full text-gray-400 bg-gray-200 dark:bg-gray-600">
+                  <div className="mt-3">
+                    <span className="text-xs font-medium px-3 py-1 rounded-full text-gray-400 dark:text-gray-500 bg-gray-200/50 dark:bg-gray-600/50">
                       {achievement.rarity.toUpperCase()}
                     </span>
                   </div>

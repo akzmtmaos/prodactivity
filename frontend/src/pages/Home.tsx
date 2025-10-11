@@ -781,19 +781,56 @@ const Home = () => {
 
   return (
     <PageLayout>
-      <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
-          {/* Centered Greeting section */}
-          <div className="text-center mb-16 mt-16">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              {greeting}, <span className="text-indigo-600 dark:text-indigo-400">{user?.username}</span>!
-            </h1>
-            <p className="mt-2 text-lg text-gray-600 dark:text-gray-400">
-              Here's your productivity overview for today
-            </p>
-          </div>
+      {/* Modern Abstract Background */}
+      <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+        {/* 60% - Dominant White Background */}
+        <div className="absolute inset-0 bg-white dark:bg-gray-900"></div>
+        
+        {/* 30% - Blue Abstract Shapes */}
+        {/* Top-Left: Light Blue Organic Shape */}
+        <div className="absolute -top-20 -left-20 w-80 h-80 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30 rounded-full opacity-60 animate-float-slow"></div>
+        
+        {/* Top-Right: Large Dark Navy Shape */}
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-bl from-blue-900 to-blue-800 dark:from-blue-800 dark:to-blue-700 rounded-full opacity-70 animate-float-slower"></div>
+        
+        {/* Top-Right: Medium Blue Wave */}
+        <div className="absolute top-20 right-10 w-64 h-64 bg-gradient-to-bl from-blue-300 to-blue-400 dark:from-blue-600/40 dark:to-blue-500/40 rounded-full opacity-50 animate-float"></div>
+        
+        {/* Bottom-Left: Dark Navy Rounded Shape */}
+        <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-gradient-to-tr from-blue-800 to-blue-900 dark:from-blue-700 dark:to-blue-800 rounded-full opacity-60 animate-float-reverse"></div>
+        
+        {/* Bottom-Right: Light Blue Wave */}
+        <div className="absolute -bottom-10 -right-10 w-80 h-80 bg-gradient-to-tl from-blue-200 to-blue-300 dark:from-blue-700/30 dark:to-blue-600/30 rounded-full opacity-50 animate-float-slow"></div>
+        
+        {/* Center-Right: Medium Blue Accent */}
+        <div className="absolute top-1/2 right-20 w-48 h-48 bg-gradient-to-bl from-blue-400 to-blue-500 dark:from-blue-500/40 dark:to-blue-400/40 rounded-full opacity-40 animate-float-slower"></div>
+        
+        {/* 10% - Accent Dark Navy Shapes */}
+        {/* Small accent shapes for depth */}
+        <div className="absolute top-1/3 left-1/4 w-32 h-32 bg-blue-900 dark:bg-blue-800 rounded-full opacity-30 animate-float"></div>
+        <div className="absolute bottom-1/3 right-1/3 w-24 h-24 bg-blue-800 dark:bg-blue-700 rounded-full opacity-40 animate-float-reverse"></div>
+        
+        {/* Subtle overlay for depth */}
+        <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-blue-50/20 dark:to-blue-950/20"></div>
+      </div>
 
-          {/* Search Bar */}
-          <div className="max-w-2xl mx-auto mb-24 mt-16 relative">
+      <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8 relative z-10">
+          {/* Compact Header with Greeting and Search */}
+          <div className="mb-6">
+            {/* Greeting section - more compact */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+                  {greeting}, <span className="text-indigo-600 dark:text-indigo-400">{user?.username}</span>!
+                </h1>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
+            </div>
+
+          {/* Search Bar - more compact, left-aligned */}
+          <div className="relative">
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Search className="h-5 w-5 text-gray-400" />
@@ -804,8 +841,8 @@ const Home = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onFocus={() => setShowSearchResults(true)}
-                placeholder="Search"
-                className="block w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 dark:focus:border-indigo-400 transition-colors"
+                placeholder="Search notes, tasks, decks... (Ctrl+K)"
+                className="block w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-lg leading-5 bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:focus:ring-indigo-400 dark:focus:border-indigo-400 transition-colors"
               />
             </div>
 
@@ -913,12 +950,13 @@ const Home = () => {
               </div>
             )}
           </div>
+          </div>
 
-          {/* Dynamic Stats grid - 2x2 on mobile, 4 columns on desktop */}
-          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4 lg:gap-5">
+          {/* Dynamic Stats grid - more compact */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4 mb-6">
             <div 
-              className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer group"
-              onClick={() => navigate('/schedule')}
+              className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md overflow-hidden rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group border border-white/20 dark:border-gray-700/30"
+              onClick={() => navigate('/study-timer')}
             >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                 <div className="flex items-center">
@@ -933,7 +971,7 @@ const Home = () => {
               </div>
             </div>
             <div 
-              className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer group"
+              className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md overflow-hidden rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group border border-white/20 dark:border-gray-700/30"
               onClick={() => navigate('/tasks')}
             >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
@@ -949,7 +987,7 @@ const Home = () => {
               </div>
             </div>
             <div 
-              className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer group"
+              className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md overflow-hidden rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group border border-white/20 dark:border-gray-700/30"
               onClick={() => navigate('/notes')}
             >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
@@ -965,7 +1003,7 @@ const Home = () => {
               </div>
             </div>
             <div 
-              className="bg-white dark:bg-gray-800 overflow-hidden rounded-lg shadow transition-all duration-200 hover:shadow-lg hover:scale-105 cursor-pointer group"
+              className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md overflow-hidden rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group border border-white/20 dark:border-gray-700/30"
               onClick={() => navigate('/schedule')}
             >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
@@ -983,8 +1021,8 @@ const Home = () => {
           </div>
 
           {/* Quick Notes History section with horizontal slider */}
-          <div className="mt-8 mb-8">
-            <div className="flex items-center justify-between mb-4">
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
               <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
                 Quick Notes History
               </h2>
@@ -1027,7 +1065,7 @@ const Home = () => {
                       className="flex-shrink-0 w-1/4 px-1"
                     >
                       <div 
-                        className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group"
+                        className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-white/20 dark:border-gray-700/30 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group"
                         onClick={() => handleOpenNote(note.id)}
                       >
                         <div className="p-2 flex-1 flex flex-col items-center justify-center text-center">
@@ -1073,7 +1111,7 @@ const Home = () => {
                   recentNotes.slice(0, 8).map((note) => (
                     <div 
                       key={note.id} 
-                      className="bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-lg hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group"
+                      className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-white/20 dark:border-gray-700/30 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group"
                       onClick={() => handleOpenNote(note.id)}
                     >
                       <div className="p-2 flex-1 flex flex-col items-center justify-center text-center">
@@ -1132,10 +1170,10 @@ const Home = () => {
           </div>
 
           {/* Two-column layout for Tasks and Schedule */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {/* Tasks section (left) */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Pending Tasks</h2>
                 <button 
                   onClick={() => navigate('/tasks')}
@@ -1201,7 +1239,7 @@ const Home = () => {
 
             {/* Schedule section (right) */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-3">
                 <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Upcoming Events</h2>
                 <button 
                   onClick={() => navigate('/schedule')}

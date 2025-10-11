@@ -5,7 +5,6 @@ import MainChart from '../components/progress/MainChart';
 // Extracted components
 import ProgressHeader from '../components/progress/ProgressHeader';
 import ProgressOverview from '../components/progress/ProgressOverview';
-import ProgressTabs from '../components/progress/ProgressTabs';
 import ProductivityHistory from '../components/progress/ProductivityHistory';
 import Achievements from '../components/progress/Achievements';
 import { format, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
@@ -1782,28 +1781,49 @@ const Progress = () => {
 
   return (
     <PageLayout>
-      <div className="min-h-screen flex flex-col">
-        {/* Header */}
-        <ProgressHeader greeting={greeting} username={user?.username || 'User'} />
+      <div className="min-h-screen flex flex-col relative">
+        {/* Modern Animated Background */}
+        <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+          {/* Clean Base */}
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-800"></div>
+          
+          {/* Minimalist Geometric Elements */}
+          {/* Top-right corner accent */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-indigo-500/10 via-transparent to-transparent dark:from-indigo-400/5"></div>
+          
+          {/* Bottom-left corner accent */}
+          <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-blue-500/8 via-transparent to-transparent dark:from-blue-400/4"></div>
+          
+          {/* Center-right subtle shape */}
+          <div className="absolute top-1/3 right-1/4 w-64 h-64 bg-gradient-to-bl from-purple-400/5 to-transparent dark:from-purple-300/3 rounded-full"></div>
+          
+          {/* Top-left subtle shape */}
+          <div className="absolute top-1/4 left-1/6 w-48 h-48 bg-gradient-to-br from-cyan-400/6 to-transparent dark:from-cyan-300/3 rounded-full"></div>
+          
+          {/* Minimal grid pattern overlay */}
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.02)_1px,transparent_1px)] bg-[size:40px_40px] dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)]"></div>
+          
+          {/* Subtle gradient overlay for depth */}
+          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/[0.01] dark:to-white/[0.01]"></div>
+        </div>
 
-        {/* Main Content - Vertically Centered */}
-        <div className="flex-1 flex flex-col justify-center">
-          {/* Overview Section - Horizontally Centered */}
-          <div className="w-full flex justify-center">
-            <div className="w-full max-w-7xl">
+        {/* Main Content */}
+        <div className="relative z-10 min-h-screen">
+          <div className="space-y-6">
+            {/* Header */}
+            <ProgressHeader greeting={greeting} username={user?.username || 'User'} />
+
+            {/* Overview Section */}
+            <div className="flex flex-col">
               <ProgressOverview
                 key={`progress-overview-${refreshKey}`}
                 userLevel={userLevel}
                 todaysProductivity={todaysProductivity}
                 streakData={streakData}
                 refreshProductivity={refreshProductivity}
+                getProductivityColor={getProductivityColor}
               />
             </div>
-          </div>
-        </div>
-
-        {/* Bottom Content */}
-        <div className="space-y-6">
 
         {/* Stats Cards */}
         <StatsCards
@@ -1812,14 +1832,7 @@ const Progress = () => {
           todaysProductivity={todaysProductivity}
         />
 
-        {/* Tabs */}
-        <ProgressTabs
-          progressView={progressView}
-          setProgressView={setProgressView}
-          tabs={TABS}
-        />
-
-        {/* Productivity History */}
+        {/* Productivity History (includes tabs below legend) */}
         <ProductivityHistory
           progressView={progressView}
           productivity={productivity}
@@ -1831,13 +1844,16 @@ const Progress = () => {
           isNextDisabled={isNextDisabled}
           getDateDisplay={getDateDisplay}
           getProductivityColor={getProductivityColor}
+          setProgressView={setProgressView}
+          tabs={TABS}
         />
 
         {/* Main Chart */}
         <MainChart view={progressView} data={chartData} prodLogs={prodLogs} />
 
-        {/* Achievements */}
-        <Achievements stats={stats} userLevel={userLevel} longestStreak={calculateLongestStreak(streakData)} />
+            {/* Achievements */}
+            <Achievements stats={stats} userLevel={userLevel} longestStreak={calculateLongestStreak(streakData)} />
+          </div>
         </div>
       </div>
     </PageLayout>
