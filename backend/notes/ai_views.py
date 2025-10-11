@@ -26,60 +26,18 @@ OLLAMA_API_URL = "http://localhost:11434/api/generate"
 OLLAMA_MODEL = "deepseek-r1:1.5b"
 
 def clean_ai_response(response_text):
-    """Aggressive cleaning to remove thinking patterns and show only final responses"""
+    """Remove thinking patterns and show only final responses"""
     import re
     
     if not response_text:
         return ""
     
-    # Remove all thinking patterns - be more aggressive
-    # Remove <think>...</think> blocks (including incomplete ones)
-    cleaned = re.sub(r'<think>.*?(</think>|$)', '', response_text, flags=re.DOTALL)
-    
-    # Remove thinking patterns like "Let me think...", "I need to...", etc.
-    thinking_patterns = [
-        r'Let me think.*?(?=\n\n|\n[A-Z]|$)',
-        r'I need to.*?(?=\n\n|\n[A-Z]|$)',
-        r'Let me.*?(?=\n\n|\n[A-Z]|$)',
-        r'First, let me.*?(?=\n\n|\n[A-Z]|$)',
-        r'To answer this.*?(?=\n\n|\n[A-Z]|$)',
-        r'Let me work through.*?(?=\n\n|\n[A-Z]|$)',
-        r'Let me calculate.*?(?=\n\n|\n[A-Z]|$)',
-        r'Let me solve.*?(?=\n\n|\n[A-Z]|$)',
-    ]
-    
-    for pattern in thinking_patterns:
-        cleaned = re.sub(pattern, '', cleaned, flags=re.DOTALL | re.IGNORECASE)
-    
-    # If we still have very little content after cleaning, try to extract the final answer
-    if len(cleaned.strip()) < 20:
-        # Look for final answers in the original text
-        final_answer_patterns = [
-            r'(?:So,|Therefore,|In summary,|The answer is|The result is|Summary:)\s*(.*?)(?:\n\n|$)',
-            r'(?:Answer:|Result:|Solution:)\s*(.*?)(?:\n\n|$)',
-            r'(?:The sum is|The total is|It equals)\s*(.*?)(?:\n\n|$)',
-        ]
-        
-        for pattern in final_answer_patterns:
-            match = re.search(pattern, response_text, flags=re.DOTALL | re.IGNORECASE)
-            if match:
-                extracted = match.group(1).strip()
-                if len(extracted) > 5:
-                    cleaned = extracted
-                    break
-    
-    # Remove markdown bold formatting that's not wanted
-    cleaned = re.sub(r'\*\*(.*?)\*\*', r'\1', cleaned)  # Remove **bold** but keep content
-    
-    # Convert LaTeX math expressions to plain text
-    cleaned = re.sub(r'\\boxed\{([^}]*)\}', r'\1', cleaned)  # \boxed{14} -> 14 (handle incomplete)
-    cleaned = re.sub(r'\\\[(.*?)\\\]', r'\1', cleaned)       # \[...\] -> content
-    cleaned = re.sub(r'\\\((.*?)\\\)', r'\1', cleaned)       # \(...\) -> content
-    cleaned = re.sub(r'\\\$([^$]*)\\\$', r'\1', cleaned)     # $...$ -> content (handle incomplete)
+    # Remove <think>...</think> blocks completely
+    cleaned = re.sub(r'<think>.*?</think>', '', response_text, flags=re.DOTALL | re.IGNORECASE)
     
     # Clean up excessive whitespace
-    cleaned = re.sub(r'\n\s*\n\s*\n', '\n\n', cleaned)  # Max 2 newlines
-    cleaned = re.sub(r'[ \t]+', ' ', cleaned)           # Collapse spaces/tabs
+    cleaned = re.sub(r'\n\s*\n\s*\n+', '\n\n', cleaned)  # Max 2 newlines
+    cleaned = re.sub(r'[ \t]+', ' ', cleaned)             # Collapse spaces/tabs
     cleaned = cleaned.strip()
     
     return cleaned
@@ -205,6 +163,28 @@ def chat(request):
 
 class SummarizeView(APIView):
     permission_classes = [IsAuthenticated]
+    
+    def clean_html_content(self, html_text):
+        """Remove HTML tags and extract clean text content"""
+        from bs4 import BeautifulSoup
+        
+        if not html_text:
+            return ""
+        
+        # Parse HTML
+        soup = BeautifulSoup(html_text, 'html.parser')
+        
+        # Remove script and style elements
+        for script in soup(["script", "style"]):
+            script.decompose()
+        
+        # Get text and clean up whitespace
+        text = soup.get_text(separator=' ', strip=True)
+        
+        # Clean up excessive whitespace
+        text = re.sub(r'\s+', ' ', text).strip()
+        
+        return text
 
     def post(self, request):
         try:
@@ -215,41 +195,67 @@ class SummarizeView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
+            # Clean HTML content to extract only meaningful text
+            clean_text = self.clean_html_content(text)
+            
+            if not clean_text or len(clean_text.strip()) < 10:
+                return Response(
+                    {"error": "Not enough content to summarize"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            logger.info(f"Summarizing content: {len(text)} chars (raw) -> {len(clean_text)} chars (clean)")
+            
             # Get summarization prompt from database configuration
             try:
-                summarize_prompt = get_ai_config('summary_prompt', content=text)
+                summarize_prompt = get_ai_config('summary_prompt', content=clean_text)
             except ValueError as e:
-                logger.error(f"Failed to get summary configuration: {e}")
-                return Response(
-                    {'error': 'AI configuration not found. Please contact administrator.'}, 
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
+                logger.warning(f"Failed to get summary configuration: {e}, using fallback")
+                # Fallback to simple prompt if database config fails
+                summarize_prompt = f"Summarize the following content in 2-3 clear paragraphs:\n\n{clean_text}"
             
             payload = {
                 "model": OLLAMA_MODEL,
                 "prompt": summarize_prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.2,
-                    "top_p": 0.7,
-                    "top_k": 40,
-                    "num_predict": 1000,  # Increased from 500 to 1000
-                    "repeat_penalty": 1.1
+                    "temperature": 0.3,
+                    "top_p": 0.9,
+                    "top_k": 50,
+                    "num_predict": 2500,  # Increased to 2500 for comprehensive summaries
+                    "repeat_penalty": 1.15
                 }
             }
             
+            logger.info(f"Sending request to Ollama: model={OLLAMA_MODEL}, prompt_length={len(summarize_prompt)} chars")
+            
             response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
+            
+            logger.info(f"Ollama response status: {response.status_code}")
             
             if response.status_code == 200:
                 result = response.json()
                 raw_summary = result.get('response', '').strip()
                 
+                logger.info(f"Raw AI response length: {len(raw_summary)} chars")
+                logger.debug(f"Raw AI response (first 500 chars): {raw_summary[:500]}")
+                
                 # Clean the response to remove thinking tags
                 summary = clean_ai_response(raw_summary)
                 
-                if not summary:
+                logger.info(f"Cleaned summary length: {len(summary)} chars")
+                logger.debug(f"Cleaned summary (first 200 chars): {summary[:200]}")
+                
+                # If cleaning removed everything, try using raw response
+                if not summary or len(summary) < 20:
+                    logger.warning(f"Summary too short after cleaning. Using raw response.")
+                    summary = raw_summary
+                
+                # Final validation
+                if not summary or len(summary) < 10:
+                    logger.error(f"Summary still too short or empty: '{summary}'")
                     return Response(
-                        {"error": "Failed to generate summary. Please try again."},
+                        {"error": "Failed to generate a meaningful summary. The AI returned an empty response."},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
                 
