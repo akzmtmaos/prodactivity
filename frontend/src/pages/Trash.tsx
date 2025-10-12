@@ -41,6 +41,7 @@ const Trash = () => {
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'note' | 'deck' | 'reviewer'; title: string } | null>(null);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showDeleteSelectedModal, setShowDeleteSelectedModal] = useState(false);
+  const [showRestoreSelectedModal, setShowRestoreSelectedModal] = useState(false);
 
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
@@ -146,7 +147,7 @@ const Trash = () => {
 
   useEffect(() => {
     setCurrentPage(1);
-    setSelectedItems(new Set()); // Clear selection when tab changes
+    // Don't clear selection when tab changes - keep items selected across tabs
   }, [activeTab, notes, decks, reviewers]);
 
   const handleTabClick = (tab: TabType) => {
@@ -260,6 +261,34 @@ const Trash = () => {
     }
   };
 
+  const handleRestoreSelected = async () => {
+    setShowRestoreSelectedModal(false);
+    const token = localStorage.getItem('accessToken');
+    const itemsToRestore = filteredItems.filter(item => selectedItems.has(item.id));
+    
+    for (const item of itemsToRestore) {
+      let url = '';
+      if (item.type === 'note') url = `${API_URL}/notes/${item.id}/`;
+      if (item.type === 'deck') url = `${API_URL}/decks/decks/${item.id}/`;
+      if (item.type === 'reviewer') url = `${API_URL}/reviewers/${item.id}/`;
+      try {
+        await fetch(url, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': token ? `Bearer ${token}` : '',
+          },
+          body: JSON.stringify({ is_deleted: false, deleted_at: null })
+        });
+      } catch (error) {
+        // Continue restoring others even if one fails
+      }
+    }
+    setToast({ message: `${selectedItems.size} item(s) restored successfully!`, type: 'success' });
+    setSelectedItems(new Set());
+    fetchTrash();
+  };
+
   const handleDeleteSelected = async () => {
     setShowDeleteSelectedModal(false);
     const token = localStorage.getItem('accessToken');
@@ -360,13 +389,25 @@ const Trash = () => {
               </div>
             </div>
             {selectedItems.size > 0 && (
-              <button
-                className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center"
-                onClick={() => setShowDeleteSelectedModal(true)}
-              >
-                <Trash2 className="mr-2" size={18} />
-                Delete Selected ({selectedItems.size})
-              </button>
+              <>
+                <button
+                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center"
+                  onClick={() => setShowRestoreSelectedModal(true)}
+                >
+                  <svg className="mr-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="23 4 23 10 17 10"></polyline>
+                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+                  </svg>
+                  Restore Selected ({selectedItems.size})
+                </button>
+                <button
+                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center"
+                  onClick={() => setShowDeleteSelectedModal(true)}
+                >
+                  <Trash2 className="mr-2" size={18} />
+                  Delete Selected ({selectedItems.size})
+                </button>
+              </>
             )}
             <button
               className={`bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center ${filteredItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -466,6 +507,16 @@ const Trash = () => {
           title="Delete Item?"
           message={`Are you sure you want to permanently delete "${deleteTarget?.title || ''}"? This action cannot be undone.`}
           confirmLabel="Delete"
+          cancelLabel="Cancel"
+        />
+        {/* Restore Selected Confirmation Modal */}
+        <DeleteConfirmationModal
+          isOpen={showRestoreSelectedModal}
+          onClose={() => setShowRestoreSelectedModal(false)}
+          onConfirm={handleRestoreSelected}
+          title="Restore Selected Items?"
+          message={`Are you sure you want to restore ${selectedItems.size} selected item(s)? They will be moved out of Trash.`}
+          confirmLabel="Restore Selected"
           cancelLabel="Cancel"
         />
         {/* Delete Selected Confirmation Modal */}

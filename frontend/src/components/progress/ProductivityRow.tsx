@@ -20,11 +20,11 @@ const ProductivityRow: React.FC<ProductivityRowProps> = ({
 }) => {
   const bgColor = isToday 
     ? 'bg-indigo-100 dark:bg-indigo-900/40 border-2 border-indigo-400 dark:border-indigo-500 shadow-md mb-3'
-    : 'bg-gray-50 dark:bg-gray-700/50 mb-2';
+    : 'bg-gray-50 dark:bg-gray-900/40 mb-2';
 
   const textColor = isToday 
     ? 'text-indigo-700 dark:text-indigo-200'
-    : 'text-gray-900 dark:text-white';
+    : 'text-gray-900 dark:text-gray-100';
 
   return (
     <div 
@@ -43,7 +43,7 @@ const ProductivityRow: React.FC<ProductivityRowProps> = ({
       </div>
       <div className="flex justify-center">
         <div className="w-full max-w-lg">
-          <div className="w-full h-6 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden relative">
+          <div className="w-full h-6 bg-gray-200 dark:bg-gray-700/60 rounded-full overflow-hidden relative">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
                 completionRate >= 90 ? 'bg-green-600 dark:bg-green-400' :

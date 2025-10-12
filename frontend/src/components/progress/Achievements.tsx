@@ -220,18 +220,18 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
   const lockedAchievements = allAchievements.filter(achievement => !achievement.unlocked);
 
   return (
-    <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 rounded-2xl shadow-sm overflow-hidden">
+    <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-lg dark:shadow-indigo-500/10 overflow-hidden">
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+            <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl">
               <Award size={24} className="text-yellow-600 dark:text-yellow-400" />
             </div>
-            <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
+            <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
               Achievements
             </h2>
           </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400 bg-gray-50/80 dark:bg-gray-800/80 px-3 py-1 rounded-xl">
+          <div className="text-sm text-gray-500 dark:text-gray-300 bg-gray-50/80 dark:bg-gray-700/80 px-3 py-1 rounded-xl">
             {unlockedAchievements.length} / {allAchievements.length} unlocked
           </div>
         </div>
@@ -240,7 +240,7 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
         {/* Unlocked Achievements */}
         {unlockedAchievements.length > 0 && (
           <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center">
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 flex items-center">
               <CheckCircle size={20} className="text-green-500 mr-2" />
               Unlocked ({unlockedAchievements.length})
             </h3>
@@ -248,14 +248,14 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
               {unlockedAchievements.map((achievement) => (
                 <div 
                   key={achievement.id}
-                  className={`p-4 rounded-xl border-2 transition-all duration-300 hover:scale-[1.02] hover:shadow-md bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm ${getRarityColor(achievement.rarity)}`}
+                  className={`p-4 rounded-xl border-2 transition-all duration-300 hover:scale-[1.02] hover:shadow-md bg-white/90 dark:bg-gray-750/90 backdrop-blur-sm ${getRarityColor(achievement.rarity)}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <div className="p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
                         {achievement.icon}
                       </div>
-                      <h4 className="ml-3 text-sm font-medium text-gray-900 dark:text-white">
+                      <h4 className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-100">
                         {achievement.title}
                       </h4>
                     </div>
@@ -278,15 +278,15 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
         {/* Locked Achievements */}
         {lockedAchievements.length > 0 && (
           <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-4 flex items-center">
-              <Lock size={20} className="text-gray-500 mr-2" />
+            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 flex items-center">
+              <Lock size={20} className="text-gray-500 dark:text-gray-400 mr-2" />
               Locked ({lockedAchievements.length})
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {lockedAchievements.map((achievement) => (
                 <div 
                   key={achievement.id}
-                  className="p-4 rounded-xl border-2 border-gray-200 dark:border-gray-600 bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur-sm opacity-60"
+                  className="p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40 backdrop-blur-sm opacity-60"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">

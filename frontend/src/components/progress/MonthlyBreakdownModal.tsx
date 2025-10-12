@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
+import DailyBreakdownModal from './DailyBreakdownModal';
 
 interface MonthlyBreakdownModalProps {
   isOpen: boolean;
@@ -30,6 +31,8 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
   const [dailyData, setDailyData] = useState<DailyData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedDatePercentage, setSelectedDatePercentage] = useState<number>(0);
 
   useEffect(() => {
     if (isOpen) {
@@ -137,6 +140,16 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
     return 'Low Productive';
   };
 
+  const handleDateClick = (date: string, percentage: number) => {
+    setSelectedDate(date);
+    setSelectedDatePercentage(percentage);
+  };
+
+  const closeDailyModal = () => {
+    setSelectedDate(null);
+    setSelectedDatePercentage(0);
+  };
+
   if (!isOpen) return null;
 
   return createPortal(
@@ -211,10 +224,14 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
                 </h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                   {dailyData.map((day, index) => (
-                    <div key={day.date} className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                    <div 
+                      key={day.date} 
+                      className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                      onClick={() => handleDateClick(day.date, day.completion_rate)}
+                    >
                       <div className="flex items-center justify-between mb-2">
                         <span className="font-medium text-gray-900 dark:text-white text-sm">
-                          {formatDate(day.date)}
+                          {formatDate(day.date)} 👁️
                         </span>
                         <span className={`text-xs font-semibold ${getProductivityColor(day.status)}`}>
                           {day.status}
@@ -255,6 +272,17 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
           )}
         </div>
       </div>
+      
+      {/* Daily Breakdown Modal */}
+      {selectedDate && (
+        <DailyBreakdownModal
+          isOpen={true}
+          onClose={closeDailyModal}
+          date={selectedDate}
+          dailyPercentage={selectedDatePercentage}
+          getProductivityColor={getProductivityColor}
+        />
+      )}
     </div>,
     document.body
   );

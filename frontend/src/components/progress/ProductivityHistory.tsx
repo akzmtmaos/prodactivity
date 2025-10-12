@@ -116,7 +116,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       
       {/* If no data found for selected date and it's not today, show a message */}
       {!selectedDateData && !isSelectedDateToday && (
-        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8 mb-4">
+        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-8 mb-4">
           <div className="text-center">
             <div className="text-4xl mb-3">📅</div>
             <p className="text-gray-500 dark:text-gray-400 mb-2 font-medium">No activity recorded for {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
@@ -202,7 +202,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
         const isInSelectedMonth = itemMonth === selectedMonth && itemYear === selectedYear;
         return dayDate < today && isInSelectedMonth;
       }).length === 0 && selectedDateData && (
-        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8">
+        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-8">
           <div className="text-center">
             <p className="text-gray-500 dark:text-gray-400 mb-2">No historical daily data found</p>
             <p className="text-xs text-gray-400 dark:text-gray-500">This might be because:</p>
@@ -267,10 +267,10 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
         return (
           <div 
             key={item.week_start} 
-            className={`grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2 transition-colors duration-200 ${
+            className={`grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-4 mb-2 transition-colors duration-200 ${
               isFutureWeek 
                 ? 'cursor-not-allowed opacity-50' 
-                : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600/50'
+                : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/50'
             }`}
             onClick={() => {
               if (!isFutureWeek) {
@@ -289,7 +289,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
             </div>
             <div className="flex justify-center">
               <div className="w-full max-w-lg">
-                <div className="w-full h-6 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden relative">
+                <div className="w-full h-6 bg-gray-200 dark:bg-gray-700/60 rounded-full overflow-hidden relative">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
                       item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
@@ -314,7 +314,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       
       {/* Show message if no weekly data found */}
       {prodLogs.length === 0 && (
-        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8">
+        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-8">
           <div className="text-center">
             <p className="text-gray-500 dark:text-gray-400 mb-2">No weekly data found</p>
             <p className="text-xs text-gray-400 dark:text-gray-500">This might be because:</p>
@@ -358,10 +358,10 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
         return (
           <div 
             key={item.month} 
-            className={`grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-4 mb-2 transition-colors duration-200 ${
+            className={`grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-4 mb-2 transition-colors duration-200 ${
               isFutureMonth 
                 ? 'cursor-not-allowed opacity-50' 
-                : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600/50'
+                : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/50'
             }`}
             onClick={() => {
               if (!isFutureMonth) {
@@ -380,7 +380,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
             </div>
             <div className="flex justify-center">
               <div className="w-full max-w-lg">
-                <div className="w-full h-6 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden relative">
+                <div className="w-full h-6 bg-gray-200 dark:bg-gray-700/60 rounded-full overflow-hidden relative">
                   <div
                     className={`h-full rounded-full transition-all duration-500 ${
                       item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
@@ -405,7 +405,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       
       {/* Show message if no monthly data found */}
       {prodLogs.length === 0 && (
-        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-700/50 rounded-lg px-6 py-8">
+        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-8">
           <div className="text-center">
             <p className="text-gray-500 dark:text-gray-400 mb-2">No monthly data found</p>
             <p className="text-xs text-gray-400 dark:text-gray-500">This might be because:</p>
@@ -429,15 +429,15 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       
       {/* Tabs - Below Legend */}
       <div className="flex justify-center mb-6">
-        <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 rounded-2xl p-2 shadow-sm inline-flex">
+        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-2 shadow-lg dark:shadow-indigo-500/10 inline-flex">
           <div className="flex space-x-1">
             {tabs.map(tab => (
               <button
                 key={tab}
                 className={`min-w-[110px] px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
                   progressView === tab 
-                    ? 'bg-indigo-500 text-white shadow-sm' 
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                    ? 'bg-indigo-500 dark:bg-indigo-600 text-white shadow-sm' 
+                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700/50'
                 }`}
                 onClick={() => setProgressView(tab)}
               >
@@ -449,21 +449,21 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       </div>
       
       <div className="w-full mb-4">
-        <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 shadow-sm rounded-2xl w-full flex flex-col overflow-hidden" style={{ height: 520 }}>
-          <div className="flex items-center justify-between bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur-sm px-6 py-4 border-b border-gray-100 dark:border-gray-700/50">
-            <span className="text-lg font-semibold text-gray-900 dark:text-white">Productivity Scale History</span>
+        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 shadow-lg dark:shadow-indigo-500/10 rounded-2xl w-full flex flex-col overflow-hidden" style={{ height: 520 }}>
+          <div className="flex items-center justify-between bg-gray-50/80 dark:bg-gray-900/60 backdrop-blur-sm px-6 py-4 border-b border-gray-100 dark:border-gray-700/50">
+            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Productivity Scale History</span>
             <div className="flex items-center space-x-2">
               <button 
                 onClick={handlePrev} 
-                className={`px-3 py-2 rounded-xl transition-all duration-200 ${isPrevDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                className={`px-3 py-2 rounded-xl transition-all duration-200 ${isPrevDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}
                 disabled={isPrevDisabled}
               >
                 &#60;
               </button>
-              <span className="text-sm font-semibold text-gray-900 dark:text-white px-4 py-2 bg-white/80 dark:bg-gray-800/80 rounded-xl">{getDateDisplay()}</span>
+              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 px-4 py-2 bg-white/80 dark:bg-gray-700/80 rounded-xl">{getDateDisplay()}</span>
               <button
                 onClick={handleNext}
-                className={`px-3 py-2 rounded-xl transition-all duration-200 ${isNextDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'}`}
+                className={`px-3 py-2 rounded-xl transition-all duration-200 ${isNextDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}
                 disabled={isNextDisabled}
               >
                 &#62;

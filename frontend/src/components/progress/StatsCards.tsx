@@ -134,13 +134,13 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
       {/* Streak Card */}
-      <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 rounded-2xl p-6 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 group">
+      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-6 shadow-lg dark:shadow-orange-500/10 hover:shadow-xl dark:hover:shadow-orange-500/20 hover:scale-[1.02] transition-all duration-300 group">
         <div className="flex items-center">
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl group-hover:bg-orange-50 dark:group-hover:bg-orange-900/20 transition-colors">
+          <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl group-hover:bg-orange-50 dark:group-hover:bg-orange-900/30 transition-colors">
             <Flame size={24} className="text-orange-600 dark:text-orange-400" />
           </div>
           <div className="ml-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {currentStreak}
             </h3>
             <p className="text-gray-600 dark:text-gray-400">Current Streak</p>
@@ -149,13 +149,13 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
       </div>
 
       {/* Tasks Completed Card */}
-      <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 rounded-2xl p-6 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 group">
+      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-6 shadow-lg dark:shadow-green-500/10 hover:shadow-xl dark:hover:shadow-green-500/20 hover:scale-[1.02] transition-all duration-300 group">
         <div className="flex items-center">
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl group-hover:bg-green-50 dark:group-hover:bg-green-900/20 transition-colors">
+          <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl group-hover:bg-green-50 dark:group-hover:bg-green-900/30 transition-colors">
             <Target size={24} className="text-green-600 dark:text-green-400" />
           </div>
           <div className="ml-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {stats.totalTasksCompleted}
             </h3>
             <p className="text-gray-600 dark:text-gray-400">Tasks Completed</p>
@@ -164,13 +164,13 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
       </div>
 
       {/* Study Time Card */}
-      <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 rounded-2xl p-6 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 group">
+      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-6 shadow-lg dark:shadow-blue-500/10 hover:shadow-xl dark:hover:shadow-blue-500/20 hover:scale-[1.02] transition-all duration-300 group">
         <div className="flex items-center">
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
+          <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">
             <Clock size={24} className="text-blue-600 dark:text-blue-400" />
           </div>
           <div className="ml-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {Math.floor(stats.totalStudyTime / 60)}h {stats.totalStudyTime % 60}m
             </h3>
             <p className="text-gray-600 dark:text-gray-400">Study Time</p>
@@ -179,13 +179,13 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
       </div>
 
       {/* Productivity Score Card */}
-      <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 rounded-2xl p-6 shadow-sm hover:shadow-md hover:scale-[1.02] transition-all duration-300 group">
+      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-6 shadow-lg dark:shadow-purple-500/10 hover:shadow-xl dark:hover:shadow-purple-500/20 hover:scale-[1.02] transition-all duration-300 group">
         <div className="flex items-center">
-          <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl group-hover:bg-purple-50 dark:group-hover:bg-purple-900/20 transition-colors">
+          <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl group-hover:bg-purple-50 dark:group-hover:bg-purple-900/30 transition-colors">
             <TrendingUp size={24} className="text-purple-600 dark:text-purple-400" />
           </div>
           <div className="ml-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
               {stats.averageProductivity}%
             </h3>
             <p className="text-gray-600 dark:text-gray-400">Overall Productivity</p>

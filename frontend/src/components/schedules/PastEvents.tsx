@@ -7,9 +7,10 @@ interface PastEventsProps {
   pastEvents: PastEvent[];
   onViewEvent: (event: PastEvent) => void;
   onMarkCompleted?: (eventId: string, completed: boolean) => void;
+  onRecurEvent?: (event: PastEvent) => void;
 }
 
-const PastEvents: React.FC<PastEventsProps> = ({ pastEvents, onViewEvent, onMarkCompleted }) => {
+const PastEvents: React.FC<PastEventsProps> = ({ pastEvents, onViewEvent, onMarkCompleted, onRecurEvent }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const getCategoryColor = (category: string) => {
@@ -116,6 +117,16 @@ const PastEvents: React.FC<PastEventsProps> = ({ pastEvents, onViewEvent, onMark
                 </div>
 
                 <div className="flex items-center space-x-2 ml-4">
+                  {onRecurEvent && (
+                    <button
+                      onClick={() => onRecurEvent(event)}
+                      className="px-3 py-1 text-sm text-purple-600 hover:bg-purple-100 dark:hover:bg-purple-900/30 dark:text-purple-400 rounded-md transition-colors flex items-center gap-1"
+                      title="Create a recurring event with same details"
+                    >
+                      <Repeat className="h-4 w-4" />
+                      Recur
+                    </button>
+                  )}
                   {onMarkCompleted && (
                     <button
                       onClick={() => onMarkCompleted(event.id, !event.completedAt)}
@@ -131,7 +142,7 @@ const PastEvents: React.FC<PastEventsProps> = ({ pastEvents, onViewEvent, onMark
                   )}
                   <button
                     onClick={() => onViewEvent(event)}
-                    className="px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-100 dark:hover:bg-indigo-900 rounded-md transition-colors"
+                    className="px-3 py-1 text-sm text-indigo-600 hover:bg-indigo-100 dark:hover:bg-indigo-900 dark:text-indigo-400 rounded-md transition-colors"
                   >
                     View Details
                   </button>

@@ -47,6 +47,9 @@ const Settings: React.FC = () => {
   const [avatarPreview, setAvatarPreview] = useState<string>('');
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showDeletePasswordModal, setShowDeletePasswordModal] = useState(false);
+  const [showFinalDeleteConfirmation, setShowFinalDeleteConfirmation] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
   const [passwordFields, setPasswordFields] = useState({ current: '', new: '', confirm: '' });
   const [passwordError, setPasswordError] = useState('');
   const [newPasswordError, setNewPasswordError] = useState('');
@@ -54,6 +57,7 @@ const Settings: React.FC = () => {
   const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isProfileSaving, setIsProfileSaving] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [validationErrors, setValidationErrors] = useState<{
     current?: string;
@@ -141,6 +145,89 @@ const Settings: React.FC = () => {
     localStorage.removeItem('accessToken');
     localStorage.removeItem('refreshToken');
     window.location.href = '/login';
+  };
+
+  // Delete account flow handlers
+  const handleDeleteAccountClick = () => {
+    setShowDeleteModal(true);
+  };
+
+  const handleDeleteModalConfirm = () => {
+    setShowDeleteModal(false);
+    setShowDeletePasswordModal(true);
+  };
+
+  const handlePasswordVerification = async () => {
+    setDeleteError('');
+    
+    if (!deletePassword) {
+      setDeleteError('Password is required');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    
+    try {
+      // Verify password with backend
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch('http://192.168.56.1:8000/api/verify-password/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          password: deletePassword
+        })
+      });
+
+      if (response.ok) {
+        // Password verified, show final confirmation
+        setShowDeletePasswordModal(false);
+        setDeletePassword('');
+        setShowFinalDeleteConfirmation(true);
+      } else {
+        const data = await response.json();
+        setDeleteError(data.detail || 'Incorrect password');
+      }
+    } catch (error) {
+      setDeleteError('Network error. Please try again.');
+    } finally {
+      setIsDeletingAccount(false);
+    }
+  };
+
+  const handleFinalDeleteConfirm = async () => {
+    setIsDeletingAccount(true);
+    
+    try {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch('http://192.168.56.1:8000/api/delete-account/', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (response.ok) {
+        // Account deleted successfully - clear all data and redirect to login
+        localStorage.removeItem('user');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('userSettings');
+        window.location.href = '/login';
+      } else {
+        const data = await response.json();
+        setDeleteError(data.detail || 'Failed to delete account');
+        setShowFinalDeleteConfirmation(false);
+      }
+    } catch (error) {
+      setDeleteError('Network error. Please try again.');
+      setShowFinalDeleteConfirmation(false);
+    } finally {
+      setIsDeletingAccount(false);
+    }
   };
 
   useEffect(() => {
@@ -491,7 +578,7 @@ const Settings: React.FC = () => {
                       <button onClick={() => setShowPasswordModal(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors">
                         <Lock size={16} /> Change Password
                       </button>
-                      <button onClick={() => setShowDeleteModal(true)} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors">
+                      <button onClick={handleDeleteAccountClick} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors">
                         <Trash2 size={16} /> Delete Account
                       </button>
                     </div>
@@ -631,16 +718,163 @@ const Settings: React.FC = () => {
                       </div>
                     </div>
                   )}
-                  {/* Delete Account Modal */}
+                  {/* Step 1: Initial Delete Account Warning Modal */}
                   {showDeleteModal && (
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                      <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg p-6 w-full max-w-md">
-                        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2"><Trash2 size={18}/> Delete Account</h3>
-                        <p className="mb-4 text-gray-700 dark:text-gray-300">Are you sure you want to delete your account? This action cannot be undone.</p>
-                        {deleteError && <div className="text-red-600 text-sm mb-2">{deleteError}</div>}
-                        <div className="mt-6 flex justify-end gap-2">
-                          <button onClick={() => setShowDeleteModal(false)} className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">Cancel</button>
-                          <button onClick={() => {/* handle delete logic */}} className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700">Delete Account</button>
+                      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-8 w-full max-w-md mx-4 border border-red-200 dark:border-red-800">
+                        <div className="text-center mb-6">
+                          <div className="mx-auto w-16 h-16 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+                            <Trash2 size={32} className="text-red-600 dark:text-red-400"/>
+                          </div>
+                          <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Delete Account?</h3>
+                          <p className="text-gray-600 dark:text-gray-400">This action is permanent and cannot be undone.</p>
+                        </div>
+                        
+                        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-6">
+                          <p className="text-sm text-red-800 dark:text-red-300 font-semibold mb-2">⚠️ You will lose:</p>
+                          <ul className="text-sm text-red-700 dark:text-red-400 space-y-1 ml-4">
+                            <li>• All your tasks and productivity data</li>
+                            <li>• All notes and decks</li>
+                            <li>• XP, achievements, and streaks</li>
+                            <li>• All account information</li>
+                          </ul>
+                        </div>
+                        
+                        <div className="flex gap-3">
+                          <button 
+                            onClick={() => {
+                              setShowDeleteModal(false);
+                              setDeleteError('');
+                            }} 
+                            className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={handleDeleteModalConfirm}
+                            className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+                          >
+                            Continue
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 2: Password Verification Modal */}
+                  {showDeletePasswordModal && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-8 w-full max-w-md mx-4">
+                        <div className="mb-6">
+                          <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                            <Lock size={20}/> Verify Your Password
+                          </h3>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">Please enter your password to confirm account deletion.</p>
+                        </div>
+                        
+                        <div className="mb-6">
+                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Password</label>
+                          <input 
+                            type="password" 
+                            value={deletePassword}
+                            onChange={e => {
+                              setDeletePassword(e.target.value);
+                              setDeleteError('');
+                            }}
+                            onKeyDown={e => e.key === 'Enter' && handlePasswordVerification()}
+                            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
+                            placeholder="Enter your password"
+                            autoFocus
+                          />
+                          {deleteError && (
+                            <p className="mt-2 text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded">
+                              {deleteError}
+                            </p>
+                          )}
+                        </div>
+                        
+                        <div className="flex gap-3">
+                          <button 
+                            onClick={() => {
+                              setShowDeletePasswordModal(false);
+                              setDeletePassword('');
+                              setDeleteError('');
+                            }}
+                            disabled={isDeletingAccount}
+                            className="flex-1 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={handlePasswordVerification}
+                            disabled={isDeletingAccount || !deletePassword}
+                            className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            {isDeletingAccount ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                Verifying...
+                              </>
+                            ) : (
+                              'Verify Password'
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Step 3: Final Confirmation Modal */}
+                  {showFinalDeleteConfirmation && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+                      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-8 w-full max-w-md mx-4 border-2 border-red-500">
+                        <div className="text-center mb-6">
+                          <div className="mx-auto w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4 animate-pulse">
+                            <Trash2 size={40} className="text-red-600 dark:text-red-400"/>
+                          </div>
+                          <h3 className="text-2xl font-bold text-red-600 dark:text-red-400 mb-3">⚠️ FINAL WARNING</h3>
+                          <p className="text-gray-700 dark:text-gray-300 font-medium mb-2">Your account will be permanently deleted.</p>
+                          <p className="text-sm text-gray-600 dark:text-gray-400">This is your last chance to cancel.</p>
+                        </div>
+                        
+                        <div className="bg-red-50 dark:bg-red-900/20 border-2 border-red-300 dark:border-red-700 rounded-lg p-4 mb-6">
+                          <p className="text-sm text-red-800 dark:text-red-300 font-bold text-center">
+                            ALL YOUR DATA WILL BE LOST FOREVER
+                          </p>
+                        </div>
+                        
+                        {deleteError && (
+                          <div className="mb-4 p-3 bg-red-100 dark:bg-red-900/30 border border-red-400 dark:border-red-600 rounded-lg">
+                            <p className="text-sm text-red-600 dark:text-red-400">{deleteError}</p>
+                          </div>
+                        )}
+                        
+                        <div className="flex gap-3">
+                          <button 
+                            onClick={() => {
+                              setShowFinalDeleteConfirmation(false);
+                              setDeletePassword('');
+                              setDeleteError('');
+                            }}
+                            disabled={isDeletingAccount}
+                            className="flex-1 px-4 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            Cancel
+                          </button>
+                          <button 
+                            onClick={handleFinalDeleteConfirm}
+                            disabled={isDeletingAccount}
+                            className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            {isDeletingAccount ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
+                                Deleting...
+                              </>
+                            ) : (
+                              'DELETE MY ACCOUNT'
+                            )}
+                          </button>
                         </div>
                       </div>
                     </div>

@@ -199,28 +199,28 @@ const MainChart: React.FC<MainChartProps> = ({ view, data, prodLogs }) => {
   }
 
   return (
-    <div className="bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border border-gray-100 dark:border-gray-800/50 rounded-2xl shadow-sm mb-8 overflow-hidden">
+    <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-lg dark:shadow-indigo-500/10 mb-8 overflow-hidden">
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl">
+            <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl">
               <BarChart3 size={20} className="text-indigo-600 dark:text-indigo-400" />
             </div>
-            <h2 className="ml-3 text-xl font-semibold text-gray-900 dark:text-white">
+            <h2 className="ml-3 text-xl font-semibold text-gray-900 dark:text-gray-100">
               {view} Productivity Chart
             </h2>
           </div>
           
           {/* Metric Selector */}
-          <div className="bg-gray-50/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-xl p-1">
+          <div className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-sm rounded-xl p-1">
             <div className="flex space-x-1">
               <button
                 onClick={() => setSelectedMetric('productivity')}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                   selectedMetric === 'productivity'
-                    ? 'bg-indigo-500 text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50'
+                    ? 'bg-indigo-500 dark:bg-indigo-600 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-600/50'
                 }`}
               >
                 <Activity size={14} className="inline mr-1" />
@@ -230,8 +230,8 @@ const MainChart: React.FC<MainChartProps> = ({ view, data, prodLogs }) => {
                 onClick={() => setSelectedMetric('tasks')}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                   selectedMetric === 'tasks'
-                    ? 'bg-green-500 text-white shadow-sm'
-                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50'
+                    ? 'bg-green-500 dark:bg-green-600 text-white shadow-sm'
+                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-600/50'
                 }`}
               >
                 <Calendar size={14} className="inline mr-1" />
@@ -241,7 +241,7 @@ const MainChart: React.FC<MainChartProps> = ({ view, data, prodLogs }) => {
                 onClick={() => setSelectedMetric('study')}
                 className={`px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                   selectedMetric === 'study'
-                    ? 'bg-purple-500 text-white shadow-sm'
+                    ? 'bg-purple-500 dark:bg-purple-600 text-white shadow-sm'
                     : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-white/50 dark:hover:bg-gray-700/50'
                 }`}
               >

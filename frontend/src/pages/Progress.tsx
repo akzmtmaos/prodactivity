@@ -1784,27 +1784,27 @@ const Progress = () => {
       <div className="min-h-screen flex flex-col relative">
         {/* Modern Animated Background */}
         <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-          {/* Clean Base */}
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-950 dark:via-gray-900 dark:to-gray-800"></div>
+          {/* Clean Base - Darker background in dark mode for better contrast */}
+          <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-[#0a0a0b] dark:via-[#0f0f12] dark:to-[#14141a]"></div>
           
-          {/* Minimalist Geometric Elements */}
+          {/* Minimalist Geometric Elements - More vibrant in dark mode */}
           {/* Top-right corner accent */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-indigo-500/10 via-transparent to-transparent dark:from-indigo-400/5"></div>
+          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-indigo-500/10 via-transparent to-transparent dark:from-indigo-500/15"></div>
           
           {/* Bottom-left corner accent */}
-          <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-blue-500/8 via-transparent to-transparent dark:from-blue-400/4"></div>
+          <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-blue-500/8 via-transparent to-transparent dark:from-blue-500/12"></div>
           
           {/* Center-right subtle shape */}
-          <div className="absolute top-1/3 right-1/4 w-64 h-64 bg-gradient-to-bl from-purple-400/5 to-transparent dark:from-purple-300/3 rounded-full"></div>
+          <div className="absolute top-1/3 right-1/4 w-64 h-64 bg-gradient-to-bl from-purple-400/5 to-transparent dark:from-purple-500/10 rounded-full"></div>
           
           {/* Top-left subtle shape */}
-          <div className="absolute top-1/4 left-1/6 w-48 h-48 bg-gradient-to-br from-cyan-400/6 to-transparent dark:from-cyan-300/3 rounded-full"></div>
+          <div className="absolute top-1/4 left-1/6 w-48 h-48 bg-gradient-to-br from-cyan-400/6 to-transparent dark:from-cyan-500/10 rounded-full"></div>
           
           {/* Minimal grid pattern overlay */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.02)_1px,transparent_1px)] bg-[size:40px_40px] dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.03)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.03)_1px,transparent_1px)]"></div>
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.02)_1px,transparent_1px)] bg-[size:40px_40px] dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)]"></div>
           
           {/* Subtle gradient overlay for depth */}
-          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/[0.01] dark:to-white/[0.01]"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/[0.01] dark:from-indigo-500/[0.02] dark:via-transparent dark:to-purple-500/[0.02]"></div>
         </div>
 
         {/* Main Content */}
