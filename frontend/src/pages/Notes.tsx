@@ -1258,7 +1258,7 @@ const Notes = () => {
                       {notebooks.length === 0 ? (
                         <div className="flex items-center justify-center h-full">
                           <div className="text-center">
-                            <div className="text-gray-400 dark:text-gray-500 mb-4">
+                            <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
                               <Book size={48} />
                             </div>
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
@@ -1278,7 +1278,7 @@ const Notes = () => {
                       ) : filteredNotebooks.length === 0 ? (
                         <div className="flex items-center justify-center h-full">
                           <div className="text-center">
-                            <div className="text-gray-400 dark:text-gray-500 mb-4">
+                            <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
                               <Book size={48} />
                             </div>
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
@@ -1321,7 +1321,7 @@ const Notes = () => {
                       {archivedNotebooks.length === 0 ? (
                         <div className="flex items-center justify-center h-full">
                           <div className="text-center">
-                            <div className="text-gray-400 dark:text-gray-500 mb-4">
+                            <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
                               <Archive size={48} />
                             </div>
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
@@ -1448,7 +1448,7 @@ const Notes = () => {
               {archivedNotes.length === 0 ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
-                    <div className="text-gray-400 dark:text-gray-500 mb-4">
+                    <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
                       <Archive size={48} />
                     </div>
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">

@@ -76,19 +76,41 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
 
   useEffect(() => {
     // Fetch user info from localStorage
-    const userData = localStorage.getItem("user");
-    if (userData) {
-      try {
-        const parsed = JSON.parse(userData);
-        if (parsed && parsed.username) setUser(parsed);
-        else if (parsed && parsed.user && parsed.user.username) setUser(parsed.user);
-        else setUser({ username: "User" });
-      } catch {
+    const loadUserData = () => {
+      const userData = localStorage.getItem("user");
+      if (userData) {
+        try {
+          const parsed = JSON.parse(userData);
+          if (parsed && parsed.username) setUser(parsed);
+          else if (parsed && parsed.user && parsed.user.username) setUser(parsed.user);
+          else setUser({ username: "User" });
+        } catch {
+          setUser({ username: "User" });
+        }
+      } else {
         setUser({ username: "User" });
       }
-    } else {
-      setUser({ username: "User" });
-    }
+    };
+
+    // Load initial user data
+    loadUserData();
+
+    // Listen for profile updates from Settings page
+    const handleProfileUpdate = (event: any) => {
+      console.log('🔄 Navbar: Profile update detected', event.detail);
+      if (event.detail && event.detail.user) {
+        setUser(event.detail.user);
+      } else {
+        loadUserData(); // Fallback to reloading from localStorage
+      }
+    };
+
+    window.addEventListener('userProfileUpdated', handleProfileUpdate);
+
+    // Cleanup listener on unmount
+    return () => {
+      window.removeEventListener('userProfileUpdated', handleProfileUpdate);
+    };
   }, []);
 
   // Helper to get user initials

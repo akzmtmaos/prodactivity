@@ -37,14 +37,32 @@ const Profile: React.FC = () => {
   const [averageProductivity, setAverageProductivity] = useState(0);
 
   useEffect(() => {
-    const rawUser = localStorage.getItem('user');
-    try {
-      const parsed = rawUser ? JSON.parse(rawUser) : null;
-      // Normalize stored shape: some places store { user: {...} }
-      setUser(parsed && typeof parsed === 'object' && parsed.user ? parsed.user : parsed);
-    } catch {
-      setUser(null);
-    }
+    // Function to load user data
+    const loadUserData = () => {
+      const rawUser = localStorage.getItem('user');
+      try {
+        const parsed = rawUser ? JSON.parse(rawUser) : null;
+        // Normalize stored shape: some places store { user: {...} }
+        setUser(parsed && typeof parsed === 'object' && parsed.user ? parsed.user : parsed);
+      } catch {
+        setUser(null);
+      }
+    };
+
+    // Load initial user data
+    loadUserData();
+
+    // Listen for profile updates from Settings page
+    const handleProfileUpdate = (event: any) => {
+      console.log('🔄 Profile page: User profile update detected', event.detail);
+      if (event.detail && event.detail.user) {
+        setUser(event.detail.user);
+      } else {
+        loadUserData(); // Fallback to reloading from localStorage
+      }
+    };
+
+    window.addEventListener('userProfileUpdated', handleProfileUpdate);
 
     // Achievements will be calculated dynamically based on stats
     
@@ -68,6 +86,11 @@ const Profile: React.FC = () => {
         // ignore if endpoint not available
       }
     })();
+
+    // Cleanup listener on unmount
+    return () => {
+      window.removeEventListener('userProfileUpdated', handleProfileUpdate);
+    };
 
     // Fetch statistics from Supabase
     (async () => {
