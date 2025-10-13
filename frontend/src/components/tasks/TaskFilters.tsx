@@ -8,8 +8,6 @@ interface TaskFiltersProps {
   onFilterCompletedChange?: (value: boolean | null) => void;
   filterPriority: Task['priority'] | 'all';
   onFilterPriorityChange: (value: Task['priority'] | 'all') => void;
-  filterTaskCategory: string;
-  onFilterTaskCategoryChange: (value: string) => void;
   onResetFilters?: () => void; // New prop
 }
 
@@ -20,8 +18,6 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
   onFilterCompletedChange,
   filterPriority,
   onFilterPriorityChange,
-  filterTaskCategory,
-  onFilterTaskCategoryChange,
   onResetFilters,
 }) => {
   return (
@@ -58,14 +54,6 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
           <option value="high">High</option>
         </select>
         
-        {/* Task Category filter */}
-        <input
-          type="text"
-          className="rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 px-3 text-sm"
-          placeholder="Filter by category..."
-          value={filterTaskCategory}
-          onChange={(e) => onFilterTaskCategoryChange(e.target.value)}
-        />
         {/* Reset Filters Button */}
         {onResetFilters && (
           <button

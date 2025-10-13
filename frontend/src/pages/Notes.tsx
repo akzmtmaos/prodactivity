@@ -1,5 +1,5 @@
 // frontend/src/pages/Notes.tsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import axiosInstance from '../utils/axiosConfig';
 import { useParams, useNavigate } from 'react-router-dom';
 import NotebookList from '../components/notes/NotebookList';
@@ -497,8 +497,18 @@ const Notes = () => {
   };
 
   // 3. Add handlers for saving and closing NoteEditor
+  const isSavingRef = useRef(false);
+  
   const handleSaveNoteEditor = async (title: string, content: string, priority: 'low' | 'medium' | 'high' | 'urgent', closeAfterSave = false) => {
+    // Prevent duplicate saves
+    if (isSavingRef.current) {
+      console.log('⚠️ Save already in progress, skipping duplicate call');
+      return;
+    }
+    
+    isSavingRef.current = true;
     setIsSavingNote(true);
+    
     if (isNewNoteEditor && selectedNotebook) {
       try {
         const response = await axiosInstance.post(`/notes/`, {
@@ -528,6 +538,8 @@ const Notes = () => {
         if (closeAfterSave) setShowNoteEditor(false);
       } catch (error) {
         handleError(error, 'Failed to create note');
+      } finally {
+        isSavingRef.current = false;
       }
     } else if (noteEditorNote) {
       try {
@@ -561,16 +573,32 @@ const Notes = () => {
         }
       } catch (error) {
         handleError(error, 'Failed to update note');
+      } finally {
+        isSavingRef.current = false;
       }
     }
+    
+    // Always reset the saving flag
     setIsSavingNote(false);
+    isSavingRef.current = false;
   };
+  const isClosingEditorRef = useRef(false);
+  
   const handleCloseNoteEditor = () => {
+    // Set flag to indicate we're intentionally closing the editor
+    isClosingEditorRef.current = true;
+    
     setShowNoteEditor(false);
     setNoteEditorNote(null);
     setIsNewNoteEditor(false);
     setNewNote({ title: '', content: '' });
     navigate('/notes');
+    
+    // Reset flags after navigation
+    setTimeout(() => {
+      hasOpenedNoteFromUrlRef.current = null;
+      isClosingEditorRef.current = false;
+    }, 100);
   };
 
   // Global search state for notes and notebooks
@@ -709,35 +737,53 @@ const Notes = () => {
   };
 
   // Add useEffect to handle opening note from URL parameter
+  const hasOpenedNoteFromUrlRef = useRef<string | null>(null);
+  
   useEffect(() => {
     const openNoteFromUrl = async () => {
-      if (noteIdFromUrl) {
-        try {
-          const response = await axiosInstance.get(`/notes/${noteIdFromUrl}/`);
-          const note = response.data;
-          
-          // Find the notebook for this note
-          const notebook = notebooks.find(nb => nb.id === note.notebook);
-          if (notebook) {
-            setSelectedNotebook(notebook);
-            await fetchNotes(notebook.id);
-          }
-          
-          // Open the note in the editor
-          setNoteEditorNote(note);
-          setIsNewNoteEditor(false);
-          setShowNoteEditor(true);
-        } catch (error) {
-          console.error('Failed to fetch note:', error);
-          // If note not found, redirect to notes page
-          navigate('/notes');
+      // Skip if we're intentionally closing the editor
+      if (isClosingEditorRef.current) {
+        return;
+      }
+      
+      // Skip if we already opened this note or if no note ID in URL
+      if (!noteIdFromUrl || hasOpenedNoteFromUrlRef.current === noteIdFromUrl) {
+        return;
+      }
+      
+      try {
+        const response = await axiosInstance.get(`/notes/${noteIdFromUrl}/`);
+        const note = response.data;
+        
+        // Find the notebook for this note
+        const notebook = notebooks.find(nb => nb.id === note.notebook);
+        if (notebook) {
+          setSelectedNotebook(notebook);
+          await fetchNotes(notebook.id);
         }
+        
+        // Open the note in the editor
+        setNoteEditorNote(note);
+        setIsNewNoteEditor(false);
+        setShowNoteEditor(true);
+        
+        // Mark this note as opened to prevent reopening
+        hasOpenedNoteFromUrlRef.current = noteIdFromUrl;
+      } catch (error) {
+        console.error('Failed to fetch note:', error);
+        // If note not found, redirect to notes page
+        navigate('/notes');
       }
     };
 
     // Only try to open note if we have notebooks loaded
-    if (notebooks.length > 0) {
+    if (notebooks.length > 0 && noteIdFromUrl) {
       openNoteFromUrl();
+    }
+    
+    // Reset the flag when URL changes to no note
+    if (!noteIdFromUrl) {
+      hasOpenedNoteFromUrlRef.current = null;
     }
   }, [notebooks, noteIdFromUrl, navigate]);
 
@@ -758,8 +804,15 @@ const Notes = () => {
   }, [notebooks]);
 
   // Add useEffect to handle opening note from localStorage
+  const hasOpenedNoteFromStorageRef = useRef(false);
+  
   useEffect(() => {
     const openNoteFromStorage = async () => {
+      // Only run once
+      if (hasOpenedNoteFromStorageRef.current) {
+        return;
+      }
+      
       const noteId = localStorage.getItem('openNoteId');
       
       if (noteId) {
@@ -781,6 +834,9 @@ const Notes = () => {
           
           // Clear the stored note ID
           localStorage.removeItem('openNoteId');
+          
+          // Mark as opened to prevent reopening
+          hasOpenedNoteFromStorageRef.current = true;
         } catch (error) {
           console.error('Failed to fetch note:', error);
         }
@@ -788,7 +844,7 @@ const Notes = () => {
     };
 
     // Only try to open note if we have notebooks loaded
-    if (notebooks.length > 0) {
+    if (notebooks.length > 0 && !hasOpenedNoteFromStorageRef.current) {
       openNoteFromStorage();
     }
   }, [notebooks]); // Re-run when notebooks are loaded

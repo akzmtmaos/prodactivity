@@ -94,7 +94,6 @@ const TasksContent = ({ user }: { user: any }) => {
   const [sortField, setSortField] = useState<keyof Task>('dueDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterPriority, setFilterPriority] = useState<Task['priority'] | 'all'>('all');
-  const [filterTaskCategory, setFilterTaskCategory] = useState<string>('');
   const [searchTerm, setSearchTerm] = useState('');
 
   // State for delete confirmation modal
@@ -128,7 +127,7 @@ const TasksContent = ({ user }: { user: any }) => {
   // Reset to first page when filters change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterPriority, filterTaskCategory, sortField, sortDirection]);
+  }, [searchTerm, filterPriority, sortField, sortDirection]);
 
   // Fetch tasks and stats whenever filters/search change
   useEffect(() => {
@@ -142,7 +141,7 @@ const TasksContent = ({ user }: { user: any }) => {
       }
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, filterPriority, filterTaskCategory, sortField, sortDirection, currentPage]);
+  }, [searchTerm, filterPriority, sortField, sortDirection, currentPage]);
 
   // Fetch tasks when activeTab changes
   useEffect(() => {
@@ -207,10 +206,6 @@ const TasksContent = ({ user }: { user: any }) => {
         query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
       }
       
-      if (filterTaskCategory) {
-        query = query.eq('task_category', filterTaskCategory);
-      }
-      
       const { data, error } = await query;
       
       if (error) {
@@ -243,7 +238,7 @@ const TasksContent = ({ user }: { user: any }) => {
     } catch (err: any) {
       console.error('Error fetching task stats from Supabase:', err);
     }
-  }, [filterPriority, searchTerm, filterTaskCategory]);
+  }, [filterPriority, searchTerm]);
 
   // Fetch tasks from Supabase
   const fetchTasks = useCallback(async () => {
@@ -293,10 +288,6 @@ const TasksContent = ({ user }: { user: any }) => {
         query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
       }
       
-      if (filterTaskCategory) {
-        query = query.eq('task_category', filterTaskCategory);
-      }
-      
       // Apply sorting
       const orderingField = sortField === 'dueDate' ? 'due_date' : (sortField as string);
       query = query.order(orderingField, { ascending: sortDirection === 'asc' });
@@ -340,7 +331,7 @@ const TasksContent = ({ user }: { user: any }) => {
     } finally {
       setLoading(false);
     }
-  }, [navigate, activeTab, filterPriority, searchTerm, filterTaskCategory, sortField, sortDirection, currentPage, pageSize]);
+  }, [navigate, activeTab, filterPriority, searchTerm, sortField, sortDirection, currentPage, pageSize]);
 
   // Real-time refresh callbacks
   const handleTasksRefresh = useCallback(() => {
@@ -916,7 +907,7 @@ const TasksContent = ({ user }: { user: any }) => {
     <PageLayout>
       <div className="space-y-6">
         <div className="max-w-7xl mx-auto">
-          {/* Header section */}
+          {/* Header section with filters on same line */}
           <div className="mb-8 flex items-center justify-between">
             <div>
               <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-center">
@@ -943,7 +934,8 @@ const TasksContent = ({ user }: { user: any }) => {
                 Manage and track your tasks
               </p>
             </div>
-            {/* Right side: Real-time status and TaskFilters */}
+            
+            {/* Search and Filters with Add Task button */}
             <div className="flex items-center gap-4">
               <RealtimeStatus />
               <TaskFilters
@@ -953,17 +945,25 @@ const TasksContent = ({ user }: { user: any }) => {
                 onFilterCompletedChange={() => {}}
                 filterPriority={filterPriority}
                 onFilterPriorityChange={setFilterPriority}
-                filterTaskCategory={filterTaskCategory}
-                onFilterTaskCategoryChange={setFilterTaskCategory}
                 onResetFilters={() => {
                   setSearchTerm('');
                   setFilterPriority('all');
-                  setFilterTaskCategory('');
                 }}
               />
+              <button
+                className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                onClick={() => {
+                  setEditingTask(undefined);
+                  setIsFormOpen(true);
+                }}
+              >
+                <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                Add Task
+              </button>
             </div>
           </div>
-
 
           {/* Task summary */}
           <TaskSummary 
@@ -974,8 +974,8 @@ const TasksContent = ({ user }: { user: any }) => {
             dueTodayCount={taskStats.due_today}
           />
 
-          {/* Tabs for Tasks and Completed with Add Task button */}
-          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-6">
+          {/* Tabs for Tasks and Completed */}
+          <div className="flex items-center border-b border-gray-200 dark:border-gray-700 mb-6">
             <div className="flex space-x-4">
               <button
                 className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
@@ -1008,19 +1008,6 @@ const TasksContent = ({ user }: { user: any }) => {
                 Completed
               </button>
             </div>
-            {/* Add Task button on the right */}
-            <button
-              className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              onClick={() => {
-                setEditingTask(undefined);
-                setIsFormOpen(true);
-              }}
-            >
-              <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-              </svg>
-              Add Task
-            </button>
           </div>
 
           {/* Error display */}
@@ -1151,11 +1138,11 @@ const TasksContent = ({ user }: { user: any }) => {
                 </svg>
                 <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tasks found</h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {searchTerm || filterPriority !== 'all' || filterTaskCategory
+                  {searchTerm || filterPriority !== 'all'
                     ? 'Try changing your search or filter criteria.'
                     : 'Get started by creating a new task.'}
                 </p>
-                {!searchTerm && filterPriority === 'all' && filterTaskCategory === '' && (
+                {!searchTerm && filterPriority === 'all' && (
                   <div className="mt-6">
                     <button
                       type="button"
