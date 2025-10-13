@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import ReactDOM from 'react-dom';
 import { Moon, Sun, Bell, User, Shield, Globe, Image as ImageIcon, Lock, LogOut, Trash2, Mail, User as UserIcon, Info, Phone, Calendar, MapPin } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import PageLayout from '../components/PageLayout';
@@ -152,12 +153,20 @@ const Settings: React.FC = () => {
     setShowDeleteModal(true);
   };
 
+  // Step 1 -> Step 2 (First confirmation to second confirmation)
   const handleDeleteModalConfirm = () => {
     setShowDeleteModal(false);
+    setShowFinalDeleteConfirmation(true);
+  };
+
+  // Step 2 -> Step 3 (Second confirmation to password input)
+  const handleFinalConfirmToPasword = () => {
+    setShowFinalDeleteConfirmation(false);
     setShowDeletePasswordModal(true);
   };
 
-  const handlePasswordVerification = async () => {
+  // Step 3 -> Delete (Password verification and account deletion)
+  const handlePasswordVerificationAndDelete = async () => {
     setDeleteError('');
     
     if (!deletePassword) {
@@ -168,9 +177,10 @@ const Settings: React.FC = () => {
     setIsDeletingAccount(true);
     
     try {
-      // Verify password with backend
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://192.168.56.1:8000/api/verify-password/', {
+      
+      // Verify password and delete account in one call
+      const response = await fetch('http://192.168.56.1:8000/api/delete-account/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -182,49 +192,20 @@ const Settings: React.FC = () => {
       });
 
       if (response.ok) {
-        // Password verified, show final confirmation
-        setShowDeletePasswordModal(false);
-        setDeletePassword('');
-        setShowFinalDeleteConfirmation(true);
-      } else {
-        const data = await response.json();
-        setDeleteError(data.detail || 'Incorrect password');
-      }
-    } catch (error) {
-      setDeleteError('Network error. Please try again.');
-    } finally {
-      setIsDeletingAccount(false);
-    }
-  };
-
-  const handleFinalDeleteConfirm = async () => {
-    setIsDeletingAccount(true);
-    
-    try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://192.168.56.1:8000/api/delete-account/', {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (response.ok) {
         // Account deleted successfully - clear all data and redirect to login
         localStorage.removeItem('user');
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
         localStorage.removeItem('userSettings');
+        localStorage.clear(); // Clear all localStorage
         window.location.href = '/login';
       } else {
         const data = await response.json();
-        setDeleteError(data.detail || 'Failed to delete account');
-        setShowFinalDeleteConfirmation(false);
+        setDeleteError(data.detail || 'Incorrect password or failed to delete account');
       }
     } catch (error) {
+      console.error('Delete account error:', error);
       setDeleteError('Network error. Please try again.');
-      setShowFinalDeleteConfirmation(false);
     } finally {
       setIsDeletingAccount(false);
     }
@@ -771,7 +752,7 @@ const Settings: React.FC = () => {
                     </div>
                   )}
                   {/* Step 1: Initial Delete Account Warning Modal */}
-                  {showDeleteModal && (
+                  {showDeleteModal && ReactDOM.createPortal(
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
                       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-8 w-full max-w-md mx-4 border border-red-200 dark:border-red-800">
                         <div className="text-center mb-6">
@@ -810,11 +791,12 @@ const Settings: React.FC = () => {
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </div>,
+                    document.body
                   )}
 
                   {/* Step 2: Password Verification Modal */}
-                  {showDeletePasswordModal && (
+                  {showDeletePasswordModal && ReactDOM.createPortal(
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
                       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-8 w-full max-w-md mx-4">
                         <div className="mb-6">
@@ -833,7 +815,7 @@ const Settings: React.FC = () => {
                               setDeletePassword(e.target.value);
                               setDeleteError('');
                             }}
-                            onKeyDown={e => e.key === 'Enter' && handlePasswordVerification()}
+                            onKeyDown={e => e.key === 'Enter' && !isDeletingAccount && deletePassword && handlePasswordVerificationAndDelete()}
                             className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 focus:border-red-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
                             placeholder="Enter your password"
                             autoFocus
@@ -858,26 +840,27 @@ const Settings: React.FC = () => {
                             Cancel
                           </button>
                           <button 
-                            onClick={handlePasswordVerification}
+                            onClick={handlePasswordVerificationAndDelete}
                             disabled={isDeletingAccount || !deletePassword}
                             className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
                             {isDeletingAccount ? (
                               <>
                                 <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                                Verifying...
+                                Deleting Account...
                               </>
                             ) : (
-                              'Verify Password'
+                              'DELETE MY ACCOUNT'
                             )}
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </div>,
+                    document.body
                   )}
 
                   {/* Step 3: Final Confirmation Modal */}
-                  {showFinalDeleteConfirmation && (
+                  {showFinalDeleteConfirmation && ReactDOM.createPortal(
                     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
                       <div className="bg-white dark:bg-gray-900 rounded-xl shadow-2xl p-8 w-full max-w-md mx-4 border-2 border-red-500">
                         <div className="text-center mb-6">
@@ -908,28 +891,20 @@ const Settings: React.FC = () => {
                               setDeletePassword('');
                               setDeleteError('');
                             }}
-                            disabled={isDeletingAccount}
-                            className="flex-1 px-4 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg text-sm font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 px-4 py-3 bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg text-sm font-semibold transition-colors"
                           >
                             Cancel
                           </button>
                           <button 
-                            onClick={handleFinalDeleteConfirm}
-                            disabled={isDeletingAccount}
-                            className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            onClick={handleFinalConfirmToPasword}
+                            className="flex-1 px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold transition-colors flex items-center justify-center gap-2"
                           >
-                            {isDeletingAccount ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                                Deleting...
-                              </>
-                            ) : (
-                              'DELETE MY ACCOUNT'
-                            )}
+                            Continue to Password
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </div>,
+                    document.body
                   )}
                 </div>
               )}
@@ -1084,7 +1059,7 @@ const Settings: React.FC = () => {
         </div>
       </div>
       {/* Log Out Confirmation Modal */}
-      {showLogoutModal && (
+      {showLogoutModal && ReactDOM.createPortal(
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Confirm Logout</h2>
@@ -1104,7 +1079,8 @@ const Settings: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </PageLayout>
   );

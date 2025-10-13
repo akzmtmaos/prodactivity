@@ -87,19 +87,23 @@ const Profile: React.FC = () => {
       }
     })();
 
-    // Cleanup listener on unmount
-    return () => {
-      window.removeEventListener('userProfileUpdated', handleProfileUpdate);
-    };
-
     // Fetch statistics from Supabase
     (async () => {
+      console.log('🚀 Profile: Starting statistics fetch...');
       try {
         const userData = localStorage.getItem('user');
-        if (!userData) return;
+        console.log('👤 User data from localStorage:', userData);
+        
+        if (!userData) {
+          console.error('❌ No user data in localStorage!');
+          return;
+        }
         
         const user = JSON.parse(userData);
+        console.log('📝 Parsed user object:', user);
+        
         const userId = user.id;
+        console.log('🔑 User ID:', userId, 'Type:', typeof userId);
 
         if (!userId) {
           console.error('❌ No user ID found, cannot fetch statistics');
@@ -136,6 +140,17 @@ const Profile: React.FC = () => {
           // Productivity logs for longest streak
           supabase.from('productivity_logs').select('period_start, completion_rate, total_tasks, completed_tasks').eq('user_id', userId).eq('period_type', 'daily').order('period_start', { ascending: true })
         ]);
+
+        // DEBUG: Log all query results
+        console.log('🔍 Supabase Query Results:');
+        console.log('  Tasks:', { data: tasksData.data, error: tasksData.error, count: tasksData.data?.length });
+        console.log('  XP:', { data: xpData.data, error: xpData.error, count: xpData.data?.length });
+        console.log('  Notes:', { data: notesData.data, error: notesData.error, count: notesData.data?.length });
+        console.log('  Notebooks:', { data: notebooksData.data, error: notebooksData.error, count: notebooksData.data?.length });
+        console.log('  Decks:', { data: decksData.data, error: decksData.error, count: decksData.data?.length });
+        console.log('  Flashcards:', { data: flashcardsData.data, error: flashcardsData.error, count: flashcardsData.data?.length });
+        console.log('  Reviewers:', { data: reviewerData.data, error: reviewerData.error, count: reviewerData.data?.length });
+        console.log('  Productivity:', { data: streakProductivityData.data, error: streakProductivityData.error, count: streakProductivityData.data?.length });
 
         // Calculate totals
         const totalTasks = tasksData.data?.filter(t => t.completed).length || 0;
@@ -419,6 +434,11 @@ const Profile: React.FC = () => {
         console.error('Error fetching profile statistics:', e);
       }
     })();
+
+    // Cleanup listener on unmount
+    return () => {
+      window.removeEventListener('userProfileUpdated', handleProfileUpdate);
+    };
   }, []);
 
   const getInitials = (name?: string) => {
