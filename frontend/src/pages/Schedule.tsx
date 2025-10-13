@@ -7,6 +7,7 @@ import UpcomingEvents from '../components/schedules/UpcomingEvents';
 import PastEvents from '../components/schedules/PastEvents';
 import AddEventModal from '../components/schedules/AddEventModal';
 import { ScheduleEvent, PastEvent } from '../types/schedule';
+import { supabase } from '../lib/supabase';
 
 const Schedule = () => {
   const [user, setUser] = useState<any | null>(null);
@@ -56,7 +57,7 @@ const Schedule = () => {
     checkAndMovePastEvents();
   }, [events]);
 
-  const loadAllData = () => {
+  const loadAllData = async () => {
     try {
       const userData = localStorage.getItem('user');
       if (!userData) {
@@ -65,81 +66,126 @@ const Schedule = () => {
         return;
       }
 
-      const { username } = JSON.parse(userData);
-      
-      // Load events
-      const savedEvents = localStorage.getItem(`scheduleEvents_${username}`);
-      if (savedEvents) {
-        const parsedEvents = JSON.parse(savedEvents).map((event: any) => {
-          const date = new Date(event.date);
-          if (!isValid(date)) {
-            throw new Error('Invalid date found in saved events');
-          }
-          return {
-            ...event,
-            date
-          };
-        });
-        setEvents(parsedEvents);
-      } else {
+      const user = JSON.parse(userData);
+      const userId = user.id;
+
+      if (!userId) {
+        console.error('No user ID found');
         setEvents([]);
-      }
-
-      // Load past events
-      const savedPastEvents = localStorage.getItem(`pastEvents_${username}`);
-      if (savedPastEvents) {
-        const parsedPastEvents = JSON.parse(savedPastEvents).map((event: any) => ({
-          ...event,
-          date: new Date(event.date),
-          completedAt: event.completedAt ? new Date(event.completedAt) : undefined,
-        }));
-        setPastEvents(parsedPastEvents);
-      } else {
         setPastEvents([]);
+        return;
       }
 
+      console.log('📅 Fetching events from Supabase for user:', userId);
+
+      // Fetch all events from Supabase
+      const { data: eventsData, error: eventsError } = await supabase
+        .from('events')
+        .select('*')
+        .eq('user_id', userId)
+        .order('start_time', { ascending: true });
+
+      if (eventsError) {
+        console.error('Error fetching events from Supabase:', eventsError);
+        setError('Failed to load events from database.');
+        setEvents([]);
+        setPastEvents([]);
+        return;
+      }
+
+      console.log('✅ Fetched events:', eventsData);
+
+      // Split into upcoming and past events
+      const now = new Date();
+      const upcoming: ScheduleEvent[] = [];
+      const past: PastEvent[] = [];
+
+      eventsData?.forEach((event: any) => {
+        const eventDate = new Date(event.start_time);
+        const endDate = new Date(event.end_time);
+        
+        if (endDate < now) {
+          // Past event
+          past.push({
+            id: event.id.toString(),
+            title: event.title,
+            description: event.description || '',
+            date: eventDate,
+            endDate: endDate,
+            startTime: eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            endTime: endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            category: '' // Can be added to the table later if needed
+          });
+        } else {
+          // Upcoming event
+          upcoming.push({
+            id: event.id.toString(),
+            title: event.title,
+            description: event.description || '',
+            date: eventDate,
+            endDate: endDate,
+            startTime: eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            endTime: endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            category: '' // Can be added to the table later if needed
+          });
+        }
+      });
+
+      setEvents(upcoming);
+      setPastEvents(past);
       setError(null);
     } catch (e) {
       console.error('Error loading data:', e);
-      setError('Failed to load data. Some data may be corrupted.');
+      setError('Failed to load data. Please try again.');
       setEvents([]);
       setPastEvents([]);
     }
   };
 
-  const saveAllData = (newEvents?: ScheduleEvent[], newPastEvents?: PastEvent[]) => {
+  const handleAddEvent = async (eventData: Omit<ScheduleEvent, 'id'>) => {
     try {
       const userData = localStorage.getItem('user');
       if (!userData) {
-        setError('User data not found. Please log in again.');
+        setError('User not authenticated');
         return;
       }
 
-      const { username } = JSON.parse(userData);
-      
-      // Use provided data or current state
-      const eventsToSave = newEvents || events;
-      const pastEventsToSave = newPastEvents || pastEvents;
-      
-      localStorage.setItem(`scheduleEvents_${username}`, JSON.stringify(eventsToSave));
-      localStorage.setItem(`pastEvents_${username}`, JSON.stringify(pastEventsToSave));
-      setError(null);
-    } catch (e) {
-      console.error('Error saving data:', e);
-      setError('Failed to save data. Please try again.');
-    }
-  };
+      const user = JSON.parse(userData);
+      const userId = user.id;
 
-  const handleAddEvent = (eventData: Omit<ScheduleEvent, 'id'>) => {
-    try {
-      const eventToAdd: ScheduleEvent = {
-        id: Date.now().toString(),
-        ...eventData
-      };
+      // Parse startTime string to get hours and minutes
+      const [hours, minutes] = eventData.startTime.split(':').map(Number);
+      const startDate = new Date(eventData.date);
+      startDate.setHours(hours, minutes, 0, 0);
 
-      const updatedEvents = [...events, eventToAdd];
-      setEvents(updatedEvents);
-      saveAllData(updatedEvents);
+      // Parse endTime to calculate end date
+      const [endHours, endMinutes] = eventData.endTime.split(':').map(Number);
+      const endDate = new Date(eventData.endDate || eventData.date);
+      endDate.setHours(endHours, endMinutes, 0, 0);
+
+      // Insert into Supabase
+      const { data, error } = await supabase
+        .from('events')
+        .insert([{
+          user_id: userId,
+          title: eventData.title,
+          description: eventData.description,
+          start_time: startDate.toISOString(),
+          end_time: endDate.toISOString()
+        }])
+        .select()
+        .single();
+
+      if (error) {
+        console.error('Error adding event to Supabase:', error);
+        setError('Failed to add event. Please try again.');
+        return;
+      }
+
+      console.log('✅ Event added to Supabase:', data);
+      
+      // Reload data to refresh the list
+      await loadAllData();
     } catch (e) {
       console.error('Error adding event:', e);
       setError('Failed to add event. Please try again.');
@@ -152,11 +198,24 @@ const Schedule = () => {
     setShowAddEvent(true);
   };
 
-  const deleteEvent = (id: string) => {
+  const deleteEvent = async (id: string) => {
     try {
-      const updatedEvents = events.filter(event => event.id !== id);
-      setEvents(updatedEvents);
-      saveAllData(updatedEvents);
+      // Delete from Supabase
+      const { error } = await supabase
+        .from('events')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('Error deleting event from Supabase:', error);
+        setError('Failed to delete event. Please try again.');
+        return;
+      }
+
+      console.log('✅ Event deleted from Supabase');
+      
+      // Reload data to refresh the list
+      await loadAllData();
     } catch (e) {
       console.error('Error deleting event:', e);
       setError('Failed to delete event. Please try again.');
@@ -169,85 +228,16 @@ const Schedule = () => {
     console.log('Viewing past event:', event);
   };
   
-  const handleMarkPastEventCompleted = (eventId: string, completed: boolean) => {
-    try {
-      const updatedPastEvents = pastEvents.map(event =>
-        event.id === eventId
-          ? {
-              ...event,
-              completedAt: completed ? new Date() : undefined,
-              notes: completed ? 'Marked as completed' : 'Marked as not completed'
-            }
-          : event
-      );
-      setPastEvents(updatedPastEvents);
-      saveAllData(undefined, updatedPastEvents);
-    } catch (e) {
-      console.error('Error updating past event completion status:', e);
-      setError('Failed to update event status. Please try again.');
-    }
+  const handleMarkPastEventCompleted = async (eventId: string, completed: boolean) => {
+    // Note: Completion status for events is not yet implemented in Supabase
+    // This would require adding a 'completed' field to the events table
+    console.log('Mark as completed clicked for event:', eventId, completed);
+    // TODO: Implement when completed field is added to events table
   };
 
-  const moveEventToPast = (event: ScheduleEvent, completed: boolean = true) => {
-    try {
-      const pastEvent: PastEvent = {
-        ...event,
-        completedAt: completed ? new Date() : undefined,
-        notes: completed ? 'Marked as completed' : 'Marked as not completed',
-        wasRecurring: false,
-      };
-
-      const updatedPastEvents = [...pastEvents, pastEvent];
-      const updatedEvents = events.filter(e => e.id !== event.id);
-      
-      setPastEvents(updatedPastEvents);
-      setEvents(updatedEvents);
-      saveAllData(updatedEvents, updatedPastEvents);
-    } catch (e) {
-      console.error('Error moving event to past:', e);
-      setError('Failed to update event status. Please try again.');
-    }
-  };
-  
+  // No longer needed - Supabase query automatically separates past and upcoming events
   const checkAndMovePastEvents = () => {
-    try {
-      const now = new Date();
-      now.setHours(0, 0, 0, 0); // Set to start of today
-      
-      // Find events that are in the past (before today)
-      const pastEventsList = events.filter(event => {
-        const eventDate = new Date(event.date);
-        eventDate.setHours(0, 0, 0, 0);
-        return eventDate < now;
-      });
-      
-      if (pastEventsList.length > 0) {
-        // Check if these events are already in pastEvents to avoid duplicates
-        const existingPastEventIds = new Set(pastEvents.map(pe => pe.id));
-        const newPastEvents = pastEventsList.filter(e => !existingPastEventIds.has(e.id));
-        
-        if (newPastEvents.length > 0) {
-          console.log(`📅 Moving ${newPastEvents.length} past events to Past Events list`);
-          
-          // Move all past events to pastEvents array
-          const convertedPastEvents: PastEvent[] = newPastEvents.map(event => ({
-            ...event,
-            completedAt: undefined, // Not automatically marked as completed
-            notes: 'Automatically moved to past events',
-            wasRecurring: false,
-          }));
-          
-          const updatedPastEvents = [...pastEvents, ...convertedPastEvents];
-          const updatedEvents = events.filter(e => !newPastEvents.some(pe => pe.id === e.id));
-          
-          setPastEvents(updatedPastEvents);
-          setEvents(updatedEvents);
-          saveAllData(updatedEvents, updatedPastEvents);
-        }
-      }
-    } catch (e) {
-      console.error('Error checking and moving past events:', e);
-    }
+    // This is now handled automatically in loadAllData()
   };
 
   // Show loading state while waiting for user data

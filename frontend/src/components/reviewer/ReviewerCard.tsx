@@ -106,28 +106,33 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
   };
   return (
     <div
-      className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700 hover:shadow-md transition-shadow cursor-pointer"
+      className="group relative bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-800/80 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden"
       onClick={onClick}
     >
-      <div className="flex items-start justify-between mb-4">
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-2">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+      {/* Subtle accent line */}
+      <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
+      
+      <div className="flex items-center justify-between gap-4">
+        {/* Left: Title and Source */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
               {reviewer.title}
             </h3>
+            {(reviewer.source_note_title || reviewer.source_notebook_name) && (
+              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                {reviewer.source_note_title || reviewer.source_notebook_name}
+              </span>
+            )}
           </div>
-          {reviewer.source_note_title && (
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              From: {reviewer.source_note_title}
-            </p>
-          )}
-          {reviewer.source_notebook_name && (
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              From: {reviewer.source_notebook_name}
-            </p>
-          )}
         </div>
+
+        {/* Right: Actions */}
         <div className="flex items-center gap-2">
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+            {new Date(reviewer.created_at).toLocaleDateString()}
+          </span>
+          
           {showFavorite && onFavorite && (
             <button
               onClick={e => {
@@ -135,56 +140,50 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
                 onFavorite(reviewer.id);
               }}
               className="p-2 text-gray-400 hover:text-yellow-500 transition-colors"
+              title={reviewer.is_favorite ? "Remove from favorites" : "Add to favorites"}
             >
               {reviewer.is_favorite ? <Star size={16} className="text-yellow-500 fill-current" /> : <StarOff size={16} />}
             </button>
           )}
+          
+          <button
+            onClick={handleDownloadDocx}
+            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+            title="Download as Word (.docx)"
+          >
+            <Download size={16} />
+          </button>
+          
           <button
             onClick={e => {
               e.stopPropagation();
               onDelete(reviewer.id);
             }}
             className="p-2 text-gray-400 hover:text-red-500 transition-colors"
+            title="Delete reviewer"
           >
             <Trash2 size={16} />
           </button>
+          
           {showGenerateQuiz && onGenerateQuiz && (
             <button
               onClick={e => {
                 e.stopPropagation();
                 onGenerateQuiz(reviewer);
               }}
-              className={`flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+              className="flex items-center px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
               disabled={quizLoadingId === reviewer.id}
             >
               {quizLoadingId === reviewer.id ? (
                 <>
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Generating Quiz...
+                  Generating...
                 </>
               ) : (
                 <>Generate Quiz</>
               )}
             </button>
           )}
-        </div>
-      </div>
-      <div className="prose prose-sm max-w-none dark:prose-invert">
-        <div className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap" style={{ maxHeight: '300px', overflow: 'hidden' }}>
-          {truncateHtmlContent(reviewer.content, 1000)}
-        </div>
-      </div>
-      <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
-        <div className="flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
-          <span>Created: {new Date(reviewer.created_at).toLocaleDateString()}</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <button onClick={handleDownloadDocx} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Download as Word (.docx)">
-            <Download size={16} />
-          </button>
-          <button onClick={handleDownload} className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors" title="Download as Markdown (.md)">
-            <Share2 size={16} />
-          </button>
         </div>
       </div>
     </div>

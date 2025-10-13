@@ -23,6 +23,7 @@ interface TaskData {
   time_spent_minutes: number;
   is_deleted: boolean;
   created_at?: string;
+  updated_at?: string;
 }
 
 const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
@@ -194,15 +195,80 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
           return completedDateStr === date;
         });
         
-        // Get pending tasks due on this date (include deleted)
+        // Get pending tasks associated with this date (include deleted)
+        // IMPORTANT: Without due_date history tracking, we can't perfectly determine
+        // which tasks WERE due on this date. We use these heuristics:
+        // 1. due_date = this date (tasks currently scheduled for this date)
+        // 2. OR created on this date (tasks that originated on this date)
+        // 3. OR updated within ±3 days of this date AND due_date is close (likely moved)
         const { data: allPendingTasks, error: pendingError } = await supabase
           .from('tasks')
-          .select('id, title, completed, completed_at, due_date, priority, category, task_category, time_spent_minutes, created_at, is_deleted')
+          .select('id, title, completed, completed_at, due_date, priority, category, task_category, time_spent_minutes, created_at, updated_at, is_deleted')
           .eq('user_id', userId)
-          .eq('completed', false)
-          .eq('due_date', date);
+          .eq('completed', false);
         
-        const pendingData = allPendingTasks || [];
+        // Filter to tasks associated with this date
+        const pendingData = (allPendingTasks || []).filter(task => {
+          // DEBUG: Log each task being evaluated
+          const debugInfo = {
+            id: task.id,
+            title: task.title,
+            due_date: task.due_date,
+            created_at: task.created_at,
+            updated_at: task.updated_at,
+            is_deleted: task.is_deleted
+          };
+          
+          // Include if due date currently matches
+          if (task.due_date === date) {
+            console.log(`✅ Task ${task.id} included: due_date matches`, debugInfo);
+            return true;
+          }
+          
+          // Include if created on this date (catches tasks moved to other dates)
+          // But ONLY if not deleted (deleted tasks shouldn't affect historical calculations)
+          if (task.created_at && !task.is_deleted) {
+            const createdDate = new Date(task.created_at);
+            const createdDateStr = createdDate.toLocaleDateString('en-CA');
+            if (createdDateStr === date) {
+              console.log(`✅ Task ${task.id} included: created_at matches (not deleted)`, debugInfo);
+              return true;
+            }
+          }
+          
+          // Include if task was updated around this date and due_date is within ±3 days
+          // This catches tasks that were likely moved FROM or TO this date
+          // But ONLY if not deleted (deleted tasks shouldn't affect historical calculations)
+          if (task.updated_at && task.due_date && !task.is_deleted) {
+            const updatedDate = new Date(task.updated_at);
+            const breakdownDate = new Date(date);
+            const taskDueDate = new Date(task.due_date);
+            
+            // Calculate days difference
+            const daysDiffUpdated = Math.abs((updatedDate.getTime() - breakdownDate.getTime()) / (1000 * 60 * 60 * 24));
+            const daysDiffDue = Math.abs((taskDueDate.getTime() - breakdownDate.getTime()) / (1000 * 60 * 60 * 24));
+            
+            console.log(`🔍 Task ${task.id} update check:`, {
+              ...debugInfo,
+              breakdownDate: date,
+              daysDiffUpdated: daysDiffUpdated.toFixed(2),
+              daysDiffDue: daysDiffDue.toFixed(2),
+              withinUpdateWindow: daysDiffUpdated <= 3,
+              withinDueWindow: daysDiffDue <= 3,
+              notExactMatch: task.due_date !== date
+            });
+            
+            // If updated within 3 days of this date AND due_date is within 3 days
+            // This likely means it was moved from/to this date
+            if (daysDiffUpdated <= 3 && daysDiffDue <= 3 && task.due_date !== date) {
+              console.log(`✅ Task ${task.id} included: likely moved (updated nearby, not deleted)`, debugInfo);
+              return true;
+            }
+          }
+          
+          console.log(`❌ Task ${task.id} excluded: no criteria matched (or is deleted)`, debugInfo);
+          return false;
+        });
         
         if (completedError || pendingError) {
           console.error('Error fetching tasks:', completedError || pendingError);
@@ -218,7 +284,25 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
             displayedRate: dailyPercentage
           });
           console.log('Completed tasks:', completedData.map(t => ({ id: t.id, title: t.title, due: t.due_date, completed: t.completed_at, deleted: t.is_deleted })));
-          console.log('Pending tasks:', pendingData.map(t => ({ id: t.id, title: t.title, due: t.due_date, deleted: t.is_deleted })));
+          console.log('Pending tasks:', pendingData.map(t => {
+            let reason = 'unknown';
+            if (t.due_date === date) reason = 'due_date_match';
+            else if (t.created_at && new Date(t.created_at).toLocaleDateString('en-CA') === date) reason = 'created_on_date';
+            else if (t.updated_at && t.due_date) {
+              const daysDiffUpdated = Math.abs((new Date(t.updated_at).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
+              const daysDiffDue = Math.abs((new Date(t.due_date).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
+              if (daysDiffUpdated <= 3 && daysDiffDue <= 3) reason = 'updated_near_date_likely_moved';
+            }
+            return {
+              id: t.id, 
+              title: t.title, 
+              currentDue: t.due_date, 
+              created: t.created_at ? new Date(t.created_at).toLocaleDateString('en-CA') : null,
+              updated: t.updated_at ? new Date(t.updated_at).toLocaleDateString('en-CA') : null,
+              deleted: t.is_deleted,
+              reason
+            };
+          }));
           console.log('🔍 DELETED TASK COUNT:', {
             deletedCompleted: completedData.filter(t => t.is_deleted).length,
             deletedPending: pendingData.filter(t => t.is_deleted).length
@@ -349,33 +433,6 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
                   )}
                 </div>
                 
-                {/* Show mismatch warning if data doesn't match */}
-                {completedTasks.length + pendingTasks.length > 0 && (
-                  (() => {
-                    const currentTotal = completedTasks.length + pendingTasks.length;
-                    const currentRate = Math.round((completedTasks.length / currentTotal) * 100);
-                    const storedRate = Math.round(dailyPercentage);
-                    
-                    if (Math.abs(currentRate - storedRate) > 5) {
-                      return (
-                        <div className="mt-3 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded-lg">
-                          <p className="text-xs text-yellow-800 dark:text-yellow-200 font-medium mb-2">
-                            ⚠️ Mismatch detected! Current: {currentRate}% vs Stored: {storedRate}%. 
-                            This means tasks were added/deleted after the log was created.
-                          </p>
-                          <button
-                            onClick={recalculateProductivity}
-                            disabled={isRecalculating}
-                            className="text-xs bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded-lg font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                          >
-                            {isRecalculating ? 'Updating...' : `🔄 Recalculate & Update to ${currentRate}%`}
-                          </button>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()
-                )}
               </div>
 
               {/* Task Breakdown */}
@@ -480,10 +537,35 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
                                   {task.category}
                                 </span>
                               )}
-                              <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                <Calendar size={12} />
-                                Due: {new Date(task.due_date).toLocaleDateString()}
-                              </span>
+                              {task.due_date !== date ? (
+                                <>
+                                  <span className="text-xs font-medium px-2 py-1 rounded-full bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 flex items-center gap-1">
+                                    <Calendar size={12} />
+                                    Now due: {new Date(task.due_date).toLocaleDateString()}
+                                  </span>
+                                  {(() => {
+                                    // Check if this task was included because it was "likely moved"
+                                    const wasCreatedHere = task.created_at && new Date(task.created_at).toLocaleDateString('en-CA') === date;
+                                    if (!wasCreatedHere && task.updated_at) {
+                                      const daysDiffUpdated = Math.abs((new Date(task.updated_at).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
+                                      const daysDiffDue = Math.abs((new Date(task.due_date).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
+                                      if (daysDiffUpdated <= 3 && daysDiffDue <= 3) {
+                                        return (
+                                          <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
+                                            Likely moved from this date
+                                          </span>
+                                        );
+                                      }
+                                    }
+                                    return null;
+                                  })()}
+                                </>
+                              ) : (
+                                <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                  <Calendar size={12} />
+                                  Due: {new Date(task.due_date).toLocaleDateString()}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
