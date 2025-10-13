@@ -92,7 +92,14 @@ class TaskViewSet(viewsets.ModelViewSet):
             
             # Award XP if task is completed and not already logged
             if not XPLog.objects.filter(user=instance.user, task=instance).exists():
-                XPLog.objects.create(user=instance.user, task=instance, xp=10)
+                # Check if task is overdue (completed after due date)
+                from django.utils import timezone
+                today = timezone.now().date()
+                is_overdue = instance.due_date < today
+                
+                # Award half XP (5) for overdue tasks, full XP (10) for on-time tasks
+                xp_amount = 5 if is_overdue else 10
+                XPLog.objects.create(user=instance.user, task=instance, xp=xp_amount)
             
             # Update productivity for today
             self._update_today_productivity(instance.user)
