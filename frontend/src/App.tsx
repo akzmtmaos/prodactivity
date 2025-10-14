@@ -26,6 +26,8 @@ import QuizSessionPage from './pages/QuizSessionPage';
 import StudySessionPage from './pages/StudySessionPage';
 import TimerWidget from './components/studytimer/TimerWidget';
 import Profile from './pages/Profile';
+import Toast from './components/common/Toast';
+import { useScheduleNotifications } from './hooks/useScheduleNotifications';
 // Import axios configuration to set up interceptors
 import './utils/axiosConfig';
 
@@ -61,6 +63,9 @@ function App() {
     isLoading: true,
     checkedStorage: false
   });
+
+  // Listen for schedule notifications and show toasts
+  const { toast: scheduleToast, clearToast: clearScheduleToast } = useScheduleNotifications();
 
   // More stable authentication check that runs only once on initial load
   useEffect(() => {
@@ -174,6 +179,15 @@ function App() {
       <TimerProvider>
         <NavbarProvider>
           <Router>
+            {/* Global schedule notification toast */}
+            {scheduleToast && (
+              <Toast
+                message={scheduleToast.message}
+                type={scheduleToast.type}
+                onClose={clearScheduleToast}
+                duration={8000}
+              />
+            )}
             <Routes>
                                <Route path="/login" element={<Login setIsAuthenticated={handleSetAuthenticated} />} />
                    <Route path="/register" element={<Register setIsAuthenticated={handleSetAuthenticated} />} />

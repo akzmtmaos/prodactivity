@@ -8,6 +8,7 @@ import PastEvents from '../components/schedules/PastEvents';
 import AddEventModal from '../components/schedules/AddEventModal';
 import { ScheduleEvent, PastEvent } from '../types/schedule';
 import { supabase } from '../lib/supabase';
+import { scheduleNotificationService } from '../services/scheduleNotificationService';
 
 const Schedule = () => {
   const [user, setUser] = useState<any | null>(null);
@@ -19,6 +20,7 @@ const Schedule = () => {
   const [recurringEvent, setRecurringEvent] = useState<PastEvent | null>(null);
   const [activeTab, setActiveTab] = useState('calendar');
   const [error, setError] = useState<string | null>(null);
+  const [notificationCheckInterval, setNotificationCheckInterval] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
     // Get user data from localStorage
@@ -50,6 +52,17 @@ const Schedule = () => {
     
     // Check for past events every time the component mounts
     checkAndMovePastEvents();
+    
+    // Start checking for upcoming events to create notifications
+    const intervalId = scheduleNotificationService.startPeriodicCheck();
+    setNotificationCheckInterval(intervalId);
+    
+    // Cleanup on unmount
+    return () => {
+      if (intervalId) {
+        scheduleNotificationService.stopPeriodicCheck(intervalId);
+      }
+    };
   }, []);
   
   // Also check for past events when events change
@@ -114,7 +127,7 @@ const Schedule = () => {
             endDate: endDate,
             startTime: eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
             endTime: endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            category: '' // Can be added to the table later if needed
+            category: event.category || 'study'
           });
         } else {
           // Upcoming event
@@ -126,7 +139,7 @@ const Schedule = () => {
             endDate: endDate,
             startTime: eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
             endTime: endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            category: '' // Can be added to the table later if needed
+            category: event.category || 'study'
           });
         }
       });
@@ -171,7 +184,8 @@ const Schedule = () => {
           title: eventData.title,
           description: eventData.description,
           start_time: startDate.toISOString(),
-          end_time: endDate.toISOString()
+          end_time: endDate.toISOString(),
+          category: eventData.category
         }])
         .select()
         .single();
@@ -186,6 +200,9 @@ const Schedule = () => {
       
       // Reload data to refresh the list
       await loadAllData();
+      
+      // Check for upcoming events and create notifications
+      await scheduleNotificationService.checkUpcomingEvents();
     } catch (e) {
       console.error('Error adding event:', e);
       setError('Failed to add event. Please try again.');

@@ -12,6 +12,7 @@ export interface NotificationWithType {
   type: 'warning' | 'error' | 'info' | 'success';
   timestamp: Date;
   isRead: boolean;
+  notificationType: 'task_due' | 'task_completed' | 'note_reminder' | 'study_reminder' | 'schedule_reminder' | 'general';
 }
 
 class NotificationsService {
@@ -60,6 +61,7 @@ class NotificationsService {
       type: this.getNotificationType(notification.notification_type),
       timestamp: new Date(notification.created_at),
       isRead: notification.is_read,
+      notificationType: notification.notification_type,
     }));
   }
 
@@ -188,6 +190,7 @@ class NotificationsService {
             type: this.getNotificationType(notification.notification_type),
             timestamp: new Date(notification.created_at),
             isRead: notification.is_read,
+            notificationType: notification.notification_type,
           });
         }
       )
@@ -208,6 +211,7 @@ class NotificationsService {
             type: this.getNotificationType(notification.notification_type),
             timestamp: new Date(notification.created_at),
             isRead: notification.is_read,
+            notificationType: notification.notification_type,
           });
         }
       )
@@ -250,6 +254,8 @@ class NotificationsService {
         return 'Note Reminder';
       case 'study_reminder':
         return 'Study Reminder';
+      case 'schedule_reminder':
+        return 'Schedule Reminder';
       case 'general':
       default:
         return 'Notification';
