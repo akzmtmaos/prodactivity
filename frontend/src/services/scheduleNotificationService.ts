@@ -24,8 +24,14 @@ class ScheduleNotificationService {
    * Call this when the Schedule page loads or periodically
    */
   async checkUpcomingEvents(): Promise<void> {
+    console.log('🔍 [ScheduleNotification] checkUpcomingEvents called');
     const userId = this.getCurrentUserId();
-    if (!userId) return;
+    if (!userId) {
+      console.log('⚠️ [ScheduleNotification] No user ID, skipping check');
+      return;
+    }
+
+    console.log('👤 [ScheduleNotification] Checking for user:', userId);
 
     try {
       const now = new Date();
@@ -51,24 +57,45 @@ class ScheduleNotificationService {
       }
 
       // Check existing notifications to avoid duplicates
+      // Check by event title + timeframe to avoid creating duplicates
+      // IMPORTANT: Check ALL notifications (read AND unread) to prevent duplicates
       const { data: existingNotifications, error: notifError } = await supabase
         .from('notifications')
-        .select('message')
+        .select('title, message, created_at, is_read')
         .eq('user_id', userId)
-        .eq('notification_type', 'schedule_reminder')
-        .eq('is_read', false);
+        .eq('notification_type', 'schedule_reminder');
 
       if (notifError) {
         console.error('Error fetching existing notifications:', notifError);
         return;
       }
 
-      const existingMessages = new Set(
-        (existingNotifications || []).map(n => n.message)
+      // Create a set of event titles that already have recent notifications (within last hour)
+      const recentNotifiedEvents = new Set(
+        (existingNotifications || [])
+          .filter(n => {
+            const notifAge = now.getTime() - new Date(n.created_at).getTime();
+            const ageMinutes = Math.round(notifAge / (1000 * 60));
+            console.log(`📋 Existing notification: "${n.title}" - Age: ${ageMinutes} minutes, isRead: ${n.is_read}`);
+            return notifAge < 60 * 60 * 1000; // Created within last hour
+          })
+          .map(n => n.title)
       );
+
+      console.log(`📋 Recent notified events (skip list):`, Array.from(recentNotifiedEvents));
 
       // Create notifications for events
       for (const event of upcomingEvents) {
+        console.log(`🔍 Checking event: "${event.title}"`);
+        
+        // Skip if we already notified about this event recently
+        if (recentNotifiedEvents.has(event.title)) {
+          console.log(`⏭️ Skipping duplicate notification for: ${event.title}`);
+          continue;
+        }
+        
+        console.log(`✅ Event "${event.title}" not in skip list, checking if should notify...`);
+
         const eventStartTime = new Date(event.start_time);
         const timeDiff = eventStartTime.getTime() - now.getTime();
         const hoursUntil = Math.round(timeDiff / (1000 * 60 * 60));
@@ -95,8 +122,8 @@ class ScheduleNotificationService {
           shouldNotify = true;
         }
 
-        // Create notification if needed and not already exists
-        if (shouldNotify && !existingMessages.has(message)) {
+        // Create notification if needed
+        if (shouldNotify) {
           await notificationsService.createNotification({
             user_id: userId,
             title: event.title,
@@ -105,6 +132,9 @@ class ScheduleNotificationService {
             is_read: false,
           });
           console.log(`📅 Created schedule notification: ${message}`);
+          
+          // Add to the set to prevent creating another one in this run
+          recentNotifiedEvents.add(event.title);
         }
       }
     } catch (error) {
@@ -147,19 +177,26 @@ class ScheduleNotificationService {
    * Start periodic check for upcoming events (every 15 minutes)
    */
   startPeriodicCheck(): NodeJS.Timeout {
+    console.log('🚀 [ScheduleNotification] Starting periodic check');
+    
     // Check immediately
     this.checkUpcomingEvents();
 
     // Then check every 15 minutes
-    return setInterval(() => {
+    const intervalId = setInterval(() => {
+      console.log('⏰ [ScheduleNotification] Periodic check triggered (15 min interval)');
       this.checkUpcomingEvents();
     }, 15 * 60 * 1000); // 15 minutes
+    
+    console.log('✅ [ScheduleNotification] Interval ID:', intervalId);
+    return intervalId;
   }
 
   /**
    * Stop periodic check
    */
   stopPeriodicCheck(intervalId: NodeJS.Timeout): void {
+    console.log('🛑 [ScheduleNotification] Stopping periodic check, Interval ID:', intervalId);
     clearInterval(intervalId);
   }
 }

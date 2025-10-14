@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { isValid } from 'date-fns';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
@@ -20,7 +20,8 @@ const Schedule = () => {
   const [recurringEvent, setRecurringEvent] = useState<PastEvent | null>(null);
   const [activeTab, setActiveTab] = useState('calendar');
   const [error, setError] = useState<string | null>(null);
-  const [notificationCheckInterval, setNotificationCheckInterval] = useState<NodeJS.Timeout | null>(null);
+  const notificationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const hasStartedNotificationCheck = useRef(false);
 
   useEffect(() => {
     // Get user data from localStorage
@@ -53,17 +54,27 @@ const Schedule = () => {
     // Check for past events every time the component mounts
     checkAndMovePastEvents();
     
+    // TEMPORARILY DISABLED - Debugging duplicate notification issue
     // Start checking for upcoming events to create notifications
-    const intervalId = scheduleNotificationService.startPeriodicCheck();
-    setNotificationCheckInterval(intervalId);
+    // Only start once using ref to prevent multiple intervals
+    // if (!hasStartedNotificationCheck.current) {
+    //   hasStartedNotificationCheck.current = true;
+    //   const intervalId = scheduleNotificationService.startPeriodicCheck();
+    //   notificationCheckIntervalRef.current = intervalId;
+    //   console.log('✅ Started schedule notification checker');
+    // }
+    console.log('⚠️ Schedule notification checker is DISABLED for debugging');
     
     // Cleanup on unmount
     return () => {
-      if (intervalId) {
-        scheduleNotificationService.stopPeriodicCheck(intervalId);
+      if (notificationCheckIntervalRef.current) {
+        scheduleNotificationService.stopPeriodicCheck(notificationCheckIntervalRef.current);
+        notificationCheckIntervalRef.current = null;
+        hasStartedNotificationCheck.current = false;
+        console.log('🛑 Stopped schedule notification checker');
       }
     };
-  }, []);
+  }, []); // Empty dependency - only run once
   
   // Also check for past events when events change
   useEffect(() => {

@@ -24,26 +24,47 @@ export const useNotifications = () => {
   // Mark notification as read
   const markAsRead = useCallback(async (notificationId: string) => {
     try {
+      console.log('🔵 [markAsRead] Starting for notification:', notificationId);
+      
+      // Optimistic update - update UI immediately
+      setNotifications(prev => {
+        const updated = prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n);
+        console.log('🔵 [markAsRead] Updated notifications locally');
+        return updated;
+      });
+      
+      setUnreadCount(prev => {
+        const newCount = Math.max(0, prev - 1);
+        console.log('🔵 [markAsRead] Unread count: ', prev, '->', newCount);
+        return newCount;
+      });
+      
+      // Then update in database
       await notificationsService.markAsRead(notificationId);
-      setNotifications(prev => 
-        prev.map(n => n.id === notificationId ? { ...n, isRead: true } : n)
-      );
-      setUnreadCount(prev => Math.max(0, prev - 1));
+      console.log('✅ [markAsRead] Database update complete');
     } catch (error) {
-      console.error('Error marking notification as read:', error);
+      console.error('❌ [markAsRead] Error:', error);
+      // Revert optimistic update on error
+      await fetchNotifications();
     }
-  }, []);
+  }, [fetchNotifications]); // Removed unreadCount dependency
 
   // Mark all notifications as read
   const markAllAsRead = useCallback(async () => {
     try {
-      await notificationsService.markAllAsRead();
+      // Optimistic update
       setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
       setUnreadCount(0);
+      
+      // Then update in database
+      await notificationsService.markAllAsRead();
+      console.log('✅ All notifications marked as read');
     } catch (error) {
-      console.error('Error marking all notifications as read:', error);
+      console.error('❌ Error marking all notifications as read:', error);
+      // Revert optimistic update on error
+      await fetchNotifications();
     }
-  }, []);
+  }, [fetchNotifications]);
 
   // Delete notification
   const deleteNotification = useCallback(async (notificationId: string) => {
@@ -62,60 +83,68 @@ export const useNotifications = () => {
 
   // Set up real-time subscription
   useEffect(() => {
-    const setupSubscription = () => {
-      const sub = notificationsService.subscribeToNotifications(
-        // New notification
-        (notification: NotificationWithType) => {
-          setNotifications(prev => [notification, ...prev]);
-          if (!notification.isRead) {
-            setUnreadCount(prev => prev + 1);
-          }
-          console.log('🔔 New notification received:', notification);
-        },
-        // Updated notification
-        (notification: NotificationWithType) => {
-          setNotifications(prev => {
-            const updated = prev.map(n => n.id === notification.id ? notification : n);
-            return updated;
-          });
+    const sub = notificationsService.subscribeToNotifications(
+      // New notification
+      (notification: NotificationWithType) => {
+        setNotifications(prev => [notification, ...prev]);
+        if (!notification.isRead) {
+          setUnreadCount(prev => prev + 1);
+        }
+        console.log('🔔 New notification received:', notification);
+      },
+      // Updated notification
+      (notification: NotificationWithType) => {
+        console.log('📝 Realtime: Notification updated from Supabase:', notification);
+        
+        setNotifications(prev => {
+          const oldNotification = prev.find(n => n.id === notification.id);
+          
+          console.log('📝 Old notification:', oldNotification);
+          console.log('📝 New notification:', notification);
           
           // Update unread count based on read status change
-          const oldNotification = notifications.find(n => n.id === notification.id);
           if (oldNotification) {
             if (!oldNotification.isRead && notification.isRead) {
-              setUnreadCount(prev => Math.max(0, prev - 1));
+              console.log('📝 Decreasing unread count (realtime update)');
+              setUnreadCount(count => Math.max(0, count - 1));
             } else if (oldNotification.isRead && !notification.isRead) {
-              setUnreadCount(prev => prev + 1);
+              console.log('📝 Increasing unread count (realtime update)');
+              setUnreadCount(count => count + 1);
             }
           }
           
-          console.log('📝 Notification updated:', notification);
-        },
-        // Deleted notification
-        (notificationId: string) => {
-          const deletedNotification = notifications.find(n => n.id === notificationId);
-          setNotifications(prev => prev.filter(n => n.id !== notificationId));
+          // Update the notification in the list
+          const updated = prev.map(n => n.id === notification.id ? notification : n);
+          console.log('📝 Updated notifications array');
+          return updated;
+        });
+      },
+      // Deleted notification
+      (notificationId: string) => {
+        setNotifications(prev => {
+          const deletedNotification = prev.find(n => n.id === notificationId);
           
           // Update unread count if the deleted notification was unread
           if (deletedNotification && !deletedNotification.isRead) {
-            setUnreadCount(prev => Math.max(0, prev - 1));
+            setUnreadCount(count => Math.max(0, count - 1));
           }
           
-          console.log('🗑️ Notification deleted:', notificationId);
-        }
-      );
-      setSubscription(sub);
-    };
-
-    setupSubscription();
+          return prev.filter(n => n.id !== notificationId);
+        });
+        
+        console.log('🗑️ Notification deleted:', notificationId);
+      }
+    );
+    
+    setSubscription(sub);
 
     // Cleanup subscription on unmount
     return () => {
-      if (subscription) {
-        notificationsService.unsubscribe(subscription);
+      if (sub) {
+        notificationsService.unsubscribe(sub);
       }
     };
-  }, [notifications]);
+  }, []); // Empty dependency array - only set up once
 
   // Initial fetch
   useEffect(() => {

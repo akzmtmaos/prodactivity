@@ -38,13 +38,20 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
     }
   };
 
-  const handleClick = () => {
-    // Mark as read when clicked
+  const handleClick = async () => {
+    console.log('🖱️ Notification clicked:', { id, title, isRead });
+    
+    // Mark as read when clicked (await to ensure it completes)
     if (!isRead) {
-      onMarkAsRead(id);
+      console.log('🖱️ Marking as read...');
+      await onMarkAsRead(id);
+      console.log('🖱️ Mark as read completed');
+    } else {
+      console.log('🖱️ Already read, skipping mark as read');
     }
 
     // Navigate based on notification type
+    console.log('🖱️ Navigating to:', notificationType);
     switch (notificationType) {
       case 'schedule_reminder':
         navigate('/schedule');
@@ -65,23 +72,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
     }
   };
 
-  const getNavigationHint = () => {
-    switch (notificationType) {
-      case 'schedule_reminder':
-        return '→ Go to Schedule';
-      case 'task_due':
-      case 'task_completed':
-        return '→ Go to Tasks';
-      case 'note_reminder':
-        return '→ Go to Notes';
-      case 'study_reminder':
-        return '→ Go to Study Timer';
-      default:
-        return null;
-    }
-  };
-
-  const navigationHint = getNavigationHint();
+  const hasNavigation = notificationType !== 'general';
 
   return (
     <div
@@ -89,23 +80,16 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
       className={`p-4 border rounded-lg ${getTypeStyles()} ${
         !isRead ? 'border-l-4' : ''
       } transition-all duration-200 hover:shadow-md ${
-        navigationHint ? 'cursor-pointer hover:scale-[1.01]' : ''
+        hasNavigation ? 'cursor-pointer hover:scale-[1.01]' : ''
       }`}
     >
       <div className="flex items-start justify-between">
         <div className="flex-1">
           <h3 className="font-medium text-gray-900 dark:text-white">{title}</h3>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{message}</p>
-          <div className="flex items-center justify-between mt-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              {formatDistanceToNow(timestamp, { addSuffix: true })}
-            </p>
-            {navigationHint && (
-              <p className="text-xs text-indigo-600 dark:text-indigo-400 font-medium">
-                {navigationHint}
-              </p>
-            )}
-          </div>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {formatDistanceToNow(timestamp, { addSuffix: true })}
+          </p>
         </div>
         {!isRead && (
           <button

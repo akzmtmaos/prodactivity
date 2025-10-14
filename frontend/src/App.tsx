@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-d
 import { ThemeProvider } from './context/ThemeContext';
 import { NavbarProvider } from './context/NavbarContext';
 import { TimerProvider } from './context/TimerContext';
+import { NotificationsProvider } from './context/NotificationsContext';
 import Navbar from "./components/Navbar";
 import Home from "./pages/Home";
 import Notes from "./pages/Notes";
@@ -178,7 +179,8 @@ function App() {
     <ThemeProvider>
       <TimerProvider>
         <NavbarProvider>
-          <Router>
+          <NotificationsProvider>
+            <Router>
             {/* Global schedule notification toast */}
             {scheduleToast && (
               <Toast
@@ -354,6 +356,7 @@ function App() {
             />
           </Routes>
         </Router>
+          </NotificationsProvider>
       </NavbarProvider>
       </TimerProvider>
     </ThemeProvider>

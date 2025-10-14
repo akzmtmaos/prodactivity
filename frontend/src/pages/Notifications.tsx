@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import PageLayout from '../components/PageLayout';
 import NotificationList, { Notification } from '../components/notifications/NotificationList';
-import { useNotifications } from '../hooks/useNotifications';
+import { useNotificationsContext } from '../context/NotificationsContext';
 
 const Notifications = ({ decrementUnreadCount }: { decrementUnreadCount?: () => void }) => {
   const [user, setUser] = useState<any | null>(null);
@@ -12,7 +12,7 @@ const Notifications = ({ decrementUnreadCount }: { decrementUnreadCount?: () => 
     loading, 
     markAsRead, 
     markAllAsRead 
-  } = useNotifications();
+  } = useNotificationsContext();
 
   useEffect(() => {
     // Get user data from localStorage

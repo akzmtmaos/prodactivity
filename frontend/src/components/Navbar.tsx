@@ -9,6 +9,7 @@ import {
 import { useNavbar } from "../context/NavbarContext";
 import NotificationBadge from "./notifications/NotificationBadge";
 import { useEffect } from "react";
+import { useNotificationsContext } from "../context/NotificationsContext";
 
 interface NavbarProps {
   setIsAuthenticated?: (value: boolean | ((prevState: boolean) => boolean)) => void;
@@ -20,8 +21,15 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
   const { isCollapsed, setIsCollapsed } = useNavbar();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [user, setUser] = useState<any | null>(null);
+  
+  // Use the notifications context for real-time unread count
+  const { unreadCount } = useNotificationsContext();
+  
+  // Log when unread count changes
+  useEffect(() => {
+    console.log('🔔 [Navbar] Unread count updated:', unreadCount);
+  }, [unreadCount]);
 
   // Modified logout handler with proper TypeScript type
   const openLogoutModal = (e: React.MouseEvent<HTMLButtonElement>) => {
@@ -41,38 +49,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     navigate("/login");
   };
 
-  // Helper to get auth token (adjust if you use a different storage method)
-  const getToken = () => localStorage.getItem('accessToken');
-
-  // Add this function to allow decrementing unreadCount from outside
-  const decrementUnreadCount = () => setUnreadCount((prev) => Math.max(prev - 1, 0));
-
-  useEffect(() => {
-    // Fetch notifications from backend for unread count
-    const fetchNotifications = async () => {
-      const token = getToken();
-      if (!token) {
-        setUnreadCount(0);
-        return;
-      }
-      try {
-        const res = await fetch('/api/notifications/', {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-        });
-        if (!res.ok) throw new Error('Failed to fetch notifications');
-        const data = await res.json();
-        setUnreadCount(data.filter((n: any) => !n.is_read).length);
-      } catch (e) {
-        setUnreadCount(0);
-      }
-    };
-    fetchNotifications();
-    // Optionally poll every 60s
-    const interval = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(interval);
-  }, []);
+  // Removed old fetchNotifications logic - now using useNotifications hook with Supabase realtime
 
   useEffect(() => {
     // Fetch user info from localStorage
