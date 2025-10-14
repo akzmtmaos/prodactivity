@@ -26,6 +26,7 @@ from core.email_utils import (
     delete_verification_token,
     is_email_configured
 )
+from .supabase_sync import update_user_in_supabase, check_user_exists_in_supabase
 
 def validate_username(username):
     """Validate username format and length"""
@@ -196,10 +197,98 @@ def update_avatar(request):
         })
     return Response({'message': 'No avatar file provided'}, status=400)
 
-@api_view(['GET'])
+@api_view(['GET', 'PATCH'])
 @permission_classes([IsAuthenticated])
 def me(request):
     user = request.user
+    
+    if request.method == 'PATCH':
+        # Update user profile
+        data = request.data
+        
+        # Update username if provided
+        if 'username' in data:
+            new_username = data['username'].lower().strip()
+            if new_username != user.username:
+                # Validate username
+                is_valid, error_msg = validate_username(new_username)
+                if not is_valid:
+                    return Response({'success': False, 'message': error_msg}, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Check if username is already taken
+                if User.objects.filter(username=new_username).exclude(id=user.id).exists():
+                    return Response({'success': False, 'message': 'Username is already taken'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                user.username = new_username
+        
+        # Update email if provided
+        if 'email' in data:
+            new_email = data['email'].strip()
+            if new_email != user.email:
+                # Check if email is already taken
+                if User.objects.filter(email=new_email).exclude(id=user.id).exists():
+                    return Response({'success': False, 'message': 'Email is already registered'}, status=status.HTTP_400_BAD_REQUEST)
+                
+                user.email = new_email
+                # Mark email as unverified when changed
+                if hasattr(user, 'profile'):
+                    user.profile.email_verified = False
+                    user.profile.save()
+        
+        # Update profile fields if provided
+        if hasattr(user, 'profile'):
+            if 'displayName' in data:
+                user.profile.display_name = data['displayName']
+            if 'bio' in data:
+                user.profile.bio = data['bio']
+            if 'phone' in data:
+                user.profile.phone = data['phone']
+            if 'dob' in data:
+                user.profile.date_of_birth = data['dob']
+            if 'location' in data:
+                user.profile.location = data['location']
+            
+            user.profile.save()
+        
+        user.save()
+        
+        # Sync to Supabase
+        if hasattr(user, 'profile'):
+            try:
+                if check_user_exists_in_supabase(user.id):
+                    update_user_in_supabase(user, user.profile)
+                    print(f"✅ Synced username update to Supabase for user {user.id}")
+                else:
+                    print(f"⚠️ User {user.id} not found in Supabase, skipping sync")
+            except Exception as e:
+                print(f"❌ Failed to sync to Supabase: {e}")
+        
+        # Return updated user data
+        avatar_url = None
+        if hasattr(user, 'profile') and user.profile.avatar:
+            request_scheme = request.scheme
+            request_host = request.get_host()
+            avatar_url = f"{request_scheme}://{request_host}{user.profile.avatar.url}"
+        
+        return Response({
+            'success': True,
+            'message': 'Profile updated successfully',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'displayName': getattr(user.profile, 'display_name', '') if hasattr(user, 'profile') else '',
+                'bio': getattr(user.profile, 'bio', '') if hasattr(user, 'profile') else '',
+                'phone': getattr(user.profile, 'phone', '') if hasattr(user, 'profile') else '',
+                'dob': getattr(user.profile, 'date_of_birth', '') if hasattr(user, 'profile') else '',
+                'location': getattr(user.profile, 'location', '') if hasattr(user, 'profile') else '',
+                'avatar': avatar_url,
+                'email_verified': getattr(user.profile, 'email_verified', False) if hasattr(user, 'profile') else False,
+                'date_joined': user.date_joined,
+            }
+        })
+    
+    # GET request - return user data
     avatar_url = None
     if hasattr(user, 'profile') and user.profile.avatar:
         request_scheme = request.scheme
@@ -209,10 +298,60 @@ def me(request):
         'id': user.id,
         'username': user.username,
         'email': user.email,
+        'displayName': getattr(user.profile, 'display_name', '') if hasattr(user, 'profile') else '',
+        'bio': getattr(user.profile, 'bio', '') if hasattr(user, 'profile') else '',
+        'phone': getattr(user.profile, 'phone', '') if hasattr(user, 'profile') else '',
+        'dob': getattr(user.profile, 'date_of_birth', '') if hasattr(user, 'profile') else '',
+        'location': getattr(user.profile, 'location', '') if hasattr(user, 'profile') else '',
         'avatar': avatar_url,
-        'email_verified': getattr(user.profile, 'email_verified', False),
+        'email_verified': getattr(user.profile, 'email_verified', False) if hasattr(user, 'profile') else False,
         'date_joined': user.date_joined,
     })
+
+# Password verification endpoint (for delete account confirmation)
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_password(request):
+    password = request.data.get('password')
+    
+    if not password:
+        return Response({'detail': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    # Check if the password is correct
+    user = request.user
+    if user.check_password(password):
+        return Response({'success': True, 'message': 'Password verified'}, status=status.HTTP_200_OK)
+    else:
+        return Response({'detail': 'Incorrect password'}, status=status.HTTP_400_BAD_REQUEST)
+
+# Delete account endpoint
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def delete_account(request):
+    password = request.data.get('password')
+    
+    if not password:
+        return Response({'detail': 'Password is required'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    user = request.user
+    
+    # Verify password again before deletion
+    if not user.check_password(password):
+        return Response({'detail': 'Incorrect password'}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        # Delete the user account (this will cascade delete related data)
+        username = user.username
+        user.delete()
+        
+        return Response({
+            'success': True,
+            'message': f'Account {username} has been permanently deleted'
+        }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response({
+            'detail': f'Failed to delete account: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 # Email verification endpoint
 @api_view(['POST'])
