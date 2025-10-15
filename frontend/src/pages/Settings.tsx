@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { Moon, Sun, Bell, User, Shield, Globe, Image as ImageIcon, Lock, LogOut, Trash2, Mail, User as UserIcon, Info, Phone, Calendar, MapPin } from 'lucide-react';
+import { Moon, Sun, Bell, User, Shield, Image as ImageIcon, Lock, LogOut, Trash2, Mail, User as UserIcon, Info, Phone, Calendar, MapPin } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import PageLayout from '../components/PageLayout';
 import ActivityLogs from '../components/settings/ActivityLogs';
@@ -8,8 +8,7 @@ import ActivityLogs from '../components/settings/ActivityLogs';
 interface UserSettings {
   theme: 'light' | 'dark' | 'system';
   notifications: boolean;
-  language: string;
-  timezone: string;
+  autosaveNotes: boolean;
 }
 
 const TABS = [
@@ -27,8 +26,7 @@ const Settings: React.FC = () => {
   const [settings, setSettings] = useState<UserSettings>({
     theme: theme,
     notifications: true,
-    language: 'en',
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    autosaveNotes: localStorage.getItem('autosaveNotes') !== 'false' // Default to true
   });
   const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'logs' | 'other' | 'logout'>('profile');
 
@@ -280,6 +278,10 @@ const Settings: React.FC = () => {
     
     if (key === 'theme') {
       setTheme(value);
+    }
+    
+    if (key === 'autosaveNotes') {
+      localStorage.setItem('autosaveNotes', String(value));
     }
   };
 
@@ -955,7 +957,7 @@ const Settings: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  {/* Notifications Section */}
+                  {/* Preferences Section */}
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
                     <div className="p-6">
                       <div className="flex items-center mb-4">
@@ -963,7 +965,7 @@ const Settings: React.FC = () => {
                           <Bell size={24} className="text-green-600 dark:text-green-400" />
                         </div>
                         <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
-                          Notifications
+                          Preferences
                         </h2>
                       </div>
                       <div className="space-y-4">
@@ -989,51 +991,28 @@ const Settings: React.FC = () => {
                             />
                           </button>
                         </div>
-                      </div>
-                    </div>
-                  </div>
-                  {/* Language & Region Section */}
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
-                    <div className="p-6">
-                      <div className="flex items-center mb-4">
-                        <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                          <Globe size={24} className="text-purple-600 dark:text-purple-400" />
-                        </div>
-                        <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
-                          Language & Region
-                        </h2>
-                      </div>
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Language
-                          </label>
-                          <select
-                            value={settings.language}
-                            onChange={(e) => handleSettingChange('language', e.target.value)}
-                            className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                        
+                        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
+                          <div>
+                            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                              Autosave Notes
+                            </h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                              Automatically save notes while you type
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleSettingChange('autosaveNotes', !settings.autosaveNotes)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                              settings.autosaveNotes ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'
+                            }`}
                           >
-                            <option value="en">English</option>
-                            <option value="es">Español</option>
-                            <option value="fr">Français</option>
-                            <option value="de">Deutsch</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Timezone
-                          </label>
-                          <select
-                            value={settings.timezone}
-                            onChange={(e) => handleSettingChange('timezone', e.target.value)}
-                            className="mt-1 block w-full rounded-md border border-gray-200 bg-gray-50 text-black dark:border-gray-600 dark:bg-gray-700 dark:text-white shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                          >
-                            <option value="UTC">UTC</option>
-                            <option value="America/New_York">Eastern Time</option>
-                            <option value="America/Chicago">Central Time</option>
-                            <option value="America/Denver">Mountain Time</option>
-                            <option value="America/Los_Angeles">Pacific Time</option>
-                          </select>
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                settings.autosaveNotes ? 'translate-x-6' : 'translate-x-1'
+                              }`}
+                            />
+                          </button>
                         </div>
                       </div>
                     </div>

@@ -144,7 +144,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
                 <div 
                   className={`h-16 flex items-center justify-center`}
                   style={{
-                    backgroundColor: notebook.color || `hsl(${(notebook.id * 137.5) % 360}, 70%, 85%)`,
+                    backgroundColor: notebook.color,
                   }}
                 >
                   <Book className={`${

@@ -9,18 +9,10 @@ interface HelpButtonProps {
 
 const HelpButton: React.FC<HelpButtonProps> = ({ content, title = "Help", className = "" }) => {
   const [isOpen, setIsOpen] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
   const buttonRef = useRef<HTMLButtonElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const toggleDropdown = () => {
-    if (!isOpen && buttonRef.current) {
-      const rect = buttonRef.current.getBoundingClientRect();
-      setPosition({
-        top: rect.bottom + window.scrollY + 8,
-        left: rect.left + window.scrollX
-      });
-    }
     setIsOpen(!isOpen);
   };
 
@@ -86,12 +78,7 @@ const HelpButton: React.FC<HelpButtonProps> = ({ content, title = "Help", classN
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute z-50 w-80 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg"
-          style={{
-            top: position.top,
-            left: position.left,
-            transform: 'translateX(-50%)'
-          }}
+          className="absolute z-50 w-80 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl top-full mt-2 left-1/2 -translate-x-1/2"
         >
           <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
             {content}

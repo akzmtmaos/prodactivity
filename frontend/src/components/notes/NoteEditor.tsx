@@ -640,7 +640,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
   // Auto-save when title, priority, or hasChanges changes
   useEffect(() => {
-    if (hasChanges) {
+    // Check if autosave is enabled in settings
+    const autosaveEnabled = localStorage.getItem('autosaveNotes') !== 'false';
+    
+    if (hasChanges && autosaveEnabled) {
       debouncedSave();
     }
   }, [title, priority, hasChanges, debouncedSave]);
@@ -2097,7 +2100,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const handleConfirmSave = () => {
     setShowUnsavedModal(false);
     setPendingClose(false);
-    handleSave();
+    
+    // Get current content from DOM
+    const currentContent = contentEditableRef.current?.innerHTML || contentRef.current;
+    
+    // Save with closeAfterSave=true to prevent navigation issues
+    onSave(title.trim() || 'Untitled Note', currentContent, priority, true);
+    
+    // Close immediately after save
     onBack();
   };
 

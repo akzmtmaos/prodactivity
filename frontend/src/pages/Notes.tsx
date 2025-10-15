@@ -218,9 +218,24 @@ const Notes = () => {
   // Fetch notes for selected notebook
   const fetchNotes = async (notebookId: number) => {
     try {
+      console.log(`📥 Fetching notes for notebook ID: ${notebookId}`);
       const response = await axiosInstance.get(`/notes/?notebook=${notebookId}`);
       // Handle paginated response
       const notesData = response.data.results || response.data;
+      
+      console.log(`📝 Received ${notesData.length} notes for notebook ${notebookId}:`);
+      notesData.forEach((note: any) => {
+        console.log(`  - Note ID: ${note.id}, Title: "${note.title}", Notebook: ${note.notebook}, Notebook Name: "${note.notebook_name}"`);
+      });
+      
+      // Check for mismatched notes
+      const mismatches = notesData.filter((note: any) => note.notebook !== notebookId);
+      if (mismatches.length > 0) {
+        console.error(`❌ MISMATCH DETECTED! ${mismatches.length} notes don't belong to notebook ${notebookId}:`);
+        mismatches.forEach((note: any) => {
+          console.error(`  ⚠️ Note "${note.title}" (ID: ${note.id}) belongs to notebook ${note.notebook}, not ${notebookId}`);
+        });
+      }
       
       // Get saved colors from localStorage
       const savedColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
@@ -231,6 +246,7 @@ const Notes = () => {
         notebook_color: note.notebook_color || savedColors[note.notebook] || generateNotebookColor(note.notebook)
       }));
       
+      console.log(`✅ Setting ${notesWithColors.length} notes to state for notebook ${notebookId}`);
       setNotes(notesWithColors);
     } catch (error) {
       handleError(error, 'Failed to fetch notes');
@@ -261,7 +277,18 @@ const Notes = () => {
 
   // Notebook management functions
   const handleNotebookSelect = (notebook: Notebook) => {
+    console.log(`🔄 Switching to notebook: "${notebook.name}" (ID: ${notebook.id})`);
+    console.log(`   Previous notes count: ${notes.length}`);
+    
+    // Clear notes FIRST to prevent showing old notes
+    setNotes([]);
+    setArchivedNotes([]);
+    
     setSelectedNotebook(notebook);
+    
+    // Save to localStorage to preserve selection across hot reloads
+    localStorage.setItem('lastSelectedNotebookId', String(notebook.id));
+    
     fetchNotes(notebook.id);
     setSearchTerm('');
     setSelectedForBulk([]); // Clear selection when selecting a different notebook
@@ -279,6 +306,9 @@ const Notes = () => {
     setFilterType('title');
     setNotebookFilterType('name');
     setSelectedForBulk([]); // Clear selection when going back to notebooks
+    
+    // Clear the saved notebook selection
+    localStorage.removeItem('lastSelectedNotebookId');
   };
 
   const handleAddNotebook = async () => {
@@ -432,6 +462,7 @@ const Notes = () => {
   // Note management functions
   const handleStartAddingNote = () => {
     setIsNewNoteEditor(true);
+    setNoteEditorNote(null); // Clear the previous note
     setShowNoteEditor(true);
     setNewNote({ title: '', content: '' });
   };
@@ -572,8 +603,14 @@ const Notes = () => {
         // Switch to edit mode after first save to prevent duplicates
         setNoteEditorNote(response.data);
         setIsNewNoteEditor(false);
-        // Update URL to include the new note ID
-        navigate(`/notes/${response.data.id}`);
+        
+        // Only update URL if not closing after save (for autosave)
+        // If closeAfterSave is true, we'll close the editor instead
+        if (!closeAfterSave) {
+          // Update URL to include the new note ID
+          navigate(`/notes/${response.data.id}`);
+        }
+        
         // Update notebook notes count
         const updatedNotebooks = notebooks.map(nb => 
           nb.id === selectedNotebook.id 
@@ -926,10 +963,10 @@ const Notes = () => {
 
   const handleBulkDeleteNotes = async (noteIds: number[]) => {
     try {
-      // Delete notes one by one
-      for (const noteId of noteIds) {
-        await axiosInstance.delete(`/notes/${noteId}/`);
-      }
+      // Delete all notes in parallel for much faster performance
+      await Promise.all(
+        noteIds.map(noteId => axiosInstance.delete(`/notes/${noteId}/`))
+      );
       
       // Update the notes list
       setNotes(notes.filter(note => !noteIds.includes(note.id)));
@@ -988,22 +1025,19 @@ const Notes = () => {
   useEffect(() => {
     if (activeNotebookTab === 'archived') {
       fetchArchivedNotebooks();
-    } else if (activeNotebookTab === 'favorites') {
-      // For favorites, just filter from current notebooks state
-      const favorites = notebooks.filter(nb => nb.is_favorite);
-      setFavoriteNotebooks(favorites);
-    } else {
-      fetchNotebooks();
     }
-  }, [activeNotebookTab]); // Removed notebooks dependency to prevent infinite loop
+    // Note: favorites tab doesn't need to fetch, it uses the useEffect hook that watches notebooks state
+    // Note: notebooks tab doesn't need to refetch, data is already loaded
+  }, [activeNotebookTab]);
 
   useEffect(() => {
     if (activeTab === 'archived') {
       fetchArchivedNotes();
-    } else if (selectedNotebook) {
-      fetchNotes(selectedNotebook.id);
     }
-  }, [activeTab, selectedNotebook]);
+    // Note: Don't fetch notes here when selectedNotebook changes
+    // fetchNotes is already called in handleNotebookSelect
+    // This was causing race conditions and duplicate fetches
+  }, [activeTab]);
 
   useEffect(() => {
     const initializeApp = async () => {
@@ -1016,7 +1050,8 @@ const Notes = () => {
       try {
         await fetchNotebooks();
         await fetchArchivedNotebooks(); // Fetch archived notebooks
-        await fetchNotes(notebooks[0]?.id || 0); // Fetch notes for the first notebook if available
+        // Don't auto-fetch notes - let user select a notebook first
+        // This prevents race conditions and wrong notes appearing during hot reload
       } catch (error: any) {
         console.error('Failed to fetch notebooks:', error);
         if (error?.response?.status === 401) {
@@ -1174,6 +1209,30 @@ const Notes = () => {
     error,
     notebooksData: notebooks
   });
+
+  // Debug logging for notes display
+  useEffect(() => {
+    if (selectedNotebook && currentView === 'notes') {
+      console.log(`📋 Currently displaying notebook: "${selectedNotebook.name}" (ID: ${selectedNotebook.id})`);
+      console.log(`📄 Notes in state (${notes.length} total):`);
+      notes.forEach(note => {
+        console.log(`  - "${note.title}" (ID: ${note.id}, Notebook: ${note.notebook})`);
+      });
+      
+      // Check for mismatched notes in state
+      const wrongNotebook = notes.filter(note => note.notebook !== selectedNotebook.id);
+      if (wrongNotebook.length > 0) {
+        console.error(`❌ STATE CORRUPTION! Found ${wrongNotebook.length} notes that don't belong to notebook ${selectedNotebook.id}:`);
+        wrongNotebook.forEach(note => {
+          console.error(`  ⚠️ "${note.title}" belongs to notebook ${note.notebook}, not ${selectedNotebook.id}`);
+        });
+        console.error(`🔧 FIXING: Clearing wrong notes from state...`);
+        // Filter out the wrong notes
+        const correctNotes = notes.filter(note => note.notebook === selectedNotebook.id);
+        setNotes(correctNotes);
+      }
+    }
+  }, [selectedNotebook, notes, currentView]);
 
   if (loading) {
     return (
@@ -1447,7 +1506,7 @@ const Notes = () => {
                   )}
                 </>
               )}
-              {currentView.includes('note') && !currentView.includes('notebook') && (
+              {currentView.includes('note') && !currentView.includes('notebook') && activeTab === 'notes' && (
                 <NotesList
                   selectedNotebook={selectedNotebook}
                   notes={filteredNotes}
@@ -1474,6 +1533,52 @@ const Notes = () => {
                   deletingNoteId={noteToDelete?.id || null}
                   onSelectionChange={setSelectedForBulk}
                 />
+              )}
+              {currentView.includes('note') && !currentView.includes('notebook') && activeTab === 'archived' && (
+                <>
+                  {archivedNotes.length === 0 ? (
+                    <div className="flex items-center justify-center h-full">
+                      <div className="text-center">
+                        <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
+                          <Archive size={48} />
+                        </div>
+                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                          No archived notes
+                        </h3>
+                        <p className="text-gray-500 dark:text-gray-400 mb-4">
+                          Archived notes will appear here
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <NotesList
+                      selectedNotebook={selectedNotebook}
+                      notes={archivedNotes}
+                      isAddingNote={false}
+                      editingNote={null}
+                      noteTitle={newNote.title}
+                      noteContent={newNote.content}
+                      onStartAddingNote={handleStartAddingNote}
+                      onCancelAddingNote={handleCancelAddingNote}
+                      onAddNote={handleAddNote}
+                      onEditNote={handleEditNote}
+                      onCancelEditingNote={handleCancelEditingNote}
+                      onUpdateNote={handleUpdateNote}
+                      onDeleteNote={(noteId) => {
+                        const note = archivedNotes.find(n => n.id === noteId);
+                        if (note) handleRequestDeleteNote(note);
+                      }}
+                      onNoteTitleChange={(title) => setNewNote({ ...newNote, title })}
+                      onNoteContentChange={(content) => setNewNote({ ...newNote, content })}
+                      onUpdateNoteTitle={handleUpdateNoteTitle}
+                      onBulkDelete={handleBulkDeleteNotes}
+                      onArchiveNote={handleArchiveNote}
+                      onToggleImportant={handleToggleImportant}
+                      deletingNoteId={noteToDelete?.id || null}
+                      onSelectionChange={setSelectedForBulk}
+                    />
+                  )}
+                </>
               )}
               {/* Fallback for debugging */}
               {!currentView.includes('notebook') && !currentView.includes('note') && (
@@ -1535,52 +1640,6 @@ const Notes = () => {
             confirmLabel="Delete"
             cancelLabel="Cancel"
           />
-          {currentView === 'notes' && activeTab === 'archived' && (
-            <>
-              {archivedNotes.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
-                      <Archive size={48} />
-                    </div>
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                      No archived notes
-                    </h3>
-                    <p className="text-gray-500 dark:text-gray-400 mb-4">
-                      Archived notes will appear here
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                <NotesList
-                  selectedNotebook={selectedNotebook}
-                  notes={archivedNotes}
-                  isAddingNote={false}
-                  editingNote={null}
-                  noteTitle={newNote.title}
-                  noteContent={newNote.content}
-                  onStartAddingNote={handleStartAddingNote}
-                  onCancelAddingNote={handleCancelAddingNote}
-                  onAddNote={handleAddNote}
-                  onEditNote={handleEditNote}
-                  onCancelEditingNote={handleCancelEditingNote}
-                  onUpdateNote={handleUpdateNote}
-                  onDeleteNote={(noteId) => {
-                    const note = archivedNotes.find(n => n.id === noteId);
-                    if (note) handleRequestDeleteNote(note);
-                  }}
-                  onNoteTitleChange={(title) => setNewNote({ ...newNote, title })}
-                  onNoteContentChange={(content) => setNewNote({ ...newNote, content })}
-                  onUpdateNoteTitle={handleUpdateNoteTitle}
-                  onBulkDelete={handleBulkDeleteNotes}
-                  onArchiveNote={handleArchiveNote}
-                  onToggleImportant={handleToggleImportant}
-                  deletingNoteId={noteToDelete?.id || null}
-                  onSelectionChange={setSelectedForBulk}
-                />
-              )}
-            </>
-          )}
         </div>
       </div>
       {toast && (
