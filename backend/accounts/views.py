@@ -409,12 +409,23 @@ class PasswordResetThrottle(AnonRateThrottle):
 @api_view(['POST'])
 @throttle_classes([PasswordResetThrottle])
 def password_reset_request(request):
-    email = request.data.get('email')
+    from django.core.validators import validate_email
+    from django.core.exceptions import ValidationError
+    
+    email = request.data.get('email', '').strip()
+    
+    # Check for empty email
     if not email:
         return Response({'detail': 'Email is required'}, status=400)
     
+    # Validate email format
+    try:
+        validate_email(email)
+    except ValidationError:
+        return Response({'detail': 'Please enter a valid email address'}, status=400)
+    
     user = User.objects.filter(email=email).first()
-    # Don't reveal whether email exists
+    # Don't reveal whether email exists (only for valid email formats)
     if user and is_email_configured():
         token = generate_verification_token()
         store_verification_token(token, user.id, 'password_reset')
