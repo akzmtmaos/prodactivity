@@ -4,8 +4,8 @@ interface NotesTabsProps {
   currentView: 'notebooks' | 'notes';
   activeTab: 'notes' | 'logs' | 'archived';
   setActiveTab: (tab: 'notes' | 'logs' | 'archived') => void;
-  activeNotebookTab: 'notebooks' | 'archived';
-  setActiveNotebookTab: (tab: 'notebooks' | 'archived') => void;
+  activeNotebookTab: 'notebooks' | 'favorites' | 'archived';
+  setActiveNotebookTab: (tab: 'notebooks' | 'favorites' | 'archived') => void;
 }
 
 const NotesTabs: React.FC<NotesTabsProps> = ({
@@ -28,6 +28,16 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
             }`}
           >
             Notebooks
+          </button>
+          <button
+            onClick={() => setActiveNotebookTab('favorites')}
+            className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+              activeNotebookTab === 'favorites'
+                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+            }`}
+          >
+            Favorites
           </button>
           <button
             onClick={() => setActiveNotebookTab('archived')}

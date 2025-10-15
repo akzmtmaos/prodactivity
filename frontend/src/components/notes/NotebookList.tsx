@@ -1,6 +1,6 @@
 // frontend/src/components/NotebookList.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette } from 'lucide-react';
+import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette, Star } from 'lucide-react';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
 import CreateNotebookModal from './CreateNotebookModal';
 
@@ -16,6 +16,7 @@ interface Notebook {
   notes_count: number;
   is_archived: boolean;
   archived_at: string | null;
+  is_favorite?: boolean;
 }
 
 interface NotebookListProps {
@@ -33,6 +34,7 @@ interface NotebookListProps {
   onCreateNotebook: (name: string) => void;
   onArchiveNotebook: (notebookId: number, archive: boolean) => void;
   onColorChange: (notebook: Notebook) => void;
+  onToggleFavorite?: (notebookId: number) => void;
   showAddButton?: boolean;
 }
 
@@ -51,6 +53,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
   onCreateNotebook,
   onArchiveNotebook,
   onColorChange,
+  onToggleFavorite,
   showAddButton = true,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -186,6 +189,22 @@ const NotebookList: React.FC<NotebookListProps> = ({
                     >
                       <Palette size={14} />
                     </button>
+                    {onToggleFavorite && !notebook.is_archived && (
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          onToggleFavorite(notebook.id);
+                        }}
+                        className={`p-1.5 rounded transition-colors ${
+                          notebook.is_favorite
+                            ? 'text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30'
+                            : 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30'
+                        }`}
+                        title={notebook.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                      >
+                        <Star size={14} fill={notebook.is_favorite ? 'currentColor' : 'none'} />
+                      </button>
+                    )}
                     {notebook.is_archived ? (
                       <button
                         onClick={e => {

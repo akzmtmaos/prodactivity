@@ -54,16 +54,14 @@ const Schedule = () => {
     // Check for past events every time the component mounts
     checkAndMovePastEvents();
     
-    // TEMPORARILY DISABLED - Debugging duplicate notification issue
     // Start checking for upcoming events to create notifications
     // Only start once using ref to prevent multiple intervals
-    // if (!hasStartedNotificationCheck.current) {
-    //   hasStartedNotificationCheck.current = true;
-    //   const intervalId = scheduleNotificationService.startPeriodicCheck();
-    //   notificationCheckIntervalRef.current = intervalId;
-    //   console.log('✅ Started schedule notification checker');
-    // }
-    console.log('⚠️ Schedule notification checker is DISABLED for debugging');
+    if (!hasStartedNotificationCheck.current) {
+      hasStartedNotificationCheck.current = true;
+      const intervalId = scheduleNotificationService.startPeriodicCheck();
+      notificationCheckIntervalRef.current = intervalId;
+      console.log('✅ Started schedule notification checker');
+    }
     
     // Cleanup on unmount
     return () => {

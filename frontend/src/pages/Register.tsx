@@ -372,19 +372,20 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
                >
                  <Lock size={18} />
                </motion.div>
-               <input
-                 type={showPassword ? 'text' : 'password'}
-                 name="password"
-                 placeholder="Password"
-                 value={form.password}
-                 onChange={handleChange}
-                 className={`w-full pl-10 pr-10 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm ${
-                   validationErrors.password 
-                     ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
-                     : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 focus:shadow-indigo-200 dark:focus:shadow-indigo-900'
-                 }`}
-                 required
-               />
+              <input
+                type={showPassword ? 'text' : 'password'}
+                name="password"
+                placeholder="Password"
+                value={form.password}
+                onChange={handleChange}
+                maxLength={50}
+                className={`w-full pl-10 pr-10 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm ${
+                  validationErrors.password 
+                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
+                    : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 focus:shadow-indigo-200 dark:focus:shadow-indigo-900'
+                }`}
+                required
+              />
                <button
                  type="button"
                  onClick={() => setShowPassword(!showPassword)}
@@ -438,6 +439,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
               placeholder="Confirm Password"
               value={form.confirmPassword}
               onChange={handleChange}
+              maxLength={50}
               className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
               required
             />

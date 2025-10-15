@@ -12,7 +12,7 @@ import GlobalSearch from '../components/notes/GlobalSearch';
 import ImportantItemsPanel from '../components/notes/ImportantItemsPanel';
 import ColorPickerModal from '../components/notes/ColorPickerModal';
 import CreateNotebookModal from '../components/notes/CreateNotebookModal';
-import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle } from 'lucide-react';
+import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle, Star } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
 
@@ -39,6 +39,7 @@ interface Notebook {
   notes_count: number;
   is_archived: boolean;
   archived_at: string | null;
+  is_favorite?: boolean;
 }
 
 interface Note {
@@ -72,6 +73,7 @@ const Notes = () => {
   // State for notebooks and notes
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [archivedNotebooks, setArchivedNotebooks] = useState<Notebook[]>([]);
+  const [favoriteNotebooks, setFavoriteNotebooks] = useState<Notebook[]>([]);
   const [notes, setNotes] = useState<Note[]>([]);
   const [archivedNotes, setArchivedNotes] = useState<Note[]>([]);
   const [selectedNotebook, setSelectedNotebook] = useState<Notebook | null>(null);
@@ -100,7 +102,7 @@ const Notes = () => {
 
   // Add tab state
   const [activeTab, setActiveTab] = useState<'notes' | 'logs' | 'archived'>('notes');
-  const [activeNotebookTab, setActiveNotebookTab] = useState<'notebooks' | 'archived'>('notebooks');
+  const [activeNotebookTab, setActiveNotebookTab] = useState<'notebooks' | 'favorites' | 'archived'>('notebooks');
 
   // Add toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -206,6 +208,12 @@ const Notes = () => {
       }
     }
   };
+
+  // Update favorites whenever notebooks change
+  useEffect(() => {
+    const favorites = notebooks.filter(nb => nb.is_favorite);
+    setFavoriteNotebooks(favorites);
+  }, [notebooks]);
 
   // Fetch notes for selected notebook
   const fetchNotes = async (notebookId: number) => {
@@ -378,6 +386,46 @@ const Notes = () => {
       });
     } catch (error) {
       handleError(error, `Failed to ${archive ? 'archive' : 'unarchive'} notebook`);
+    }
+  };
+
+  // Toggle favorite status for notebook
+  const handleToggleFavorite = async (notebookId: number) => {
+    try {
+      const notebook = notebooks.find(nb => nb.id === notebookId);
+      if (!notebook) return;
+
+      const newFavoriteStatus = !notebook.is_favorite;
+
+      console.log('⭐ Toggling favorite for notebook:', notebookId, 'New status:', newFavoriteStatus);
+
+      await axiosInstance.patch(`/notes/notebooks/${notebookId}/`, {
+        is_favorite: newFavoriteStatus
+      });
+      
+      // Update the notebook in the local state
+      const updatedNotebooks = notebooks.map(nb => 
+        nb.id === notebookId ? { ...nb, is_favorite: newFavoriteStatus } : nb
+      );
+      setNotebooks(updatedNotebooks);
+      
+      console.log('✅ Updated notebooks state');
+
+      // Update selected notebook if it's the one being toggled
+      if (selectedNotebook?.id === notebookId) {
+        setSelectedNotebook({ ...selectedNotebook, is_favorite: newFavoriteStatus });
+      }
+
+      // Favorites list will be updated automatically by useEffect
+      console.log('✅ Favorite status toggled successfully');
+      
+      setToast({ 
+        message: `Notebook ${newFavoriteStatus ? 'added to' : 'removed from'} favorites.`, 
+        type: 'success' 
+      });
+    } catch (error) {
+      console.error('❌ Error toggling favorite:', error);
+      handleError(error, 'Failed to update favorite status');
     }
   };
 
@@ -940,10 +988,14 @@ const Notes = () => {
   useEffect(() => {
     if (activeNotebookTab === 'archived') {
       fetchArchivedNotebooks();
+    } else if (activeNotebookTab === 'favorites') {
+      // For favorites, just filter from current notebooks state
+      const favorites = notebooks.filter(nb => nb.is_favorite);
+      setFavoriteNotebooks(favorites);
     } else {
       fetchNotebooks();
     }
-  }, [activeNotebookTab]);
+  }, [activeNotebookTab]); // Removed notebooks dependency to prevent infinite loop
 
   useEffect(() => {
     if (activeTab === 'archived') {
@@ -1167,7 +1219,7 @@ const Notes = () => {
             activeTab={activeTab}
             setActiveTab={setActiveTab as (tab: 'notes' | 'logs' | 'archived') => void}
             activeNotebookTab={activeNotebookTab}
-            setActiveNotebookTab={setActiveNotebookTab as (tab: 'notebooks' | 'archived') => void}
+            setActiveNotebookTab={setActiveNotebookTab as (tab: 'notebooks' | 'favorites' | 'archived') => void}
           />
           {/* Error display */}
           {error && (
@@ -1311,7 +1363,46 @@ const Notes = () => {
                           onCreateNotebook={handleCreateNotebookDirect}
                           onArchiveNotebook={handleArchiveNotebook}
                           onColorChange={handleOpenColorPicker}
+                          onToggleFavorite={handleToggleFavorite}
                           showAddButton={true}
+                        />
+                      )}
+                    </>
+                  )}
+                  {activeNotebookTab === 'favorites' && (
+                    <>
+                      {favoriteNotebooks.length === 0 ? (
+                        <div className="flex items-center justify-center h-full">
+                          <div className="text-center">
+                            <div className="flex justify-center text-yellow-400 dark:text-yellow-500 mb-4">
+                              <Star size={48} />
+                            </div>
+                            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                              No favorite notebooks
+                            </h3>
+                            <p className="text-gray-500 dark:text-gray-400 mb-4">
+                              Click the star icon on any notebook to add it to favorites
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <NotebookList
+                          notebooks={favoriteNotebooks}
+                          selectedNotebook={selectedNotebook}
+                          editingNotebook={editingNotebook}
+                          newNotebookName={newNotebookName}
+                          onNotebookSelect={handleNotebookSelect}
+                          onAddNotebook={handleAddNotebook}
+                          onUpdateNotebook={handleUpdateNotebook}
+                          onDeleteNotebook={handleDeleteNotebook}
+                          onStartEditingNotebook={handleStartEditingNotebook}
+                          onCancelEditingNotebook={handleCancelEditingNotebook}
+                          onNotebookNameChange={setNewNotebookName}
+                          onCreateNotebook={handleCreateNotebookDirect}
+                          onArchiveNotebook={handleArchiveNotebook}
+                          onColorChange={handleOpenColorPicker}
+                          onToggleFavorite={handleToggleFavorite}
+                          showAddButton={false}
                         />
                       )}
                     </>
@@ -1348,6 +1439,7 @@ const Notes = () => {
                           onCreateNotebook={handleCreateNotebookDirect}
                           onArchiveNotebook={handleArchiveNotebook}
                           onColorChange={handleOpenColorPicker}
+                          onToggleFavorite={handleToggleFavorite}
                           showAddButton={false}
                         />
                       )}

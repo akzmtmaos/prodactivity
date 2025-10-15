@@ -549,32 +549,54 @@ const Home = () => {
     }
   };
 
-  // Load upcoming events from localStorage
-  const loadEvents = () => {
+  // Load upcoming events from Supabase
+  const loadEvents = async () => {
     try {
       const userData = localStorage.getItem('user');
       if (!userData) {
         setEvents([]);
         return;
       }
-      const { username } = JSON.parse(userData);
-      const savedEvents = localStorage.getItem(`scheduleEvents_${username}`);
-      if (savedEvents) {
-        const parsedEvents = JSON.parse(savedEvents).map((event: any) => ({
-          ...event,
-          date: new Date(event.date)
-        }));
-        // Only future events, sorted by date, top 5
-        const now = new Date();
-        const upcoming = parsedEvents
-          .filter((e: ScheduleEvent) => new Date(e.date) >= now)
-          .sort((a: ScheduleEvent, b: ScheduleEvent) => new Date(a.date).getTime() - new Date(b.date).getTime())
-          .slice(0, 5);
-        setEvents(upcoming);
-      } else {
+      
+      const user = JSON.parse(userData);
+      const userId = user.id;
+      
+      console.log('Fetching upcoming events from Supabase for user:', userId);
+      
+      // Fetch upcoming events from Supabase (using start_time since there's no date column)
+      const now = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('events')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('start_time', now) // Events starting from now onwards
+        .order('start_time', { ascending: true })
+        .limit(5);
+      
+      if (error) {
+        console.error('Supabase error fetching events:', error);
         setEvents([]);
+        return;
       }
+      
+      console.log('Supabase events response:', data);
+      
+      // Map the events to match the ScheduleEvent interface
+      const mappedEvents = (data || []).map((event: any) => ({
+        id: event.id,
+        title: event.title,
+        description: event.description || '',
+        date: new Date(event.start_time), // Use start_time as the date
+        startTime: new Date(event.start_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        endTime: new Date(event.end_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
+        category: event.category || 'other',
+        endDate: event.end_time ? new Date(event.end_time) : undefined
+      }));
+      
+      console.log('Mapped upcoming events:', mappedEvents);
+      setEvents(mappedEvents);
     } catch (e) {
+      console.error('Error fetching events:', e);
       setEvents([]);
     }
   };

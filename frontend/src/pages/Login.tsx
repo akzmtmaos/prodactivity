@@ -20,6 +20,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
   const [forgotOpen, setForgotOpen] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
   const [forgotStatus, setForgotStatus] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [forgotError, setForgotError] = useState<string | null>(null);
   const [showResendVerification, setShowResendVerification] = useState(false);
   const [emailVerificationRequired, setEmailVerificationRequired] = useState(false);
   const navigate = useNavigate();
@@ -87,17 +88,45 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
   };
 
   const handleForgot = async () => {
-    if (!forgotEmail) return;
+    // Reset states
+    setForgotError(null);
+    
+    // Trim the email
+    const trimmedEmail = forgotEmail.trim();
+    
+    // Validate empty input
+    if (!trimmedEmail) {
+      setForgotError('Email is required');
+      return;
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(trimmedEmail)) {
+      setForgotError('Please enter a valid email address');
+      return;
+    }
+    
     setForgotStatus('sending');
     try {
-      await fetch('http://192.168.56.1:8000/api/password-reset/', {
+      const res = await fetch('http://192.168.56.1:8000/api/password-reset/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: forgotEmail })
+        body: JSON.stringify({ email: trimmedEmail })
       });
-      setForgotStatus('sent');
+      
+      const data = await res.json();
+      
+      if (res.ok) {
+        setForgotStatus('sent');
+      } else {
+        // Show error from backend (for invalid format or empty email)
+        setForgotError(data.detail || 'Failed to send reset link');
+        setForgotStatus('idle');
+      }
     } catch (e) {
-      setForgotStatus('sent');
+      setForgotError('Network error. Please try again.');
+      setForgotStatus('idle');
     }
   };
 
@@ -240,6 +269,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
                   placeholder="Password"
                   value={formData.password}
                   onChange={handleChange}
+                  maxLength={50}
                   autoComplete="current-password"
                   className="w-full pl-10 pr-10 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
                   required
@@ -295,22 +325,45 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
                   onChange={(e) => {
                     if (e.target.value.length <= 50) {
                       setForgotEmail(e.target.value);
+                      // Clear error when user types
+                      if (forgotError) setForgotError(null);
                     }
                   }}
                   maxLength={50}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                  className={`w-full pl-10 pr-4 py-3 border rounded-lg bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 ${
+                    forgotError ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-700'
+                  }`}
                 />
               </div>
-              {forgotStatus === 'sent' && (
-                <div className="mt-2 text-sm text-green-600">
-                  If an account exists for that email, a reset link has been sent.
-                </div>
-              )}
+              <AnimatePresence>
+                {forgotError && (
+                  <motion.div
+                    initial={{ y: -10, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -10, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-3 rounded-lg"
+                  >
+                    {forgotError}
+                  </motion.div>
+                )}
+                {forgotStatus === 'sent' && (
+                  <motion.div
+                    initial={{ y: -10, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={{ y: -10, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20 p-3 rounded-lg"
+                  >
+                    If an account exists for that email, a reset link has been sent.
+                  </motion.div>
+                )}
+              </AnimatePresence>
               <div className="flex items-center justify-between gap-3">
                 <button
                   type="button"
                   className="px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-                  onClick={() => { setForgotOpen(false); setForgotEmail(''); setForgotStatus('idle'); }}
+                  onClick={() => { setForgotOpen(false); setForgotEmail(''); setForgotStatus('idle'); setForgotError(null); }}
                 >
                   Back to Sign In
                 </button>
