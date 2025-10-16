@@ -16,6 +16,8 @@ import QuizSession from '../components/decks/QuizSession';
 import Toast from '../components/common/Toast';
 import type { SubDeck } from '../components/decks/SubDeckModal';
 import { truncateHtmlContent } from '../utils/htmlUtils';
+import { API_BASE_URL } from '../config/api';
+import axiosInstance from '../utils/axiosConfig';
 
 interface FlashcardData {
   id: string;
@@ -124,7 +126,11 @@ interface NoteItem {
     } as Record<string, string>;
   };
 
-  const API_BASE = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
+  // Use centralized API base URL (for any direct fetch fallbacks)
+  const API_BASE = API_BASE_URL;
+
+  const DECKS_CACHE_KEY = 'cachedDecksV1';
+  const ARCHIVED_DECKS_CACHE_KEY = 'cachedArchivedDecksV1';
 
   const [modalSelectedNotebookId, setModalSelectedNotebookId] = useState<number | null>(null);
   const [previewCount, setPreviewCount] = useState<number>(0);
@@ -242,7 +248,7 @@ interface NoteItem {
       
       // Create single deck with AI-generated name
       const deckTitle = deckName.trim() || 'AI Generated Deck';
-      const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
+      const res = await fetch(`${API_BASE}/decks/decks/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
         body: JSON.stringify({ title: deckTitle })
@@ -255,7 +261,7 @@ interface NoteItem {
         `Title: ${note.title}\nContent: ${note.content}`
       ).join('\n\n---\n\n');
       
-      const aiResponse = await fetch('http://192.168.56.1:8000/api/decks/ai/generate-flashcards/', {
+      const aiResponse = await fetch(`${API_BASE}/decks/ai/generate-flashcards/`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -274,7 +280,7 @@ interface NoteItem {
       const aiData = await aiResponse.json();
       
       // Fetch the updated deck with flashcards
-      const updatedDeckRes = await fetch(`http://192.168.56.1:8000/api/decks/decks/${deckData.id}/`, {
+      const updatedDeckRes = await fetch(`${API_BASE}/decks/decks/${deckData.id}/`, {
         headers: { 'Authorization': token ? `Bearer ${token}` : '' }
       });
       if (updatedDeckRes.ok) {
@@ -325,17 +331,23 @@ interface NoteItem {
   useEffect(() => {
     const fetchDecks = async () => {
       try {
-        const token = localStorage.getItem('accessToken');
-        
-        // Fetch active decks
-        const activeRes = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-          },
-        });
-        if (!activeRes.ok) throw new Error('Failed to fetch active decks');
-        const activeData = await activeRes.json();
-        // Handle paginated response
+        // 1) Hydrate from cache instantly
+        try {
+          const cached = localStorage.getItem(DECKS_CACHE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && Array.isArray(parsed.data)) setDecks(parsed.data);
+          }
+          const cachedArchived = localStorage.getItem(ARCHIVED_DECKS_CACHE_KEY);
+          if (cachedArchived) {
+            const parsed = JSON.parse(cachedArchived);
+            if (parsed && Array.isArray(parsed.data)) setArchivedDecks(parsed.data);
+          }
+        } catch {}
+
+        // 2) Fetch active decks with axios (short timeout, auth via interceptor)
+        const activeRes = await axiosInstance.get('/decks/decks/', { timeout: 4000 });
+        const activeData = activeRes.data;
         const activeDecks = activeData.results || activeData;
         const topLevelDecks = activeDecks.filter((deck: any) => !deck.parent).map((deck: any) => {
           return {
@@ -367,16 +379,14 @@ interface NoteItem {
           };
         });
         setDecks(topLevelDecks);
+        try {
+          localStorage.setItem(DECKS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: topLevelDecks }));
+        } catch {}
 
-        // Fetch archived decks
-        const archivedRes = await fetch('http://192.168.56.1:8000/api/decks/archived/decks/', {
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-          },
-        });
-        if (archivedRes.ok) {
-          const archivedData = await archivedRes.json();
-          // Handle paginated response
+        // 3) Fetch archived decks
+        const archivedRes = await axiosInstance.get('/decks/archived/decks/', { timeout: 4000 });
+        if (archivedRes.status >= 200 && archivedRes.status < 300) {
+          const archivedData = archivedRes.data;
           const archivedDecks = archivedData.results || archivedData;
           const archivedTopLevelDecks = archivedDecks.filter((deck: any) => !deck.parent).map((deck: any) => {
             return {
@@ -409,6 +419,9 @@ interface NoteItem {
             };
           });
           setArchivedDecks(archivedTopLevelDecks);
+          try {
+            localStorage.setItem(ARCHIVED_DECKS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: archivedTopLevelDecks }));
+          } catch {}
         }
       } catch (error) {
         setDecks([]);
@@ -421,7 +434,7 @@ interface NoteItem {
   const handleCreateDeck = async (deckData: { title: string }) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
+      const res = await fetch(`${API_BASE}/decks/decks/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -465,7 +478,7 @@ interface NoteItem {
   const handleDeleteDeck = async (deck: Deck) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${deck.id}/`, {
+      const res = await fetch(`${API_BASE}/decks/decks/${deck.id}/`, {
         method: 'DELETE',
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
@@ -483,7 +496,7 @@ interface NoteItem {
   const handleArchiveDeck = async (deck: Deck, archive: boolean) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${deck.id}/`, {
+      const res = await fetch(`${API_BASE}/decks/decks/${deck.id}/`, {
         method: 'PATCH',
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
@@ -745,7 +758,7 @@ interface NoteItem {
     if (!selectedDeck) return;
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://192.168.56.1:8000/api/decks/flashcards/', {
+      const res = await fetch('http://192.168.68.162:8000/api/decks/flashcards/', {
           method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -881,7 +894,7 @@ interface NoteItem {
             ));
             // Persist progress to backend
             const token = localStorage.getItem('accessToken');
-            fetch(`http://192.168.56.1:8000/api/decks/decks/${selectedDeck.id}/`, {
+            fetch(`${API_BASE}/decks/decks/${selectedDeck.id}/`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
@@ -913,7 +926,7 @@ interface NoteItem {
           onComplete={async (results) => {
             // Refetch deck from backend for updated progress
             const token = localStorage.getItem('accessToken');
-      const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${selectedDeck.id}/`, {
+      const res = await fetch(`${API_BASE}/decks/decks/${selectedDeck.id}/`, {
               headers: {
                 'Authorization': token ? `Bearer ${token}` : '',
               },

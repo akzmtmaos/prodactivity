@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import axiosInstance from '../utils/axiosConfig';
 import ReviewerPanel from '../components/reviewer/ReviewerPanel';
 import PageLayout from '../components/PageLayout';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import ReviewerDocument from '../components/reviewer/ReviewerDocument';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.56.1:8000/api';
+const NOTEBOOKS_CACHE_KEY = 'reviewerCachedNotebooksV1';
+const NOTES_CACHE_KEY = 'reviewerCachedNotesV1';
+const REVIEWER_CACHE_PREFIX = 'reviewerItem_';
 
 const Reviewer = () => {
   const { id: reviewerId } = useParams();
@@ -30,44 +32,48 @@ const Reviewer = () => {
     }
   }, [activeTab, reviewerId, location.pathname, navigate]);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('accessToken');
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-    };
-  };
+  // Authorization headers are handled by axiosInstance interceptor
 
   useEffect(() => {
     const fetchData = async () => {
+      // 1) Hydrate from cache instantly for fast first paint
       try {
-        console.log('Fetching data from:', `${API_URL}/notes/notebooks/` + ' and ' + `${API_URL}/notes/`);
-        // Test authentication first
-        console.log('Auth headers:', getAuthHeaders());
-        
-        const [notebooksRes, notesRes] = await Promise.all([
-          axios.get(`${API_URL}/notes/notebooks/`, { headers: getAuthHeaders() }),
-          axios.get(`${API_URL}/notes/`, { 
-            headers: getAuthHeaders(),
-            params: { archived: 'false' } // Explicitly request non-archived notes
-          }),
-        ]);
-        console.log('Notebooks response:', notebooksRes.data);
-        console.log('Notes response:', notesRes.data);
-        console.log('Notes count:', notesRes.data?.length || 0);
-        
-        // Check if notes have the expected structure
-        if (notesRes.data && Array.isArray(notesRes.data) && notesRes.data.length > 0) {
-          console.log('First note structure:', notesRes.data[0]);
+        const cachedNotebooks = localStorage.getItem(NOTEBOOKS_CACHE_KEY);
+        if (cachedNotebooks) {
+          const parsed = JSON.parse(cachedNotebooks);
+          if (parsed && Array.isArray(parsed.data)) setNotebooks(parsed.data);
         }
-        
-        setNotebooks(notebooksRes.data);
-        setNotes(notesRes.data);
+        const cachedNotes = localStorage.getItem(NOTES_CACHE_KEY);
+        if (cachedNotes) {
+          const parsed = JSON.parse(cachedNotes);
+          if (parsed && Array.isArray(parsed.data)) setNotes(parsed.data);
+        }
+      } catch {}
+
+      // 2) Kick off fresh fetch in background with short timeouts
+      setLoading(false);
+      try {
+        const [notebooksRes, notesRes] = await Promise.all([
+          axiosInstance.get(`/notes/notebooks/`, { timeout: 4000 }),
+          axiosInstance.get(`/notes/`, { timeout: 4000, params: { archived: 'false' } })
+        ]);
+
+        const notebooksData = notebooksRes.data?.results || notebooksRes.data || [];
+        const notesData = notesRes.data?.results || notesRes.data || [];
+
+        setNotebooks(notebooksData);
+        setNotes(notesData);
+
+        try {
+          localStorage.setItem(NOTEBOOKS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: notebooksData }));
+          localStorage.setItem(NOTES_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: notesData }));
+        } catch {}
       } catch (err) {
-        console.error('Failed to fetch data:', err);
-        setError('Failed to load data');
-      } finally {
-        setLoading(false);
+        console.error('Failed to fetch reviewer data:', err);
+        // Only show error if we have nothing to show
+        if (notebooks.length === 0 && notes.length === 0) {
+          setError('Failed to load data');
+        }
       }
     };
     fetchData();
@@ -77,17 +83,24 @@ const Reviewer = () => {
   useEffect(() => {
     const fetchReviewer = async () => {
       if (reviewerId && reviewerId !== 'q' && reviewerId !== 'r') {
+        // 1) Instant hydrate from cache for this reviewer
         try {
-          const token = localStorage.getItem('accessToken');
-          const response = await axios.get(`${API_URL}/reviewers/${reviewerId}/`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json',
-            },
-          });
+          const cached = localStorage.getItem(`${REVIEWER_CACHE_PREFIX}${reviewerId}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && parsed.data) setModalReviewer(parsed.data);
+          }
+        } catch {}
+
+        // 2) Fetch fresh data with short timeout and quiet failures
+        try {
+          const response = await axiosInstance.get(`/reviewers/${reviewerId}/`, { timeout: 3000 });
           setModalReviewer(response.data);
+          try {
+            localStorage.setItem(`${REVIEWER_CACHE_PREFIX}${reviewerId}`, JSON.stringify({ ts: Date.now(), data: response.data }));
+          } catch {}
         } catch (err) {
-          setModalReviewer(null);
+          // Keep whatever we have (cached or null); don't block UI
         }
       } else {
         setModalReviewer(null);

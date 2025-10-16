@@ -227,6 +227,23 @@ function App() {
               }
             />
             <Route
+              path="/notes/notebooks/:notebookId"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Notes />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/notes/notebooks/:notebookId/notes/:noteId"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Notes />
+                </PrivateRoute>
+              }
+            />
+            {/* Legacy route for backward compatibility */}
+            <Route
               path="/notes/:id"
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>

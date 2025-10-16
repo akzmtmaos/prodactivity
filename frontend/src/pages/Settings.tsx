@@ -4,6 +4,8 @@ import { Moon, Sun, Bell, User, Shield, Image as ImageIcon, Lock, LogOut, Trash2
 import { useTheme } from '../context/ThemeContext';
 import PageLayout from '../components/PageLayout';
 import ActivityLogs from '../components/settings/ActivityLogs';
+import axiosInstance from '../utils/axiosConfig';
+import { API_BASE_URL } from '../config/api';
 
 interface UserSettings {
   theme: 'light' | 'dark' | 'system';
@@ -106,7 +108,7 @@ const Settings: React.FC = () => {
     setIsChangingPassword(true);
     try {
       const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://192.168.56.1:8000/api/change-password/', {
+      const response = await fetch(`${API_BASE_URL}/api/change-password/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,7 +180,7 @@ const Settings: React.FC = () => {
       const token = localStorage.getItem('accessToken');
       
       // Verify password and delete account in one call
-      const response = await fetch('http://192.168.56.1:8000/api/delete-account/', {
+      const response = await fetch(`${API_BASE_URL}/api/delete-account/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -386,7 +388,7 @@ const Settings: React.FC = () => {
           formData.append('avatar', optimizedFile);
           const token = localStorage.getItem('accessToken');
           
-          const res = await fetch('http://192.168.56.1:8000/api/avatar/', {
+          const res = await fetch(`${API_BASE_URL}/api/avatar/`, {
             method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${token}`,
@@ -414,7 +416,7 @@ const Settings: React.FC = () => {
       // Save profile data to backend
       const token = localStorage.getItem('accessToken');
       try {
-        const res = await fetch('http://192.168.56.1:8000/api/me/', {
+        const res = await fetch(`${API_BASE_URL}/api/me/`, {
           method: 'PATCH',
           headers: {
             'Authorization': `Bearer ${token}`,

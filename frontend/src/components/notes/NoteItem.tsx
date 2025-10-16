@@ -37,7 +37,7 @@ interface NoteItemProps {
 const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete, onArchive, onToggleImportant, deletingNoteId }) => {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showEditModal, setShowEditModal] = React.useState(false);
-  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.56.1:8000/api/notes';
+  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.68.162:8000/api/notes';
 
   // Helper function to format dates
   const formatDate = (dateString: string) => {

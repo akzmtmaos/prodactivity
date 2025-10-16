@@ -27,6 +27,8 @@ const generateNotebookColor = (notebookId: number): string => {
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 };
 
+const NOTEBOOKS_CACHE_KEY = 'cachedNotebooksV1';
+
 interface Notebook {
   id: number;
   name: string;
@@ -65,8 +67,11 @@ interface Note {
 
 
 const Notes = () => {
-  const { id: noteIdFromUrl } = useParams();
+  const { notebookId, noteId: noteIdFromUrl } = useParams();
   const navigate = useNavigate();
+  
+  // Debug URL params
+  // console.log('🔗 URL Params from useParams:', { notebookId, noteIdFromUrl });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   
@@ -132,6 +137,11 @@ const Notes = () => {
   
   // Fetch notebooks from API
   const fetchNotebooks = async () => {
+    // Prevent duplicate calls if already fetching
+    if (notebooks.length > 0) {
+      return;
+    }
+
     try {
       const token = localStorage.getItem('accessToken');
       if (!token) {
@@ -139,7 +149,19 @@ const Notes = () => {
         return;
       }
 
-      const response = await axiosInstance.get(`/notes/notebooks/`);
+      if (process.env.NODE_ENV === 'development') {
+        console.log('📡 Fetching notebooks from baseURL:', (axiosInstance.defaults as any).baseURL);
+      }
+
+      let response;
+      try {
+        // Use a shorter timeout specifically for notebooks for snappier UI
+        response = await axiosInstance.get(`/notes/notebooks/`, { timeout: 4000 });
+      } catch (err: any) {
+        // One quick retry after 300ms in case of transient network issues
+        await new Promise(r => setTimeout(r, 300));
+        response = await axiosInstance.get(`/notes/notebooks/`, { timeout: 5000 });
+      }
       
       // Handle paginated response
       const notebooksData = response.data.results || response.data;
@@ -147,24 +169,62 @@ const Notes = () => {
       console.log('Fetched notebooks data:', notebooksData);
       
       if (notebooksData) {
-        // Get saved colors from localStorage
+        // Get saved colors and cached notebooks (to preserve favorites)
         const savedColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
-        
-        // Ensure each notebook has a color field with a default value
-        const notebooksWithColors = notebooksData.map((notebook: any) => ({
-          ...notebook,
-          color: notebook.color || savedColors[notebook.id] || generateNotebookColor(notebook.id)
-        }));
+        const cached = localStorage.getItem(NOTEBOOKS_CACHE_KEY);
+        const favoritesOverrideRaw = localStorage.getItem('NOTEBOOKS_FAVORITES_OVERRIDE');
+        const cachedMap: Record<number, any> = {};
+        const favoritesOverride: Record<number, boolean> = favoritesOverrideRaw ? JSON.parse(favoritesOverrideRaw) : {};
+        try {
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && Array.isArray(parsed.data)) {
+              for (const nb of parsed.data) {
+                cachedMap[nb.id] = nb;
+              }
+            }
+          }
+        } catch {}
+
+        // Ensure each notebook has a color field and preserve cached is_favorite when server is stale/undefined
+        const notebooksWithColors = notebooksData.map((notebook: any) => {
+          const cachedNb = cachedMap[notebook.id];
+          // Apply favorites override first, then server, then cache
+          const favorite = (favoritesOverride && Object.prototype.hasOwnProperty.call(favoritesOverride, notebook.id))
+            ? favoritesOverride[notebook.id]
+            : (typeof notebook.is_favorite === 'boolean'
+                ? notebook.is_favorite
+                : (cachedNb?.is_favorite ?? false));
+          return {
+            ...notebook,
+            is_favorite: favorite,
+            color: notebook.color || savedColors[notebook.id] || generateNotebookColor(notebook.id)
+          };
+        });
         
         console.log('Notebooks with colors:', notebooksWithColors);
         setNotebooks(notebooksWithColors);
+        // Cache for instant next-load hydration
+        try {
+          localStorage.setItem(NOTEBOOKS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: notebooksWithColors }));
+        } catch {}
       } else {
         setNotebooks([]);
         setError('No notebooks found');
       }
     } catch (error: any) {
-      console.error('Failed to fetch notebooks:', error);
-      setError('Failed to fetch notebooks. Please try again.');
+      // Surface precise diagnostics
+      const status = error?.response?.status;
+      const detail = error?.response?.data || error?.message;
+      console.error('❌ Failed to fetch notebooks:', { status, detail });
+      if (status === 401) {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return;
+      }
+      setError(`Failed to fetch notebooks${status ? ` (HTTP ${status})` : ''}. Please try again.`);
     }
   };
 
@@ -217,6 +277,11 @@ const Notes = () => {
 
   // Fetch notes for selected notebook
   const fetchNotes = async (notebookId: number) => {
+    // Prevent duplicate calls for the same notebook
+    if (selectedNotebook && selectedNotebook.id === notebookId && notes.length > 0) {
+      return;
+    }
+
     try {
       console.log(`📥 Fetching notes for notebook ID: ${notebookId}`);
       const response = await axiosInstance.get(`/notes/?notebook=${notebookId}`);
@@ -277,9 +342,6 @@ const Notes = () => {
 
   // Notebook management functions
   const handleNotebookSelect = (notebook: Notebook) => {
-    console.log(`🔄 Switching to notebook: "${notebook.name}" (ID: ${notebook.id})`);
-    console.log(`   Previous notes count: ${notes.length}`);
-    
     // Clear notes FIRST to prevent showing old notes
     setNotes([]);
     setArchivedNotes([]);
@@ -294,13 +356,17 @@ const Notes = () => {
     setSelectedForBulk([]); // Clear selection when selecting a different notebook
     // Switch to notes view for both mobile and desktop
     setCurrentView('notes');
+    
+    // Update URL to reflect notebook selection (but don't rely on URL parsing for state)
+    navigate(`/notes/notebooks/${notebook.id}`, { replace: true });
   };
 
   // Back button handler to return to notebooks view
   const handleBackToNotebooks = () => {
-    setCurrentView('notebooks');
+    // Clear all state first
     setSelectedNotebook(null);
     setNotes([]);
+    setArchivedNotes([]);
     setSearchTerm('');
     setNotebookSearchTerm('');
     setFilterType('title');
@@ -309,6 +375,12 @@ const Notes = () => {
     
     // Clear the saved notebook selection
     localStorage.removeItem('lastSelectedNotebookId');
+    
+    // Update URL to return to main notes page
+    navigate('/notes');
+    
+    // Set view to notebooks AFTER navigation
+    setCurrentView('notebooks');
   };
 
   const handleAddNotebook = async () => {
@@ -438,6 +510,17 @@ const Notes = () => {
         nb.id === notebookId ? { ...nb, is_favorite: newFavoriteStatus } : nb
       );
       setNotebooks(updatedNotebooks);
+      // Persist favorites override map immediately to survive refresh even if server is stale
+      try {
+        const overrideRaw = localStorage.getItem('NOTEBOOKS_FAVORITES_OVERRIDE');
+        const override = overrideRaw ? JSON.parse(overrideRaw) : {};
+        override[notebookId] = newFavoriteStatus;
+        localStorage.setItem('NOTEBOOKS_FAVORITES_OVERRIDE', JSON.stringify(override));
+      } catch {}
+      // Persist to local cache so favorites survive refresh even if network is slow
+      try {
+        localStorage.setItem(NOTEBOOKS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: updatedNotebooks }));
+      } catch {}
       
       console.log('✅ Updated notebooks state');
 
@@ -506,8 +589,12 @@ const Notes = () => {
     setIsNewNoteEditor(false);
     setShowNoteEditor(true);
     
-    // Update URL with note ID
-    navigate(`/notes/${note.id}`);
+    // Update URL with notebook and note ID
+    if (selectedNotebook) {
+      navigate(`/notes/notebooks/${selectedNotebook.id}/notes/${note.id}`);
+    } else {
+      navigate(`/notes/${note.id}`);
+    }
     
     // Update last_visited timestamp
     updateLastVisited(note.id);
@@ -607,8 +694,12 @@ const Notes = () => {
         // Only update URL if not closing after save (for autosave)
         // If closeAfterSave is true, we'll close the editor instead
         if (!closeAfterSave) {
-          // Update URL to include the new note ID
-          navigate(`/notes/${response.data.id}`);
+          // Update URL to include the new note ID with notebook context
+          if (selectedNotebook) {
+            navigate(`/notes/notebooks/${selectedNotebook.id}/notes/${response.data.id}`);
+          } else {
+            navigate(`/notes/${response.data.id}`);
+          }
         }
         
         // Update notebook notes count
@@ -677,7 +768,13 @@ const Notes = () => {
     setNoteEditorNote(null);
     setIsNewNoteEditor(false);
     setNewNote({ title: '', content: '' });
-    navigate('/notes');
+    
+    // Navigate back to the appropriate view
+    if (selectedNotebook) {
+      navigate(`/notes/notebooks/${selectedNotebook.id}`);
+    } else {
+      navigate('/notes');
+    }
     
     // Reset flags after navigation
     setTimeout(() => {
@@ -844,6 +941,7 @@ const Notes = () => {
         const notebook = notebooks.find(nb => nb.id === note.notebook);
         if (notebook) {
           setSelectedNotebook(notebook);
+          setCurrentView('notes');
           await fetchNotes(notebook.id);
         }
         
@@ -872,21 +970,56 @@ const Notes = () => {
     }
   }, [notebooks, noteIdFromUrl, navigate]);
 
-  // Add useEffect to handle notebook selection from URL parameter
+  // Add useEffect to handle URL-based navigation (only for direct URL access/refresh)
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const notebookId = urlParams.get('notebook');
-    
-    if (notebookId && notebooks.length > 0) {
-      const notebook = notebooks.find(nb => nb.id === parseInt(notebookId));
-      if (notebook) {
-        setSelectedNotebook(notebook);
-        fetchNotes(notebook.id);
-        setSelectedForBulk([]); // Clear selection when navigating to a notebook
-        setCurrentView('notes');
+    if (notebooks.length > 0) {
+      if (notebookId) {
+        // URL has notebook ID: /notes/notebooks/{id} or /notes/notebooks/{id}/notes/{noteId}
+        const parsedNotebookId = parseInt(notebookId);
+        const notebook = notebooks.find(nb => nb.id === parsedNotebookId);
+        
+        if (notebook && (!selectedNotebook || selectedNotebook.id !== notebook.id)) {
+          setSelectedNotebook(notebook);
+          setCurrentView('notes');
+          fetchNotes(notebook.id);
+          setSelectedForBulk([]); // Clear selection when navigating to a notebook
+          
+          // If there's a note ID in the URL, open that note
+          if (noteIdFromUrl) {
+            const parsedNoteId = parseInt(noteIdFromUrl);
+            const note = notes.find(n => n.id === parsedNoteId);
+            if (note) {
+              setNoteEditorNote(note);
+              setIsNewNoteEditor(false);
+              setShowNoteEditor(true);
+            }
+          }
+        }
+      } else if (noteIdFromUrl) {
+        // Legacy URL: /notes/{id} - just open the note
+        const parsedNoteId = parseInt(noteIdFromUrl);
+        const note = notes.find(n => n.id === parsedNoteId);
+        if (note) {
+          const notebook = notebooks.find(nb => nb.id === note.notebook);
+          if (notebook && (!selectedNotebook || selectedNotebook.id !== notebook.id)) {
+            setSelectedNotebook(notebook);
+            setCurrentView('notes');
+            fetchNotes(notebook.id);
+            setNoteEditorNote(note);
+            setIsNewNoteEditor(false);
+            setShowNoteEditor(true);
+          }
+        }
+      } else {
+        // Main notes page: /notes - ensure we show notebooks view
+        if (currentView !== 'notebooks' || selectedNotebook) {
+          setCurrentView('notebooks');
+          setSelectedNotebook(null);
+          setNotes([]);
+        }
       }
     }
-  }, [notebooks]);
+  }, [notebooks, notebookId, noteIdFromUrl]); // Removed currentView and selectedNotebook from dependencies
 
   // Add useEffect to handle opening note from localStorage
   const hasOpenedNoteFromStorageRef = useRef(false);
@@ -1048,8 +1181,20 @@ const Notes = () => {
       }
       
       try {
-        await fetchNotebooks();
-        await fetchArchivedNotebooks(); // Fetch archived notebooks
+        // 1) Instant hydrate from cache if available
+        try {
+          const cached = localStorage.getItem(NOTEBOOKS_CACHE_KEY);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (parsed && Array.isArray(parsed.data)) {
+              setNotebooks(parsed.data);
+            }
+          }
+        } catch {}
+
+        // 2) Kick off fresh fetch in background
+        fetchNotebooks();
+        // Defer archived notebooks fetch until the Archived tab is viewed (performance)
         // Don't auto-fetch notes - let user select a notebook first
         // This prevents race conditions and wrong notes appearing during hot reload
       } catch (error: any) {
@@ -1201,14 +1346,23 @@ const Notes = () => {
   };
 
   // Debug logging
-  console.log('Current state:', {
-    loading,
-    currentView,
-    notebooks: notebooks.length,
-    selectedNotebook,
-    error,
-    notebooksData: notebooks
-  });
+  // console.log('Current state:', {
+  //   loading,
+  //   currentView,
+  //   notebooks: notebooks.length,
+  //   selectedNotebook: selectedNotebook ? { id: selectedNotebook.id, name: selectedNotebook.name } : null,
+  //   notes: notes.length,
+  //   error,
+  //   urlParams: { notebookId, noteIdFromUrl },
+  //   activeTab
+  // });
+  
+  // console.log('Render conditions:', {
+  //   showNotebooksView: currentView === 'notebooks',
+  //   showNotesView: currentView === 'notes',
+  //   showNotesTab: currentView === 'notes' && activeTab === 'notes',
+  //   showArchivedTab: currentView === 'notes' && activeTab === 'archived'
+  // });
 
   // Debug logging for notes display
   useEffect(() => {
@@ -1362,7 +1516,7 @@ const Notes = () => {
 
             {/* Content */}
             <div className="flex-1 overflow-hidden">
-              {currentView.includes('notebook') && (
+              {currentView === 'notebooks' && (
                 <>
                   {activeNotebookTab === 'notebooks' && (
                     <>
@@ -1506,7 +1660,7 @@ const Notes = () => {
                   )}
                 </>
               )}
-              {currentView.includes('note') && !currentView.includes('notebook') && activeTab === 'notes' && (
+              {currentView === 'notes' && activeTab === 'notes' && (
                 <NotesList
                   selectedNotebook={selectedNotebook}
                   notes={filteredNotes}
@@ -1534,7 +1688,7 @@ const Notes = () => {
                   onSelectionChange={setSelectedForBulk}
                 />
               )}
-              {currentView.includes('note') && !currentView.includes('notebook') && activeTab === 'archived' && (
+              {currentView === 'notes' && activeTab === 'archived' && (
                 <>
                   {archivedNotes.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
@@ -1581,7 +1735,7 @@ const Notes = () => {
                 </>
               )}
               {/* Fallback for debugging */}
-              {!currentView.includes('notebook') && !currentView.includes('note') && (
+              {currentView !== 'notebooks' && currentView !== 'notes' && (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center">
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
@@ -1672,6 +1826,8 @@ const Notes = () => {
             setNoteEditorNote(note);
             setIsNewNoteEditor(false);
             setShowNoteEditor(true);
+            // Update URL to reflect the note being opened
+            navigate(`/notes/notebooks/${notebook.id}/notes/${note.id}`);
           }
           setShowImportantItemsPanel(false);
         }}
@@ -1680,6 +1836,8 @@ const Notes = () => {
           fetchNotes(notebook.id);
           setCurrentView('notes');
           setSelectedForBulk([]); // Clear selection when selecting a different notebook
+          // Update URL to reflect the notebook being selected
+          navigate(`/notes/notebooks/${notebook.id}`);
           setShowImportantItemsPanel(false);
         }}
       />

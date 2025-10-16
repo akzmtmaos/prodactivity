@@ -109,7 +109,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
     
     setForgotStatus('sending');
     try {
-      const res = await fetch('http://192.168.56.1:8000/api/password-reset/', {
+      const res = await fetch('http://192.168.68.162:8000/api/password-reset/', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail })

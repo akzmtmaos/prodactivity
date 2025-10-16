@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
+// axios import not needed; using Supabase only
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
 import TaskList from '../components/tasks/TaskList';
@@ -15,7 +15,7 @@ import { RealtimeProvider, useRealtime } from '../context/RealtimeContext';
 import { supabase } from '../lib/supabase';
 // import { getTimezoneOffset } from '../utils/dateUtils';
 
-const API_BASE_URL = 'http://192.168.56.1:8000/api';
+// API_BASE_URL not needed; tasks use Supabase directly
 
 // Add getAuthHeaders function for JWT authentication
 const getAuthHeaders = () => {
@@ -129,17 +129,10 @@ const TasksContent = ({ user }: { user: any }) => {
     setCurrentPage(1);
   }, [searchTerm, filterPriority, sortField, sortDirection]);
 
-  // Fetch tasks and stats whenever filters/search change
+  // Fetch tasks and stats whenever filters/search change (Supabase-only)
   useEffect(() => {
-    // Test backend connection first
-    testBackendConnection().then(isConnected => {
-      if (isConnected) {
-        fetchTasks();
-        fetchTaskStats();
-      } else {
-        setError('Cannot connect to backend server. Please check if the server is running.');
-      }
-    });
+    fetchTasks();
+    fetchTaskStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchTerm, filterPriority, sortField, sortDirection, currentPage]);
 
@@ -159,20 +152,7 @@ const TasksContent = ({ user }: { user: any }) => {
     }, 3000);
   };
 
-  // Test backend connectivity
-  const testBackendConnection = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/tasks/`, { 
-        headers: getAuthHeaders(),
-        timeout: 5000 
-      });
-      console.log('Backend connection test successful:', response.status);
-      return true;
-    } catch (err: any) {
-      console.error('Backend connection test failed:', err);
-      return false;
-    }
-  };
+  // Backend connectivity test removed; using Supabase directly
 
   // Fetch task statistics from Supabase
   const fetchTaskStats = useCallback(async () => {

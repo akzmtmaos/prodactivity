@@ -144,12 +144,29 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
           .eq('is_deleted', false) // EXCLUDE deleted for today
           .not('completed_at', 'is', null);
         
-        // Filter to tasks completed today
+        // CORRECTED LOGIC: Filter to tasks that were due today AND completed today
+        // This ensures we only show tasks that were actually scheduled for today
         const completedData = (allCompletedTasks || []).filter(task => {
           if (!task.completed_at) return false;
+          
+          // Must be due today
+          if (task.due_date !== date) {
+            console.log(`❌ Today's completed task ${task.id} excluded: due_date (${task.due_date}) does not match today (${date})`);
+            return false;
+          }
+          
+          // Must be completed today
           const completedDate = new Date(task.completed_at);
           const completedDateStr = completedDate.toLocaleDateString('en-CA');
-          return completedDateStr === date;
+          const matches = completedDateStr === date;
+          
+          if (matches) {
+            console.log(`✅ Today's completed task ${task.id} included: due_date and completed_at both match today (${date})`);
+          } else {
+            console.log(`❌ Today's completed task ${task.id} excluded: completed_at (${completedDateStr}) does not match today (${date})`);
+          }
+          
+          return matches;
         });
         
         // Get pending tasks due today (exclude deleted)
@@ -187,27 +204,42 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
           .eq('completed', true)
           .not('completed_at', 'is', null);
         
-        // Filter to tasks completed on this specific date (include deleted)
+        // CORRECTED LOGIC: Filter to tasks that were due on this specific date AND completed on this date
+        // This ensures we only show tasks that were actually scheduled for this date
         const completedData = (allCompletedTasks || []).filter(task => {
           if (!task.completed_at) return false;
+          
+          // Must be due on this date
+          if (task.due_date !== date) {
+            console.log(`❌ Completed task ${task.id} excluded: due_date (${task.due_date}) does not match breakdown date (${date})`);
+            return false;
+          }
+          
+          // Must be completed on this date
           const completedDate = new Date(task.completed_at);
           const completedDateStr = completedDate.toLocaleDateString('en-CA');
-          return completedDateStr === date;
+          const matches = completedDateStr === date;
+          
+          if (matches) {
+            console.log(`✅ Completed task ${task.id} included: due_date and completed_at both match breakdown date (${date})`);
+          } else {
+            console.log(`❌ Completed task ${task.id} excluded: completed_at (${completedDateStr}) does not match breakdown date (${date})`);
+          }
+          
+          return matches;
         });
         
-        // Get pending tasks associated with this date (include deleted)
-        // IMPORTANT: Without due_date history tracking, we can't perfectly determine
-        // which tasks WERE due on this date. We use these heuristics:
-        // 1. due_date = this date (tasks currently scheduled for this date)
-        // 2. OR created on this date (tasks that originated on this date)
-        // 3. OR updated within ±3 days of this date AND due_date is close (likely moved)
+        // Get pending tasks that were due on this specific date
+        // CORRECTED LOGIC: Only show tasks that were actually due on this date
+        // We can't perfectly track due_date history, so we use the current due_date
+        // This means historical breakdowns will only show tasks currently scheduled for that date
         const { data: allPendingTasks, error: pendingError } = await supabase
           .from('tasks')
           .select('id, title, completed, completed_at, due_date, priority, category, task_category, time_spent_minutes, created_at, updated_at, is_deleted')
           .eq('user_id', userId)
           .eq('completed', false);
         
-        // Filter to tasks associated with this date
+        // Filter to tasks that were due on this specific date
         const pendingData = (allPendingTasks || []).filter(task => {
           // DEBUG: Log each task being evaluated
           const debugInfo = {
@@ -219,54 +251,14 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
             is_deleted: task.is_deleted
           };
           
-          // Include if due date currently matches
+          // CORRECTED: Only include if due date exactly matches the breakdown date
+          // This prevents tasks from other dates (like Oct 16) from appearing in Oct 14 breakdown
           if (task.due_date === date) {
-            console.log(`✅ Task ${task.id} included: due_date matches`, debugInfo);
+            console.log(`✅ Task ${task.id} included: due_date exactly matches breakdown date`, debugInfo);
             return true;
           }
           
-          // Include if created on this date (catches tasks moved to other dates)
-          // But ONLY if not deleted (deleted tasks shouldn't affect historical calculations)
-          if (task.created_at && !task.is_deleted) {
-            const createdDate = new Date(task.created_at);
-            const createdDateStr = createdDate.toLocaleDateString('en-CA');
-            if (createdDateStr === date) {
-              console.log(`✅ Task ${task.id} included: created_at matches (not deleted)`, debugInfo);
-              return true;
-            }
-          }
-          
-          // Include if task was updated around this date and due_date is within ±3 days
-          // This catches tasks that were likely moved FROM or TO this date
-          // But ONLY if not deleted (deleted tasks shouldn't affect historical calculations)
-          if (task.updated_at && task.due_date && !task.is_deleted) {
-            const updatedDate = new Date(task.updated_at);
-            const breakdownDate = new Date(date);
-            const taskDueDate = new Date(task.due_date);
-            
-            // Calculate days difference
-            const daysDiffUpdated = Math.abs((updatedDate.getTime() - breakdownDate.getTime()) / (1000 * 60 * 60 * 24));
-            const daysDiffDue = Math.abs((taskDueDate.getTime() - breakdownDate.getTime()) / (1000 * 60 * 60 * 24));
-            
-            console.log(`🔍 Task ${task.id} update check:`, {
-              ...debugInfo,
-              breakdownDate: date,
-              daysDiffUpdated: daysDiffUpdated.toFixed(2),
-              daysDiffDue: daysDiffDue.toFixed(2),
-              withinUpdateWindow: daysDiffUpdated <= 3,
-              withinDueWindow: daysDiffDue <= 3,
-              notExactMatch: task.due_date !== date
-            });
-            
-            // If updated within 3 days of this date AND due_date is within 3 days
-            // This likely means it was moved from/to this date
-            if (daysDiffUpdated <= 3 && daysDiffDue <= 3 && task.due_date !== date) {
-              console.log(`✅ Task ${task.id} included: likely moved (updated nearby, not deleted)`, debugInfo);
-              return true;
-            }
-          }
-          
-          console.log(`❌ Task ${task.id} excluded: no criteria matched (or is deleted)`, debugInfo);
+          console.log(`❌ Task ${task.id} excluded: due_date (${task.due_date}) does not match breakdown date (${date})`, debugInfo);
           return false;
         });
         
@@ -284,25 +276,15 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
             displayedRate: dailyPercentage
           });
           console.log('Completed tasks:', completedData.map(t => ({ id: t.id, title: t.title, due: t.due_date, completed: t.completed_at, deleted: t.is_deleted })));
-          console.log('Pending tasks:', pendingData.map(t => {
-            let reason = 'unknown';
-            if (t.due_date === date) reason = 'due_date_match';
-            else if (t.created_at && new Date(t.created_at).toLocaleDateString('en-CA') === date) reason = 'created_on_date';
-            else if (t.updated_at && t.due_date) {
-              const daysDiffUpdated = Math.abs((new Date(t.updated_at).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
-              const daysDiffDue = Math.abs((new Date(t.due_date).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
-              if (daysDiffUpdated <= 3 && daysDiffDue <= 3) reason = 'updated_near_date_likely_moved';
-            }
-            return {
-              id: t.id, 
-              title: t.title, 
-              currentDue: t.due_date, 
-              created: t.created_at ? new Date(t.created_at).toLocaleDateString('en-CA') : null,
-              updated: t.updated_at ? new Date(t.updated_at).toLocaleDateString('en-CA') : null,
-              deleted: t.is_deleted,
-              reason
-            };
-          }));
+          console.log('Pending tasks:', pendingData.map(t => ({
+            id: t.id, 
+            title: t.title, 
+            currentDue: t.due_date, 
+            created: t.created_at ? new Date(t.created_at).toLocaleDateString('en-CA') : null,
+            updated: t.updated_at ? new Date(t.updated_at).toLocaleDateString('en-CA') : null,
+            deleted: t.is_deleted,
+            reason: 'due_date_exact_match'
+          })));
           console.log('🔍 DELETED TASK COUNT:', {
             deletedCompleted: completedData.filter(t => t.is_deleted).length,
             deletedPending: pendingData.filter(t => t.is_deleted).length
@@ -537,35 +519,10 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
                                   {task.category}
                                 </span>
                               )}
-                              {task.due_date !== date ? (
-                                <>
-                                  <span className="text-xs font-medium px-2 py-1 rounded-full bg-orange-100 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 flex items-center gap-1">
-                                    <Calendar size={12} />
-                                    Now due: {new Date(task.due_date).toLocaleDateString()}
-                                  </span>
-                                  {(() => {
-                                    // Check if this task was included because it was "likely moved"
-                                    const wasCreatedHere = task.created_at && new Date(task.created_at).toLocaleDateString('en-CA') === date;
-                                    if (!wasCreatedHere && task.updated_at) {
-                                      const daysDiffUpdated = Math.abs((new Date(task.updated_at).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
-                                      const daysDiffDue = Math.abs((new Date(task.due_date).getTime() - new Date(date).getTime()) / (1000 * 60 * 60 * 24));
-                                      if (daysDiffUpdated <= 3 && daysDiffDue <= 3) {
-                                        return (
-                                          <span className="text-xs font-medium px-2 py-1 rounded-full bg-blue-100 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-                                            Likely moved from this date
-                                          </span>
-                                        );
-                                      }
-                                    }
-                                    return null;
-                                  })()}
-                                </>
-                              ) : (
-                                <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                  <Calendar size={12} />
-                                  Due: {new Date(task.due_date).toLocaleDateString()}
-                                </span>
-                              )}
+                              <span className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                                <Calendar size={12} />
+                                Due: {new Date(task.due_date).toLocaleDateString()}
+                              </span>
                             </div>
                           </div>
                         </div>

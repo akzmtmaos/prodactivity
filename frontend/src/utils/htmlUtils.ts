@@ -1,43 +1,37 @@
-/**
- * Utility functions for handling HTML content
- */
+// HTML utility functions
 
-/**
- * Strips HTML tags from content and decodes common HTML entities
- * @param htmlContent - The HTML content to clean
- * @returns Clean text content without HTML tags
- */
-export const stripHtmlTags = (htmlContent: string): string => {
-  if (!htmlContent) return '';
+export const stripHtmlTags = (html: string): string => {
+  if (!html) return '';
   
-  // Remove HTML tags and decode common HTML entities
-  return htmlContent
-    .replace(/<[^>]*>/g, '') // Remove HTML tags
-    .replace(/&nbsp;/g, ' ') // Replace &nbsp; with space
-    .replace(/&amp;/g, '&') // Replace &amp; with &
-    .replace(/&lt;/g, '<') // Replace &lt; with <
-    .replace(/&gt;/g, '>') // Replace &gt; with >
-    .replace(/&quot;/g, '"') // Replace &quot; with "
-    .replace(/&#39;/g, "'") // Replace &#39; with '
-    .replace(/\s+/g, ' ') // Replace multiple spaces with single space
-    .trim();
+  // Create a temporary div to parse HTML
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  
+  // Get text content (strips all HTML tags)
+  return temp.textContent || temp.innerText || '';
 };
 
-/**
- * Safely truncates HTML content to a specified length after stripping tags
- * @param htmlContent - The HTML content to truncate
- * @param maxLength - Maximum length of the truncated text
- * @param suffix - Suffix to add if content is truncated (default: '...')
- * @returns Truncated clean text
- */
-export const truncateHtmlContent = (
-  htmlContent: string, 
-  maxLength: number, 
-  suffix: string = '...'
-): string => {
-  const cleanContent = stripHtmlTags(htmlContent);
-  if (cleanContent.length <= maxLength) {
-    return cleanContent;
+export const truncateHtmlContent = (html: string, maxLength: number = 150): string => {
+  if (!html) return '';
+  
+  // Strip HTML tags first
+  const text = stripHtmlTags(html);
+  
+  // Truncate to max length
+  if (text.length <= maxLength) {
+    return text;
   }
-  return cleanContent.substring(0, maxLength) + suffix;
+  
+  return text.substring(0, maxLength).trim() + '...';
 };
+
+export const sanitizeHtml = (html: string): string => {
+  if (!html) return '';
+  
+  // Basic sanitization - remove script tags and potentially dangerous content
+  let cleaned = html.replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+  cleaned = cleaned.replace(/on\w+\s*=\s*["'][^"']*["']/gi, ''); // Remove inline event handlers
+  
+  return cleaned;
+};
+

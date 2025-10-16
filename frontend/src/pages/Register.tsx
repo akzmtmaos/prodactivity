@@ -196,7 +196,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     }
 
     try {
-      const res = await fetch('http://192.168.56.1:8000/api/register/', {
+      const res = await fetch('http://192.168.68.162:8000/api/register/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

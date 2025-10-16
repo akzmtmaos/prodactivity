@@ -14,7 +14,7 @@ const TermsModal: React.FC<TermsModalProps> = ({ open, onClose }) => {
     if (open) {
       setLoading(true);
       setError(null);
-      fetch('http://192.168.56.1:8000/api/terms/latest/')
+      fetch('http://192.168.68.162:8000/api/terms/latest/')
         .then(res => {
           if (!res.ok) throw new Error('Failed to fetch Terms and Conditions');
           return res.json();

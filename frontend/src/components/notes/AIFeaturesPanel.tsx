@@ -5,7 +5,6 @@ import {
   MessageSquare, 
   FileText, 
   Zap, 
-  AlertTriangle, 
   Scissors,
   BookOpen,
   Clock,
@@ -28,15 +27,6 @@ interface AIFeaturesPanelProps {
   isNotebook?: boolean;
 }
 
-interface UrgencyAnalysis {
-  urgency_level: 'low' | 'medium' | 'high' | 'urgent';
-  confidence: number;
-  reasoning: string;
-  suggested_priority: 'low' | 'medium' | 'high' | 'urgent';
-  time_sensitive: boolean;
-  deadlines_mentioned: string[];
-  action_required: boolean;
-}
 
 interface ChunkingSuggestion {
   title: string;
@@ -170,8 +160,6 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
   const [isTyping, setIsTyping] = useState(false);
   const [typingMessageIndex, setTypingMessageIndex] = useState<number | null>(null);
 
-  // Urgency detection state
-  const [urgencyAnalysis, setUrgencyAnalysis] = useState<UrgencyAnalysis | null>(null);
 
   // Smart chunking state
   const [chunkingAnalysis, setChunkingAnalysis] = useState<ChunkingAnalysis | null>(null);
@@ -279,35 +267,6 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
     }
   };
 
-  // NEW: Urgency detection
-  const handleUrgencyDetection = async () => {
-    if (!content.trim() && !sourceTitle) {
-      setError('No content or title provided for urgency analysis');
-      return;
-    }
-    
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await axiosInstance.post('/notes/urgency-detection/', {
-        text: content,
-        title: sourceTitle || '',
-        note_type: noteType
-      });
-      
-      if (response.data.error) {
-        throw new Error(response.data.error);
-      }
-      
-      setUrgencyAnalysis(response.data);
-    } catch (error: any) {
-      console.error('Failed to analyze urgency:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to analyze urgency. Please try again.';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
 
   // NEW: Smart chunking
   const handleSmartChunking = async () => {
@@ -637,15 +596,6 @@ Click "View Deck" to see your flashcards in the Decks section.`);
     }
   };
 
-  const getImportanceColor = (importance: string) => {
-    switch (importance) {
-      case 'urgent': return 'bg-orange-600 text-white';
-      case 'high': return 'bg-orange-500 text-white';
-      case 'medium': return 'bg-yellow-500 text-white';
-      case 'low': return 'bg-green-500 text-white';
-      default: return 'bg-gray-500 text-white';
-    }
-  };
 
   const features = [
     {
@@ -663,14 +613,6 @@ Click "View Deck" to see your flashcards in the Decks section.`);
       description: 'Generate comprehensive summary of entire notebook',
       action: () => handleFeatureClick('notebook-summary'),
       show: isNotebook && !!sourceNotebookId
-    },
-    {
-      id: 'urgency',
-      icon: AlertTriangle,
-      label: 'Detect Importance',
-      description: 'AI-powered importance and priority analysis',
-      action: () => handleFeatureClick('urgency'),
-      show: true
     },
     {
       id: 'chunking',
@@ -718,7 +660,6 @@ Click "View Deck" to see your flashcards in the Decks section.`);
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {activeFeature === 'summary' ? 'Smart Summarization' :
                  activeFeature === 'notebook-summary' ? 'Notebook Summary' :
-                 activeFeature === 'urgency' ? 'Urgency Analysis' :
                  activeFeature === 'chunking' ? 'Smart Chunking' :
                  activeFeature === 'review' ? 'AI Reviewer' : 
                  activeFeature === 'flashcards' ? 'Convert to Flashcards' :
@@ -751,7 +692,6 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                     setChatInput('');
                     setIsTyping(false);
                     setTypingMessageIndex(null);
-                    setUrgencyAnalysis(null);
                     setChunkingAnalysis(null);
                     setNotebookSummary('');
                     setReviewResult('');
@@ -852,68 +792,6 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                   </div>
                 )}
 
-                {activeFeature === 'urgency' && (
-                  <div className="space-y-4 p-4">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      AI-powered urgency and priority analysis
-                    </p>
-                    {isLoading ? (
-                      <div className="animate-pulse space-y-4">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                        <div className="space-y-2">
-                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <button
-                          onClick={handleUrgencyDetection}
-                          disabled={!content.trim() && !sourceTitle}
-                          className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        >
-                          <AlertTriangle className="w-4 h-4 mr-2" />
-                          Analyze Urgency
-                        </button>
-                        
-                        {urgencyAnalysis && (
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-600 dark:text-gray-400">Urgency:</span>
-                                                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getImportanceColor(urgencyAnalysis.urgency_level)}`}>
-                                {urgencyAnalysis.urgency_level.toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm text-gray-600 dark:text-gray-400">Priority:</span>
-                              <span className={`px-2 py-1 text-xs font-medium rounded-full ${getPriorityColor(urgencyAnalysis.suggested_priority)}`}>
-                                {urgencyAnalysis.suggested_priority.toUpperCase()}
-                              </span>
-                            </div>
-                            <div className="text-sm text-gray-700 dark:text-gray-300">
-                              <strong>Reasoning:</strong> {urgencyAnalysis.reasoning}
-                            </div>
-                            {urgencyAnalysis.time_sensitive && (
-                              <div className="text-sm text-orange-600 dark:text-orange-400">
-                                ⏰ Time-sensitive content detected
-                              </div>
-                            )}
-                            {urgencyAnalysis.action_required && (
-                              <div className="text-sm text-red-600 dark:text-red-400">
-                                ⚡ Action required
-                              </div>
-                            )}
-                            {urgencyAnalysis.deadlines_mentioned.length > 0 && (
-                              <div className="text-sm text-gray-700 dark:text-gray-300">
-                                <strong>Deadlines:</strong> {urgencyAnalysis.deadlines_mentioned.join(', ')}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </>
-                    )}
-                  </div>
-                )}
 
                 {activeFeature === 'chunking' && (
                   <div className="space-y-4 p-4">
@@ -1199,62 +1077,115 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                         el.scrollTop = el.scrollHeight;
                       }
                     }}>
-                      {chatMessages.map((message, index) => (
+                      {chatMessages.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center py-8">
+                          <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-4">
+                            <MessageSquare className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+                          </div>
+                          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                            Start a conversation
+                          </h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs">
+                            Ask questions about your note content, get explanations, or request summaries.
+                          </p>
+                        </div>
+                      ) : (
+                        chatMessages.map((message, index) => (
                           <div
                             key={index}
                             className={`flex ${
                               message.role === 'user' ? 'justify-end' : 'justify-start'
                             }`}
                           >
-                            <div
-                              className={`max-w-[80%] rounded-lg p-3 break-words transition-all duration-200 ${
-                                message.role === 'user'
-                                  ? 'bg-indigo-600 text-white'
-                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
-                              } ${
-                                message.role === 'assistant' && isTyping && typingMessageIndex === index
-                                  ? 'shadow-md ring-2 ring-indigo-200 dark:ring-indigo-800'
-                                  : ''
-                              }`}
-                            >
-                              {message.role === 'assistant' && isTyping && typingMessageIndex === index ? (
-                                <>
-                                  {console.log('🎬 Rendering TypingAnimation for message', index, 'content:', message.content)}
+                            <div className={`flex items-start space-x-2 max-w-[85%] ${
+                              message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
+                            }`}>
+                              {/* Avatar */}
+                              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
+                                message.role === 'user' 
+                                  ? 'bg-indigo-600 text-white' 
+                                  : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                              }`}>
+                                {message.role === 'user' ? 'U' : 'AI'}
+                              </div>
+                              
+                              {/* Message bubble */}
+                              <div
+                                className={`rounded-2xl p-4 break-words transition-all duration-200 ${
+                                  message.role === 'user'
+                                    ? 'bg-indigo-600 text-white rounded-br-md'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-bl-md'
+                                } ${
+                                  message.role === 'assistant' && isTyping && typingMessageIndex === index
+                                    ? 'shadow-lg ring-2 ring-indigo-200 dark:ring-indigo-800'
+                                    : 'shadow-sm'
+                                }`}
+                              >
+                                {message.role === 'assistant' && isTyping && typingMessageIndex === index ? (
+                                  <>
+                                    {console.log('🎬 Rendering TypingAnimation for message', index, 'content:', message.content)}
+                                    <div 
+                                      className="text-sm leading-relaxed"
+                                      dangerouslySetInnerHTML={{ 
+                                        __html: convertMarkdownToHTML(message.content) + '<span class="animate-pulse text-indigo-500 ml-1">|</span>'
+                                      }}
+                                    />
+                                  </>
+                                ) : (
                                   <div 
-                                    className="text-sm"
-                                    dangerouslySetInnerHTML={{ 
-                                      __html: convertMarkdownToHTML(message.content) + '<span class="animate-pulse text-indigo-500 ml-1">|</span>'
-                                    }}
+                                    className="text-sm leading-relaxed"
+                                    dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(message.content) }}
                                   />
-                                </>
-                              ) : (
-                                <div 
-                                  className="text-sm"
-                                  dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(message.content) }}
-                                />
-                              )}
+                                )}
+                              </div>
                             </div>
                           </div>
-                      ))}
+                        ))
+                      )}
                     </div>
                     <div className="sticky bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
                       <form onSubmit={handleChatSubmit} className="p-4">
-                        <div className="flex space-x-2">
-                          <input
-                            type="text"
+                        <div className="relative">
+                          <textarea
                             value={chatInput}
                             onChange={(e) => setChatInput(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleChatSubmit(e);
+                              }
+                            }}
                             placeholder="Type your message..."
-                            className="flex-1 px-4 py-2 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            className="w-full px-4 py-3 pr-16 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none min-h-[44px] max-h-32 overflow-y-auto"
                             disabled={isLoading}
+                            rows={1}
+                            style={{
+                              height: 'auto',
+                              minHeight: '44px',
+                              maxHeight: '128px'
+                            }}
+                            onInput={(e) => {
+                              const target = e.target as HTMLTextAreaElement;
+                              target.style.height = 'auto';
+                              target.style.height = Math.min(target.scrollHeight, 128) + 'px';
+                            }}
                           />
+                          
+                          {/* Send button inside the textarea */}
                           <button
                             type="submit"
                             disabled={isLoading || !chatInput.trim()}
-                            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="absolute bottom-3 right-3 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
                           >
-                            Send
+                            {isLoading ? (
+                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                              </svg>
+                            )}
                           </button>
+                          
                         </div>
                       </form>
                     </div>

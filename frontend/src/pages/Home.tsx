@@ -71,8 +71,27 @@ const Home = () => {
   const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
   const [activeFilter, setActiveFilter] = useState<string>('all');
   const searchInputRef = React.useRef<HTMLInputElement>(null);
+  const refreshTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   // Home now uses shared PageLayout for consistent spacing and transitions
+
+  // Debounced refresh function to prevent rapid successive calls
+  const debouncedRefresh = () => {
+    if (refreshTimeoutRef.current) {
+      clearTimeout(refreshTimeoutRef.current);
+    }
+    
+    refreshTimeoutRef.current = setTimeout(() => {
+      if (user && !loading) {
+        console.log('🔄 Debounced refresh triggered');
+        fetchRecentNotes();
+        fetchTasks();
+        fetchCompletedTasksCount();
+        loadEvents();
+        fetchNotesCount();
+      }
+    }, 1000); // Wait 1 second before refreshing
+  };
 
   // Function to generate consistent hash for category colors
   const getCategoryColorHash = (category: string) => {
@@ -476,6 +495,7 @@ const Home = () => {
           headers: error.response?.headers
         });
       }
+      // Don't clear existing notes on error - keep current data
     }
   };
 
@@ -506,7 +526,7 @@ const Home = () => {
       
       if (error) {
         console.error('Supabase error fetching tasks:', error);
-        setTasks([]);
+        // Don't clear existing tasks on error - keep current data
         return;
       }
       
@@ -526,7 +546,7 @@ const Home = () => {
       setTasks(sorted);
     } catch (err) {
       console.error('Error fetching tasks from Supabase:', err);
-      setTasks([]);
+      // Don't clear existing tasks on error - keep current data
     } finally {
       setTasksLoading(false);
     }
@@ -575,7 +595,7 @@ const Home = () => {
       
       if (error) {
         console.error('Supabase error fetching events:', error);
-        setEvents([]);
+        // Don't clear existing events on error - keep current data
         return;
       }
       
@@ -597,7 +617,7 @@ const Home = () => {
       setEvents(mappedEvents);
     } catch (e) {
       console.error('Error fetching events:', e);
-      setEvents([]);
+      // Don't clear existing events on error - keep current data
     }
   };
 
@@ -703,19 +723,22 @@ const Home = () => {
     loadEvents();
     fetchNotesCount();
 
-    // Set up periodic refresh of recent notes
+    // Set up periodic refresh of recent notes (reduced frequency to prevent flickering)
     const refreshInterval = setInterval(() => {
-      fetchRecentNotes();
-      fetchTasks();
-      fetchCompletedTasksCount();
-      loadEvents();
-      fetchNotesCount();
-    }, 30000); // Refresh every 30 seconds
+      // Only refresh if user is still active and data exists
+      if (user && !loading) {
+        fetchRecentNotes();
+        fetchTasks();
+        fetchCompletedTasksCount();
+        loadEvents();
+        fetchNotesCount();
+      }
+    }, 120000); // Refresh every 2 minutes instead of 30 seconds
 
     // Set up event listener for note updates
     const handleNoteUpdate = () => {
-      console.log('Note update event received, refreshing recent notes...');
-      fetchRecentNotes();
+      console.log('Note update event received, triggering debounced refresh...');
+      debouncedRefresh();
     };
 
     window.addEventListener('noteUpdated', handleNoteUpdate);
@@ -723,6 +746,9 @@ const Home = () => {
     return () => {
       clearInterval(refreshInterval);
       window.removeEventListener('noteUpdated', handleNoteUpdate);
+      if (refreshTimeoutRef.current) {
+        clearTimeout(refreshTimeoutRef.current);
+      }
     };
   }, []);
 

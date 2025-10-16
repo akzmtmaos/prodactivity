@@ -8,7 +8,6 @@ const axiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 5000,
 });
 
 // Flag to prevent multiple refresh requests
@@ -51,35 +50,6 @@ axiosInstance.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
-
-    // Network fallback: if request failed without response (timeout/DNS), try alternate base URLs once
-    if (!error.response && !originalRequest._networkRetry) {
-      try {
-        originalRequest._networkRetry = true;
-        const alternates = [
-          // same host but without /api override (if baseURL already has /api, originalRequest.url stays path-only)
-          (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000/api` : null),
-          'http://127.0.0.1:8000/api',
-          'http://localhost:8000/api'
-        ].filter(Boolean) as string[];
-
-        for (const alt of alternates) {
-          try {
-            const newInstance = axios.create({ baseURL: alt });
-            // mirror headers (esp. Authorization)
-            newInstance.defaults.headers.common = { ...(axiosInstance.defaults.headers.common || {}) };
-            const token = localStorage.getItem('accessToken');
-            if (token) newInstance.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-            const res = await newInstance({ ...originalRequest, baseURL: alt });
-            return res;
-          } catch (e) {
-            // try next
-          }
-        }
-      } catch (_) {
-        // ignore and proceed to normal handler
-      }
-    }
 
     if (error.response?.status === 401 && !originalRequest._retry) {
       if (isRefreshing) {
@@ -141,4 +111,3 @@ axiosInstance.interceptors.response.use(
 );
 
 export default axiosInstance;
-

@@ -91,7 +91,7 @@ const DeckDetails: React.FC = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('accessToken');
-        const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${id}/`, {
+        const res = await fetch(`http://192.168.68.162:8000/api/decks/decks/${id}/`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },
@@ -137,7 +137,7 @@ const DeckDetails: React.FC = () => {
       setSubdecksLoading(true);
       try {
         const token = localStorage.getItem('accessToken');
-        const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/?parent=${id}`, {
+        const res = await fetch(`http://192.168.68.162:8000/api/decks/decks/?parent=${id}`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },
@@ -190,7 +190,7 @@ const DeckDetails: React.FC = () => {
     if (!id) return;
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://192.168.56.1:8000/api/decks/decks/', {
+      const res = await fetch('http://192.168.68.162:8000/api/decks/decks/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -393,14 +393,14 @@ const DeckDetails: React.FC = () => {
       setLoadingNotes(true);
       const allCards = parseNotesToCards(selectedNotes);
       for (const card of allCards) {
-        await fetch('http://192.168.56.1:8000/api/decks/flashcards/', {
+        await fetch('http://192.168.68.162:8000/api/decks/flashcards/', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
           body: JSON.stringify({ deck: deck.id, front: card.question, back: card.answer })
         });
       }
       // Refresh deck data
-              const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${deck.id}/`, {
+              const res = await fetch(`http://192.168.68.162:8000/api/decks/decks/${deck.id}/`, {
         headers: { 'Authorization': token ? `Bearer ${token}` : '' },
       });
       if (res.ok) {
@@ -739,7 +739,7 @@ const DeckDetails: React.FC = () => {
           onComplete={async (results) => {
             // Refetch deck from backend for updated progress
             const token = localStorage.getItem('accessToken');
-            const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${deck.id}/`, {
+            const res = await fetch(`http://192.168.68.162:8000/api/decks/decks/${deck.id}/`, {
               headers: {
                 'Authorization': token ? `Bearer ${token}` : '',
               },

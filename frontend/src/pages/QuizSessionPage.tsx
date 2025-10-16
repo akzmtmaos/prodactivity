@@ -27,7 +27,7 @@ const QuizSessionPage: React.FC = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('accessToken');
-        const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${id}/`, {
+        const res = await fetch(`http://192.168.68.162:8000/api/decks/decks/${id}/`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },
@@ -78,7 +78,7 @@ const QuizSessionPage: React.FC = () => {
       onComplete={async () => {
         // Refetch deck from backend for updated progress
         const token = localStorage.getItem('accessToken');
-        const res = await fetch(`http://192.168.56.1:8000/api/decks/decks/${deck.id}/`, {
+        const res = await fetch(`http://192.168.68.162:8000/api/decks/decks/${deck.id}/`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },

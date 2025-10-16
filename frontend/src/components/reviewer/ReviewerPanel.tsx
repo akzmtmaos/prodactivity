@@ -92,7 +92,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     isLoading: false
   });
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.56.1:8000/api';
+  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.68.162:8000/api';
   const REVIEWERS_URL = `${API_URL}/reviewers/`;
 
   const getAuthHeaders = () => {
