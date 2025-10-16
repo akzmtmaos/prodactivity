@@ -104,7 +104,7 @@ def sync_notebook_on_save(sender, instance, created, **kwargs):
         else:
             update_notebook_in_supabase(instance)
     except Exception as e:
-        print(f"❌ Error in notebook sync signal: {e}")
+        print(f"ERROR: Error in notebook sync signal: {e}")
 
 @receiver(post_save, sender=Note)
 def sync_note_on_save(sender, instance, created, **kwargs):
@@ -115,7 +115,7 @@ def sync_note_on_save(sender, instance, created, **kwargs):
         else:
             update_note_in_supabase(instance)
     except Exception as e:
-        print(f"❌ Error in note sync signal: {e}")
+        print(f"ERROR: Error in note sync signal: {e}")
 
 @receiver(post_delete, sender=Notebook)
 def delete_notebook_from_supabase(sender, instance, **kwargs):
@@ -140,12 +140,12 @@ def delete_notebook_from_supabase(sender, instance, **kwargs):
         )
         
         if response.status_code == 204:
-            print(f"✅ Deleted notebook from Supabase: {instance.name} (ID: {instance.id})")
+            print(f"SUCCESS: Deleted notebook from Supabase: {instance.name} (ID: {instance.id})")
         else:
-            print(f"❌ Failed to delete notebook from Supabase: {response.status_code} - {response.text}")
+            print(f"ERROR: Failed to delete notebook from Supabase: {response.status_code} - {response.text}")
             
     except Exception as e:
-        print(f"❌ Error deleting notebook from Supabase: {e}")
+        print(f"ERROR: Error deleting notebook from Supabase: {e}")
 
 @receiver(post_delete, sender=Note)
 def delete_note_from_supabase(sender, instance, **kwargs):
@@ -170,9 +170,9 @@ def delete_note_from_supabase(sender, instance, **kwargs):
         )
         
         if response.status_code == 204:
-            print(f"✅ Deleted note from Supabase: {instance.title} (ID: {instance.id})")
+            print(f"SUCCESS: Deleted note from Supabase: {instance.title} (ID: {instance.id})")
         else:
-            print(f"❌ Failed to delete note from Supabase: {response.status_code} - {response.text}")
+            print(f"ERROR: Failed to delete note from Supabase: {response.status_code} - {response.text}")
             
     except Exception as e:
-        print(f"❌ Error deleting note from Supabase: {e}")
+        print(f"ERROR: Error deleting note from Supabase: {e}")

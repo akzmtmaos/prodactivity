@@ -113,6 +113,178 @@ def get_user_supabase_id(django_user):
         print(f"❌ Error getting Supabase user ID for {django_user.username}: {e}")
         return None
 
+def sync_task_to_supabase(task):
+    """
+    Sync a Django task to Supabase
+    
+    Args:
+        task: Django Task instance
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        print(f"[sync_task_to_supabase] STARTING - Task: {task.title} (ID: {task.id})")
+        
+        # Get Supabase user ID
+        supabase_user_id = get_user_supabase_id(task.user)
+        if not supabase_user_id:
+            print(f"Cannot sync task - user '{task.user.username}' not found in Supabase")
+            return False
+        
+        print(f"[sync_task_to_supabase] Found Supabase user ID: {supabase_user_id}")
+        
+        # Prepare data for Supabase
+        data = {
+            'id': task.id,
+            'user_id': supabase_user_id,
+            'title': task.title,
+            'description': task.description or '',
+            'due_date': task.due_date.isoformat() if hasattr(task.due_date, 'isoformat') else str(task.due_date),
+            'priority': task.priority,
+            'task_category': task.task_category,
+            'completed': task.completed,
+            'completed_at': task.completed_at.isoformat() if task.completed_at and hasattr(task.completed_at, 'isoformat') else (str(task.completed_at) if task.completed_at else None),
+            'time_spent_minutes': task.time_spent_minutes or 0,
+            'is_deleted': task.is_deleted,
+            'created_at': task.created_at.isoformat() if hasattr(task.created_at, 'isoformat') else str(task.created_at),
+            'updated_at': task.updated_at.isoformat() if hasattr(task.updated_at, 'isoformat') else str(task.updated_at)
+        }
+        
+        print(f"[sync_task_to_supabase] Sending data to Supabase: {data}")
+        
+        # Try to insert first, if it fails due to duplicate key, update instead
+        response = requests.post(
+            f"{SUPABASE_URL}/rest/v1/tasks",
+            headers=get_supabase_headers(),
+            json=data
+        )
+        
+        print(f"[sync_task_to_supabase] Supabase response: {response.status_code}")
+        
+        if response.status_code == 201:
+            print(f"[sync_task_to_supabase] SUCCESS - Synced task: {task.title} (ID: {task.id})")
+            return True
+        elif response.status_code == 409:  # Duplicate key error
+            print(f"[sync_task_to_supabase] Task already exists, updating instead...")
+            # Remove 'id' from data for update
+            update_data = {k: v for k, v in data.items() if k != 'id'}
+            update_response = requests.patch(
+                f"{SUPABASE_URL}/rest/v1/tasks?id=eq.{task.id}",
+                headers=get_supabase_headers(),
+                json=update_data
+            )
+            if update_response.status_code in [200, 204]:
+                print(f"[sync_task_to_supabase] SUCCESS - Updated existing task: {task.title} (ID: {task.id})")
+                return True
+            else:
+                print(f"[sync_task_to_supabase] FAILED to update - Status: {update_response.status_code}, Response: {update_response.text}")
+                return False
+        else:
+            print(f"[sync_task_to_supabase] FAILED - Status: {response.status_code}, Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"Error syncing task '{task.title}' to Supabase: {e}")
+        return False
+
+def update_task_in_supabase(task):
+    """
+    Update an existing task in Supabase
+    
+    Args:
+        task: Django Task instance
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        print(f"[update_task_in_supabase] STARTING - Task: {task.title} (ID: {task.id})")
+        
+        # Get Supabase user ID
+        supabase_user_id = get_user_supabase_id(task.user)
+        if not supabase_user_id:
+            print(f"Cannot update task - user '{task.user.username}' not found in Supabase")
+            return False
+        
+        # Prepare data for Supabase
+        data = {
+            'user_id': supabase_user_id,
+            'title': task.title,
+            'description': task.description or '',
+            'due_date': task.due_date.isoformat() if hasattr(task.due_date, 'isoformat') else str(task.due_date),
+            'priority': task.priority,
+            'task_category': task.task_category,
+            'completed': task.completed,
+            'completed_at': task.completed_at.isoformat() if task.completed_at and hasattr(task.completed_at, 'isoformat') else (str(task.completed_at) if task.completed_at else None),
+            'time_spent_minutes': task.time_spent_minutes or 0,
+            'is_deleted': task.is_deleted,
+            'updated_at': task.updated_at.isoformat() if hasattr(task.updated_at, 'isoformat') else str(task.updated_at)
+        }
+        
+        print(f"[update_task_in_supabase] Sending data to Supabase: {data}")
+        
+        # Update in Supabase
+        response = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/tasks?id=eq.{task.id}",
+            headers=get_supabase_headers(),
+            json=data
+        )
+        
+        print(f"[update_task_in_supabase] Supabase response: {response.status_code}")
+        
+        if response.status_code == 200 or response.status_code == 204:
+            print(f"[update_task_in_supabase] SUCCESS - Updated task: {task.title} (ID: {task.id})")
+            return True
+        else:
+            print(f"[update_task_in_supabase] FAILED - Status: {response.status_code}, Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"Error updating task '{task.title}' in Supabase: {e}")
+        return False
+
+def delete_task_from_supabase(task):
+    """
+    Delete a task from Supabase (soft delete by setting is_deleted=True)
+    
+    Args:
+        task: Django Task instance
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        print(f"[delete_task_from_supabase] STARTING - Task: {task.title} (ID: {task.id})")
+        
+        # Soft delete by setting is_deleted=True
+        data = {
+            'is_deleted': True,
+            'updated_at': task.updated_at.isoformat() if hasattr(task.updated_at, 'isoformat') else str(task.updated_at)
+        }
+        
+        print(f"[delete_task_from_supabase] Sending data to Supabase: {data}")
+        
+        # Update in Supabase
+        response = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/tasks?id=eq.{task.id}",
+            headers=get_supabase_headers(),
+            json=data
+        )
+        
+        print(f"[delete_task_from_supabase] Supabase response: {response.status_code}")
+        
+        if response.status_code == 200 or response.status_code == 204:
+            print(f"[delete_task_from_supabase] SUCCESS - Deleted task: {task.title} (ID: {task.id})")
+            return True
+        else:
+            print(f"[delete_task_from_supabase] FAILED - Status: {response.status_code}, Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"Error deleting task '{task.title}' from Supabase: {e}")
+        return False
+
 def sync_productivity_log_to_supabase(productivity_log):
     """
     Sync a Django ProductivityLog to Supabase

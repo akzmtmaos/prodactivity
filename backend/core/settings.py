@@ -17,7 +17,7 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-i$uch6xcxz80fiq6td7
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.56.1', '192.168.68.114', '0.0.0.0']
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.56.1', '192.168.68.114', '192.168.68.162', '0.0.0.0', '*']
 
 # Hugging Face API Key
 HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
@@ -286,6 +286,15 @@ CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "http://192.168.56.1:3000",
     "http://192.168.68.114:3000",
+    "http://192.168.68.162:3000",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.56.1:3000",
+    "http://192.168.68.114:3000",
+    "http://192.168.68.162:3000",
 ]
 
 # Supabase Configuration

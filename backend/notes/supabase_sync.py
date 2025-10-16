@@ -34,7 +34,7 @@ def get_user_supabase_id(django_user):
                 return profiles[0]['id']
         return None
     except Exception as e:
-        print(f"❌ Error getting Supabase user ID for {django_user.username}: {e}")
+        print(f"Error getting Supabase user ID for {django_user.username}: {e}")
         return None
 
 def sync_notebook_to_supabase(notebook):
@@ -51,7 +51,7 @@ def sync_notebook_to_supabase(notebook):
         # Get Supabase user ID
         supabase_user_id = get_user_supabase_id(notebook.user)
         if not supabase_user_id:
-            print(f"⚠️  Cannot sync notebook '{notebook.name}' - user '{notebook.user.username}' not found in Supabase")
+            print(f"WARNING: Cannot sync notebook '{notebook.name}' - user '{notebook.user.username}' not found in Supabase")
             return False
         
         # Prepare data for Supabase
@@ -65,7 +65,8 @@ def sync_notebook_to_supabase(notebook):
             'created_at': notebook.created_at.isoformat(),
             'updated_at': notebook.updated_at.isoformat(),
             'is_archived': notebook.is_archived,
-            'archived_at': notebook.archived_at.isoformat() if notebook.archived_at else None
+            'archived_at': notebook.archived_at.isoformat() if notebook.archived_at else None,
+            'is_favorite': notebook.is_favorite
         }
         
         # Insert into Supabase
@@ -76,14 +77,14 @@ def sync_notebook_to_supabase(notebook):
         )
         
         if response.status_code == 201:
-            print(f"✅ Synced notebook to Supabase: {notebook.name} (ID: {notebook.id})")
+            print(f"SUCCESS: Synced notebook to Supabase: {notebook.name} (ID: {notebook.id})")
             return True
         else:
-            print(f"❌ Failed to sync notebook '{notebook.name}' to Supabase: {response.status_code} - {response.text}")
+            print(f"ERROR: Failed to sync notebook '{notebook.name}' to Supabase: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
-        print(f"❌ Error syncing notebook '{notebook.name}' to Supabase: {e}")
+        print(f"ERROR: Error syncing notebook '{notebook.name}' to Supabase: {e}")
         return False
 
 def update_notebook_in_supabase(notebook):
@@ -100,7 +101,7 @@ def update_notebook_in_supabase(notebook):
         # Get Supabase user ID
         supabase_user_id = get_user_supabase_id(notebook.user)
         if not supabase_user_id:
-            print(f"⚠️  Cannot update notebook '{notebook.name}' - user '{notebook.user.username}' not found in Supabase")
+            print(f"WARNING: Cannot update notebook '{notebook.name}' - user '{notebook.user.username}' not found in Supabase")
             return False
         
         # Prepare data for Supabase
@@ -112,7 +113,8 @@ def update_notebook_in_supabase(notebook):
             'description': notebook.description or '',
             'updated_at': notebook.updated_at.isoformat(),
             'is_archived': notebook.is_archived,
-            'archived_at': notebook.archived_at.isoformat() if notebook.archived_at else None
+            'archived_at': notebook.archived_at.isoformat() if notebook.archived_at else None,
+            'is_favorite': notebook.is_favorite
         }
         
         # Update in Supabase
@@ -123,14 +125,14 @@ def update_notebook_in_supabase(notebook):
         )
         
         if response.status_code == 200 or response.status_code == 204:
-            print(f"✅ Updated notebook in Supabase: {notebook.name} (ID: {notebook.id})")
+            print(f"SUCCESS: Updated notebook in Supabase: {notebook.name} (ID: {notebook.id})")
             return True
         else:
-            print(f"❌ Failed to update notebook '{notebook.name}' in Supabase: {response.status_code} - {response.text}")
+            print(f"ERROR: Failed to update notebook '{notebook.name}' in Supabase: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
-        print(f"❌ Error updating notebook '{notebook.name}' in Supabase: {e}")
+        print(f"ERROR: Error updating notebook '{notebook.name}' in Supabase: {e}")
         return False
 
 def sync_note_to_supabase(note):
@@ -147,7 +149,7 @@ def sync_note_to_supabase(note):
         # Get Supabase user ID
         supabase_user_id = get_user_supabase_id(note.user)
         if not supabase_user_id:
-            print(f"⚠️  Cannot sync note '{note.title}' - user '{note.user.username}' not found in Supabase")
+            print(f"WARNING: Cannot sync note '{note.title}' - user '{note.user.username}' not found in Supabase")
             return False
         
         # Prepare data for Supabase
@@ -178,14 +180,14 @@ def sync_note_to_supabase(note):
         )
         
         if response.status_code == 201:
-            print(f"✅ Synced note to Supabase: {note.title} (ID: {note.id})")
+            print(f"SUCCESS: Synced note to Supabase: {note.title} (ID: {note.id})")
             return True
         else:
-            print(f"❌ Failed to sync note '{note.title}' to Supabase: {response.status_code} - {response.text}")
+            print(f"ERROR: Failed to sync note '{note.title}' to Supabase: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
-        print(f"❌ Error syncing note '{note.title}' to Supabase: {e}")
+        print(f"ERROR: Error syncing note '{note.title}' to Supabase: {e}")
         return False
 
 def update_note_in_supabase(note):
@@ -202,7 +204,7 @@ def update_note_in_supabase(note):
         # Get Supabase user ID
         supabase_user_id = get_user_supabase_id(note.user)
         if not supabase_user_id:
-            print(f"⚠️  Cannot update note '{note.title}' - user '{note.user.username}' not found in Supabase")
+            print(f"WARNING: Cannot update note '{note.title}' - user '{note.user.username}' not found in Supabase")
             return False
         
         # Prepare data for Supabase
@@ -231,12 +233,12 @@ def update_note_in_supabase(note):
         )
         
         if response.status_code == 200 or response.status_code == 204:
-            print(f"✅ Updated note in Supabase: {note.title} (ID: {note.id})")
+            print(f"SUCCESS: Updated note in Supabase: {note.title} (ID: {note.id})")
             return True
         else:
-            print(f"❌ Failed to update note '{note.title}' in Supabase: {response.status_code} - {response.text}")
+            print(f"ERROR: Failed to update note '{note.title}' in Supabase: {response.status_code} - {response.text}")
             return False
             
     except Exception as e:
-        print(f"❌ Error updating note '{note.title}' in Supabase: {e}")
+        print(f"ERROR: Error updating note '{note.title}' in Supabase: {e}")
         return False

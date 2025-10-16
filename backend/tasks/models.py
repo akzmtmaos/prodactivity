@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from .supabase_sync import sync_subtask_to_supabase, update_subtask_in_supabase, sync_productivity_log_to_supabase, update_productivity_log_in_supabase
+from .supabase_sync import sync_subtask_to_supabase, update_subtask_in_supabase, sync_productivity_log_to_supabase, update_productivity_log_in_supabase, sync_task_to_supabase, update_task_in_supabase, delete_task_from_supabase
 
 class TaskManager(models.Manager):
     def get_queryset(self):
@@ -275,4 +275,23 @@ def delete_productivity_log_from_supabase(sender, instance, **kwargs):
             print(f"❌ Failed to delete productivity log from Supabase: {response.status_code} - {response.text}")
             
     except Exception as e:
-        print(f"❌ Error deleting productivity log from Supabase: {e}") 
+        print(f"❌ Error deleting productivity log from Supabase: {e}")
+
+@receiver(post_save, sender=Task)
+def sync_task_on_save(sender, instance, created, **kwargs):
+    """Sync task to Supabase when created or updated"""
+    try:
+        if created:
+            sync_task_to_supabase(instance)
+        else:
+            update_task_in_supabase(instance)
+    except Exception as e:
+        print(f"Error in task sync signal: {e}")
+
+@receiver(post_delete, sender=Task)
+def delete_task_from_supabase_signal(sender, instance, **kwargs):
+    """Delete task from Supabase when deleted from Django"""
+    try:
+        delete_task_from_supabase(instance)
+    except Exception as e:
+        print(f"Error deleting task from Supabase: {e}") 
