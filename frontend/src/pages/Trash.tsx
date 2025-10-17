@@ -284,7 +284,7 @@ const Trash = () => {
         // Continue restoring others even if one fails
       }
     }
-    setToast({ message: `${selectedItems.size} item(s) restored successfully!`, type: 'success' });
+    setToast({ message: `${selectedItems.size} items restored successfully!`, type: 'success' });
     setSelectedItems(new Set());
     fetchTrash();
   };
