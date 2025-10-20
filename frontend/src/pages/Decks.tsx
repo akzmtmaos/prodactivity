@@ -758,7 +758,7 @@ interface NoteItem {
     if (!selectedDeck) return;
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://192.168.68.162:8000/api/decks/flashcards/', {
+      const res = await fetch(`${API_BASE}/decks/flashcards/`, {
           method: 'POST',
         headers: {
           'Content-Type': 'application/json',

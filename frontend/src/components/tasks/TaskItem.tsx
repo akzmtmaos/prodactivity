@@ -20,6 +20,17 @@ const priorityColors: Record<string, string> = {
 };
 
 const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete, onTaskCompleted }) => {
+  // Function to check if task is overdue
+  const isOverdue = () => {
+    if (task.completed) return false; // Don't show late for completed tasks
+    const today = new Date();
+    const dueDate = new Date(task.dueDate);
+    // Reset time to compare only dates
+    today.setHours(0, 0, 0, 0);
+    dueDate.setHours(0, 0, 0, 0);
+    return dueDate < today;
+  };
+
   // Function to generate consistent hash for category colors
   const getCategoryColorHash = (category: string) => {
     let hash = 0;
@@ -172,7 +183,11 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
 
   return (
     <>
-      <div className={`group p-4 mb-3 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-100 dark:border-gray-700 transition hover:shadow-md w-full`}>
+      <div className={`group p-4 mb-3 rounded-lg shadow-sm transition hover:shadow-md w-full ${
+        isOverdue() 
+          ? 'bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-800' 
+          : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700'
+      }`}>
         {/* Task row */}
         <div className="flex items-center gap-4">
           {/* Priority color bar */}
@@ -230,6 +245,14 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                 <span className={`w-2 h-2 rounded-full mr-1 ${priorityColors[task.priority] || 'bg-gray-300'}`}></span>
                 {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
               </span>
+              {isOverdue() && (
+                <span className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 rounded px-2 py-0.5 flex items-center font-medium animate-pulse">
+                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  </svg>
+                  Late
+                </span>
+              )}
               {task.task_category && (
                 <span className={`text-xs rounded px-2 py-0.5 ${getCategoryColor(task.task_category).bg} ${getCategoryColor(task.task_category).text}`}>
                   {task.task_category}
@@ -274,18 +297,6 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
           </div>
           {/* Action icons */}
           <div className="flex items-center gap-2">
-            {/* Activity/Evidence button */}
-            {!task.completed && (
-              <button
-                className="p-2 rounded hover:bg-green-100 dark:hover:bg-green-900"
-                onClick={openActivityModal}
-                title="Add evidence"
-              >
-                <svg className="h-5 w-5 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </button>
-            )}
             <button
               className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsSubtasksOpen(prev => !prev)}

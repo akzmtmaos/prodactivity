@@ -376,9 +376,43 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
           )}
 
           {!loading && !error && totalTasks === 0 && (
-            <div className="text-center py-8">
-              <p className="text-gray-500 dark:text-gray-400">No tasks recorded for this day.</p>
-            </div>
+            <>
+              {/* Summary for 0% day */}
+              <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div className="flex items-center justify-between gap-6">
+                  {/* Left: Daily Completion Rate */}
+                  <div className="flex-1 text-center">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Stored Rate</p>
+                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
+                      0.00%
+                    </p>
+                  </div>
+                  
+                  {/* Right: Productivity Scale */}
+                  <div className="flex-1 text-center">
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Productivity Scale</p>
+                    <span className={`inline-block text-lg font-bold px-4 py-1.5 rounded-full ${getProductivityColor('Low Productive')}`}>
+                      Low Productive
+                    </span>
+                  </div>
+                </div>
+                
+                {/* Show current calculation vs stored */}
+                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                  <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">
+                    📊 Current Task Count: 0 completed + 0 pending = 0 total
+                  </p>
+                  <p className="text-xs text-blue-800 dark:text-blue-200 font-medium">
+                    🧮 Current Calculation: 0/0 = 0%
+                  </p>
+                </div>
+              </div>
+
+              {/* No tasks message */}
+              <div className="text-center py-8">
+                <p className="text-gray-500 dark:text-gray-400">No tasks recorded for this day.</p>
+              </div>
+            </>
           )}
 
           {!loading && !error && totalTasks > 0 && (

@@ -724,12 +724,13 @@ const TasksContent = ({ user }: { user: any }) => {
         console.log('🎮 Task was completed - logging XP and productivity');
         console.log('🎮 Calling logTaskCompletion for task:', id, taskToToggle.title);
         
-        // Check if task is overdue
+        await logTaskCompletion(id, taskToToggle.title, taskToToggle.dueDate);
+        
+        // Check if task is overdue for the toast message
         const today = new Date().toLocaleDateString('en-CA');
         const isOverdue = taskToToggle.dueDate && taskToToggle.dueDate < today;
         const xpAmount = isOverdue ? 5 : 10;
         
-        await logTaskCompletion(id, taskToToggle.title, taskToToggle.dueDate);
         showToast(`Task "${taskToToggle.title}" completed! +${xpAmount} XP${isOverdue ? ' (Half XP - Overdue)' : ''}`, 'success');
         
         // Trigger progress refresh for real-time updates
@@ -762,8 +763,13 @@ const TasksContent = ({ user }: { user: any }) => {
     // Update the task in the current list
     setTasks(tasks.map(task => task.id === completedTask.id ? completedTask : task));
     
-    // Show success message
-    showToast(`Task "${completedTask.title}" completed with evidence! +10 XP`, 'success');
+    // Check if task is overdue for the toast message
+    const today = new Date().toLocaleDateString('en-CA');
+    const isOverdue = completedTask.dueDate && completedTask.dueDate < today;
+    const xpAmount = isOverdue ? 5 : 10;
+    
+    // Show success message with correct XP amount
+    showToast(`Task "${completedTask.title}" completed with evidence! +${xpAmount} XP${isOverdue ? ' (Half XP - Overdue)' : ''}`, 'success');
     
     // Trigger progress refresh for real-time updates
     window.dispatchEvent(new CustomEvent('taskCompleted', { 

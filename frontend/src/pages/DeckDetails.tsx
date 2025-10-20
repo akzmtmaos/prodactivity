@@ -9,6 +9,7 @@ import StudySession from '../components/decks/StudySession';
 import QuizSession from '../components/decks/QuizSession';
 import DeckCard from '../components/decks/DeckCard';
 import { truncateHtmlContent } from '../utils/htmlUtils';
+import { API_BASE_URL } from '../config/api';
 
 interface Flashcard {
   id: string;
@@ -91,7 +92,7 @@ const DeckDetails: React.FC = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('accessToken');
-        const res = await fetch(`http://192.168.68.162:8000/api/decks/decks/${id}/`, {
+        const res = await fetch(`${API_BASE_URL}/decks/decks/${id}/`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },
@@ -137,7 +138,7 @@ const DeckDetails: React.FC = () => {
       setSubdecksLoading(true);
       try {
         const token = localStorage.getItem('accessToken');
-        const res = await fetch(`http://192.168.68.162:8000/api/decks/decks/?parent=${id}`, {
+        const res = await fetch(`${API_BASE_URL}/decks/decks/?parent=${id}`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },
@@ -190,7 +191,7 @@ const DeckDetails: React.FC = () => {
     if (!id) return;
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch('http://192.168.68.162:8000/api/decks/decks/', {
+      const res = await fetch(`${API_BASE_URL}/decks/decks/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -259,7 +260,7 @@ const DeckDetails: React.FC = () => {
     } as Record<string, string>;
   };
 
-  const API_BASE = process.env.REACT_APP_API_URL || 'http://127.0.0.1:8000/api';
+  const API_BASE = API_BASE_URL;
 
   const ensureNotebooksLoaded = async () => {
     if (notebooks.length > 0) return;
@@ -393,14 +394,14 @@ const DeckDetails: React.FC = () => {
       setLoadingNotes(true);
       const allCards = parseNotesToCards(selectedNotes);
       for (const card of allCards) {
-        await fetch('http://192.168.68.162:8000/api/decks/flashcards/', {
+        await fetch(`${API_BASE_URL}/decks/flashcards/`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
           body: JSON.stringify({ deck: deck.id, front: card.question, back: card.answer })
         });
       }
       // Refresh deck data
-              const res = await fetch(`http://192.168.68.162:8000/api/decks/decks/${deck.id}/`, {
+              const res = await fetch(`${API_BASE_URL}/decks/decks/${deck.id}/`, {
         headers: { 'Authorization': token ? `Bearer ${token}` : '' },
       });
       if (res.ok) {
@@ -739,7 +740,7 @@ const DeckDetails: React.FC = () => {
           onComplete={async (results) => {
             // Refetch deck from backend for updated progress
             const token = localStorage.getItem('accessToken');
-            const res = await fetch(`http://192.168.68.162:8000/api/decks/decks/${deck.id}/`, {
+            const res = await fetch(`${API_BASE_URL}/decks/decks/${deck.id}/`, {
               headers: {
                 'Authorization': token ? `Bearer ${token}` : '',
               },

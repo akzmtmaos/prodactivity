@@ -245,22 +245,6 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingC
             </div>
           )}
           
-          {/* Completed (only show in edit mode) */}
-          {task && (
-            <div className="flex items-center mb-4">
-              <input
-                id="completed"
-                name="completed"
-                type="checkbox"
-                className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                checked={formData.completed}
-                onChange={(e) => setFormData({ ...formData, completed: e.target.checked })}
-              />
-              <label htmlFor="completed" className="ml-2 block text-sm text-gray-700 dark:text-gray-300">
-                Mark as completed
-              </label>
-            </div>
-          )}
           
           {/* Action buttons */}
           <div className="mt-6 flex justify-end space-x-3">

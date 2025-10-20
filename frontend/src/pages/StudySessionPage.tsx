@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import StudySession from '../components/decks/StudySession';
+import { API_BASE_URL } from '../config/api';
 
 interface FlashcardData {
   id: string;
@@ -27,7 +28,7 @@ const StudySessionPage: React.FC = () => {
       try {
         setLoading(true);
         const token = localStorage.getItem('accessToken');
-        const res = await fetch(`/api/decks/decks/${id}/`, {
+        const res = await fetch(`${API_BASE_URL}/decks/decks/${id}/`, {
           headers: {
             'Authorization': token ? `Bearer ${token}` : '',
           },

@@ -308,7 +308,7 @@ const LandingPage = () => {
 
       {/* Navbar */}
       <nav className="flex items-center justify-between px-8 py-6 z-20 relative">
-        <div className="text-2xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent tracking-tight select-none drop-shadow-lg">
+        <div className="text-2xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent tracking-tight select-none drop-shadow-lg">
           ProdActivity
         </div>
         <div className="space-x-4">
@@ -345,19 +345,19 @@ const LandingPage = () => {
               {/* Inner glow effect */}
               <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 rounded-3xl"></div>
               
-              <h1 className="relative text-5xl md:text-7xl font-extrabold mb-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent drop-shadow-lg transition-all duration-300 animate-fade-in">
+              <h1 className="relative text-5xl md:text-7xl font-extrabold mb-6 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent drop-shadow-lg transition-all duration-300 animate-fade-in">
             Boost Your Productivity
           </h1>
           
               <p className="relative text-xl md:text-2xl text-gray-700 dark:text-gray-300 mb-10 max-w-3xl mx-auto transition-all duration-300 animate-fade-in-delay leading-relaxed">
-            All your notes, tasks, flashcards, and schedules—organized and accessible in one beautiful workspace. Stay focused, motivated, and on track with ProdActivity.
+                Where your activity meets productiveness.
           </p>
               
               {/* 3D Button */}
               <div className="relative">
           <button
             onClick={() => navigate('/register')}
-                  className="relative px-12 py-5 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 text-white rounded-2xl font-bold text-xl shadow-2xl hover:shadow-3xl hover:shadow-indigo-500/25 hover:scale-110 transition-all duration-300 mb-4 focus:outline-none focus:ring-4 focus:ring-indigo-400/50 transform hover:-translate-y-1"
+                  className="relative px-12 py-5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-2xl font-bold text-xl shadow-2xl hover:shadow-3xl hover:shadow-indigo-500/25 hover:scale-110 transition-all duration-300 mb-4 focus:outline-none focus:ring-4 focus:ring-indigo-400/50 transform hover:-translate-y-1"
                   style={{
                     boxShadow: '0 20px 40px rgba(79, 70, 229, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
                   }}
@@ -389,7 +389,7 @@ const LandingPage = () => {
                 <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 via-transparent to-purple-500/5 rounded-2xl"></div>
                 
                 <div className="relative">
-                  <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-2 group-hover:scale-110 transition-transform duration-300">
+                  <div className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2 group-hover:scale-110 transition-transform duration-300">
                 {stat.number}
               </div>
                   <div className="text-gray-600 dark:text-gray-400 font-medium text-sm md:text-base">
@@ -405,13 +405,94 @@ const LandingPage = () => {
         </div>
       </section>
 
+      {/* Introduction Section */}
+      <section className="w-full py-20 bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 relative overflow-hidden">
+        {/* Space-themed Background Elements */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          {/* Stars - More scattered */}
+          <div className="absolute top-20 left-20 w-1 h-1 bg-white rounded-full animate-pulse opacity-80"></div>
+          <div className="absolute top-32 right-32 w-1.5 h-1.5 bg-blue-300 rounded-full animate-pulse opacity-60"></div>
+          <div className="absolute top-40 left-1/3 w-1 h-1 bg-white rounded-full animate-pulse opacity-70"></div>
+          <div className="absolute top-16 right-20 w-1 h-1 bg-purple-300 rounded-full animate-pulse opacity-90"></div>
+          <div className="absolute top-60 left-1/4 w-1.5 h-1.5 bg-white rounded-full animate-pulse opacity-50"></div>
+          <div className="absolute top-80 right-1/3 w-1 h-1 bg-blue-200 rounded-full animate-pulse opacity-80"></div>
+          <div className="absolute bottom-40 left-20 w-1 h-1 bg-white rounded-full animate-pulse opacity-60"></div>
+          <div className="absolute bottom-32 right-40 w-1.5 h-1.5 bg-purple-200 rounded-full animate-pulse opacity-70"></div>
+          <div className="absolute bottom-60 left-1/3 w-1 h-1 bg-blue-300 rounded-full animate-pulse opacity-80"></div>
+          <div className="absolute top-10 left-1/2 w-1 h-1 bg-yellow-300 rounded-full animate-pulse opacity-75"></div>
+          <div className="absolute top-50 right-10 w-1.5 h-1.5 bg-cyan-300 rounded-full animate-pulse opacity-65"></div>
+          <div className="absolute bottom-20 right-1/2 w-1 h-1 bg-pink-300 rounded-full animate-pulse opacity-85"></div>
+          <div className="absolute top-70 left-10 w-1.5 h-1.5 bg-green-300 rounded-full animate-pulse opacity-55"></div>
+          <div className="absolute bottom-10 left-1/4 w-1 h-1 bg-orange-300 rounded-full animate-pulse opacity-70"></div>
+          
+          {/* Constellation Lines - More patterns */}
+          <div className="absolute top-20 left-20 w-12 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent transform rotate-45"></div>
+          <div className="absolute top-80 right-32 w-16 h-px bg-gradient-to-r from-transparent via-blue-300/20 to-transparent transform -rotate-30"></div>
+          <div className="absolute bottom-40 left-1/4 w-10 h-px bg-gradient-to-r from-transparent via-purple-300/25 to-transparent transform rotate-60"></div>
+          <div className="absolute top-50 left-1/2 w-14 h-px bg-gradient-to-r from-transparent via-yellow-300/15 to-transparent transform rotate-12"></div>
+          <div className="absolute bottom-70 right-20 w-8 h-px bg-gradient-to-r from-transparent via-cyan-300/20 to-transparent transform -rotate-45"></div>
+          
+          {/* Shooting Stars */}
+          <div className="absolute top-1/4 left-0 w-2 h-px bg-gradient-to-r from-white via-blue-300 to-transparent animate-pulse opacity-60"></div>
+          <div className="absolute top-3/4 right-0 w-3 h-px bg-gradient-to-l from-purple-300 via-white to-transparent animate-pulse opacity-50"></div>
+          <div className="absolute top-1/2 left-1/4 w-2.5 h-px bg-gradient-to-r from-yellow-300 via-transparent to-cyan-300 animate-pulse opacity-40"></div>
+          
+          {/* Nebula-like Blurs - More variety */}
+          <div className="absolute top-1/3 right-1/4 w-32 h-32 bg-gradient-to-r from-purple-500/10 to-blue-500/10 rounded-full blur-2xl animate-float-delayed"></div>
+          <div className="absolute bottom-1/3 left-1/4 w-24 h-24 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-full blur-xl animate-float-slow"></div>
+          <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-gradient-to-r from-pink-500/5 to-purple-500/5 rounded-full blur-3xl animate-float"></div>
+          <div className="absolute bottom-1/4 right-1/3 w-28 h-28 bg-gradient-to-r from-cyan-500/8 to-blue-500/8 rounded-full blur-2xl animate-float-delayed"></div>
+          <div className="absolute top-1/4 left-1/6 w-20 h-20 bg-gradient-to-r from-green-500/6 to-emerald-500/6 rounded-full blur-xl animate-float-slow"></div>
+          
+          {/* Planet-like Orbs */}
+          <div className="absolute top-1/6 right-1/6 w-6 h-6 bg-gradient-to-br from-orange-400/20 to-red-500/20 rounded-full blur-sm animate-float"></div>
+          <div className="absolute bottom-1/6 left-1/6 w-4 h-4 bg-gradient-to-br from-blue-400/25 to-indigo-500/25 rounded-full blur-sm animate-float-delayed"></div>
+          <div className="absolute top-2/3 right-1/12 w-5 h-5 bg-gradient-to-br from-purple-400/20 to-pink-500/20 rounded-full blur-sm animate-float-slow"></div>
+          
+          {/* Cosmic Dust Particles */}
+          <div className="absolute top-1/5 left-3/4 w-0.5 h-0.5 bg-white/40 rounded-full animate-pulse opacity-30"></div>
+          <div className="absolute top-3/5 left-1/5 w-0.5 h-0.5 bg-blue-300/30 rounded-full animate-pulse opacity-25"></div>
+          <div className="absolute bottom-1/5 right-3/4 w-0.5 h-0.5 bg-purple-300/35 rounded-full animate-pulse opacity-20"></div>
+          <div className="absolute top-4/5 right-1/5 w-0.5 h-0.5 bg-cyan-300/25 rounded-full animate-pulse opacity-30"></div>
+          <div className="absolute top-1/8 left-4/5 w-0.5 h-0.5 bg-yellow-300/20 rounded-full animate-pulse opacity-25"></div>
+        </div>
+        
+        <div className="max-w-6xl mx-auto px-4 relative z-10">
+          <div className="mb-16">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+              <div>
+                <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">
+                  ProdActivity
+                </h2>
+                <p className="text-lg md:text-xl text-gray-200 leading-relaxed mb-4">
+                  ProdActivity is a comprehensive productivity ecosystem designed for students, professionals, and lifelong learners. 
+                  Our intelligent platform combines cutting-edge AI technology with intuitive design to transform how you organize, 
+                  learn, and achieve your goals.
+                </p>
+                <p className="text-base md:text-lg text-gray-300 leading-relaxed">
+                  From smart note-taking and AI-powered study assistance to advanced task management and progress tracking, 
+                  we provide all the tools you need to stay organized, motivated, and ahead of your schedule. Whether you're 
+                  managing complex projects, preparing for exams, or building new skills, ProdActivity adapts to your workflow 
+                  and helps you work smarter, not harder.
+                </p>
+              </div>
+              <div className="flex justify-center lg:justify-end">
+                <div className="w-40 h-40 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-2xl animate-float">
+                  <span className="text-white font-bold text-8xl">P</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Features Section */}
       <section className="w-full relative">
         {/* Section Header */}
         <div className="w-full py-16 bg-gradient-to-br from-slate-100 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-slate-800 dark:to-gray-900">
           <div className="text-center px-4">
             <div className="relative inline-block">
-              <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-3 drop-shadow-lg">
+              <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-3 drop-shadow-lg">
             Everything You Need to Succeed
           </h2>
               <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-24 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full"></div>
@@ -433,11 +514,124 @@ const LandingPage = () => {
             return (
             <div
               key={idx}
-                className={`w-full py-16 md:py-20 ${bgColor} transition-all duration-500 ${
+                className={`w-full py-16 md:py-20 ${bgColor} transition-all duration-500 relative overflow-hidden ${
                   isVisible ? 'opacity-100' : 'opacity-0'
                 }`}
               >
-                <div className="max-w-7xl mx-auto px-8 md:px-16 lg:px-24 xl:px-32">
+                {/* Enhanced Design Elements for Color 1 */}
+                {isEven && (
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    {/* Floating Geometric Shapes */}
+                    <div className="absolute top-20 left-20 w-6 h-6 bg-gradient-to-br from-indigo-300/40 to-purple-400/40 rounded-lg rotate-45 animate-float opacity-70"></div>
+                    <div className="absolute top-32 right-32 w-4 h-8 bg-gradient-to-br from-blue-300/35 to-cyan-400/35 rounded-full animate-float-delayed opacity-60"></div>
+                    <div className="absolute top-40 left-1/3 w-5 h-5 bg-gradient-to-br from-purple-300/45 to-pink-400/45 rounded-full animate-float-slow opacity-50"></div>
+                    <div className="absolute top-16 right-20 w-3 h-3 bg-gradient-to-br from-indigo-300/50 to-blue-400/50 transform rotate-12 animate-float opacity-65"></div>
+                    <div className="absolute top-60 left-1/4 w-7 h-7 bg-gradient-to-br from-pink-300/40 to-purple-400/40 rounded-lg rotate-45 animate-float-delayed opacity-55"></div>
+                    <div className="absolute bottom-40 left-20 w-5 h-5 bg-gradient-to-br from-blue-300/45 to-indigo-400/45 rounded-full animate-float-slow opacity-70"></div>
+                    <div className="absolute bottom-32 right-40 w-4 h-4 bg-gradient-to-br from-purple-300/40 to-pink-400/40 rounded-lg rotate-45 animate-float opacity-60"></div>
+                    <div className="absolute bottom-60 left-1/3 w-6 h-6 bg-gradient-to-br from-cyan-300/40 to-blue-400/40 rounded-full animate-float-delayed opacity-65"></div>
+                    
+                    {/* Dynamic Wave Patterns */}
+                    <div className="absolute top-1/4 left-1/4 w-20 h-px bg-gradient-to-r from-transparent via-indigo-300/25 to-transparent transform rotate-45 animate-float"></div>
+                    <div className="absolute top-3/4 right-1/4 w-16 h-px bg-gradient-to-r from-transparent via-purple-300/20 to-transparent transform -rotate-30 animate-float-delayed"></div>
+                    <div className="absolute bottom-1/4 left-1/3 w-18 h-px bg-gradient-to-r from-transparent via-blue-300/15 to-transparent transform rotate-60 animate-float-slow"></div>
+                    <div className="absolute top-1/2 left-1/6 w-14 h-px bg-gradient-to-r from-transparent via-pink-300/18 to-transparent transform rotate-12 animate-float"></div>
+                    <div className="absolute bottom-1/3 right-1/6 w-12 h-px bg-gradient-to-r from-transparent via-cyan-300/20 to-transparent transform -rotate-45 animate-float-delayed"></div>
+                    
+                    {/* Flowing Energy Lines */}
+                    <div className="absolute top-1/3 right-1/6 w-24 h-px bg-gradient-to-r from-indigo-300/18 via-transparent to-purple-300/18 transform rotate-25 animate-float-slow"></div>
+                    <div className="absolute bottom-1/3 left-1/6 w-22 h-px bg-gradient-to-r from-blue-300/15 via-transparent to-cyan-300/15 transform -rotate-20 animate-float"></div>
+                    <div className="absolute top-2/3 left-1/2 w-20 h-px bg-gradient-to-r from-purple-300/16 via-transparent to-pink-300/16 transform rotate-35 animate-float-delayed"></div>
+                    <div className="absolute top-1/6 right-1/3 w-16 h-px bg-gradient-to-r from-cyan-300/12 via-transparent to-blue-300/12 transform rotate-55 animate-float"></div>
+                    <div className="absolute bottom-1/6 left-2/3 w-18 h-px bg-gradient-to-r from-pink-300/14 via-transparent to-purple-300/14 transform -rotate-35 animate-float-delayed"></div>
+                    
+                    {/* Vibrant Light Blooms */}
+                    <div className="absolute top-1/5 right-1/5 w-40 h-40 bg-gradient-to-r from-indigo-200/12 to-purple-200/12 rounded-full blur-2xl animate-float"></div>
+                    <div className="absolute bottom-1/5 left-1/5 w-36 h-36 bg-gradient-to-r from-blue-200/10 to-cyan-200/10 rounded-full blur-xl animate-float-delayed"></div>
+                    <div className="absolute top-1/2 left-1/2 w-48 h-48 bg-gradient-to-r from-purple-200/8 to-pink-200/8 rounded-full blur-3xl animate-float-slow"></div>
+                    <div className="absolute bottom-1/4 right-1/3 w-32 h-32 bg-gradient-to-r from-cyan-200/10 to-blue-200/10 rounded-full blur-2xl animate-float"></div>
+                    <div className="absolute top-1/4 left-1/6 w-28 h-28 bg-gradient-to-r from-pink-200/9 to-purple-200/9 rounded-full blur-xl animate-float-delayed"></div>
+                    
+                    {/* Bright Sparkling Elements */}
+                    <div className="absolute top-1/6 right-1/6 w-3 h-3 bg-gradient-to-br from-indigo-400/50 to-purple-500/50 rounded-full blur-xs animate-pulse opacity-60"></div>
+                    <div className="absolute bottom-1/6 left-1/6 w-2 h-2 bg-gradient-to-br from-blue-400/55 to-cyan-500/55 rounded-full blur-xs animate-pulse opacity-55"></div>
+                    <div className="absolute top-2/3 right-1/12 w-3.5 h-3.5 bg-gradient-to-br from-purple-400/45 to-pink-500/45 rounded-full blur-xs animate-pulse opacity-50"></div>
+                    <div className="absolute top-1/8 left-4/5 w-2 h-2 bg-gradient-to-br from-cyan-400/50 to-blue-500/50 rounded-full blur-xs animate-pulse opacity-65"></div>
+                    <div className="absolute bottom-1/8 right-4/5 w-2.5 h-2.5 bg-gradient-to-br from-pink-400/40 to-purple-500/40 rounded-full blur-xs animate-pulse opacity-45"></div>
+                    
+                    {/* Flowing Particles */}
+                    <div className="absolute top-1/5 left-3/4 w-1.5 h-1.5 bg-indigo-400/35 rounded-full animate-float opacity-40"></div>
+                    <div className="absolute top-3/5 left-1/5 w-1 h-1 bg-purple-400/30 rounded-full animate-float-delayed opacity-35"></div>
+                    <div className="absolute bottom-1/5 right-3/4 w-1.5 h-1.5 bg-blue-400/35 rounded-full animate-float-slow opacity-30"></div>
+                    <div className="absolute top-4/5 right-1/5 w-1 h-1 bg-pink-400/30 rounded-full animate-float opacity-35"></div>
+                    <div className="absolute top-1/8 left-4/5 w-1 h-1 bg-cyan-400/25 rounded-full animate-float-delayed opacity-25"></div>
+                    <div className="absolute bottom-1/8 right-1/3 w-1.5 h-1.5 bg-indigo-400/30 rounded-full animate-float-slow opacity-30"></div>
+                    <div className="absolute top-2/5 left-1/2 w-1 h-1 bg-purple-400/28 rounded-full animate-float opacity-32"></div>
+                    <div className="absolute bottom-2/5 right-1/2 w-1 h-1 bg-blue-400/33 rounded-full animate-float-delayed opacity-28"></div>
+                    
+                    {/* Abstract Geometric Patterns */}
+                    <div className="absolute top-1/3 left-1/8 w-8 h-8 border-2 border-indigo-300/20 rounded-lg rotate-45 animate-float opacity-25"></div>
+                    <div className="absolute bottom-1/3 right-1/8 w-6 h-6 border-2 border-purple-300/15 rounded-full animate-float-delayed opacity-20"></div>
+                    <div className="absolute top-1/8 right-1/4 w-4 h-4 border border-blue-300/25 rounded-lg rotate-12 animate-float-slow opacity-22"></div>
+                    <div className="absolute bottom-1/8 left-1/4 w-5 h-5 border-2 border-pink-300/18 rounded-full animate-float opacity-18"></div>
+                    
+                    {/* Energy Bursts */}
+                    <div className="absolute top-1/7 left-2/3 w-12 h-12 border border-cyan-300/15 rounded-full animate-pulse opacity-30"></div>
+                    <div className="absolute bottom-1/7 right-2/3 w-10 h-10 border border-indigo-300/18 rounded-full animate-pulse opacity-25"></div>
+                    <div className="absolute top-3/7 left-1/7 w-8 h-8 border border-purple-300/12 rounded-full animate-pulse opacity-20"></div>
+                  </div>
+                )}
+                
+                {/* Space-themed Background Elements for Color 2 */}
+                {!isEven && (
+                  <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                    {/* Stars - Enhanced variety */}
+                    <div className="absolute top-20 left-20 w-1 h-1 bg-white rounded-full animate-pulse opacity-70"></div>
+                    <div className="absolute top-32 right-32 w-1.5 h-1.5 bg-blue-300 rounded-full animate-pulse opacity-50"></div>
+                    <div className="absolute top-40 left-1/3 w-1 h-1 bg-white rounded-full animate-pulse opacity-60"></div>
+                    <div className="absolute top-16 right-20 w-1 h-1 bg-purple-300 rounded-full animate-pulse opacity-80"></div>
+                    <div className="absolute top-60 left-1/4 w-1.5 h-1.5 bg-white rounded-full animate-pulse opacity-40"></div>
+                    <div className="absolute bottom-40 left-20 w-1 h-1 bg-white rounded-full animate-pulse opacity-50"></div>
+                    <div className="absolute bottom-32 right-40 w-1.5 h-1.5 bg-purple-200 rounded-full animate-pulse opacity-60"></div>
+                    <div className="absolute bottom-60 left-1/3 w-1 h-1 bg-blue-300 rounded-full animate-pulse opacity-70"></div>
+                    <div className="absolute top-10 left-1/2 w-1 h-1 bg-yellow-300 rounded-full animate-pulse opacity-65"></div>
+                    <div className="absolute top-50 right-10 w-1.5 h-1.5 bg-cyan-300 rounded-full animate-pulse opacity-55"></div>
+                    <div className="absolute bottom-20 right-1/2 w-1 h-1 bg-pink-300 rounded-full animate-pulse opacity-75"></div>
+                    <div className="absolute top-70 left-10 w-1.5 h-1.5 bg-green-300 rounded-full animate-pulse opacity-45"></div>
+                    <div className="absolute bottom-10 left-1/4 w-1 h-1 bg-orange-300 rounded-full animate-pulse opacity-60"></div>
+                    
+                    {/* Constellation Lines - More patterns */}
+                    <div className="absolute top-20 left-20 w-12 h-px bg-gradient-to-r from-transparent via-white/20 to-transparent transform rotate-45"></div>
+                    <div className="absolute bottom-40 left-1/4 w-10 h-px bg-gradient-to-r from-transparent via-purple-300/15 to-transparent transform rotate-60"></div>
+                    <div className="absolute top-50 left-1/2 w-14 h-px bg-gradient-to-r from-transparent via-yellow-300/10 to-transparent transform rotate-12"></div>
+                    <div className="absolute bottom-70 right-20 w-8 h-px bg-gradient-to-r from-transparent via-cyan-300/15 to-transparent transform -rotate-45"></div>
+                    
+                    {/* Shooting Stars */}
+                    <div className="absolute top-1/4 left-0 w-2 h-px bg-gradient-to-r from-white via-blue-300 to-transparent animate-pulse opacity-50"></div>
+                    <div className="absolute top-3/4 right-0 w-3 h-px bg-gradient-to-l from-purple-300 via-white to-transparent animate-pulse opacity-40"></div>
+                    
+                    {/* Nebula-like Blurs - Enhanced */}
+                    <div className="absolute top-1/3 right-1/4 w-32 h-32 bg-gradient-to-r from-purple-500/5 to-blue-500/5 rounded-full blur-2xl animate-float-delayed"></div>
+                    <div className="absolute bottom-1/3 left-1/4 w-24 h-24 bg-gradient-to-r from-blue-500/5 to-indigo-500/5 rounded-full blur-xl animate-float-slow"></div>
+                    <div className="absolute top-1/2 left-1/2 w-40 h-40 bg-gradient-to-r from-pink-500/3 to-purple-500/3 rounded-full blur-3xl animate-float"></div>
+                    <div className="absolute bottom-1/4 right-1/3 w-28 h-28 bg-gradient-to-r from-cyan-500/4 to-blue-500/4 rounded-full blur-2xl animate-float-delayed"></div>
+                    <div className="absolute top-1/4 left-1/6 w-20 h-20 bg-gradient-to-r from-green-500/3 to-emerald-500/3 rounded-full blur-xl animate-float-slow"></div>
+                    
+                    {/* Planet-like Orbs */}
+                    <div className="absolute top-1/6 right-1/6 w-6 h-6 bg-gradient-to-br from-orange-400/15 to-red-500/15 rounded-full blur-sm animate-float"></div>
+                    <div className="absolute bottom-1/6 left-1/6 w-4 h-4 bg-gradient-to-br from-blue-400/20 to-indigo-500/20 rounded-full blur-sm animate-float-delayed"></div>
+                    <div className="absolute top-2/3 right-1/12 w-5 h-5 bg-gradient-to-br from-purple-400/15 to-pink-500/15 rounded-full blur-sm animate-float-slow"></div>
+                    
+                    {/* Cosmic Dust Particles */}
+                    <div className="absolute top-1/5 left-3/4 w-0.5 h-0.5 bg-white/30 rounded-full animate-pulse opacity-25"></div>
+                    <div className="absolute top-3/5 left-1/5 w-0.5 h-0.5 bg-blue-300/25 rounded-full animate-pulse opacity-20"></div>
+                    <div className="absolute bottom-1/5 right-3/4 w-0.5 h-0.5 bg-purple-300/30 rounded-full animate-pulse opacity-15"></div>
+                    <div className="absolute top-4/5 right-1/5 w-0.5 h-0.5 bg-cyan-300/20 rounded-full animate-pulse opacity-25"></div>
+                    <div className="absolute top-1/8 left-4/5 w-0.5 h-0.5 bg-yellow-300/15 rounded-full animate-pulse opacity-20"></div>
+                  </div>
+                )}
+                
+                <div className="max-w-7xl mx-auto px-8 md:px-16 lg:px-24 xl:px-32 relative z-10">
                   <div className="flex items-center justify-center gap-8 md:gap-12 lg:gap-16">
                     {/* Icon Section */}
                     <div className="flex-shrink-0">
@@ -488,7 +682,7 @@ const LandingPage = () => {
         <div className="max-w-6xl mx-auto px-4 relative">
           <div className="text-center mb-16">
             <div className="relative inline-block">
-              <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-3 drop-shadow-lg">
+              <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-3 drop-shadow-lg">
                 User Testimonials
             </h2>
               <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-24 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full mt-3"></div>
@@ -502,7 +696,7 @@ const LandingPage = () => {
           <div className="text-center mb-12">
             <button
               onClick={() => setShowReviewForm(!showReviewForm)}
-              className="px-8 py-4 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 text-white rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl hover:shadow-indigo-500/25 hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-400/50"
+              className="px-8 py-4 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-2xl font-bold text-lg shadow-xl hover:shadow-2xl hover:shadow-indigo-500/25 hover:scale-105 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-400/50"
             >
               {showReviewForm ? 'Cancel Review' : 'Share Your Experience'}
             </button>
@@ -514,7 +708,7 @@ const LandingPage = () => {
               <div className="max-w-2xl mx-auto">
                 <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-8" style={{ pointerEvents: 'auto' }}>
                   
-                  <h3 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                  <h3 className="text-2xl font-bold text-center mb-6 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                     Share Your Experience
                   </h3>
                   
@@ -617,7 +811,7 @@ const LandingPage = () => {
 
           {/* Dynamic User Reviews */}
           <div className="mt-16">
-            <h3 className="text-2xl font-bold text-center mb-8 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+            <h3 className="text-2xl font-bold text-center mb-8 bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
               Recent Reviews
             </h3>
             
@@ -703,7 +897,7 @@ const LandingPage = () => {
             <div className="absolute -bottom-4 -right-4 w-6 h-6 bg-gradient-to-br from-pink-400/60 to-indigo-600/60 rounded-full blur-sm animate-pulse delay-1000"></div>
             
             <div className="relative">
-              <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-6 drop-shadow-lg">
+              <h2 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent mb-6 drop-shadow-lg">
             Ready to Transform Your Productivity?
           </h2>
               <p className="text-xl text-gray-600 dark:text-gray-400 mb-8 leading-relaxed">
@@ -712,7 +906,7 @@ const LandingPage = () => {
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <button
               onClick={() => navigate('/register')}
-                  className="relative px-10 py-5 bg-gradient-to-r from-indigo-500 via-purple-600 to-pink-600 text-white rounded-2xl font-bold text-lg shadow-2xl hover:shadow-3xl hover:shadow-indigo-500/25 hover:scale-110 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-400/50 transform hover:-translate-y-1"
+                  className="relative px-10 py-5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-2xl font-bold text-lg shadow-2xl hover:shadow-3xl hover:shadow-indigo-500/25 hover:scale-110 transition-all duration-300 focus:outline-none focus:ring-4 focus:ring-indigo-400/50 transform hover:-translate-y-1"
                   style={{
                     boxShadow: '0 20px 40px rgba(79, 70, 229, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.2)'
                   }}
@@ -750,25 +944,25 @@ const LandingPage = () => {
               </p>
               <div className="flex space-x-4">
                 {/* Enhanced Social Media Icons with 3D effect */}
-                <a href="#" className="relative w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 rounded-2xl flex items-center justify-center text-white hover:scale-110 hover:rotate-6 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-indigo-500/25 group">
+                <a href="#" className="relative w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white hover:scale-110 hover:rotate-6 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-indigo-500/25 group">
                   <svg className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
                   </svg>
                   <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-2xl"></div>
                 </a>
-                <a href="#" className="relative w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 rounded-2xl flex items-center justify-center text-white hover:scale-110 hover:rotate-6 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-indigo-500/25 group">
+                <a href="#" className="relative w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white hover:scale-110 hover:rotate-6 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-indigo-500/25 group">
                   <svg className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M22.46 6c-.77.35-1.6.58-2.46.69.88-.53 1.56-1.37 1.88-2.38-.83.5-1.75.85-2.72 1.05C18.37 4.5 17.26 4 16 4c-2.35 0-4.27 1.92-4.27 4.29 0 .34.04.67.11.98C8.28 9.09 5.11 7.38 3 4.79c-.37.63-.58 1.37-.58 2.15 0 1.49.75 2.81 1.91 3.56-.71 0-1.37-.2-1.95-.5v.03c0 2.08 1.48 3.82 3.44 4.21a4.22 4.22 0 0 1-1.93.07 4.28 4.28 0 0 0 4 2.98 8.521 8.521 0 0 1-5.33 1.84c-.34 0-.68-.02-1.02-.06C3.44 20.29 5.7 21 8.12 21 16 21 20.33 14.46 20.33 8.79c0-.19 0-.37-.01-.56.84-.6 1.56-1.36 2.14-2.23z"/>
                   </svg>
                   <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-2xl"></div>
                 </a>
-                <a href="#" className="relative w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 rounded-2xl flex items-center justify-center text-white hover:scale-110 hover:rotate-6 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-indigo-500/25 group">
+                <a href="#" className="relative w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white hover:scale-110 hover:rotate-6 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-indigo-500/25 group">
                   <svg className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.047-1.852-3.047-1.853 0-2.136 1.445-2.136 2.939v5.677H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
                   </svg>
                   <div className="absolute inset-0 bg-gradient-to-r from-white/20 to-transparent rounded-2xl"></div>
                 </a>
-                <a href="#" className="relative w-12 h-12 bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-600 rounded-2xl flex items-center justify-center text-white hover:scale-110 hover:rotate-6 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-indigo-500/25 group">
+                <a href="#" className="relative w-12 h-12 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center text-white hover:scale-110 hover:rotate-6 transition-all duration-300 shadow-xl hover:shadow-2xl hover:shadow-indigo-500/25 group">
                   <svg className="w-5 h-5 group-hover:scale-110 transition-transform duration-300" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M12.017 0C5.396 0 .029 5.367.029 11.987c0 5.079 3.158 9.417 7.618 11.174-.105-.949-.199-2.403.041-3.439.219-.937 1.406-5.957 1.406-5.957s-.359-.72-.359-1.781c0-1.663.967-2.911 2.168-2.911 1.024 0 1.518.769 1.518 1.688 0 1.029-.653 2.567-.992 3.992-.285 1.193.6 2.165 1.775 2.165 2.128 0 3.768-2.245 3.768-5.487 0-2.861-2.063-4.869-5.008-4.869-3.41 0-5.409 2.562-5.409 5.199 0 1.033.394 2.143.889 2.741.099.12.112.225.085.345-.09.375-.293 1.199-.334 1.363-.053.225-.172.271-.402.165-1.495-.69-2.433-2.878-2.433-4.646 0-3.776 2.748-7.252 7.92-7.252 4.158 0 7.392 2.967 7.392 6.923 0 4.135-2.607 7.462-6.233 7.462-1.214 0-2.357-.629-2.746-1.378l-.748 2.853c-.271 1.043-1.002 2.35-1.492 3.146C9.57 23.812 10.763 24.009 12.017 24.009c6.624 0 11.99-5.367 11.99-11.988C24.007 5.367 18.641.001 12.017.001z"/>
                   </svg>

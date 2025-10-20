@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import PageLayout from '../components/PageLayout';
 import StatsCards from '../components/progress/StatsCards';
-import MainChart from '../components/progress/MainChart';
 // Extracted components
 import ProgressHeader from '../components/progress/ProgressHeader';
 import ProgressOverview from '../components/progress/ProgressOverview';
@@ -529,9 +528,8 @@ const Progress = () => {
   });
   const [userLevel, setUserLevel] = useState({ currentLevel: 1, currentXP: 0, xpToNextLevel: 1000 });
 
-  // Add state for streakData and chartData
+  // Add state for streakData
   const [streakData, setStreakData] = useState<any[]>([]);
-  const [chartData, setChartData] = useState<any>({});
   // Productivity status state
   const [productivity, setProductivity] = useState<{ status: string; completion_rate: number; total_tasks: number; completed_tasks: number } | null>(null);
   const [yesterdayProductivity, setYesterdayProductivity] = useState<{ status: string; completion_rate: number; total_tasks: number; completed_tasks: number } | null>(null);
@@ -670,8 +668,6 @@ const Progress = () => {
         setStats(updatedStats);
         setUserLevel(levelData);
         setStreakData(streakData);
-        // Kick off chart fetch in background
-        fetchChartData(progressView).then(setChartData).catch(() => {});
         
         console.log('Initial data loaded successfully');
         console.log('📊 Stats data received:', updatedStats);
@@ -1861,8 +1857,6 @@ const Progress = () => {
           tabs={TABS}
         />
 
-        {/* Main Chart */}
-        <MainChart view={progressView} data={chartData} prodLogs={prodLogs} />
 
             {/* Achievements */}
             <Achievements stats={stats} userLevel={userLevel} longestStreak={calculateLongestStreak(streakData)} />
@@ -2356,21 +2350,5 @@ async function fetchStreakData() {
   }
 }
 
-async function fetchChartData(view: string) {
-  try {
-    const headers = getAuthHeaders();
-    const res = await fetch(`${API_BASE_URL}/progress/chart/?view=${view}`, {
-      ...(headers && { headers })
-    });
-    if (res.status === 401) {
-      handle401();
-      return {};
-    }
-    if (!res.ok) throw new Error('Failed to fetch chart data');
-    return await res.json();
-  } catch (e) {
-    return {};
-  }
-}
 
 export default Progress;
