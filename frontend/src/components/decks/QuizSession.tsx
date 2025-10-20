@@ -55,12 +55,20 @@ const QuizSession: React.FC<QuizSessionProps> = ({
     if (shuffledFlashcards.length > 0 && currentQuestionIndex < shuffledFlashcards.length) {
       const currentQuestion = shuffledFlashcards[currentQuestionIndex];
       if (currentQuestion) {
-        // Get 3 random wrong answers from other flashcards
-        const wrongAnswers = shuffledFlashcards
-          .filter(f => f.id !== currentQuestion.id)
-          .sort(() => Math.random() - 0.5)
-          .slice(0, 3)
+        // Get unique wrong answers from other flashcards (avoid duplicates)
+        const availableAnswers = shuffledFlashcards
+          .filter(f => f.id !== currentQuestion.id && f.back !== currentQuestion.back)
           .map(f => f.back);
+        
+        // Remove duplicates from available answers
+        const uniqueAnswers = availableAnswers.filter((answer, index) => 
+          availableAnswers.indexOf(answer) === index
+        );
+        
+        // Get 3 random wrong answers (or as many as available)
+        const wrongAnswers = uniqueAnswers
+          .sort(() => Math.random() - 0.5)
+          .slice(0, Math.min(3, uniqueAnswers.length));
 
         // Combine correct answer with wrong answers and shuffle
         const allOptions = [currentQuestion.back, ...wrongAnswers]
@@ -163,7 +171,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
     }
 
     setQuizComplete(true);
-    onComplete(quizResults);
+    // Don't call onComplete automatically - let user manually exit
   };
 
   if (quizComplete) {
@@ -171,6 +179,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
       ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
     ).length;
     const score = Math.round((correctAnswers / shuffledFlashcards.length) * 100);
+    const incorrectAnswers = shuffledFlashcards.length - correctAnswers;
 
     return (
       <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
@@ -210,8 +219,78 @@ const QuizSession: React.FC<QuizSessionProps> = ({
               </p>
             </div>
 
+            {/* Detailed Breakdown */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Quiz Breakdown
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                {/* Total Questions */}
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                    {shuffledFlashcards.length}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Total Questions
+                  </div>
+                </div>
+                
+                {/* Correct Answers */}
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400 mb-1">
+                    {correctAnswers}
+                  </div>
+                  <div className="text-sm text-green-700 dark:text-green-300">
+                    Correct Answers
+                  </div>
+                </div>
+                
+                {/* Incorrect Answers */}
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-red-600 dark:text-red-400 mb-1">
+                    {incorrectAnswers}
+                  </div>
+                  <div className="text-sm text-red-700 dark:text-red-300">
+                    Incorrect Answers
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance Level */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <div className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Performance Level
+                </div>
+                <div className={`text-lg font-bold ${
+                  score >= 90 ? 'text-green-600 dark:text-green-400' :
+                  score >= 80 ? 'text-blue-600 dark:text-blue-400' :
+                  score >= 70 ? 'text-yellow-600 dark:text-yellow-400' :
+                  score >= 60 ? 'text-orange-600 dark:text-orange-400' :
+                  'text-red-600 dark:text-red-400'
+                }`}>
+                  {score >= 90 ? 'Excellent!' :
+                   score >= 80 ? 'Very Good!' :
+                   score >= 70 ? 'Good!' :
+                   score >= 60 ? 'Fair' :
+                   'Needs Improvement'}
+                </div>
+              </div>
+            </div>
+
             <button
-              onClick={onClose}
+              onClick={() => {
+                const quizResults: QuizResults = {
+                  totalQuestions: shuffledFlashcards.length,
+                  correctAnswers: Object.entries(answers).filter(
+                    ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
+                  ).length,
+                  score: Math.round((Object.entries(answers).filter(
+                    ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
+                  ).length / shuffledFlashcards.length) * 100),
+                  timeSpent: Math.round((Date.now() - startTime) / 1000 / 60)
+                };
+                onComplete(quizResults);
+              }}
               className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
             >
               Back to Decks
@@ -268,13 +347,13 @@ const QuizSession: React.FC<QuizSessionProps> = ({
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               {currentQuestion.front}
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-3">
               {options.map((option, idx) => (
                 <button
                   key={idx}
                   onClick={() => handleAnswerSelect(option)}
                   disabled={!!selectedAnswer}
-                  className={`px-4 py-3 rounded-lg border text-base font-medium transition-colors focus:outline-none
+                  className={`w-full px-4 py-3 rounded-lg border text-base font-medium transition-colors focus:outline-none
                     ${selectedAnswer === option
                       ? option === currentQuestion.back
                         ? 'bg-green-100 border-green-400 text-green-800 dark:bg-green-900/20 dark:text-green-400 dark:border-green-400'

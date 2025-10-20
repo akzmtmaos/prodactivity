@@ -113,6 +113,22 @@ const extractTitle = (content: string): string => {
   return firstLine && firstLine.length < 100 ? firstLine : 'Study Chunk';
 };
 
+// Function to clean AI thinking process from responses
+const cleanThinkingProcess = (text: string): string => {
+  return text
+    // Remove thinking process that starts with "Okay, so" or similar patterns
+    .replace(/^(Okay, so[\s\S]*?)(?=\n\n|\n[A-Z]|$)/gm, '')
+    // Remove other common thinking patterns
+    .replace(/^(Let me think[\s\S]*?)(?=\n\n|\n[A-Z]|$)/gm, '')
+    .replace(/^(I need to[\s\S]*?)(?=\n\n|\n[A-Z]|$)/gm, '')
+    .replace(/^(First, I[\s\S]*?)(?=\n\n|\n[A-Z]|$)/gm, '')
+    // Clean up any remaining thinking indicators
+    .replace(/^(Hmm,[\s\S]*?)(?=\n\n|\n[A-Z]|$)/gm, '')
+    .replace(/^(Wait,[\s\S]*?)(?=\n\n|\n[A-Z]|$)/gm, '')
+    // Trim whitespace
+    .trim();
+};
+
 // Function to convert markdown to HTML
 const convertMarkdownToHTML = (text: string): string => {
   if (!text) return '';
@@ -542,24 +558,28 @@ Click "View Deck" to see your flashcards in the Decks section.`);
             try {
               const data = JSON.parse(line.slice(6));
               if (data.chunk) {
+                // Filter out thinking process from the response
+                const cleanFullResponse = cleanThinkingProcess(data.full_response || fullResponse + data.chunk);
+                
                 // Update the last message with the new chunk for typing animation
                 setChatMessages(prev => {
                   const newMessages = [...prev];
                   if (newMessages.length > 0) {
-                    newMessages[newMessages.length - 1] = { ...newMessages[newMessages.length - 1], content: data.full_response || fullResponse + data.chunk };
+                    newMessages[newMessages.length - 1] = { ...newMessages[newMessages.length - 1], content: cleanFullResponse };
                   }
                   return newMessages;
                 });
-                fullResponse = data.full_response || fullResponse + data.chunk;
+                fullResponse = cleanFullResponse;
                 
                 // Add a small delay to make typing animation visible
                 await new Promise(resolve => setTimeout(resolve, 50));
               } else if (data.done && data.full_response) {
-                // Final update with cleaned response
+                // Final update with cleaned response (remove thinking process)
+                const cleanFinalResponse = cleanThinkingProcess(data.full_response);
                 setChatMessages(prev => {
                   const newMessages = [...prev];
                   if (newMessages.length > 0) {
-                    newMessages[newMessages.length - 1] = { ...newMessages[newMessages.length - 1], content: data.full_response };
+                    newMessages[newMessages.length - 1] = { ...newMessages[newMessages.length - 1], content: cleanFinalResponse };
                   }
                   return newMessages;
                 });
@@ -1127,7 +1147,7 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                                     <div 
                                       className="text-sm leading-relaxed"
                                       dangerouslySetInnerHTML={{ 
-                                        __html: convertMarkdownToHTML(message.content) + '<span class="animate-pulse text-indigo-500 ml-1">|</span>'
+                                        __html: (message.content ? convertMarkdownToHTML(message.content) : '<span class="text-gray-500 italic">Thinking...</span>') + '<span class="animate-pulse text-indigo-500 ml-1">|</span>'
                                       }}
                                     />
                                   </>

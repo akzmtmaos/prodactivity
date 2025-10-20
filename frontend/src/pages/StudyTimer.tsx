@@ -427,13 +427,12 @@ const StudyTimer: React.FC = () => {
                             </label>
                             <input
                               type="number"
-                              value={pomodoroMode ? timerState.settings.studyDuration / 60 : tempSettings.studyDuration / 60}
+                              value={pomodoroMode ? tempSettings.studyDuration / 60 : tempSettings.studyDuration / 60}
                               onChange={(e) => setTempSettings({
                                 ...tempSettings,
                                 studyDuration: parseInt(e.target.value) * 60
                               })}
                               className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                              disabled={pomodoroMode}
                             />
                           </div>
                           
@@ -443,13 +442,12 @@ const StudyTimer: React.FC = () => {
                             </label>
                             <input
                               type="number"
-                              value={pomodoroMode ? timerState.settings.breakDuration / 60 : tempSettings.breakDuration / 60}
+                              value={tempSettings.breakDuration / 60}
                               onChange={(e) => setTempSettings({
                                 ...tempSettings,
                                 breakDuration: parseInt(e.target.value) * 60
                               })}
                               className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                              disabled={pomodoroMode}
                             />
                           </div>
                           
@@ -459,13 +457,12 @@ const StudyTimer: React.FC = () => {
                             </label>
                             <input
                               type="number"
-                              value={pomodoroMode ? timerState.settings.longBreakDuration / 60 : tempSettings.longBreakDuration / 60}
+                              value={tempSettings.longBreakDuration / 60}
                               onChange={(e) => setTempSettings({
                                 ...tempSettings,
                                 longBreakDuration: parseInt(e.target.value) * 60
                               })}
                               className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                              disabled={pomodoroMode}
                             />
                           </div>
                           
@@ -475,13 +472,12 @@ const StudyTimer: React.FC = () => {
                             </label>
                             <input
                               type="number"
-                              value={pomodoroMode ? timerState.settings.sessionsUntilLongBreak : tempSettings.sessionsUntilLongBreak}
+                              value={tempSettings.sessionsUntilLongBreak}
                               onChange={(e) => setTempSettings({
                                 ...tempSettings,
                                 sessionsUntilLongBreak: parseInt(e.target.value)
                               })}
                               className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                              disabled={pomodoroMode}
                             />
                           </div>
                         </div>
@@ -496,7 +492,6 @@ const StudyTimer: React.FC = () => {
                           <button
                             onClick={handleSettingsChange}
                             className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                            disabled={pomodoroMode}
                           >
                             Save Changes
                           </button>
