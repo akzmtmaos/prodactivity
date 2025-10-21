@@ -34,6 +34,8 @@ class Notebook(models.Model):
     is_archived = models.BooleanField(default=False)
     archived_at = models.DateTimeField(null=True, blank=True)
     is_favorite = models.BooleanField(default=False)
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(null=True, blank=True)
     
     class Meta:
         verbose_name_plural = "Notebooks"

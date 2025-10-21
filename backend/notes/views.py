@@ -29,9 +29,10 @@ class NotebookListCreateView(generics.ListCreateAPIView):
     permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # Filter by archive status
+        # Filter by archive status and delete status
         is_archived = self.request.query_params.get('archived', 'false').lower() == 'true'
-        return Notebook.objects.filter(user=self.request.user, is_archived=is_archived)
+        is_deleted = self.request.query_params.get('is_deleted', 'false').lower() == 'true'
+        return Notebook.objects.filter(user=self.request.user, is_archived=is_archived, is_deleted=is_deleted)
 
 class NotebookRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = NotebookSerializer
@@ -42,18 +43,36 @@ class NotebookRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
     
     def destroy(self, request, *args, **kwargs):
         notebook = self.get_object()
+        if notebook.is_deleted:
+            # Hard delete if already soft deleted
+            notebook.notes.update(is_deleted=True, deleted_at=timezone.now())
+            notebook.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        # Soft delete the notebook
+        notebook.is_deleted = True
+        notebook.deleted_at = timezone.now()
         # Soft delete all notes in this notebook
         notebook.notes.update(is_deleted=True, deleted_at=timezone.now())
-        notebook.delete()
+        notebook.save()
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def partial_update(self, request, *args, **kwargs):
         notebook = self.get_object()
         is_archived = request.data.get('is_archived', None)
+        is_deleted = request.data.get('is_deleted', None)
+        
         if is_archived is not None:
             notebook.is_archived = is_archived
             notebook.archived_at = timezone.now() if is_archived else None
             notebook.save()
+        
+        if is_deleted is not None:
+            notebook.is_deleted = is_deleted
+            notebook.deleted_at = None if not is_deleted else timezone.now()
+            # Also restore/delete notes in the notebook
+            notebook.notes.update(is_deleted=is_deleted, deleted_at=timezone.now() if is_deleted else None)
+            notebook.save()
+        
         serializer = self.get_serializer(notebook)
         return Response(serializer.data)
 

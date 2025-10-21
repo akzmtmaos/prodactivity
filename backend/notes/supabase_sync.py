@@ -66,7 +66,9 @@ def sync_notebook_to_supabase(notebook):
             'updated_at': notebook.updated_at.isoformat(),
             'is_archived': notebook.is_archived,
             'archived_at': notebook.archived_at.isoformat() if notebook.archived_at else None,
-            'is_favorite': notebook.is_favorite
+            'is_favorite': notebook.is_favorite,
+            'is_deleted': notebook.is_deleted,
+            'deleted_at': notebook.deleted_at.isoformat() if notebook.deleted_at else None
         }
         
         # Insert into Supabase
@@ -114,7 +116,9 @@ def update_notebook_in_supabase(notebook):
             'updated_at': notebook.updated_at.isoformat(),
             'is_archived': notebook.is_archived,
             'archived_at': notebook.archived_at.isoformat() if notebook.archived_at else None,
-            'is_favorite': notebook.is_favorite
+            'is_favorite': notebook.is_favorite,
+            'is_deleted': notebook.is_deleted,
+            'deleted_at': notebook.deleted_at.isoformat() if notebook.deleted_at else None
         }
         
         # Update in Supabase
