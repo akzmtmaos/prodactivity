@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import NotificationItem, { NotificationItemProps } from './NotificationItem';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Bell, Eye, Trash2 } from 'lucide-react';
 
 export interface Notification {
   id: string;
@@ -50,42 +50,55 @@ const NotificationList: React.FC<NotificationListProps> = ({
         <div className="flex space-x-2">
           <button
             onClick={() => handleFilterChange('all')}
-            className={`px-3 py-1 rounded-md text-sm ${
+            className={`flex items-center space-x-2 px-3 py-1 rounded-md text-sm transition-colors ${
               filter === 'all'
                 ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
                 : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
             }`}
           >
-            All
+            <Bell className="h-4 w-4" />
+            <span>All</span>
           </button>
           <button
             onClick={() => handleFilterChange('unread')}
-            className={`px-3 py-1 rounded-md text-sm ${
+            className={`flex items-center space-x-2 px-3 py-1 rounded-md text-sm transition-colors ${
               filter === 'unread'
                 ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300'
                 : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'
             }`}
           >
-            Unread
+            <Eye className="h-4 w-4" />
+            <span>Unread</span>
           </button>
         </div>
         {notifications.length > 0 && (
           <button
             onClick={onClearAll}
-            className="text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+            className="flex items-center space-x-2 text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200 transition-colors"
           >
-            Clear all
+            <Trash2 className="h-4 w-4" />
+            <span>Clear all</span>
           </button>
         )}
       </div>
 
       {filteredNotifications.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-gray-500 dark:text-gray-400">
-            {filter === 'all'
-              ? 'No notifications yet'
-              : 'No unread notifications'}
-          </p>
+        <div className="text-center py-12">
+          <div className="flex flex-col items-center space-y-3">
+            <div className="p-3 bg-gray-100 dark:bg-gray-700 rounded-full">
+              <Bell className="h-8 w-8 text-gray-400 dark:text-gray-500" />
+            </div>
+            <p className="text-gray-500 dark:text-gray-400 text-lg">
+              {filter === 'all'
+                ? 'No notifications yet'
+                : 'No unread notifications'}
+            </p>
+            <p className="text-gray-400 dark:text-gray-500 text-sm">
+              {filter === 'all'
+                ? 'You\'ll see notifications here when they arrive'
+                : 'All caught up! No new notifications to read'}
+            </p>
+          </div>
         </div>
       ) : (
         <>

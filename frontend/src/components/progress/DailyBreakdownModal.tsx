@@ -458,7 +458,7 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                     <CheckSquare size={20} className="text-green-500" />
-                    Completed Tasks ({completedTasks.length}/{completedTasks.length + pendingTasks.length})
+                    Completed Tasks {/*({completedTasks.length}/{completedTasks.length + pendingTasks.length})*/}
                   </h3>
                   <div className="space-y-2">
                     {completedTasks.map((task) => (
@@ -521,7 +521,7 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
                 <div>
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
                     <Clock size={20} className="text-yellow-500" />
-                    Pending Tasks ({pendingTasks.length}/{completedTasks.length + pendingTasks.length})
+                    Missing Tasks {/*({pendingTasks.length}/{completedTasks.length + pendingTasks.length})*/}
                   </h3>
                   <div className="space-y-2">
                     {pendingTasks.map((task) => (

@@ -12,12 +12,12 @@ import Pagination from '../components/common/Pagination';
 // Define TrashItem type here for use in state
 export type TrashItem = {
   id: string;
-  type: 'note' | 'deck' | 'reviewer';
+  type: 'note' | 'deck' | 'notebook' | 'reviewer';
   title: string;
   deletedAt: string;
 };
 
-const TABS = ['all', 'notes', 'decks', 'reviewer'] as const;
+const TABS = ['all', 'notes', 'decks', 'notebooks', 'reviewer'] as const;
 type TabType = typeof TABS[number];
 
 const ITEMS_PER_PAGE = 10;
@@ -29,6 +29,7 @@ const Trash = () => {
   const [greeting, setGreeting] = useState('');
   const [notes, setNotes] = useState<TrashItem[]>([]);
   const [decks, setDecks] = useState<TrashItem[]>([]);
+  const [notebooks, setNotebooks] = useState<TrashItem[]>([]);
   const [reviewers, setReviewers] = useState<TrashItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>(tab && TABS.includes(tab) ? tab : 'all');
   const [loading, setLoading] = useState(true);
@@ -36,9 +37,9 @@ const Trash = () => {
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
-  const [restoreTarget, setRestoreTarget] = useState<{ id: string; type: 'note' | 'deck' | 'reviewer'; title: string } | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<{ id: string; type: 'note' | 'deck' | 'notebook' | 'reviewer'; title: string } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'note' | 'deck' | 'reviewer'; title: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'note' | 'deck' | 'notebook' | 'reviewer'; title: string } | null>(null);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showDeleteSelectedModal, setShowDeleteSelectedModal] = useState(false);
   const [showRestoreSelectedModal, setShowRestoreSelectedModal] = useState(false);
@@ -59,9 +60,10 @@ const Trash = () => {
   }, [tab]);
 
   // Helper to map tab to TrashItem type
-  const tabToType = (tab: TabType): 'note' | 'deck' | 'reviewer' => {
+  const tabToType = (tab: TabType): 'note' | 'deck' | 'notebook' | 'reviewer' => {
     if (tab === 'notes') return 'note';
     if (tab === 'decks') return 'deck';
+    if (tab === 'notebooks') return 'notebook';
     if (tab === 'reviewer') return 'reviewer';
     // For 'all', fallback to 'note' (should not be used directly)
     return 'note';
@@ -123,6 +125,39 @@ const Trash = () => {
         }))
       );
 
+      // Fetch deleted notebooks
+      try {
+        console.log('Fetching deleted notebooks from:', `${API_URL}/notes/notebooks/?is_deleted=true`);
+        const notebooksRes = await fetch(`${API_URL}/notes/notebooks/?is_deleted=true`, { headers });
+        console.log('Notebooks response status:', notebooksRes.status);
+        console.log('Notebooks response headers:', notebooksRes.headers);
+        
+        if (!notebooksRes.ok) {
+          console.error('Notebooks fetch failed with status:', notebooksRes.status);
+          console.error('Response text:', await notebooksRes.text());
+          setNotebooks([]);
+          return;
+        }
+        
+        const notebooksData = await notebooksRes.json();
+        console.log('Raw notebooks data:', notebooksData);
+        
+        const notebooksList = notebooksData.results || notebooksData;
+        console.log('Processed notebooks list:', notebooksList);
+        
+        setNotebooks(
+          notebooksList.map((notebook: any) => ({
+            id: notebook.id,
+            type: 'notebook',
+            title: notebook.name,
+            deletedAt: notebook.deleted_at || notebook.updated_at || '',
+          }))
+        );
+      } catch (error) {
+        console.error('Failed to fetch deleted notebooks:', error);
+        setNotebooks([]);
+      }
+
       // Fetch deleted reviewers
       const reviewersRes = await fetch(`${API_URL}/trash/reviewers/`, { headers });
       const reviewersData = await reviewersRes.json();
@@ -148,14 +183,14 @@ const Trash = () => {
   useEffect(() => {
     setCurrentPage(1);
     // Don't clear selection when tab changes - keep items selected across tabs
-  }, [activeTab, notes, decks, reviewers]);
+  }, [activeTab, notes, decks, notebooks, reviewers]);
 
   const handleTabClick = (tab: TabType) => {
     setActiveTab(tab);
     navigate(`/trash/${tab}`);
   };
 
-  const handleRestore = async (id: string, type: 'note' | 'deck' | 'reviewer') => {
+  const handleRestore = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer') => {
     setRestoreTarget({ id, type, title: (filteredItems.find(i => i.id === id)?.title) || '' });
     setShowRestoreModal(true);
   };
@@ -167,6 +202,7 @@ const Trash = () => {
     let url = '';
     if (type === 'note') url = `${API_URL}/notes/${id}/`;
     if (type === 'deck') url = `${API_URL}/decks/decks/${id}/`;
+    if (type === 'notebook') url = `${API_URL}/notes/notebooks/${id}/`;
     if (type === 'reviewer') url = `${API_URL}/reviewers/${id}/`;
     try {
       await fetch(url, {
@@ -188,7 +224,7 @@ const Trash = () => {
     }
   };
 
-  const handleDelete = async (id: string, type: 'note' | 'deck' | 'reviewer') => {
+  const handleDelete = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer') => {
     setDeleteTarget({ id, type, title: (filteredItems.find(i => i.id === id)?.title) || '' });
     setShowDeleteModal(true);
   };
@@ -200,6 +236,7 @@ const Trash = () => {
     let url = '';
     if (type === 'note') url = `${API_URL}/notes/${id}/`;
     if (type === 'deck') url = `${API_URL}/decks/decks/${id}/`;
+    if (type === 'notebook') url = `${API_URL}/notes/notebooks/${id}/`;
     if (type === 'reviewer') url = `${API_URL}/reviewers/${id}/`;
     try {
       await fetch(url, {
@@ -226,6 +263,7 @@ const Trash = () => {
       let url = '';
       if (item.type === 'note') url = `${API_URL}/notes/${item.id}/`;
       if (item.type === 'deck') url = `${API_URL}/decks/decks/${item.id}/`;
+      if (item.type === 'notebook') url = `${API_URL}/notes/notebooks/${item.id}/`;
       if (item.type === 'reviewer') url = `${API_URL}/reviewers/${item.id}/`;
       try {
         await fetch(url, {
@@ -270,6 +308,7 @@ const Trash = () => {
       let url = '';
       if (item.type === 'note') url = `${API_URL}/notes/${item.id}/`;
       if (item.type === 'deck') url = `${API_URL}/decks/decks/${item.id}/`;
+      if (item.type === 'notebook') url = `${API_URL}/notes/notebooks/${item.id}/`;
       if (item.type === 'reviewer') url = `${API_URL}/reviewers/${item.id}/`;
       try {
         await fetch(url, {
@@ -298,6 +337,7 @@ const Trash = () => {
       let url = '';
       if (item.type === 'note') url = `${API_URL}/notes/${item.id}/`;
       if (item.type === 'deck') url = `${API_URL}/decks/decks/${item.id}/`;
+      if (item.type === 'notebook') url = `${API_URL}/notes/notebooks/${item.id}/`;
       if (item.type === 'reviewer') url = `${API_URL}/reviewers/${item.id}/`;
       try {
         await fetch(url, {
@@ -317,13 +357,15 @@ const Trash = () => {
 
   let filteredItems: TrashItem[] = [];
   if (activeTab === 'all') {
-    filteredItems = [...notes, ...decks, ...reviewers]
+    filteredItems = [...notes, ...decks, ...notebooks, ...reviewers]
       .filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()))
       .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
   } else if (activeTab === 'notes') {
     filteredItems = notes.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   } else if (activeTab === 'decks') {
     filteredItems = decks.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  } else if (activeTab === 'notebooks') {
+    filteredItems = notebooks.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   } else if (activeTab === 'reviewer') {
     filteredItems = reviewers.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   }
@@ -353,11 +395,11 @@ const Trash = () => {
                   <div>
                     <p className="font-semibold mb-2">Trash Management</p>
                     <ul className="space-y-1 text-xs">
-                      <li>• <strong>Deleted Items:</strong> View all deleted tasks, notes, and decks</li>
+                      <li>• <strong>Deleted Items:</strong> View all deleted tasks, notes, decks, and notebooks</li>
                       <li>• <strong>Restore:</strong> Bring back accidentally deleted items</li>
                       <li>• <strong>Permanent Delete:</strong> Completely remove items from system</li>
                       <li>• <strong>Search:</strong> Find specific deleted items quickly</li>
-                      <li>• <strong>Filter by Type:</strong> View tasks, notes, or decks separately</li>
+                      <li>• <strong>Filter by Type:</strong> View tasks, notes, decks, or notebooks separately</li>
                       <li>• <strong>Auto-cleanup:</strong> Items are automatically purged after 30 days</li>
                       <li>• <strong>Bulk Actions:</strong> Restore or delete multiple items at once</li>
                     </ul>
@@ -432,6 +474,16 @@ const Trash = () => {
               }`}
             >
               All
+            </button>
+            <button
+              onClick={() => handleTabClick('notebooks')}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'notebooks'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+            >
+              Notebooks
             </button>
             <button
               onClick={() => handleTabClick('notes')}

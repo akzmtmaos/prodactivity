@@ -29,6 +29,18 @@ const generateNotebookColor = (notebookId: number): string => {
 
 const NOTEBOOKS_CACHE_KEY = 'cachedNotebooksV1';
 
+// Helper function to update notebook cache
+const updateNotebookCache = (notebooks: Notebook[]) => {
+  try {
+    localStorage.setItem(NOTEBOOKS_CACHE_KEY, JSON.stringify({ 
+      ts: Date.now(), 
+      data: notebooks 
+    }));
+  } catch (error) {
+    console.warn('Failed to update notebook cache:', error);
+  }
+};
+
 interface Notebook {
   id: number;
   name: string;
@@ -114,6 +126,63 @@ const Notes = () => {
   // Bulk selection state for inline Delete Selected
   const [selectedForBulk, setSelectedForBulk] = useState<number[]>([]);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  
+  // Bulk delete function for notebooks
+  const handleBulkDeleteNotebooks = async (notebookIds: number[]) => {
+    try {
+      console.log('Bulk deleting notebooks with IDs:', notebookIds);
+      
+      // Backend now supports soft delete for notebooks
+      console.log('Using soft delete for bulk notebook deletion');
+      const responses = await Promise.allSettled(
+        notebookIds.map(notebookId => {
+          console.log('Sending PATCH request for notebook ID:', notebookId);
+          return axiosInstance.patch(`/notes/notebooks/${notebookId}/`, {
+            is_deleted: true,
+            deleted_at: new Date().toISOString()
+          });
+        })
+      );
+      
+      console.log('Bulk delete responses:', responses);
+      
+      // Check for any failures
+      const failures = responses.filter(response => response.status === 'rejected') as PromiseRejectedResult[];
+      if (failures.length > 0) {
+        console.error('Some notebook deletions failed:', failures);
+        failures.forEach((failure, index) => {
+          console.error(`Failed to delete notebook ${notebookIds[index]}:`, failure.reason);
+        });
+      }
+      
+      const successes = responses.filter(response => response.status === 'fulfilled');
+      console.log('Successful deletions:', successes.length);
+      
+      // Only update the UI if there were successful deletions
+      if (successes.length > 0) {
+        // Get the IDs of successfully deleted notebooks
+        const successfulIds = notebookIds.filter((id, index) => {
+          return responses[index].status === 'fulfilled';
+        });
+        
+        // Update the notebooks list only for successfully deleted ones
+        setNotebooks(notebooks.filter(notebook => !successfulIds.includes(notebook.id)));
+        
+        // Clear selection if any of the successfully deleted notebooks was selected
+        if (selectedNotebook && successfulIds.includes(selectedNotebook.id)) {
+          setSelectedNotebook(null);
+          setNotes([]);
+        }
+        
+        setToast({ message: `${successfulIds.length} notebook${successfulIds.length > 1 ? 's' : ''} moved to trash!`, type: 'success' });
+      } else {
+        setToast({ message: 'Failed to delete notebooks. Please try again.', type: 'error' });
+      }
+    } catch (error) {
+      console.error('Error in bulk delete notebooks:', error);
+      handleError(error, 'Failed to delete notebooks');
+    }
+  };
 
   // Global search state
   const [showGlobalSearch, setShowGlobalSearch] = useState(false);
@@ -156,10 +225,14 @@ const Notes = () => {
       let response;
       try {
         // Use a shorter timeout specifically for notebooks for snappier UI
-        response = await axiosInstance.get(`/notes/notebooks/`, { timeout: 4000 });
+        // Exclude deleted notebooks from the main notebooks list
+        console.log('📡 Fetching notebooks with filter: /notes/notebooks/?is_deleted=false');
+        response = await axiosInstance.get(`/notes/notebooks/?is_deleted=false`, { timeout: 4000 });
       } catch (err: any) {
+        console.log('❌ Filtered fetch failed, trying without filter:', err);
         // One quick retry after 300ms in case of transient network issues
         await new Promise(r => setTimeout(r, 300));
+        console.log('📡 Fetching notebooks without filter: /notes/notebooks/');
         response = await axiosInstance.get(`/notes/notebooks/`, { timeout: 5000 });
       }
       
@@ -386,17 +459,56 @@ const Notes = () => {
   const handleAddNotebook = async () => {
     if (!newNotebookName.trim()) return;
     
+    // Optimistic UI update - show the notebook immediately
+    const tempId = Date.now(); // Temporary ID for optimistic update
+    const optimisticColor = generateNotebookColor(tempId); // Store color to preserve it
+    const optimisticNotebook = {
+      id: tempId,
+      name: newNotebookName.trim(),
+      notebook_type: 'other' as const,
+      urgency_level: 'normal' as const,
+      description: '',
+      color: optimisticColor,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      notes_count: 0,
+      is_archived: false,
+      archived_at: null,
+      is_favorite: false
+    };
+    
+    // Add optimistic notebook immediately for instant feedback
+    setNotebooks(prev => [optimisticNotebook, ...prev]);
+    setEditingNotebook(null);
+    setNewNotebookName('');
+    setToast({ message: 'Notebook created successfully!', type: 'success' });
+    
     try {
+      console.log('📝 Creating new notebook:', newNotebookName.trim());
       const response = await axiosInstance.post(`/notes/notebooks/`, {
         name: newNotebookName.trim()
       });
+      console.log('✅ Notebook creation response:', response.data);
       
-      setNotebooks([...notebooks, response.data]);
-      setEditingNotebook(null);
-      setNewNotebookName('');
-      setToast({ message: 'Notebook created successfully!', type: 'success' });
+      // Replace optimistic notebook with real server response
+      // Preserve the original optimistic color to avoid color changes
+      const realNotebook = {
+        ...response.data,
+        color: response.data.color || optimisticColor || generateNotebookColor(response.data.id)
+      };
+      
+      // Update cache with the new notebook
+      setNotebooks(prev => {
+        const updated = prev.map(nb => nb.id === tempId ? realNotebook : nb);
+        updateNotebookCache(updated);
+        return updated;
+      });
+      
     } catch (error) {
+      // Remove optimistic notebook on error
+      setNotebooks(prev => prev.filter(nb => nb.id !== tempId));
       handleError(error, 'Failed to create notebook');
+      setToast({ message: 'Failed to create notebook', type: 'error' });
     }
   };
 
@@ -437,16 +549,52 @@ const Notes = () => {
 
   const handleDeleteNotebook = async (notebookId: number) => {
     try {
-            await axiosInstance.delete(`/notes/notebooks/${notebookId}/`);
+      console.log('Deleting notebook with ID:', notebookId);
+      console.log('Sending PATCH request to:', `/notes/notebooks/${notebookId}/`);
       
-      setNotebooks(notebooks.filter(nb => nb.id !== notebookId));
-      
-      if (selectedNotebook?.id === notebookId) {
-        setSelectedNotebook(null);
-        setNotes([]);
+      // First, let's check what the current notebook data looks like
+      try {
+        const currentData = await axiosInstance.get(`/notes/notebooks/${notebookId}/`);
+        console.log('Current notebook data:', currentData.data);
+      } catch (getError) {
+        console.log('Failed to get current notebook data:', getError);
       }
-      setToast({ message: 'Notebook deleted successfully!', type: 'success' });
+      
+      // Backend now supports soft delete for notebooks
+      console.log('Attempting soft delete for notebook ID:', notebookId);
+      let deleteSuccessful = false;
+      try {
+        const response = await axiosInstance.patch(`/notes/notebooks/${notebookId}/`, {
+          is_deleted: true,
+          deleted_at: new Date().toISOString()
+        });
+        console.log('Soft delete successful:', response.status);
+        deleteSuccessful = true;
+      } catch (deleteError: any) {
+        console.error('Soft delete failed:', deleteError);
+        if (deleteError.response?.status === 404) {
+          console.log('Notebook not found (404) - might already be deleted');
+          // Treat 404 as success since notebook is gone
+          deleteSuccessful = true;
+        } else {
+          throw deleteError;
+        }
+      }
+      
+      // Only update the UI if the delete was successful
+      if (deleteSuccessful) {
+        setNotebooks(notebooks.filter(nb => nb.id !== notebookId));
+        
+        if (selectedNotebook?.id === notebookId) {
+          setSelectedNotebook(null);
+          setNotes([]);
+        }
+        setToast({ message: 'Notebook moved to trash!', type: 'success' });
+      } else {
+        setToast({ message: 'Failed to delete notebook. Please try again.', type: 'error' });
+      }
     } catch (error) {
+      console.error('Error deleting notebook:', error);
       handleError(error, 'Failed to delete notebook');
     }
   };
@@ -1132,12 +1280,52 @@ const Notes = () => {
   // Add direct notebook creation handler
   const handleCreateNotebookDirect = async (name: string) => {
     if (!name.trim()) return;
+    
+    // Optimistic UI update - show the notebook immediately
+    const tempId = Date.now(); // Temporary ID for optimistic update
+    const optimisticColor = generateNotebookColor(tempId); // Store color to preserve it
+    const optimisticNotebook = {
+      id: tempId,
+      name: name.trim(),
+      notebook_type: 'other' as const,
+      urgency_level: 'normal' as const,
+      description: '',
+      color: optimisticColor,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      notes_count: 0,
+      is_archived: false,
+      archived_at: null,
+      is_favorite: false
+    };
+    
+    // Add optimistic notebook immediately for instant feedback
+    setNotebooks(prev => [optimisticNotebook, ...prev]);
+    
     try {
+      console.log('📝 Creating notebook directly:', name.trim());
       const response = await axiosInstance.post(`/notes/notebooks/`, {
         name: name.trim()
       });
-      setNotebooks([...notebooks, response.data]);
+      console.log('✅ Direct notebook creation response:', response.data);
+      
+      // Replace optimistic notebook with real server response
+      // Preserve the original optimistic color to avoid color changes
+      const realNotebook = {
+        ...response.data,
+        color: response.data.color || optimisticColor || generateNotebookColor(response.data.id)
+      };
+      
+      // Update cache with the new notebook
+      setNotebooks(prev => {
+        const updated = prev.map(nb => nb.id === tempId ? realNotebook : nb);
+        updateNotebookCache(updated);
+        return updated;
+      });
+      
     } catch (error) {
+      // Remove optimistic notebook on error
+      setNotebooks(prev => prev.filter(nb => nb.id !== tempId));
       handleError(error, 'Failed to create notebook');
     }
   };
@@ -1577,6 +1765,7 @@ const Notes = () => {
                           onArchiveNotebook={handleArchiveNotebook}
                           onColorChange={handleOpenColorPicker}
                           onToggleFavorite={handleToggleFavorite}
+                          onBulkDelete={handleBulkDeleteNotebooks}
                           showAddButton={true}
                         />
                       )}
@@ -1615,6 +1804,7 @@ const Notes = () => {
                           onArchiveNotebook={handleArchiveNotebook}
                           onColorChange={handleOpenColorPicker}
                           onToggleFavorite={handleToggleFavorite}
+                          onBulkDelete={handleBulkDeleteNotebooks}
                           showAddButton={false}
                         />
                       )}
@@ -1653,6 +1843,7 @@ const Notes = () => {
                           onArchiveNotebook={handleArchiveNotebook}
                           onColorChange={handleOpenColorPicker}
                           onToggleFavorite={handleToggleFavorite}
+                          onBulkDelete={handleBulkDeleteNotebooks}
                           showAddButton={false}
                         />
                       )}

@@ -723,12 +723,32 @@ const Progress = () => {
       }
     };
     
+    // Listen for subtask completion events to refresh productivity data
+    const handleSubtaskCompleted = async () => {
+      console.log('🔄 Subtask completion event received, refreshing productivity data...');
+      try {
+        // Add a small delay to allow backend to process the subtask completion
+        console.log('🔄 Waiting for backend to process subtask completion...');
+        await new Promise(resolve => setTimeout(resolve, 500)); // Wait 0.5 seconds
+        
+        const statsData = await fetchUserStats();
+        
+        // Refresh productivity data separately
+        await refreshProductivity();
+        setStats(statsData);
+      } catch (error) {
+        console.error('Error refreshing progress data after subtask completion:', error);
+      }
+    };
+    
     window.addEventListener('taskCompleted', handleTaskCompleted);
     window.addEventListener('taskCreated', handleTaskCreated);
+    window.addEventListener('subtaskCompleted', handleSubtaskCompleted);
     
     return () => {
       window.removeEventListener('taskCompleted', handleTaskCompleted);
       window.removeEventListener('taskCreated', handleTaskCreated);
+      window.removeEventListener('subtaskCompleted', handleSubtaskCompleted);
     };
   }, []);
 

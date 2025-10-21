@@ -35,6 +35,7 @@ interface NotebookListProps {
   onArchiveNotebook: (notebookId: number, archive: boolean) => void;
   onColorChange: (notebook: Notebook) => void;
   onToggleFavorite?: (notebookId: number) => void;
+  onBulkDelete?: (notebookIds: number[]) => void;
   showAddButton?: boolean;
 }
 
@@ -54,6 +55,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
   onArchiveNotebook,
   onColorChange,
   onToggleFavorite,
+  onBulkDelete,
   showAddButton = true,
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
@@ -62,6 +64,8 @@ const NotebookList: React.FC<NotebookListProps> = ({
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [notebookToEdit, setNotebookToEdit] = useState<Notebook | null>(null);
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [selectedNotebooksForDelete, setSelectedNotebooksForDelete] = useState<number[]>([]);
 
   useEffect(() => {
     if (editorRef.current && editingNotebook) {
@@ -92,16 +96,28 @@ const NotebookList: React.FC<NotebookListProps> = ({
           <Book className="inline-block mr-2" size={20} />
           Notebooks
         </h2>
-        {showAddButton && (
-          <button
-            onClick={() => setShowCreateNotebookModal(true)}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
-            aria-label="Add Notebook"
-          >
-            <Plus size={16} />
-            <span>New Notebook</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {notebooks.length > 0 && onBulkDelete && (
+            <button
+              onClick={() => setShowBulkDeleteModal(true)}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
+              aria-label="Delete Notebooks"
+            >
+              <Trash2 size={16} />
+              <span>Delete</span>
+            </button>
+          )}
+          {showAddButton && (
+            <button
+              onClick={() => setShowCreateNotebookModal(true)}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+              aria-label="Add Notebook"
+            >
+              <Plus size={16} />
+              <span>New Notebook</span>
+            </button>
+          )}
+        </div>
       </div>
       
       {/* Notebooks list */}
@@ -269,6 +285,107 @@ const NotebookList: React.FC<NotebookListProps> = ({
             setShowCreateNotebookModal(false);
           }}
         />
+      )}
+
+      {/* Bulk Delete Modal */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="fixed inset-0 transition-opacity" aria-hidden="true">
+              <div className="absolute inset-0 bg-gray-500 opacity-75"></div>
+            </div>
+            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
+            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
+              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+                <div className="sm:flex sm:items-start">
+                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/20 sm:mx-0 sm:h-10 sm:w-10">
+                    <Trash2 className="h-6 w-6 text-red-600 dark:text-red-400" />
+                  </div>
+                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
+                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
+                      Delete Notebooks
+                    </h3>
+                    <div className="mt-4">
+                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                        Select notebooks to delete. This will also delete all notes in these notebooks.
+                      </p>
+                      
+                      {/* Notebook Selection List */}
+                      <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+                        {notebooks.map((notebook) => (
+                          <div key={notebook.id} className="flex items-center p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                            <input
+                              type="checkbox"
+                              id={`notebook-${notebook.id}`}
+                              checked={selectedNotebooksForDelete.includes(notebook.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedNotebooksForDelete([...selectedNotebooksForDelete, notebook.id]);
+                                } else {
+                                  setSelectedNotebooksForDelete(selectedNotebooksForDelete.filter(id => id !== notebook.id));
+                                }
+                              }}
+                              className="h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                            />
+                            <label htmlFor={`notebook-${notebook.id}`} className="ml-4 flex items-center flex-1 cursor-pointer">
+                              <div 
+                                className="w-8 h-8 rounded-lg mr-4 shadow-sm"
+                                style={{ backgroundColor: notebook.color }}
+                              ></div>
+                              <div className="flex-1">
+                                <div className="text-base font-medium text-gray-900 dark:text-white">
+                                  {notebook.name}
+                                </div>
+                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                  {notebook.notes_count} note{notebook.notes_count !== 1 ? 's' : ''} • Created {new Date(notebook.created_at).toLocaleDateString()}
+                                </div>
+                              </div>
+                              {notebook.is_favorite && (
+                                <Star className="w-4 h-4 text-yellow-500 ml-2" />
+                              )}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {selectedNotebooksForDelete.length > 0 && (
+                        <p className="mt-3 text-sm text-red-600 dark:text-red-400">
+                          {selectedNotebooksForDelete.length} notebook{selectedNotebooksForDelete.length > 1 ? 's' : ''} selected for deletion
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onBulkDelete && selectedNotebooksForDelete.length > 0) {
+                      onBulkDelete(selectedNotebooksForDelete);
+                      setSelectedNotebooksForDelete([]);
+                      setShowBulkDeleteModal(false);
+                    }
+                  }}
+                  disabled={selectedNotebooksForDelete.length === 0}
+                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Delete {selectedNotebooksForDelete.length > 0 ? `(${selectedNotebooksForDelete.length})` : ''}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBulkDeleteModal(false);
+                    setSelectedNotebooksForDelete([]);
+                  }}
+                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

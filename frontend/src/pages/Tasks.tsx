@@ -333,6 +333,20 @@ const TasksContent = ({ user }: { user: any }) => {
     });
   }, [setRefreshCallbacks, handleTasksRefresh, handleProgressRefresh]);
 
+  // Listen for subtask completion events
+  React.useEffect(() => {
+    const handleSubtaskCompleted = (event: CustomEvent) => {
+      const { subtaskTitle, xpAmount } = event.detail;
+      showToast(`Subtask "${subtaskTitle}" completed! +${xpAmount} XP`, 'success');
+    };
+
+    window.addEventListener('subtaskCompleted', handleSubtaskCompleted as EventListener);
+    
+    return () => {
+      window.removeEventListener('subtaskCompleted', handleSubtaskCompleted as EventListener);
+    };
+  }, []);
+
   // Add new task to Supabase
   const addTask = async (taskData: Omit<Task, 'id'>) => {
     try {
