@@ -764,10 +764,10 @@ const Home = () => {
       
       console.log('Visit update response:', response.data);
       
-      // Navigate to notes page with the note ID as a query parameter
-      navigate(`/notes?note=${noteId}`);
       // Store the note ID in localStorage to be picked up by Notes component
       localStorage.setItem('openNoteId', noteId.toString());
+      // Navigate to notes page - the Notes component will handle opening the note
+      navigate('/notes');
       
       // Dispatch event to notify that a note has been updated
       window.dispatchEvent(new Event('noteUpdated'));
@@ -784,8 +784,8 @@ const Home = () => {
         });
       }
       // Still navigate to the note even if the visit update fails
-      navigate(`/notes?note=${noteId}`);
       localStorage.setItem('openNoteId', noteId.toString());
+      navigate('/notes');
     }
   };
 

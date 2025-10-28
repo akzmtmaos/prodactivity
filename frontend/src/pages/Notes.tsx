@@ -491,16 +491,22 @@ const Notes = () => {
       console.log('✅ Notebook creation response:', response.data);
       
       // Replace optimistic notebook with real server response
-      // Preserve the original optimistic color to avoid color changes
+      // ALWAYS preserve the original optimistic color to prevent color changes on refresh
       const realNotebook = {
         ...response.data,
-        color: response.data.color || optimisticColor || generateNotebookColor(response.data.id)
+        color: optimisticColor // Always use the optimistic color, never generate a new one
       };
       
-      // Update cache with the new notebook
+      // Update cache with the new notebook and save color to localStorage
       setNotebooks(prev => {
         const updated = prev.map(nb => nb.id === tempId ? realNotebook : nb);
         updateNotebookCache(updated);
+        
+        // Save the color to localStorage with the real ID
+        const notebookColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+        notebookColors[realNotebook.id] = optimisticColor;
+        localStorage.setItem('notebookColors', JSON.stringify(notebookColors));
+        
         return updated;
       });
       
@@ -741,7 +747,8 @@ const Notes = () => {
     if (selectedNotebook) {
       navigate(`/notes/notebooks/${selectedNotebook.id}/notes/${note.id}`);
     } else {
-      navigate(`/notes/${note.id}`);
+      // Fallback: navigate to main notes page if no notebook selected
+      navigate('/notes');
     }
     
     // Update last_visited timestamp
@@ -846,7 +853,8 @@ const Notes = () => {
           if (selectedNotebook) {
             navigate(`/notes/notebooks/${selectedNotebook.id}/notes/${response.data.id}`);
           } else {
-            navigate(`/notes/${response.data.id}`);
+            // Fallback: navigate to main notes page if no notebook selected
+            navigate('/notes');
           }
         }
         
@@ -1310,16 +1318,22 @@ const Notes = () => {
       console.log('✅ Direct notebook creation response:', response.data);
       
       // Replace optimistic notebook with real server response
-      // Preserve the original optimistic color to avoid color changes
+      // ALWAYS preserve the original optimistic color to prevent color changes on refresh
       const realNotebook = {
         ...response.data,
-        color: response.data.color || optimisticColor || generateNotebookColor(response.data.id)
+        color: optimisticColor // Always use the optimistic color, never generate a new one
       };
       
-      // Update cache with the new notebook
+      // Update cache with the new notebook and save color to localStorage
       setNotebooks(prev => {
         const updated = prev.map(nb => nb.id === tempId ? realNotebook : nb);
         updateNotebookCache(updated);
+        
+        // Save the color to localStorage with the real ID
+        const notebookColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+        notebookColors[realNotebook.id] = optimisticColor;
+        localStorage.setItem('notebookColors', JSON.stringify(notebookColors));
+        
         return updated;
       });
       

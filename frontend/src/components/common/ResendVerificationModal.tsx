@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { API_BASE_URL } from '../../config/api';
 
 interface ResendVerificationModalProps {
   isOpen: boolean;
@@ -24,7 +25,7 @@ const ResendVerificationModal: React.FC<ResendVerificationModalProps> = ({
     setMessage('');
 
     try {
-      const response = await fetch('http://192.168.68.162:8000/api/resend-verification/', {
+      const response = await fetch(`${API_BASE_URL}/resend-verification/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

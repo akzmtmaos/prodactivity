@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, Mail, Lock, CheckCircle, Eye, EyeOff } from 'lucide-react';
 import TermsModal from '../components/common/TermsModal';
+import { API_BASE_URL } from '../config/api';
 
 
 interface RegisterProps {
@@ -29,6 +30,11 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     password?: string;
     email?: string;
   }>({});
+  const [touchedFields, setTouchedFields] = useState<{
+    username?: boolean;
+    password?: boolean;
+    email?: boolean;
+  }>({});
   const navigate = useNavigate();
 
   // Validation functions
@@ -39,9 +45,10 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     if (username.length > 50) {
       return { isValid: false, message: 'Username must be 50 characters or less' };
     }
-    // Check for special characters (only allow letters, numbers, and underscores)
-    const specialCharRegex = /[^a-zA-Z0-9_]/;
-    if (specialCharRegex.test(username)) {
+    // Check for special characters (only allow lowercase letters, numbers, and underscores)
+    // Backend converts to lowercase, so we should match that validation
+    const specialCharRegex = /[^a-z0-9_]/;
+    if (specialCharRegex.test(username.toLowerCase())) {
       return { isValid: false, message: 'Username can only contain letters, numbers, and underscores' };
     }
     return { isValid: true, message: '' };
@@ -103,40 +110,43 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     
     setForm({ ...form, [name]: value });
     
-    // Clear validation errors when user starts typing
-    if (validationErrors[name as keyof typeof validationErrors]) {
-      setValidationErrors(prev => ({ ...prev, [name]: undefined }));
-    }
-    
-    // Real-time validation for username
-    if (name === 'username') {
-      const validation = validateUsername(value);
-      if (!validation.isValid && value.length > 0) {
-        setValidationErrors(prev => ({ ...prev, username: validation.message }));
-      } else {
-        setValidationErrors(prev => ({ ...prev, username: undefined }));
+    // Only validate if field has been touched (user has interacted with it)
+    if (touchedFields[name as keyof typeof touchedFields]) {
+      // Real-time validation for username
+      if (name === 'username') {
+        const validation = validateUsername(value);
+        if (!validation.isValid && value.length > 0) {
+          setValidationErrors(prev => ({ ...prev, username: validation.message }));
+        } else {
+          setValidationErrors(prev => ({ ...prev, username: undefined }));
+        }
+      }
+      
+      // Real-time validation for email
+      if (name === 'email') {
+        const validation = validateEmail(value);
+        if (!validation.isValid && value.length > 0) {
+          setValidationErrors(prev => ({ ...prev, email: validation.message }));
+        } else {
+          setValidationErrors(prev => ({ ...prev, email: undefined }));
+        }
+      }
+      
+      // Real-time validation for password
+      if (name === 'password') {
+        const validation = validatePassword(value);
+        if (!validation.isValid && value.length > 0) {
+          setValidationErrors(prev => ({ ...prev, password: validation.message }));
+        } else {
+          setValidationErrors(prev => ({ ...prev, password: undefined }));
+        }
       }
     }
-    
-    // Real-time validation for email
-    if (name === 'email') {
-      const validation = validateEmail(value);
-      if (!validation.isValid && value.length > 0) {
-        setValidationErrors(prev => ({ ...prev, email: validation.message }));
-      } else {
-        setValidationErrors(prev => ({ ...prev, email: undefined }));
-      }
-    }
-    
-    // Real-time validation for password
-    if (name === 'password') {
-      const validation = validatePassword(value);
-      if (!validation.isValid && value.length > 0) {
-        setValidationErrors(prev => ({ ...prev, password: validation.message }));
-      } else {
-        setValidationErrors(prev => ({ ...prev, password: undefined }));
-      }
-    }
+  };
+
+  const handleBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    const { name } = e.target;
+    setTouchedFields(prev => ({ ...prev, [name]: true }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -144,9 +154,13 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     setLoading(true);
     setMessage(null);
 
+    // Mark all fields as touched to show validation errors
+    setTouchedFields({ username: true, email: true, password: true });
+
     // Validate username
     const usernameValidation = validateUsername(form.username);
     if (!usernameValidation.isValid) {
+      setValidationErrors(prev => ({ ...prev, username: usernameValidation.message }));
       setMessage({
         text: usernameValidation.message,
         type: 'error'
@@ -158,6 +172,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     // Validate email
     const emailValidation = validateEmail(form.email);
     if (!emailValidation.isValid) {
+      setValidationErrors(prev => ({ ...prev, email: emailValidation.message }));
       setMessage({
         text: emailValidation.message,
         type: 'error'
@@ -169,6 +184,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     // Validate password
     const passwordValidation = validatePassword(form.password);
     if (!passwordValidation.isValid) {
+      setValidationErrors(prev => ({ ...prev, password: passwordValidation.message }));
       setMessage({
         text: passwordValidation.message,
         type: 'error'
@@ -196,7 +212,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
     }
 
     try {
-      const res = await fetch('http://192.168.68.162:8000/api/register/', {
+      const res = await fetch(`${API_BASE_URL}/register/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -312,9 +328,10 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
                  placeholder="Username"
                  value={form.username}
                  onChange={handleChange}
+                 onBlur={handleBlur}
                  maxLength={50}
                  className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm ${
-                   validationErrors.username 
+                   (validationErrors.username && touchedFields.username)
                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
                      : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 focus:shadow-indigo-200 dark:focus:shadow-indigo-900'
                  }`}
@@ -322,7 +339,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
                />
              </div>
 
-             {validationErrors.username && (
+             {validationErrors.username && touchedFields.username && (
                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                  {validationErrors.username}
                </p>
@@ -345,9 +362,10 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
                  placeholder="Email address"
                  value={form.email}
                  onChange={handleChange}
+                 onBlur={handleBlur}
                  maxLength={50}
                  className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm ${
-                   validationErrors.email 
+                   (validationErrors.email && touchedFields.email)
                      ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
                      : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 focus:shadow-indigo-200 dark:focus:shadow-indigo-900'
                  }`}
@@ -355,7 +373,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
                />
              </div>
 
-             {validationErrors.email && (
+             {validationErrors.email && touchedFields.email && (
                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                  {validationErrors.email}
                </p>
@@ -378,9 +396,10 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
                 placeholder="Password"
                 value={form.password}
                 onChange={handleChange}
+                onBlur={handleBlur}
                 maxLength={50}
                 className={`w-full pl-10 pr-10 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm ${
-                  validationErrors.password 
+                  (validationErrors.password && touchedFields.password)
                     ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
                     : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500 focus:shadow-indigo-200 dark:focus:shadow-indigo-900'
                 }`}
@@ -417,7 +436,7 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
                  </div>
                </div>
              )}
-             {validationErrors.password && (
+             {validationErrors.password && touchedFields.password && (
                <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                  {validationErrors.password}
                </p>
@@ -477,11 +496,11 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
           {/* Animated Sign Up Button */}
           <motion.button
             type="submit"
-            disabled={loading || Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors])}
-            whileHover={{ scale: (loading || Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors])) ? 1 : 1.04 }}
-            whileTap={{ scale: (loading || Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors])) ? 1 : 0.98 }}
+            disabled={loading || !agreedToTerms}
+            whileHover={{ scale: (loading || !agreedToTerms) ? 1 : 1.04 }}
+            whileTap={{ scale: (loading || !agreedToTerms) ? 1 : 0.98 }}
             className={`w-full py-3 rounded-lg font-medium flex items-center justify-center transition-all duration-200 shadow-lg ${
-              (loading || Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors])) 
+              (loading || !agreedToTerms) 
                 ? 'opacity-70 cursor-not-allowed bg-gray-400' 
                 : 'bg-indigo-600 text-white hover:bg-indigo-700'
             }`}
@@ -490,8 +509,8 @@ const Register = ({ setIsAuthenticated }: RegisterProps) => {
               <span className="inline-block animate-spin mr-2 h-4 w-4 border-2 border-white border-t-transparent rounded-full"></span>
             ) : null}
             {loading ? 'Creating Account...' : 
-             Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors]) ? 
-             'Please fix validation errors' : 'Create Account'}
+             !agreedToTerms ? 
+             'Please agree to terms' : 'Create Account'}
           </motion.button>
         </form>
         {/* Animated Message */}

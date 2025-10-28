@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
+import { API_BASE_URL } from '../config/api';
 
 const VerifyEmail: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -21,7 +22,7 @@ const VerifyEmail: React.FC = () => {
 
   const verifyEmail = async () => {
     try {
-      const response = await fetch('http://192.168.68.162:8000/api/verify-email/', {
+      const response = await fetch(`${API_BASE_URL}/verify-email/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

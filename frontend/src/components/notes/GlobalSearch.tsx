@@ -77,9 +77,11 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose }) => {
 
   const handleResultClick = (result: SearchResult) => {
     if (result.type === 'note') {
-      navigate(`/notes/${result.id}`);
+      // Navigate to the note with its notebook context
+      navigate(`/notes/notebooks/${result.notebook_id}/notes/${result.id}`);
     } else if (result.type === 'notebook') {
-      navigate(`/notes?notebook=${result.id}`);
+      // Navigate to the notebook view
+      navigate(`/notes/notebooks/${result.id}`);
     }
     onClose();
     setSearchQuery('');

@@ -1,36 +1,12 @@
 import React, { useEffect, useState } from 'react';
+import { API_BASE_URL } from '../../config/api';
 
 interface TermsModalProps {
   open: boolean;
   onClose: () => void;
 }
 
-const TermsModal: React.FC<TermsModalProps> = ({ open, onClose }) => {
-  const [content, setContent] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (open) {
-      setLoading(true);
-      setError(null);
-      fetch('http://192.168.68.162:8000/api/terms/latest/')
-        .then(res => {
-          if (!res.ok) throw new Error('Failed to fetch Terms and Conditions');
-          return res.json();
-        })
-        .then(data => {
-          setContent(data.content || getDefaultTerms());
-        })
-        .catch(() => {
-          setContent(getDefaultTerms());
-          setError(null);
-        })
-        .finally(() => setLoading(false));
-    }
-  }, [open]);
-
-  const getDefaultTerms = (): string => {
+const getDefaultTerms = (): string => {
     return `PRODACTIVITY TERMS AND CONDITIONS
 
 1. ACCEPTANCE OF TERMS
@@ -83,7 +59,36 @@ By accessing and using ProdActivity, you accept and agree to be bound by the ter
 For questions about these terms, contact us at support@prodactivity.com
 
 Last updated: ${new Date().toLocaleDateString()}`;
-  };
+};
+
+const TermsModal: React.FC<TermsModalProps> = ({ open, onClose }) => {
+  const [content, setContent] = useState<string>(getDefaultTerms());
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      // Set default content immediately
+      setContent(getDefaultTerms());
+      setError(null);
+      
+      // Optionally fetch updated terms in the background (without loading state)
+      fetch(`${API_BASE_URL}/terms/latest/`)
+        .then(res => {
+          if (!res.ok) throw new Error('Failed to fetch Terms and Conditions');
+          return res.json();
+        })
+        .then(data => {
+          if (data.content) {
+            setContent(data.content);
+          }
+        })
+        .catch(() => {
+          // Keep default content if fetch fails
+          setError(null);
+        });
+    }
+  }, [open]);
 
   if (!open) return null;
 
@@ -101,20 +106,9 @@ Last updated: ${new Date().toLocaleDateString()}`;
           </button>
         </div>
         <div className="p-6 overflow-y-auto max-h-[60vh]">
-          {loading ? (
-            <div className="text-center text-gray-500 dark:text-gray-400 py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mx-auto mb-4"></div>
-              Loading Terms and Conditions...
-            </div>
-          ) : error ? (
-            <div className="text-red-600 dark:text-red-400 text-center py-8">
-              {error}
-            </div>
-          ) : (
-            <div className="prose prose-indigo dark:prose-invert max-w-none" style={{ whiteSpace: 'pre-wrap' }}>
-              {content}
-            </div>
-          )}
+          <div className="prose prose-indigo dark:prose-invert max-w-none" style={{ whiteSpace: 'pre-wrap' }}>
+            {content}
+          </div>
         </div>
         <div className="flex justify-end p-6 border-t border-gray-200 dark:border-gray-700">
           <button

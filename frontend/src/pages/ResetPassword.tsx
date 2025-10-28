@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
+import { API_BASE_URL } from '../config/api';
 
 const ResetPassword: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -48,7 +49,7 @@ const ResetPassword: React.FC = () => {
     setPasswordError(null);
     setSubmitting(true);
     try {
-      const res = await fetch('http://192.168.68.162:8000/api/password-reset/confirm/', {
+      const res = await fetch(`${API_BASE_URL}/password-reset/confirm/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password })
