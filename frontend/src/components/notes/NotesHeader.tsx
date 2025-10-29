@@ -19,6 +19,14 @@ interface NotesHeaderProps {
   setSortOrder: (order: 'asc' | 'desc') => void;
   notebookSortOrder: 'asc' | 'desc';
   setNotebookSortOrder: (order: 'asc' | 'desc') => void;
+  noteDateStart: string;
+  noteDateEnd: string;
+  setNoteDateStart: (d: string) => void;
+  setNoteDateEnd: (d: string) => void;
+  notebookDateStart: string;
+  notebookDateEnd: string;
+  setNotebookDateStart: (d: string) => void;
+  setNotebookDateEnd: (d: string) => void;
   onBackToNotebooks?: () => void;
   onGlobalSearch?: () => void;
   onAIInsights?: () => void;
@@ -41,6 +49,14 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
   setSortOrder,
   notebookSortOrder,
   setNotebookSortOrder,
+  noteDateStart,
+  noteDateEnd,
+  setNoteDateStart,
+  setNoteDateEnd,
+  notebookDateStart,
+  notebookDateEnd,
+  setNotebookDateStart,
+  setNotebookDateEnd,
   onBackToNotebooks,
   onGlobalSearch,
   onAIInsights,
@@ -86,9 +102,34 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
               className="h-10 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               style={{ minWidth: '100px' }}
             >
-              <option value="name">Name</option>
-              <option value="date">Date</option>
+              <option value="name">By name</option>
+              <option value="date">By date</option>
             </select>
+            {notebookFilterType === 'date' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={notebookDateStart}
+                  onChange={e => setNotebookDateStart(e.target.value)}
+                  className="h-10 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 text-sm"
+                />
+                <span className="text-gray-500 dark:text-gray-400 text-sm">to</span>
+                <input
+                  type="date"
+                  value={notebookDateEnd}
+                  onChange={e => setNotebookDateEnd(e.target.value)}
+                  className="h-10 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 text-sm"
+                />
+                {(notebookDateStart || notebookDateEnd) && (
+                  <button
+                    onClick={() => { setNotebookDateStart(''); setNotebookDateEnd(''); }}
+                    className="h-10 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-xs"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
             <button
               onClick={() => setNotebookSortOrder(notebookSortOrder === 'asc' ? 'desc' : 'asc')}
               className="h-10 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"
@@ -121,10 +162,35 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
                   onChange={e => setNotebookFilterType(e.target.value as 'name' | 'date')}
                   className="w-full h-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
-                  <option value="name">Name</option>
-                  <option value="date">Date</option>
+                  <option value="name">By name</option>
+                  <option value="date">By date</option>
                 </select>
               </div>
+              {notebookFilterType === 'date' && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={notebookDateStart}
+                    onChange={e => setNotebookDateStart(e.target.value)}
+                    className="h-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 text-base"
+                  />
+                  <span className="text-gray-500 dark:text-gray-400 text-sm">to</span>
+                  <input
+                    type="date"
+                    value={notebookDateEnd}
+                    onChange={e => setNotebookDateEnd(e.target.value)}
+                    className="h-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 text-base"
+                  />
+                  {(notebookDateStart || notebookDateEnd) && (
+                    <button
+                      onClick={() => { setNotebookDateStart(''); setNotebookDateEnd(''); }}
+                      className="h-12 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
               <button
                 onClick={() => setNotebookSortOrder(notebookSortOrder === 'asc' ? 'desc' : 'asc')}
                 className="h-12 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"
@@ -152,6 +218,31 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
               <option value="content">Content</option>
               <option value="date">Date</option>
             </select>
+            {filterType === 'date' && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={noteDateStart}
+                  onChange={e => setNoteDateStart(e.target.value)}
+                  className="h-10 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 text-sm"
+                />
+                <span className="text-gray-500 dark:text-gray-400 text-sm">to</span>
+                <input
+                  type="date"
+                  value={noteDateEnd}
+                  onChange={e => setNoteDateEnd(e.target.value)}
+                  className="h-10 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 text-sm"
+                />
+                {(noteDateStart || noteDateEnd) && (
+                  <button
+                    onClick={() => { setNoteDateStart(''); setNoteDateEnd(''); }}
+                    className="h-10 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-xs"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+            )}
             <button
               onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
               className="h-10 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"
@@ -200,6 +291,31 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
                   <option value="date">Date</option>
                 </select>
               </div>
+              {filterType === 'date' && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="date"
+                    value={noteDateStart}
+                    onChange={e => setNoteDateStart(e.target.value)}
+                    className="h-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 text-base"
+                  />
+                  <span className="text-gray-500 dark:text-gray-400 text-sm">to</span>
+                  <input
+                    type="date"
+                    value={noteDateEnd}
+                    onChange={e => setNoteDateEnd(e.target.value)}
+                    className="h-12 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg px-2 text-base"
+                  />
+                  {(noteDateStart || noteDateEnd) && (
+                    <button
+                      onClick={() => { setNoteDateStart(''); setNoteDateEnd(''); }}
+                      className="h-12 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 text-sm"
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
               <button
                 onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
                 className="h-12 px-3 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors flex items-center gap-1"

@@ -1,6 +1,6 @@
 // frontend/src/components/NotebookList.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette, Star } from 'lucide-react';
+import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette, Star, Search } from 'lucide-react';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
 import CreateNotebookModal from './CreateNotebookModal';
 
@@ -37,6 +37,10 @@ interface NotebookListProps {
   onToggleFavorite?: (notebookId: number) => void;
   onBulkDelete?: (notebookIds: number[]) => void;
   showAddButton?: boolean;
+  // Local search controls (controlled by parent Notes.tsx)
+  notebookSearchTerm?: string;
+  onNotebookSearchTermChange?: (term: string) => void;
+  totalCount?: number;
 }
 
 const NotebookList: React.FC<NotebookListProps> = ({
@@ -57,6 +61,9 @@ const NotebookList: React.FC<NotebookListProps> = ({
   onToggleFavorite,
   onBulkDelete,
   showAddButton = true,
+  notebookSearchTerm = '',
+  onNotebookSearchTermChange,
+  totalCount
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const [notebookToDelete, setNotebookToDelete] = useState<Notebook | null>(null);
@@ -66,6 +73,8 @@ const NotebookList: React.FC<NotebookListProps> = ({
   const [notebookToEdit, setNotebookToEdit] = useState<Notebook | null>(null);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [selectedNotebooksForDelete, setSelectedNotebooksForDelete] = useState<number[]>([]);
+  const [showLocalSearch, setShowLocalSearch] = useState(false);
+  const localSearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (editorRef.current && editingNotebook) {
@@ -97,20 +106,70 @@ const NotebookList: React.FC<NotebookListProps> = ({
           Notebooks
         </h2>
         <div className="flex items-center gap-2">
-          {notebooks.length > 0 && onBulkDelete && (
-            <button
-              onClick={() => setShowBulkDeleteModal(true)}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2"
-              aria-label="Delete Notebooks"
-            >
-              <Trash2 size={16} />
-              <span>Delete</span>
-            </button>
+          {/* Collapsible Local search for notebooks (desktop) */}
+          <button
+            onClick={() => {
+              setShowLocalSearch(true);
+              requestAnimationFrame(() => localSearchRef.current?.focus());
+            }}
+            className="hidden sm:inline-flex p-2 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
+            aria-label="Search notebooks"
+            title="Search notebooks"
+          >
+            <Search size={18} />
+          </button>
+          <div
+            className={`hidden sm:block overflow-hidden transition-all duration-200 ${showLocalSearch ? 'w-56 ml-1' : 'w-0 ml-0'}`}
+          >
+            <div className="relative">
+              <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                ref={localSearchRef}
+                type="text"
+                value={notebookSearchTerm}
+                onChange={(e) => onNotebookSearchTermChange && onNotebookSearchTermChange(e.target.value)}
+                onBlur={() => {
+                  if (!notebookSearchTerm) setShowLocalSearch(false);
+                }}
+                placeholder="Search notebooks..."
+                className="h-9 w-56 pl-9 pr-8 border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 hover:border-gray-300 dark:hover:border-gray-500 transition-colors"
+                aria-label="Search notebooks"
+              />
+              {notebookSearchTerm && (
+                <button
+                  onClick={() => {
+                    onNotebookSearchTermChange && onNotebookSearchTermChange('');
+                    localSearchRef.current?.focus();
+                  }}
+                  aria-label="Clear search"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 p-1 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+          </div>
+          {(typeof totalCount === 'number' ? totalCount > 0 : notebooks.length > 0) && onBulkDelete && (
+            <div className="relative group z-40">
+              <button
+                onClick={() => setShowBulkDeleteModal(true)}
+                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
+                aria-label="Delete notebooks"
+              >
+                <Trash2 size={18} />
+              </button>
+              <span
+                className="pointer-events-none absolute top-full left-1/2 -translate-x-1/2 mt-2 px-2 py-1 text-xs rounded bg-gray-800 text-white dark:bg-gray-700 shadow opacity-0 group-hover:opacity-100 transition-opacity duration-100 whitespace-nowrap z-[9999]"
+                role="tooltip"
+              >
+                Delete notebooks
+              </span>
+            </div>
           )}
           {showAddButton && (
             <button
               onClick={() => setShowCreateNotebookModal(true)}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
+              className="relative z-10 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2"
               aria-label="Add Notebook"
             >
               <Plus size={16} />
@@ -122,6 +181,16 @@ const NotebookList: React.FC<NotebookListProps> = ({
       
       {/* Notebooks list */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 20rem)', alignContent: 'start' }}>
+        {notebooks.length === 0 && (
+          <div className="col-span-full">
+            <div className="flex items-center justify-center h-40 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+              <div className="text-center">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No notebooks found</h3>
+                <p className="text-gray-500 dark:text-gray-400">Try adjusting your search terms</p>
+              </div>
+            </div>
+          </div>
+        )}
         {notebooks.map((notebook) => (
           <div key={notebook.id} className="group">
             {editingNotebook?.id === notebook.id ? (
@@ -250,7 +319,8 @@ const NotebookList: React.FC<NotebookListProps> = ({
                         setNotebookToDelete(notebook);
                       }}
                       className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition-colors"
-                      title="Delete notebook"
+                      aria-label="Delete Notebook"
+                      title="Delete Notebook"
                     >
                       <Trash2 size={14} />
                     </button>

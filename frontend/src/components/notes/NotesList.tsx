@@ -1,5 +1,5 @@
 // frontend/src/components/NotesList.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Plus, ChevronRight, FileText, BookOpen, Trash2, Archive, RotateCcw } from 'lucide-react';
 import NoteItem from './NoteItem';
 import NoteForm from './NoteForm';
@@ -60,6 +60,7 @@ interface NotesListProps {
   onToggleImportant: (noteId: number) => void;
   deletingNoteId?: number | null;
   onSelectionChange?: (selectedIds: number[]) => void;
+  selectedForBulk?: number[];
 }
 
 const NotesList: React.FC<NotesListProps> = ({
@@ -84,8 +85,14 @@ const NotesList: React.FC<NotesListProps> = ({
   onToggleImportant,
   deletingNoteId,
   onSelectionChange,
+  selectedForBulk = [],
 }) => {
   const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
+
+  // Sync internal selectedNotes with parent's selectedForBulk
+  useEffect(() => {
+    setSelectedNotes(selectedForBulk);
+  }, [selectedForBulk]);
 
   const handleNoteSelect = (noteId: number) => {
     setSelectedNotes(prev => {

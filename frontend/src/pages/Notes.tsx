@@ -12,11 +12,16 @@ import GlobalSearch from '../components/notes/GlobalSearch';
 import ImportantItemsPanel from '../components/notes/ImportantItemsPanel';
 import ColorPickerModal from '../components/notes/ColorPickerModal';
 import CreateNotebookModal from '../components/notes/CreateNotebookModal';
-import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle, Star } from 'lucide-react';
+import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle, Star, Download, Upload, FileText, File } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
 
 import NotebookAIInsights from '../components/notes/NotebookAIInsights';
+
+// Import libraries for file generation
+import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+import jsPDF from 'jspdf';
+import mammoth from 'mammoth';
 
 // Generate organized colors with better visual progression (same as ColorPickerModal)
 const generateNotebookColor = (notebookId: number): string => {
@@ -116,6 +121,11 @@ const Notes = () => {
   const [notebookFilterType, setNotebookFilterType] = useState<'name' | 'date'>('name');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [notebookSortOrder, setNotebookSortOrder] = useState<'asc' | 'desc'>('asc');
+  // Date range filters
+  const [noteDateStart, setNoteDateStart] = useState<string>('');
+  const [noteDateEnd, setNoteDateEnd] = useState<string>('');
+  const [notebookDateStart, setNotebookDateStart] = useState<string>('');
+  const [notebookDateEnd, setNotebookDateEnd] = useState<string>('');
 
   // Add tab state
   const [activeTab, setActiveTab] = useState<'notes' | 'logs' | 'archived'>('notes');
@@ -199,6 +209,12 @@ const Notes = () => {
 
   // Create notebook modal state
   const [showCreateNotebookModal, setShowCreateNotebookModal] = useState(false);
+
+  // Import/Export state
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [showExportFormatModal, setShowExportFormatModal] = useState(false);
+  const [showImportFormatModal, setShowImportFormatModal] = useState(false);
 
   // Hierarchical navigation state - NEW
   type ViewType = 'notebooks' | 'notes';
@@ -350,10 +366,7 @@ const Notes = () => {
 
   // Fetch notes for selected notebook
   const fetchNotes = async (notebookId: number) => {
-    // Prevent duplicate calls for the same notebook
-    if (selectedNotebook && selectedNotebook.id === notebookId && notes.length > 0) {
-      return;
-    }
+    // Always fetch to ensure we have the latest data
 
     try {
       console.log(`📥 Fetching notes for notebook ID: ${notebookId}`);
@@ -800,6 +813,9 @@ const Notes = () => {
       await axiosInstance.delete(`/notes/${noteId}/`);
       setNotes(notes.filter(note => note.id !== noteId));
       
+      // Remove the deleted note from selection if it was selected
+      setSelectedForBulk(prev => prev.filter(id => id !== noteId));
+      
       // Update notebook notes count
       if (selectedNotebook) {
         const updatedNotebooks = notebooks.map(nb => 
@@ -992,6 +1008,16 @@ const Notes = () => {
     .filter(note => {
       // Search term filter
       const term = searchTerm.toLowerCase();
+      // Date range takes precedence when filtering by date
+      if (filterType === 'date' && (noteDateStart || noteDateEnd)) {
+        const created = new Date(note.created_at).getTime();
+        const updated = new Date(note.updated_at).getTime();
+        const start = noteDateStart ? new Date(noteDateStart).getTime() : -Infinity;
+        const end = noteDateEnd ? new Date(noteDateEnd).getTime() + 24*60*60*1000 - 1 : Infinity; // inclusive end of day
+        // Include if either created or updated falls in range
+        return (created >= start && created <= end) || (updated >= start && updated <= end);
+      }
+
       if (!term) return true; // If no search term, show all notes
       
       // Apply search filter based on filterType
@@ -1025,18 +1051,25 @@ const Notes = () => {
 
   const filteredNotebooks = notebooks
     .filter(notebook => {
-      const term = notebookSearchTerm.toLowerCase();
-      if (!term) return true; // If no search term, show all notebooks
-      
-      // Apply search filter based on notebookFilterType
-      if (notebookFilterType === 'name') return notebook.name.toLowerCase().includes(term);
-      if (notebookFilterType === 'date') {
-        const createdDate = new Date(notebook.created_at).toLocaleDateString().toLowerCase();
-        const updatedDate = new Date(notebook.updated_at).toLocaleDateString().toLowerCase();
-        return createdDate.includes(term) || updatedDate.includes(term);
+      const term = notebookSearchTerm.toLowerCase().trim();
+
+      // Text search by name should always work regardless of date/name filter selection
+      if (term && !notebook.name.toLowerCase().includes(term)) {
+        return false;
       }
-      // Default to name search
-      return notebook.name.toLowerCase().includes(term);
+
+      // Optional date range filter when By date is active
+      if (notebookFilterType === 'date' && (notebookDateStart || notebookDateEnd)) {
+        const created = new Date(notebook.created_at).getTime();
+        const updated = new Date(notebook.updated_at).getTime();
+        const start = notebookDateStart ? new Date(notebookDateStart).getTime() : -Infinity;
+        const end = notebookDateEnd ? new Date(notebookDateEnd).getTime() + 24*60*60*1000 - 1 : Infinity;
+        // Include if either created or updated falls in range
+        return (created >= start && created <= end) || (updated >= start && updated <= end);
+      }
+
+      // If no date range or not using date filter, we've already validated text term above
+      return true;
     })
     .sort((a, b) => {
       let comparison = 0;
@@ -1270,6 +1303,10 @@ const Notes = () => {
         setNotebooks(updatedNotebooks);
         setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count - noteIds.length });
       }
+      
+      // Clear the selected notes after successful deletion
+      setSelectedForBulk([]);
+      
       setToast({ message: `${noteIds.length} note${noteIds.length > 1 ? 's' : ''} deleted successfully!`, type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to delete notes');
@@ -1342,6 +1379,482 @@ const Notes = () => {
       setNotebooks(prev => prev.filter(nb => nb.id !== tempId));
       handleError(error, 'Failed to create notebook');
     }
+  };
+
+  // Import/Export handlers
+  const handleExportNotes = () => {
+    if (!selectedNotebook || notes.length === 0) {
+      setToast({ message: 'No notes to export', type: 'error' });
+      return;
+    }
+    setShowExportFormatModal(true);
+  };
+
+  const exportToJSON = async () => {
+    if (!selectedNotebook) return;
+    
+    setIsExporting(true);
+    try {
+      // Create export data
+      const exportData = {
+        notebook: {
+          id: selectedNotebook.id,
+          name: selectedNotebook.name,
+          description: selectedNotebook.description,
+          notebook_type: selectedNotebook.notebook_type,
+          urgency_level: selectedNotebook.urgency_level,
+          created_at: selectedNotebook.created_at,
+          updated_at: selectedNotebook.updated_at
+        },
+        notes: notes.map(note => ({
+          id: note.id,
+          title: note.title,
+          content: note.content,
+          note_type: note.note_type,
+          priority: note.priority,
+          is_urgent: note.is_urgent,
+          tags: note.tags,
+          created_at: note.created_at,
+          updated_at: note.updated_at
+        })),
+        exported_at: new Date().toISOString(),
+        exported_by: 'Productivity App'
+      };
+
+      // Create and download file
+      const dataStr = JSON.stringify(exportData, null, 2);
+      const dataBlob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(dataBlob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${selectedNotebook.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes_export.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setToast({ message: `Exported ${notes.length} notes to JSON successfully!`, type: 'success' });
+    } catch (error) {
+      console.error('JSON export failed:', error);
+      setToast({ message: 'Failed to export notes to JSON', type: 'error' });
+    } finally {
+      setIsExporting(false);
+      setShowExportFormatModal(false);
+    }
+  };
+
+  const exportToDOCX = async () => {
+    if (!selectedNotebook) return;
+    
+    setIsExporting(true);
+    try {
+      const doc = new Document({
+        sections: [{
+          properties: {},
+          children: [
+            new Paragraph({
+              text: selectedNotebook.name,
+              heading: HeadingLevel.TITLE,
+            }),
+            new Paragraph({
+              text: `Exported on ${new Date().toLocaleDateString()}`,
+              heading: HeadingLevel.HEADING_2,
+            }),
+            new Paragraph({
+              text: selectedNotebook.description || '',
+            }),
+            new Paragraph({ text: '' }), // Empty line
+            ...notes.map(note => [
+              new Paragraph({
+                text: note.title,
+                heading: HeadingLevel.HEADING_3,
+              }),
+              new Paragraph({
+                text: note.content || 'No content',
+              }),
+              new Paragraph({
+                text: `Type: ${note.note_type} | Priority: ${note.priority} | Created: ${new Date(note.created_at).toLocaleDateString()}`,
+                children: [new TextRun({ text: '', break: 1 })]
+              }),
+              new Paragraph({ text: '' }), // Empty line between notes
+            ]).flat()
+          ],
+        }],
+      });
+
+      const buffer = await Packer.toBuffer(doc);
+      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const url = URL.createObjectURL(blob);
+      
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${selectedNotebook.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes_export.docx`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      setToast({ message: `Exported ${notes.length} notes to DOCX successfully!`, type: 'success' });
+    } catch (error) {
+      console.error('DOCX export failed:', error);
+      setToast({ message: 'Failed to export notes to DOCX', type: 'error' });
+    } finally {
+      setIsExporting(false);
+      setShowExportFormatModal(false);
+    }
+  };
+
+  const exportToPDF = async () => {
+    if (!selectedNotebook) return;
+    
+    setIsExporting(true);
+    try {
+      const pdf = new jsPDF();
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      let yPosition = 20;
+      const lineHeight = 7;
+      const margin = 20;
+
+      // Add title
+      pdf.setFontSize(20);
+      pdf.setFont('helvetica', 'bold');
+      pdf.text(selectedNotebook.name, margin, yPosition);
+      yPosition += 15;
+
+      // Add export date
+      pdf.setFontSize(12);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`Exported on ${new Date().toLocaleDateString()}`, margin, yPosition);
+      yPosition += 10;
+
+      // Add description if exists
+      if (selectedNotebook.description) {
+        pdf.setFontSize(10);
+        pdf.text(selectedNotebook.description, margin, yPosition);
+        yPosition += 10;
+      }
+
+      yPosition += 10;
+
+      // Add notes
+      notes.forEach((note, index) => {
+        // Check if we need a new page
+        if (yPosition > pageHeight - 30) {
+          pdf.addPage();
+          yPosition = 20;
+        }
+
+        // Note title
+        pdf.setFontSize(14);
+        pdf.setFont('helvetica', 'bold');
+        const noteTitle = `${index + 1}. ${note.title}`;
+        pdf.text(noteTitle, margin, yPosition);
+        yPosition += lineHeight;
+
+        // Note content
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        const content = note.content || 'No content';
+        const splitContent = pdf.splitTextToSize(content, pageWidth - 2 * margin);
+        
+        splitContent.forEach((line: string) => {
+          if (yPosition > pageHeight - 20) {
+            pdf.addPage();
+            yPosition = 20;
+          }
+          pdf.text(line, margin, yPosition);
+          yPosition += lineHeight;
+        });
+
+        // Note metadata
+        yPosition += 5;
+        pdf.setFontSize(8);
+        pdf.text(`Type: ${note.note_type} | Priority: ${note.priority} | Created: ${new Date(note.created_at).toLocaleDateString()}`, margin, yPosition);
+        yPosition += lineHeight + 5;
+      });
+
+      // Save the PDF
+      pdf.save(`${selectedNotebook.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes_export.pdf`);
+
+      setToast({ message: `Exported ${notes.length} notes to PDF successfully!`, type: 'success' });
+    } catch (error) {
+      console.error('PDF export failed:', error);
+      setToast({ message: 'Failed to export notes to PDF', type: 'error' });
+    } finally {
+      setIsExporting(false);
+      setShowExportFormatModal(false);
+    }
+  };
+
+  const handleImportNotes = () => {
+    if (!selectedNotebook) {
+      setToast({ message: 'Please select a notebook first', type: 'error' });
+      return;
+    }
+    setShowImportFormatModal(true);
+  };
+
+  const importFromJSON = () => {
+    if (!selectedNotebook) return;
+    
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      setIsImporting(true);
+      try {
+        const text = await file.text();
+        const importData = JSON.parse(text);
+
+        // Validate import data structure
+        if (!importData.notes || !Array.isArray(importData.notes)) {
+          throw new Error('Invalid JSON file format');
+        }
+
+        // Import each note
+        let importedCount = 0;
+        for (const noteData of importData.notes) {
+          try {
+            await axiosInstance.post('/notes/', {
+              title: noteData.title || 'Imported Note',
+              content: noteData.content || '',
+              note_type: noteData.note_type || 'other',
+              priority: noteData.priority || 'medium',
+              is_urgent: noteData.is_urgent || false,
+              tags: noteData.tags || '',
+              notebook: selectedNotebook.id
+            });
+            importedCount++;
+          } catch (noteError) {
+            console.error('Failed to import note:', noteData.title, noteError);
+          }
+        }
+
+        // Refresh notes list
+        await fetchNotes(selectedNotebook.id);
+
+        setToast({ 
+          message: `Imported ${importedCount} notes from JSON successfully!`, 
+          type: 'success' 
+        });
+      } catch (error) {
+        console.error('JSON import failed:', error);
+        setToast({ message: 'Failed to import notes from JSON. Please check the file format.', type: 'error' });
+      } finally {
+        setIsImporting(false);
+        setShowImportFormatModal(false);
+      }
+    };
+    input.click();
+  };
+
+  const importFromDOCX = () => {
+    if (!selectedNotebook) return;
+    
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.docx';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      setIsImporting(true);
+      try {
+        const fileName = file.name.replace('.docx', '');
+        
+        // Parse DOCX content using mammoth
+        const arrayBuffer = await file.arrayBuffer();
+        const result = await mammoth.extractRawText({ arrayBuffer });
+        const docxContent = result.value;
+        const warnings = result.messages;
+        
+        // Create content with extracted text and metadata
+        let content = `# ${fileName}\n\n`;
+        
+        if (docxContent.trim()) {
+          content += `## Document Content\n\n`;
+          
+          // First, try to split by common patterns to create proper paragraphs
+          let processedContent = docxContent
+            // Split by double spaces or periods followed by space and capital letter
+            .replace(/([.!?])\s+([A-Z])/g, '$1\n\n$2')
+            // Split by question patterns
+            .replace(/(Q\d+\.)/g, '\n\n$1')
+            // Split by answer patterns
+            .replace(/([A-D]\))/g, '\n$1')
+            // Split by "Correct Answer:" patterns
+            .replace(/(Correct Answer:)/g, '\n\n$1')
+            // Clean up multiple newlines
+            .replace(/\n{3,}/g, '\n\n')
+            .trim();
+          
+          // Now format the processed content
+          const lines = processedContent.split('\n').map(line => line.trim()).filter(line => line);
+          const formattedLines = [];
+          
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            
+            // Format questions (Q1., Q2., etc.)
+            if (/^Q\d+\./.test(line)) {
+              formattedLines.push(`### ${line}`);
+            }
+            // Format answers (A), B), C), D))
+            else if (/^[A-D]\)/.test(line)) {
+              formattedLines.push(`- ${line}`);
+            }
+            // Format "Correct Answer:" lines
+            else if (/^Correct Answer:/.test(line)) {
+              formattedLines.push(`**${line}**`);
+            }
+            // Format other content (titles, descriptions, etc.)
+            else {
+              // If it's a standalone line that looks like a title or description
+              if (line.length > 10 && !line.includes('.') && !line.includes(':')) {
+                formattedLines.push(`**${line}**`);
+              } else {
+                formattedLines.push(line);
+              }
+            }
+          }
+          
+          content += formattedLines.join('\n\n') + '\n\n';
+        } else {
+          content += `*No text content found in the document.*\n\n`;
+        }
+        
+        // Add file metadata
+        content += `---\n\n**File Information:**\n`;
+        content += `- **Name:** ${file.name}\n`;
+        content += `- **Size:** ${(file.size / 1024).toFixed(2)} KB\n`;
+        content += `- **Type:** Microsoft Word Document\n`;
+        content += `- **Imported:** ${new Date().toLocaleString()}\n`;
+        
+        if (warnings.length > 0) {
+          content += `\n**Parsing Warnings:**\n`;
+          warnings.forEach(warning => {
+            content += `- ${warning.message}\n`;
+          });
+        }
+        
+        await axiosInstance.post('/notes/', {
+          title: fileName,
+          content: content,
+          note_type: 'other',
+          priority: 'medium',
+          is_urgent: false,
+          tags: 'imported,docx,parsed',
+          notebook: selectedNotebook.id
+        });
+
+        // Refresh notes list
+        await fetchNotes(selectedNotebook.id);
+
+        setToast({ 
+          message: `Imported DOCX file as a note successfully!`, 
+          type: 'success' 
+        });
+      } catch (error) {
+        console.error('DOCX import failed:', error);
+        setToast({ message: 'Failed to import DOCX file.', type: 'error' });
+      } finally {
+        setIsImporting(false);
+        setShowImportFormatModal(false);
+      }
+    };
+    input.click();
+  };
+
+  const importFromPDF = () => {
+    if (!selectedNotebook) return;
+    
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.pdf';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      setIsImporting(true);
+      try {
+        const fileName = file.name.replace('.pdf', '');
+        
+        // Create a note with file information
+        await axiosInstance.post('/notes/', {
+          title: fileName,
+          content: `📄 **PDF File Imported**\n\n**File:** ${file.name}\n**Size:** ${(file.size / 1024).toFixed(2)} KB\n**Type:** Portable Document Format\n\n*Note: The actual PDF content cannot be directly parsed in the browser. For full content extraction, please use a desktop application or convert to plain text first.*`,
+          note_type: 'other',
+          priority: 'medium',
+          is_urgent: false,
+          tags: 'imported,pdf,file',
+          notebook: selectedNotebook.id
+        });
+
+        // Refresh notes list
+        await fetchNotes(selectedNotebook.id);
+
+        setToast({ 
+          message: `Imported PDF file as a note successfully!`, 
+          type: 'success' 
+        });
+      } catch (error) {
+        console.error('PDF import failed:', error);
+        setToast({ message: 'Failed to import PDF file.', type: 'error' });
+      } finally {
+        setIsImporting(false);
+        setShowImportFormatModal(false);
+      }
+    };
+    input.click();
+  };
+
+  const importFromTXT = () => {
+    if (!selectedNotebook) return;
+    
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.txt';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+
+      setIsImporting(true);
+      try {
+        const fileName = file.name.replace('.txt', '');
+        const fileContent = await file.text();
+        
+        // Create a note with actual file content
+        await axiosInstance.post('/notes/', {
+          title: fileName,
+          content: fileContent,
+          note_type: 'other',
+          priority: 'medium',
+          is_urgent: false,
+          tags: 'imported,txt,text',
+          notebook: selectedNotebook.id
+        });
+
+        // Refresh notes list
+        await fetchNotes(selectedNotebook.id);
+
+        setToast({ 
+          message: `Imported TXT file as a note successfully!`, 
+          type: 'success' 
+        });
+      } catch (error) {
+        console.error('TXT import failed:', error);
+        setToast({ message: 'Failed to import TXT file.', type: 'error' });
+      } finally {
+        setIsImporting(false);
+        setShowImportFormatModal(false);
+      }
+    };
+    input.click();
   };
 
   // Error handler
@@ -1506,6 +2019,9 @@ const Notes = () => {
           setArchivedNotes([...archivedNotes, archivedNote]);
           setNotes(notes.filter(n => n.id !== noteId));
           
+          // Remove the archived note from selection if it was selected
+          setSelectedForBulk(prev => prev.filter(id => id !== noteId));
+          
           // Update notebook notes count
           if (selectedNotebook) {
             const updatedNotebooks = notebooks.map(nb => 
@@ -1622,6 +2138,14 @@ const Notes = () => {
             setSortOrder={setSortOrder}
             notebookSortOrder={notebookSortOrder}
             setNotebookSortOrder={setNotebookSortOrder}
+            noteDateStart={noteDateStart}
+            noteDateEnd={noteDateEnd}
+            setNoteDateStart={setNoteDateStart}
+            setNoteDateEnd={setNoteDateEnd}
+            notebookDateStart={notebookDateStart}
+            notebookDateEnd={notebookDateEnd}
+            setNotebookDateStart={setNotebookDateStart}
+            setNotebookDateEnd={setNotebookDateEnd}
             onBackToNotebooks={handleBackToNotebooks}
             onGlobalSearch={() => setShowGlobalSearch(true)}
             onAIInsights={() => setShowAIInsights(true)}
@@ -1680,6 +2204,22 @@ const Notes = () => {
                         <span>Delete Selected ({selectedForBulk.length})</span>
                       </button>
                     )}
+                    <button
+                      onClick={handleImportNotes}
+                      disabled={isImporting}
+                      className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow-md"
+                      title={isImporting ? 'Importing notes...' : 'Import notes from JSON file'}
+                    >
+                      <Upload size={18} />
+                    </button>
+                    <button
+                      onClick={handleExportNotes}
+                      disabled={isExporting || notes.length === 0}
+                      className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow-md"
+                      title={isExporting ? 'Exporting notes...' : 'Export notes to JSON file'}
+                    >
+                      <Download size={18} />
+                    </button>
                     <button
                       onClick={handleStartAddingNote}
                       className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
@@ -1742,26 +2282,6 @@ const Notes = () => {
                             </button>
                           </div>
                         </div>
-                      ) : filteredNotebooks.length === 0 ? (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center">
-                            <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
-                              <Book size={48} />
-                            </div>
-                            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                              No notebooks found
-                            </h3>
-                            <p className="text-gray-500 dark:text-gray-400 mb-4">
-                              Try adjusting your search terms
-                            </p>
-                            <button
-                              onClick={() => setNotebookSearchTerm('')}
-                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                            >
-                              Clear Search
-                            </button>
-                          </div>
-                        </div>
                       ) : (
                         <NotebookList
                           notebooks={filteredNotebooks}
@@ -1780,6 +2300,9 @@ const Notes = () => {
                           onColorChange={handleOpenColorPicker}
                           onToggleFavorite={handleToggleFavorite}
                           onBulkDelete={handleBulkDeleteNotebooks}
+                          notebookSearchTerm={notebookSearchTerm}
+                          onNotebookSearchTermChange={setNotebookSearchTerm}
+                          totalCount={notebooks.length}
                           showAddButton={true}
                         />
                       )}
@@ -1819,6 +2342,9 @@ const Notes = () => {
                           onColorChange={handleOpenColorPicker}
                           onToggleFavorite={handleToggleFavorite}
                           onBulkDelete={handleBulkDeleteNotebooks}
+                          notebookSearchTerm={notebookSearchTerm}
+                          onNotebookSearchTermChange={setNotebookSearchTerm}
+                          totalCount={favoriteNotebooks.length}
                           showAddButton={false}
                         />
                       )}
@@ -1858,6 +2384,9 @@ const Notes = () => {
                           onColorChange={handleOpenColorPicker}
                           onToggleFavorite={handleToggleFavorite}
                           onBulkDelete={handleBulkDeleteNotebooks}
+                          notebookSearchTerm={notebookSearchTerm}
+                          onNotebookSearchTermChange={setNotebookSearchTerm}
+                          totalCount={archivedNotebooks.length}
                           showAddButton={false}
                         />
                       )}
@@ -1891,6 +2420,7 @@ const Notes = () => {
                   onToggleImportant={handleToggleImportant}
                   deletingNoteId={noteToDelete?.id || null}
                   onSelectionChange={setSelectedForBulk}
+                  selectedForBulk={selectedForBulk}
                 />
               )}
               {currentView === 'notes' && activeTab === 'archived' && (
@@ -1935,6 +2465,7 @@ const Notes = () => {
                       onToggleImportant={handleToggleImportant}
                       deletingNoteId={noteToDelete?.id || null}
                       onSelectionChange={setSelectedForBulk}
+                      selectedForBulk={selectedForBulk}
                     />
                   )}
                 </>
@@ -1991,7 +2522,6 @@ const Notes = () => {
             onClose={() => setShowBulkDeleteModal(false)}
             onConfirm={() => {
               handleBulkDeleteNotes(selectedForBulk);
-              setSelectedForBulk([]);
               setShowBulkDeleteModal(false);
             }}
             title="Delete Selected Notes"
@@ -2075,6 +2605,133 @@ const Notes = () => {
           setShowCreateNotebookModal(false);
         }}
       />
+
+      {/* Export Format Selection Modal */}
+      {showExportFormatModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Choose Export Format
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Select the format you want to export your notes to:
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={exportToJSON}
+                disabled={isExporting}
+                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileText className="w-5 h-5 text-blue-600" />
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">JSON</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Structured data format (recommended)</div>
+                </div>
+              </button>
+              <button
+                onClick={exportToDOCX}
+                disabled={isExporting}
+                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileText className="w-5 h-5 text-green-600" />
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">DOCX</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Microsoft Word document</div>
+                </div>
+              </button>
+              <button
+                onClick={exportToPDF}
+                disabled={isExporting}
+                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <File className="w-5 h-5 text-red-600" />
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">PDF</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Portable Document Format</div>
+                </div>
+              </button>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowExportFormatModal(false)}
+                disabled={isExporting}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Format Selection Modal */}
+      {showImportFormatModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-md mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Choose Import Format
+            </h3>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
+              Select the format of the file you want to import:
+            </p>
+            <div className="space-y-3">
+              <button
+                onClick={importFromJSON}
+                disabled={isImporting}
+                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileText className="w-5 h-5 text-blue-600" />
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">JSON</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Structured data format (full support)</div>
+                </div>
+              </button>
+              <button
+                onClick={importFromDOCX}
+                disabled={isImporting}
+                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileText className="w-5 h-5 text-green-600" />
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">DOCX</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Microsoft Word document (full content extraction)</div>
+                </div>
+              </button>
+              <button
+                onClick={importFromPDF}
+                disabled={isImporting}
+                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <File className="w-5 h-5 text-red-600" />
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">PDF</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Portable Document Format (basic support)</div>
+                </div>
+              </button>
+              <button
+                onClick={importFromTXT}
+                disabled={isImporting}
+                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <FileText className="w-5 h-5 text-purple-600" />
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">TXT</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Plain text file (full content support)</div>
+                </div>
+              </button>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setShowImportFormatModal(false)}
+                disabled={isImporting}
+                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </PageLayout>
   );
 };
