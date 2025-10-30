@@ -572,25 +572,63 @@ const Notes = () => {
     setNewNotebookName('');
   };
 
-  const handleUpdateNotebook = async () => {
-    if (!editingNotebook || !newNotebookName.trim()) return;
+  const handleUpdateNotebook = async (idParam?: number, nameParam?: string) => {
+    const targetId = idParam ?? editingNotebook?.id;
+    const newNameValue = (nameParam ?? newNotebookName).trim();
+    if (!targetId || !newNameValue) return;
     
     try {
-      const response = await axiosInstance.put(`/notes/notebooks/${editingNotebook.id}/`, {
-        name: newNotebookName.trim()
+      const response = await axiosInstance.put(`/notes/notebooks/${targetId}/`, {
+        name: newNameValue
       });
       
+      // Previous notebook snapshot for fields the API may not echo back (e.g., is_favorite, color, etc.)
+      const prevNotebook = notebooks.find(nb => nb.id === targetId);
+      const prevColor = prevNotebook?.color;
+      const prevFavorite = prevNotebook?.is_favorite ?? false;
+      const apiColor = (response.data as any).color;
+
+      // Decide color to use
+      const colorToUse = apiColor || prevColor || (() => {
+        try {
+          const palette = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+          return palette[targetId as number];
+        } catch {
+          return undefined;
+        }
+      })();
+
+      // Merge: start from previous (preserve local flags), apply API, then enforce color and favorite
+      const mergedNotebook = {
+        ...(prevNotebook || {}),
+        ...response.data,
+        ...(colorToUse ? { color: colorToUse } : {}),
+        is_favorite: prevFavorite
+      } as typeof prevNotebook;
+
       const updatedNotebooks = notebooks.map(nb => 
-        nb.id === editingNotebook.id ? response.data : nb
+        nb.id === targetId ? (mergedNotebook as any) : nb
       );
       setNotebooks(updatedNotebooks);
-      
-      if (selectedNotebook?.id === editingNotebook.id) {
-        setSelectedNotebook(response.data);
+
+      // Keep localStorage color mapping in sync
+      if (colorToUse) {
+        try {
+          const palette = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+          palette[targetId] = colorToUse;
+          localStorage.setItem('notebookColors', JSON.stringify(palette));
+        } catch {}
       }
       
-      setEditingNotebook(null);
-      setNewNotebookName('');
+      if (selectedNotebook?.id === targetId) {
+        setSelectedNotebook(mergedNotebook as any);
+      }
+      
+      // If this was from inline-edit flow, clear those states safely
+      if (editingNotebook && editingNotebook.id === targetId) {
+        setEditingNotebook(null);
+        setNewNotebookName('');
+      }
       setToast({ message: 'Notebook updated successfully!', type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to update notebook');

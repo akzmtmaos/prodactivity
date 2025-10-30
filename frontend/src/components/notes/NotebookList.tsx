@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette, Star, Search } from 'lucide-react';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
 import CreateNotebookModal from './CreateNotebookModal';
+import EditNotebookModal from './EditNotebookModal';
 
 interface Notebook {
   id: number;
@@ -257,7 +258,9 @@ const NotebookList: React.FC<NotebookListProps> = ({
                     <button
                       onClick={e => {
                         e.stopPropagation();
-                        onStartEditingNotebook(notebook);
+                        // Open rename modal instead of inline editing
+                        setNotebookToEdit(notebook);
+                        setShowEditModal(true);
                       }}
                       className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
                       title="Edit notebook"
@@ -353,6 +356,23 @@ const NotebookList: React.FC<NotebookListProps> = ({
           onCreateNotebook={(data) => {
             onCreateNotebook(data.name);
             setShowCreateNotebookModal(false);
+          }}
+        />
+      )}
+
+      {/* Edit Notebook Modal */}
+      {showEditModal && notebookToEdit && (
+        <EditNotebookModal
+          isOpen={showEditModal}
+          currentName={notebookToEdit.name}
+          onClose={() => {
+            setShowEditModal(false);
+            setNotebookToEdit(null);
+          }}
+          onSave={(newName) => {
+            onUpdateNotebook(notebookToEdit.id, newName);
+            setShowEditModal(false);
+            setNotebookToEdit(null);
           }}
         />
       )}

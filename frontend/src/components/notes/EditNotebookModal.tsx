@@ -1,86 +1,62 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 
 interface EditNotebookModalProps {
   isOpen: boolean;
+  currentName: string;
   onClose: () => void;
-  notebook: { id: number; name: string } | null;
-  onUpdateNotebook: (notebookId: number, name: string) => void;
+  onSave: (newName: string) => void;
 }
 
-const EditNotebookModal: React.FC<EditNotebookModalProps> = ({
-  isOpen,
-  onClose,
-  notebook,
-  onUpdateNotebook
-}) => {
-  const [name, setName] = useState('');
+const EditNotebookModal: React.FC<EditNotebookModalProps> = ({ isOpen, currentName, onClose, onSave }) => {
+  const [name, setName] = useState(currentName);
 
   useEffect(() => {
-    if (notebook) setName(notebook.name);
-  }, [notebook]);
+    setName(currentName);
+  }, [currentName]);
+
+  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (notebook && name.trim()) {
-      onUpdateNotebook(notebook.id, name.trim());
-      onClose();
-    }
+    onSave(name.trim() || 'Untitled Notebook');
   };
-
-  if (!isOpen || !notebook) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg w-full max-w-md mx-4">
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Edit Notebook
-          </h2>
+      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Edit Notebook Name</h2>
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+            aria-label="Close"
           >
-            <X size={24} />
+            <X size={20} />
           </button>
         </div>
-
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="mb-6">
-            <label
-              htmlFor="name"
-              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-            >
-              Notebook Name
-            </label>
-            <input
-              type="text"
-              id="name"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Enter notebook name"
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
-              required
-              maxLength={30}
-            />
-            {name.length === 30 && (
-              <p className="text-xs text-red-500 mt-1">Maximum 30 characters reached</p>
-            )}
-          </div>
-
-          <div className="flex justify-end space-x-3">
+        <form onSubmit={handleSubmit}>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 placeholder-gray-400 dark:bg-gray-700 dark:text-white dark:border-gray-600"
+            placeholder="Enter notebook name"
+            autoFocus
+          />
+          <div className="mt-4 flex justify-end space-x-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors"
+              className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
             >
-              Save Changes
+              Save
             </button>
           </div>
         </form>

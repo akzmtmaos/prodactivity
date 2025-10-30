@@ -16,6 +16,34 @@ import {
 import axiosInstance from '../../utils/axiosConfig';
 import TypingAnimation from '../common/TypingAnimation';
 
+// Helper to get current user's avatar URL
+const getCurrentUserAvatar = (): string | null => {
+  try {
+    const raw = localStorage.getItem('user');
+    if (!raw) return null;
+    const user = JSON.parse(raw);
+    // Common possible fields
+    return user.avatar_url || user.avatar || user.profile_image || null;
+  } catch {
+    return null;
+  }
+};
+
+// Stop phrase detection
+const shouldHaltChat = (text: string): boolean => {
+  const t = (text || '').toLowerCase();
+  return [
+    'stop',
+    "that's enough",
+    'no more',
+    'stop it',
+    'stop responding',
+    'be quiet',
+    'enough',
+    'halt'
+  ].some(phrase => t.includes(phrase));
+};
+
 interface AIFeaturesPanelProps {
   content: string;
   onApplySummary: (summary: string) => void;
@@ -129,24 +157,64 @@ const cleanThinkingProcess = (text: string): string => {
 // Function to convert markdown to HTML
 const convertMarkdownToHTML = (text: string): string => {
   if (!text) return '';
-  
-  return text
-    // Convert ### headings to h3
-    .replace(/^### (.+)$/gm, '<h3 class="text-lg font-bold text-black dark:text-white mb-2 mt-4">$1</h3>')
-    // Convert ## headings to h2
-    .replace(/^## (.+)$/gm, '<h2 class="text-xl font-bold text-black dark:text-white mb-3 mt-5">$1</h2>')
-    // Convert # headings to h1
-    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-black dark:text-white mb-4 mt-6">$1</h1>')
-    // Convert **bold** to <strong>
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-    // Convert *italic* to <em>
-    .replace(/\*(.+?)\*/g, '<em class="italic">$1</em>')
-    // Convert numbered lists
-    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 mb-1">$1. $2</li>')
-    // Convert bullet points
-    .replace(/^[-*] (.+)$/gm, '<li class="ml-4 mb-1 list-disc">$1</li>')
-    // Convert line breaks to <br>
-    .replace(/\n/g, '<br>');
+
+  // Normalize line endings
+  const lines = text.replace(/\r\n?/g, '\n').split('\n');
+  let html: string[] = [];
+  let inUl = false;
+  let inOl = false;
+
+  const closeLists = () => {
+    if (inUl) { html.push('</ul>'); inUl = false; }
+    if (inOl) { html.push('</ol>'); inOl = false; }
+  };
+
+  const renderInline = (s: string) => {
+    // Bold and italic
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>');
+    s = s.replace(/\*(.+?)\*/g, '<em class="italic">$1</em>');
+    return s;
+  };
+
+  for (let raw of lines) {
+    const line = raw.trimEnd();
+
+    // Headings
+    let m;
+    if ((m = line.match(/^###\s+(.+)/))) { closeLists(); html.push(`<h3 class="text-lg font-bold text-black dark:text-white mb-2 mt-4">${renderInline(m[1])}</h3>`); continue; }
+    if ((m = line.match(/^##\s+(.+)/))) { closeLists(); html.push(`<h2 class="text-xl font-bold text-black dark:text-white mb-3 mt-5">${renderInline(m[1])}</h2>`); continue; }
+    if ((m = line.match(/^#\s+(.+)/)))  { closeLists(); html.push(`<h1 class="text-2xl font-bold text-black dark:text-white mb-4 mt-6">${renderInline(m[1])}</h1>`); continue; }
+
+    // Ordered list
+    if ((m = line.match(/^\s{0,3}(\d+)\.\s+(.+)/))) {
+      if (inUl) { html.push('</ul>'); inUl = false; }
+      if (!inOl) { html.push('<ol class="list-decimal ml-6 space-y-1">'); inOl = true; }
+      html.push(`<li>${renderInline(m[2])}</li>`);
+      continue;
+    }
+
+    // Unordered list
+    if ((m = line.match(/^\s{0,3}[-*+]\s+(.+)/))) {
+      if (inOl) { html.push('</ol>'); inOl = false; }
+      if (!inUl) { html.push('<ul class="list-disc ml-6 space-y-1">'); inUl = true; }
+      html.push(`<li>${renderInline(m[1])}</li>`);
+      continue;
+    }
+
+    // Blank line
+    if (line.trim() === '') {
+      closeLists();
+      html.push('<br>');
+      continue;
+    }
+
+    // Paragraph
+    closeLists();
+    html.push(`<p class="mb-2 text-gray-800 dark:text-gray-200">${renderInline(line)}</p>`);
+  }
+
+  closeLists();
+  return html.join('');
 };
 
 const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ 
@@ -498,6 +566,14 @@ Click "View Deck" to see your flashcards in the Decks section.`);
     if (!chatInput.trim()) return;
 
     const userMessage = { role: 'user' as const, content: chatInput };
+
+    // If user asks to stop, acknowledge and do not call backend
+    if (shouldHaltChat(chatInput)) {
+      setChatMessages(prev => [...prev, userMessage, { role: 'assistant', content: 'Okay.' }]);
+      setChatInput('');
+      return;
+    }
+
     setChatMessages(prev => [...prev, userMessage]);
     setChatInput('');
     setIsLoading(true);
@@ -1111,13 +1187,28 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                               message.role === 'user' ? 'flex-row-reverse space-x-reverse' : ''
                             }`}>
                               {/* Avatar */}
-                              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
-                                message.role === 'user' 
-                                  ? 'bg-indigo-600 text-white' 
-                                  : 'bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
-                              }`}>
-                                {message.role === 'user' ? 'U' : 'AI'}
-                              </div>
+                              {message.role === 'user' ? (
+                                <div className="flex-shrink-0">
+                                  {(() => {
+                                    const avatar = getCurrentUserAvatar();
+                                    return avatar ? (
+                                      <img
+                                        src={avatar}
+                                        alt="You"
+                                        className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-600"
+                                      />
+                                    ) : (
+                                      <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-medium">
+                                        U
+                                      </div>
+                                    );
+                                  })()}
+                                </div>
+                              ) : (
+                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 flex items-center justify-center text-xs font-medium">
+                                  AI
+                                </div>
+                              )}
                               
                               {/* Message bubble */}
                               <div

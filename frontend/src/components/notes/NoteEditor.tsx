@@ -674,7 +674,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const table = document.createElement('table');
     table.className = 'notion-table';
     
-    // Create simple table structure like import feature
+    // Minimal, text-sized grid
+    table.style.borderCollapse = 'collapse';
+    table.style.borderSpacing = '0';
+    table.style.width = 'auto';
+    table.style.maxWidth = '100%';
+    table.style.fontSize = 'inherit';
+    table.style.lineHeight = '1.25';
+
     for (let i = 0; i < rows; i++) {
       const tr = document.createElement('tr');
       for (let j = 0; j < cols; j++) {
@@ -684,10 +691,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         td.style.cursor = 'text';
         td.setAttribute('data-row', i.toString());
         td.setAttribute('data-col', j.toString());
+        // Compact cell to match surrounding text height
+        td.style.padding = '2px 4px';
+        td.style.border = '1px solid #d1d5db'; // gray-300
+        td.style.minWidth = '36px';
+        td.style.whiteSpace = 'normal';
+        td.style.fontSize = 'inherit';
+        td.style.verticalAlign = 'baseline';
         
-        // Add keyboard navigation
         addSimpleCellNavigation(td, table);
-        
         tr.appendChild(td);
       }
       table.appendChild(tr);
@@ -919,26 +931,55 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   };
 
   const insertTable = (rows: number = 3, cols: number = 3) => {
-    const selection = window.getSelection();
-    if (!selection || !contentEditableRef.current) return;
-    
-    const range = selection.getRangeAt(0);
+    if (!contentEditableRef.current) return;
+    let selection = window.getSelection();
+    let range: Range | null = null;
+    // Prefer current selection if inside editor
+    if (selection && selection.rangeCount > 0 && contentEditableRef.current.contains(selection.anchorNode)) {
+      range = selection.getRangeAt(0);
+    } else if (lastRangeRef.current) {
+      // Restore last known range captured before opening the dropdown
+      range = lastRangeRef.current;
+      selection = window.getSelection();
+      if (selection && range) {
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+    } else {
+      // Fallback: insert at end of editor
+      const fallbackRange = document.createRange();
+      fallbackRange.selectNodeContents(contentEditableRef.current);
+      fallbackRange.collapse(false);
+      range = fallbackRange;
+      selection = window.getSelection();
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    if (!range) return;
     const table = createSimpleTable(rows, cols);
     
-    // Wrap table in a container to prevent overflow
+    // Wrap table (no heavy visuals)
     const wrapper = document.createElement('div');
     wrapper.className = 'table-wrapper';
     wrapper.style.cssText = `
       width: 100%;
       max-width: 100%;
       overflow-x: auto;
-      margin: 16px 0;
+      margin: 8px 0;
+      background: transparent;
     `;
     wrapper.appendChild(table);
     
-    // Insert table at cursor position
-    range.deleteContents();
-    range.insertNode(wrapper);
+    // Insert table at cursor position (with fallback)
+    try {
+      range.deleteContents();
+      range.insertNode(wrapper);
+    } catch (e) {
+      // Fallback: append at end
+      try {
+        contentEditableRef.current.appendChild(wrapper);
+      } catch {}
+    }
     
           // Focus on first cell
     const firstCell = table.querySelector('td') as HTMLElement;
@@ -946,10 +987,21 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         const newRange = document.createRange();
         newRange.setStart(firstCell, 0);
         newRange.collapse(true);
-        selection.removeAllRanges();
-        selection.addRange(newRange);
+        selection?.removeAllRanges();
+        selection?.addRange(newRange);
         firstCell.focus();
       }
+
+    // Ensure it's visible
+    try { wrapper.scrollIntoView({ block: 'nearest' }); } catch {}
+
+    // Update editor state to reflect inserted DOM
+    try {
+      if (contentEditableRef.current) {
+        setContent(contentEditableRef.current.innerHTML);
+        setHasChanges(true);
+      }
+    } catch {}
   };
 
   const [showTableGrid, setShowTableGrid] = useState(false);
@@ -959,6 +1011,21 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const [customRows, setCustomRows] = useState(3);
   const [customCols, setCustomCols] = useState(3);
   const isConvertingMarkdown = useRef(false);
+  const lastRangeRef = useRef<Range | null>(null);
+
+  // Keep last selection range updated when cursor is inside the editor
+  useEffect(() => {
+    const handler = () => {
+      try {
+        const sel = window.getSelection();
+        if (sel && sel.rangeCount > 0 && contentEditableRef.current && contentEditableRef.current.contains(sel.anchorNode)) {
+          lastRangeRef.current = sel.getRangeAt(0).cloneRange();
+        }
+      } catch {}
+    };
+    document.addEventListener('selectionchange', handler);
+    return () => document.removeEventListener('selectionchange', handler);
+  }, []);
 
   // Image upload functionality
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -1007,8 +1074,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Move cursor after the image
     range.setStartAfter(wrapper);
     range.collapse(true);
-    selection.removeAllRanges();
-    selection.addRange(range);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
     
     // Update content
     if (contentEditableRef.current) {
@@ -1122,9 +1189,31 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     const rect = event.currentTarget.getBoundingClientRect();
     console.log('Button position:', rect);
     
-    // Calculate position relative to viewport
-    const x = Math.max(10, Math.min(rect.left - 100, window.innerWidth - 250)); // Keep on screen
-    const y = Math.max(10, rect.bottom + 10); // Add more space below button
+    // Capture current selection (if inside editor) to restore on insert
+    try {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && contentEditableRef.current && contentEditableRef.current.contains(sel.anchorNode)) {
+        lastRangeRef.current = sel.getRangeAt(0).cloneRange();
+      } else if (contentEditableRef.current) {
+        // Default to end of editor if no valid selection inside it
+        const fallback = document.createRange();
+        fallback.selectNodeContents(contentEditableRef.current);
+        fallback.collapse(false);
+        lastRangeRef.current = fallback;
+      }
+    } catch {}
+    
+    // Estimate panel size to keep it within viewport (compact)
+    const panelWidth = 190;
+    const panelHeight = 260;
+
+    // Prefer positioning the panel to the left of the button so more of it is visible
+    const preferredX = rect.left - (panelWidth - rect.width);
+    const preferredY = rect.bottom + 8;
+
+    // Clamp to viewport
+    const x = Math.max(10, Math.min(preferredX, window.innerWidth - panelWidth - 10));
+    const y = Math.max(10, Math.min(preferredY, window.innerHeight - panelHeight - 10));
     
     setTableGridPosition({ x, y });
     setShowTableGrid(true);
@@ -1135,25 +1224,21 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     console.log('insertTableFromGrid called with:', rows, cols);
     console.log('previewTable exists:', !!previewTable);
     
+    // Capture current selection again right before insertion
+    try {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && contentEditableRef.current && contentEditableRef.current.contains(sel.anchorNode)) {
+        lastRangeRef.current = sel.getRangeAt(0).cloneRange();
+      }
+    } catch {}
+
     setShowTableGrid(false);
-    
-    // If there's a preview table, convert it to a real table
-    if (previewTable) {
-      console.log('Converting preview table to real table');
-      // Remove the preview styling and make it a real table
-      previewTable.className = 'notion-table';
-      previewTable.style.opacity = '';
-      previewTable.style.border = '';
-      previewTable.style.backgroundColor = '';
-      
-      // Clear the preview reference
-      setPreviewTable(null);
-      console.log('Table converted successfully');
-    } else {
-      console.log('No preview table, creating new table');
-      // Fallback: create a new table if no preview exists
-      insertTable(rows, cols);
-    }
+    // Restore focus to editor
+    contentEditableRef.current?.focus();
+    // Always insert a fresh table at the current selection; do not convert any preview
+    insertTable(rows, cols);
+    // Clear any stale preview reference
+    setPreviewTable(null);
   };
 
   const insertCustomTable = () => {
@@ -1164,49 +1249,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   };
 
   const showPreviewTable = (rows: number, cols: number) => {
-    // Remove existing preview
-    removePreviewTable();
-    
-    // Create preview table
-    const table = createSimpleTable(rows, cols);
-    table.className = 'notion-table-preview';
-    table.style.opacity = '0.7';
-    table.style.border = '2px dashed #3b82f6';
-    table.style.backgroundColor = '#f0f9ff';
-    table.style.margin = '8px 0';
-    
-    // Wrap in container
-    const wrapper = document.createElement('div');
-    wrapper.className = 'table-wrapper';
-    wrapper.style.cssText = `
-      width: 100%;
-      max-width: 100%;
-      overflow-x: auto;
-      margin: 16px 0;
-    `;
-    wrapper.appendChild(table);
-    
-    // Insert at cursor position
-    const selection = window.getSelection();
-    if (selection && contentEditableRef.current) {
-      const range = selection.getRangeAt(0);
-      
-      // If there's already content at the cursor, insert after it
-      if (range.startContainer.nodeType === Node.TEXT_NODE && range.startOffset > 0) {
-        // Insert after the current text
-        range.setStartAfter(range.startContainer);
-        range.collapse(true);
-      }
-      
-      range.insertNode(wrapper);
-      setPreviewTable(table);
-      
-      // Move cursor after the table
-      range.setStartAfter(table);
-      range.collapse(true);
-      selection.removeAllRanges();
-      selection.addRange(range);
-    }
+    // Preview disabled to avoid shifting the document while hovering
+    setHoveredTableSize({ rows, cols });
+    return;
   };
 
   const removePreviewTable = () => {
@@ -3195,13 +3240,16 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
           removePreviewTable();
         }}>
           <div 
-            className="absolute bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-3"
+            className="absolute bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-2"
             style={{
               left: tableGridPosition.x,
               top: tableGridPosition.y,
               zIndex: 10000,
+              width: 'auto',
+              display: 'inline-block',
             }}
             onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
           >
             <div className="flex justify-between items-center mb-3">
               <div className="text-lg font-bold text-gray-800">
@@ -3217,20 +3265,19 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 ×
               </button>
             </div>
-            <div className="grid grid-cols-8 gap-1">
+            <div className="inline-grid [grid-template-columns:repeat(8,min-content)] gap-x-1 gap-y-1">
               {Array.from({ length: 64 }, (_, index) => {
                 const row = Math.floor(index / 8) + 1;
                 const col = (index % 8) + 1;
                 return (
                   <div
                     key={index}
-                    className="w-4 h-4 border border-gray-400 hover:bg-blue-200 cursor-pointer transition-colors bg-gray-100"
+                    className="box-border border border-gray-300 hover:bg-blue-200 cursor-pointer transition-colors bg-gray-100 rounded-sm"
+                    style={{ width: 18, height: 18 }}
+                    onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); insertTableFromGrid(row, col); }}
                     onMouseEnter={(e) => {
-                      // Set the hovered table size for preview
+                      // Set the hovered table size for preview (no DOM insertion)
                       setHoveredTableSize({ rows: row, cols: col });
-                      
-                      // Show preview table in the page content
-                      showPreviewTable(row, col);
                       
                       // Highlight the grid up to this point
                       const cells = e.currentTarget.parentElement?.children;
@@ -3249,9 +3296,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                       }
                     }}
                     onMouseLeave={(e) => {
-                      // Clear the preview
+                      // Clear the hover highlight
                       setHoveredTableSize(null);
-                      removePreviewTable();
                       
                       // Reset all cells
                       const cells = e.currentTarget.parentElement?.children;
@@ -3262,44 +3308,42 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         });
                       }
                     }}
-                    onClick={() => insertTableFromGrid(row, col)}
                   />
                 );
               })}
             </div>
-            <div className="text-sm text-gray-600 mt-3 text-center font-medium">
-              Hover over the grid to see table preview in the page
-            </div>
+            <div className="hidden"></div>
             
             {/* Custom Table Input */}
-            <div className="mt-4 pt-4 border-t border-gray-200">
-              <div className="text-sm font-medium text-gray-700 mb-3">Custom Table Size</div>
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-600">Rows:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={customRows}
-                    onChange={(e) => setCustomRows(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
-                    className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div className="flex items-center gap-2">
-                  <label className="text-sm text-gray-600">Columns:</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="20"
-                    value={customCols}
-                    onChange={(e) => setCustomCols(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
-                    className="w-16 px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs font-medium text-gray-600">Row</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={customRows}
+                      onChange={(e) => setCustomRows(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                      className="w-14 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-xs font-medium text-gray-600">Col</label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="20"
+                      value={customCols}
+                      onChange={(e) => setCustomCols(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                      className="w-14 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
                 <button
                   onClick={insertCustomTable}
-                  className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                  className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
                 >
                   Insert
                 </button>
