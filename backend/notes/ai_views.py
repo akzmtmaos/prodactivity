@@ -16,14 +16,36 @@ import os
 import re
 from reviewer.serializers import ReviewerSerializer
 from core.utils import get_ai_config
+from django.utils.timezone import now
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Ollama API configuration
-OLLAMA_API_URL = "http://localhost:11434/api/generate"
-OLLAMA_MODEL = "deepseek-r1:1.5b"
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:1.5b")
+# Allow multiple candidate URLs to avoid localhost/host resolution issues
+OLLAMA_URLS = [
+    os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate"),
+    "http://127.0.0.1:11434/api/generate",
+    "http://host.docker.internal:11434/api/generate",
+]
+
+def ollama_generate(payload, timeout=300, stream=False):
+    """Try multiple Ollama URLs until one succeeds."""
+    last_exc = None
+    for url in OLLAMA_URLS:
+        try:
+            resp = requests.post(url, json=payload, timeout=timeout, stream=stream)
+            if resp.status_code == 200:
+                return resp
+            logger.warning(f"Ollama URL {url} returned {resp.status_code}")
+        except Exception as e:
+            last_exc = e
+            logger.warning(f"Ollama URL {url} failed: {e}")
+    if last_exc:
+        raise last_exc
+    raise requests.exceptions.ConnectionError("All Ollama endpoints failed")
 
 def clean_ai_response(response_text):
     """Remove thinking patterns and show only final responses"""
@@ -61,6 +83,20 @@ def format_chat_prompt(messages):
     
     return "\n\n".join(conversation)
 
+def extract_final_answer(output):
+    """
+    Always return only the last non-empty line of the model output (the true AI user-facing answer),
+    completely ignoring any prior lines or reasoning. This guarantees only the final chat reply is sent.
+    """
+    if not isinstance(output, str):
+        return output
+    lines = output.splitlines()
+    # Last non-empty, trimmed line is always the answer
+    for line in reversed(lines):
+        if line.strip():
+            return line.strip()
+    return output.strip() if output else ''
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def chat(request):
@@ -76,16 +112,28 @@ def chat(request):
         # No filtering, send all messages as-is
         user_assistant_msgs = messages
         
-        formatted_prompt = format_chat_prompt(user_assistant_msgs)
+        # Format prompt for DeepSeek/LLM: Only reply, no thoughts/justification/internal monologue
+        system = (
+            "You are an expert chatbot. Strictly follow these instructions:\n"
+            "- Output only your final, complete message for the user.\n"
+            "- Do NOT show your reasoning, plans, or internal thoughts—just the user's answer.\n"
+            "- Respond as clearly and concisely as possible.\n"
+            "- Never say 'I should', 'Let me think', or 'Here is what I might say'—just give your answer.\n"
+        )
+        prompt = system + "\n"
+        for m in user_assistant_msgs:
+            prefix = 'User:' if m['role'] == 'user' else 'AI:'
+            prompt += f"{prefix} {m['content']}\n"
+        prompt += 'AI:'
         
         # Call Ollama API with streaming - Default settings
         payload = {
             "model": OLLAMA_MODEL,
-            "prompt": formatted_prompt,
+            "prompt": prompt,
             "stream": True
         }
         
-        response = requests.post(OLLAMA_API_URL, json=payload, timeout=120, stream=True)
+        response = ollama_generate(payload, timeout=120, stream=True)
         
         if response.status_code == 200:
             # Create a streaming response - Real-time typing animation
@@ -229,7 +277,7 @@ class SummarizeView(APIView):
             
             logger.info(f"Sending request to Ollama: model={OLLAMA_MODEL}, prompt_length={len(summarize_prompt)} chars")
             
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
+            response = ollama_generate(payload, timeout=120, stream=False)
             
             logger.info(f"Ollama response status: {response.status_code}")
             
@@ -321,7 +369,7 @@ class ReviewView(APIView):
                 }
             }
             
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
+            response = ollama_generate(payload, timeout=120, stream=False)
             
             if response.status_code == 200:
                 result = response.json()
@@ -405,7 +453,7 @@ class AIAutomaticReviewerView(APIView):
             }
 
             try:
-                response = requests.post(OLLAMA_API_URL, json=payload, timeout=300)
+                response = ollama_generate(payload, timeout=300, stream=False)
             except requests.exceptions.ConnectionError:
                 logger.error("Could not connect to Ollama. Make sure Ollama is running.")
                 return Response(
@@ -540,7 +588,7 @@ Create 5-10 flashcards following this EXACT pattern. Respond ONLY with valid JSO
                 }
             }
             
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
+            response = ollama_generate(payload, timeout=120, stream=False)
             
             if response.status_code == 200:
                 try:
@@ -696,102 +744,87 @@ class NotebookSummaryView(APIView):
                     {"error": "No notebook ID provided"},
                     status=status.HTTP_400_BAD_REQUEST
                 )
-            
-            # Get all notes from the notebook
-            from .models import Note
-            notes = Note.objects.filter(
-                notebook_id=notebook_id,
-                user=request.user,
-                is_deleted=False,
-                is_archived=False
-            ).order_by('created_at')
-            
-            if not notes.exists():
-                return Response(
-                    {"error": "No notes found in this notebook"},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-            
-            # Combine all note content
-            combined_content = "\n\n".join([
-                f"Note: {note.title}\n{note.content}"
-                for note in notes
-            ])
-            
-            # Get notebook summary prompt from database configuration
+            user = request.user
+            # Fetch notebook and notes
+            from .models import Notebook, Note
+            notebook = Notebook.objects.get(id=notebook_id, user=user)
+            notes = Note.objects.filter(notebook=notebook)
+
+            # Helper to clean HTML to plain text
+            import re
+            def clean_html(text: str) -> str:
+                if not text:
+                    return ""
+                cleaned = re.sub(r'<[^>]+>', ' ', text)
+                cleaned = cleaned.replace('&nbsp;', ' ').replace('&amp;', '&').replace('&lt;', '<').replace('&gt;', '>')
+                cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+                return cleaned
+
+            # Combine all note content (trim long notes to avoid overlong prompts)
+            parts = []
+            for note in notes:
+                title = (note.title or '').strip()
+                content = clean_html(note.content or '')
+                content = content[:4000]
+                parts.append(f"Title: {title}\nContent: {content}")
+            combined_content = "\n\n".join(parts)
+
+            import logging
+            logger = logging.getLogger('notes.ai_views')
+            logger.info(f"[NB_SUMMARY] Combined content (len={len(combined_content)}):\n{combined_content[:800]}...")
             try:
                 summary_prompt = get_ai_config('notebook_summary_prompt', content=combined_content)
             except ValueError:
-                # Fallback prompt if configuration not found
-                summary_prompt = f"""Please provide a comprehensive summary of the following notebook content. 
-                Organize the information into logical sections and highlight key concepts, important dates, and actionable items.
-                
-                Notebook Content:
-                {combined_content}
-                
-                Please provide:
-                1. Executive Summary
-                2. Key Topics Covered
-                3. Important Dates/Deadlines
-                4. Action Items
-                5. Related Concepts
-                6. Study Recommendations"""
-            
+                summary_prompt = (
+                    "You are DeepSeek-R1 composing a clear, concise notebook summary.\n"
+                    "Requirements:\n"
+                    "- Output only the summary. No system thoughts, no preamble.\n"
+                    "- Use short sections with headings.\n"
+                    "- Preserve meaningful bullets/numbered lists.\n"
+                    "- Remove filler and repetitions; do NOT say generic lines like 'This notebook contains X notes'.\n"
+                    "- Highlight key topics, important definitions, and any step-by-step lists if present.\n\n"
+                    f"Notebook Content (cleaned):\n{combined_content}"
+                )
             payload = {
-                "model": OLLAMA_MODEL,
+                "model": OLLAMA_MODEL,  # deepseek-r1:1.5b (configured above)
                 "prompt": summary_prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.3,
-                    "top_p": 0.8,
-                    "top_k": 40,
-                    "num_predict": 800,
-                    "repeat_penalty": 1.1
+                    "temperature": 0.2,
+                    "top_p": 0.9,
+                    "top_k": 50,
+                    "num_predict": 1800,
+                    "repeat_penalty": 1.15
                 }
             }
-            
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=300)
-            
-            if response.status_code == 200:
+            logger.info(f"[NB_SUMMARY] Payload sent to Ollama: {payload | {'prompt': summary_prompt[:200] + '...'}}")
+            try:
+                response = ollama_generate(payload, timeout=300, stream=False)
+                logger.info(f"[NB_SUMMARY] Ollama response status: {response.status_code}")
                 result = response.json()
-                summary = result.get('response', '').strip()
-                
+                raw = result.get('response', '').strip()
+                logger.info(f"[NB_SUMMARY] Raw AI response length: {len(raw)} chars\nPreview: {raw[:800]}...")
+                summary = clean_ai_response(raw)
+                logger.info(f"[NB_SUMMARY] Cleaned summary length: {len(summary)} chars\nPreview: {summary[:800]}...")
                 if not summary:
+                    logger.warning("[NB_SUMMARY] No summary generated from AI, returning fallback message.")
                     return Response(
                         {"error": "Failed to generate notebook summary. Please try again."},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
-                
-                return Response({
-                    "summary": summary,
-                    "notes_count": notes.count(),
-                    "total_content_length": len(combined_content)
-                })
-            else:
-                logger.error(f"Ollama API error: {response.status_code} - {response.text}")
+                logger.info("[NB_SUMMARY] Returning summary to frontend successfully.")
+                return Response({"summary": summary, "generated_at": now()})
+            except Exception as e:
+                logger.error(f"[NB_SUMMARY] Ollama error: {e}")
                 return Response(
-                    {"error": "Failed to generate notebook summary. Please try again."},
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    {"error": "Could not connect to Ollama. Please make sure Ollama is running on your computer."},
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE
                 )
-            
-        except requests.exceptions.ConnectionError:
-            logger.error("Could not connect to Ollama. Make sure Ollama is running.")
-            return Response(
-                {"error": "Could not connect to Ollama. Please make sure Ollama is running on your computer."},
-                status=status.HTTP_503_SERVICE_UNAVAILABLE
-            )
-        except requests.exceptions.Timeout:
-            logger.error("Ollama request timed out. The model is taking too long to respond.")
-            return Response(
-                {"error": "The AI is taking too long to respond. Please try again with a shorter notebook or wait a moment."},
-                status=status.HTTP_408_REQUEST_TIMEOUT
-            )
         except Exception as e:
-            logger.error(f"Error in notebook summarization: {str(e)}")
-            return Response(
-                {"error": "Failed to generate notebook summary. Please try again."},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+            import traceback
+            logger = logging.getLogger('notes.ai_views')
+            logger.error(f"[NB_SUMMARY] Backend error: {e}\n{traceback.format_exc()}")
+            return Response({"error": f"Backend error: {e}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 class UrgencyDetectionView(APIView):
     permission_classes = [IsAuthenticated]
@@ -849,7 +882,7 @@ Please respond with ONLY a JSON object in this exact format:
                 }
             }
             
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=60)
+            response = ollama_generate(payload, timeout=60, stream=False)
             
             if response.status_code == 200:
                 result = response.json()
@@ -1048,7 +1081,7 @@ Please respond with ONLY a JSON object in this exact format:
             }
             
             logger.info(f"Sending request to Ollama with {len(clean_text)} characters of content")
-            response = requests.post(OLLAMA_API_URL, json=payload, timeout=120)
+            response = ollama_generate(payload, timeout=120, stream=False)
             
             if response.status_code == 200:
                 result = response.json()
