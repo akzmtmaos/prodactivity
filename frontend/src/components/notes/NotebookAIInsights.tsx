@@ -73,39 +73,65 @@ const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
   const [insights, setInsights] = useState<AIInsights | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiSummary, setAiSummary] = useState<string>('');
+  const [isSummarizing, setIsSummarizing] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'overview' | 'analysis' | 'recommendations'>('overview');
 
   useEffect(() => {
     if (isOpen && notebook && notes.length > 0) {
-      generateInsights();
+      generateNotebookSummary();
     }
   }, [isOpen, notebook, notes]);
 
-  const generateInsights = async () => {
-    setIsLoading(true);
+  // remove old generateInsights; using simplified generateNotebookSummary instead
+
+  // --- Simplified Notebook Summary via local Ollama ---
+  const stripHtml = (html: string) => (html || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  const buildPrompt = (nb: Notebook, ns: Note[]) => {
+    const header = `Summarize the following notebook into a clear, concise, well-structured overview.
+Guidelines:
+- Use short sections with headings and bullet points where useful.
+- Preserve any lists (bullets/numbered) found in the content.
+- Avoid repetition of titles and filler text.
+- Output only the final summary, no preamble or meta notes.`;
+    const items = ns.slice(0, 10).map((n, i) => {
+      const title = (n.title || '').trim();
+      const content = stripHtml(n.content || '').slice(0, 3000);
+      return `Note ${i + 1}\nTitle: ${title}\nContent: ${content}`;
+    }).join('\n\n');
+    return `${header}\n\nNotebook: ${nb.name}\n\n${items}`;
+  };
+
+  const callBackendSummary = async (notebookId: number) => {
+    const res = await axiosInstance.post(`/notes/notebook-summary/`, { notebook_id: notebookId });
+    const data = res.data || {};
+    const out = (data.summary || '').toString();
+    if (!out.trim()) throw new Error('Empty summary');
+    return out.trim();
+  };
+
+  const generateNotebookSummary = async () => {
+    setIsSummarizing(true);
     setError(null);
-    
     try {
-      // Generate insights locally without AI calls for faster response
-      const processedInsights: AIInsights = {
-        overall_summary: generateLocalSummary(notes, notebook),
-        key_topics: extractKeyTopics(notes),
-        important_items: extractImportantItemsLocal(notes),
-        study_recommendations: generateStudyRecommendations(notes),
-        content_gaps: identifyContentGaps(notes),
-        priority_distribution: calculatePriorityDistributionLocal(notes),
-        time_analysis: analyzeTimePatterns(notes),
-        related_concepts: extractRelatedConcepts(notes),
-        action_items: extractActionItemsLocal(notes)
-      };
-      
-      setInsights(processedInsights);
-    } catch (error: any) {
-      console.error('Failed to generate insights:', error);
-      setError('Failed to generate insights');
+      const summary = await callBackendSummary(notebook.id);
+      setAiSummary(summary);
+    } catch (e: any) {
+      console.warn('AI summary unavailable:', e);
+      setError(null);
+      setAiSummary(generateLocalSummary(notes, notebook));
     } finally {
-      setIsLoading(false);
+      setIsSummarizing(false);
     }
+  };
+
+  // Backwards-compat handler used by existing JSX button
+  const generateInsights = async () => {
+    await generateNotebookSummary();
   };
 
   const extractKeyTopics = (notes: Note[]): string[] => {
@@ -281,9 +307,7 @@ const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                   AI Insights for {notebook.name}
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Comprehensive analysis and recommendations
-                </p>
+                <p className="text-gray-600 dark:text-gray-400">Notebook summary</p>
               </div>
             </div>
             <button
@@ -295,29 +319,26 @@ const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
           </div>
         </div>
 
-        {/* Tabs */}
-        <div className="border-b border-gray-200 dark:border-gray-700">
-          <nav className="flex space-x-8 px-6">
-            {[
-              { id: 'overview', label: 'Overview', icon: BookOpen },
-              { id: 'analysis', label: 'Analysis', icon: BarChart3 },
-              { id: 'recommendations', label: 'Recommendations', icon: Lightbulb }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm flex items-center gap-2 ${
-                  activeTab === tab.id
-                    ? 'border-indigo-500 text-indigo-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <tab.icon className="h-4 w-4" />
-                {tab.label}
-              </button>
-            ))}
-          </nav>
+        {/* Simplified Notebook Summary (Ollama) */}
+        <div className="px-6 pt-4">
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-4 rounded-lg">
+            <div className="mb-2">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Notebook Summary</h3>
+            </div>
+            {isSummarizing ? (
+              <div className="flex items-center py-8 text-gray-600 dark:text-gray-400">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500 mr-3"></div>
+                Generating summary…
+              </div>
+            ) : (
+              <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap text-gray-800 dark:text-gray-200 text-sm">
+                {aiSummary || generateLocalSummary(notes, notebook)}
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Tabs removed for simplified summary */}
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
@@ -330,12 +351,6 @@ const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
             <div className="text-center py-12">
               <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
               <p className="text-red-600 dark:text-red-400">{error}</p>
-              <button
-                onClick={generateInsights}
-                className="mt-4 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-              >
-                Try Again
-              </button>
             </div>
           ) : insights ? (
             <>

@@ -34,10 +34,11 @@ interface NoteItemProps {
   deletingNoteId?: number | null;
 }
 
-const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete, onArchive, onToggleImportant, deletingNoteId }) => {
+const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete, onArchive, onToggleImportant: _onToggleImportant, deletingNoteId }) => {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showEditModal, setShowEditModal] = React.useState(false);
   const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.68.162:8000/api/notes';
+  const menuRef = React.useRef<HTMLDivElement>(null);
 
   // Helper function to format dates
   const formatDate = (dateString: string) => {
@@ -66,10 +67,18 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
     onArchive();
   };
 
-  const handleToggleImportant = () => {
-    setShowMenu(false);
-    onToggleImportant(note.id);
-  };
+  // Close menu on outside click
+  React.useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    if (showMenu) {
+      document.addEventListener('mousedown', onDocClick);
+    }
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [showMenu]);
 
   // Helper function to get priority color
   const getPriorityColor = (priority: string) => {
@@ -200,13 +209,13 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
             </span>
           </div>
         </div>
-        <div className="relative">
+        <div className="relative" ref={menuRef}>
           <button
             onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
             className="p-2 text-gray-500 hover:text-gray-700"
             title="More"
           >
-            <MoreVertical size={16} className="text-white" />
+            <MoreVertical size={16} className="text-gray-500 dark:text-gray-300" />
           </button>
           {showMenu && (
             <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10">
@@ -215,17 +224,6 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
                 className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
               >
                 <Edit size={14} className="inline mr-2" /> Edit Title
-              </button>
-              <button
-                onClick={(e) => { e.stopPropagation(); handleToggleImportant(); }}
-                className={`block w-full text-left px-4 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 ${
-                  note.is_urgent 
-                    ? 'text-orange-600 dark:text-orange-400' 
-                    : 'text-gray-700 dark:text-gray-300'
-                }`}
-              >
-                <AlertTriangle size={14} className="inline mr-2" /> 
-                {note.is_urgent ? 'Remove Important' : 'Mark Important'}
               </button>
               {note.is_archived ? (
                 <button

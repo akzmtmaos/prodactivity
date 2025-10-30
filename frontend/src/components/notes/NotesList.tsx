@@ -87,37 +87,7 @@ const NotesList: React.FC<NotesListProps> = ({
   onSelectionChange,
   selectedForBulk = [],
 }) => {
-  const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
-
-  // Sync internal selectedNotes with parent's selectedForBulk
-  useEffect(() => {
-    setSelectedNotes(selectedForBulk);
-  }, [selectedForBulk]);
-
-  const handleNoteSelect = (noteId: number) => {
-    setSelectedNotes(prev => {
-      const next = prev.includes(noteId) ? prev.filter(id => id !== noteId) : [...prev, noteId];
-      if (onSelectionChange) onSelectionChange(next);
-      return next;
-    });
-  };
-
-  const handleSelectAll = () => {
-    if (selectedNotes.length === notes.length) {
-      setSelectedNotes([]);
-      if (onSelectionChange) onSelectionChange([]);
-    } else {
-      const all = notes.map(note => note.id);
-      setSelectedNotes(all);
-      if (onSelectionChange) onSelectionChange(all);
-    }
-  };
-
-  // Expose a helper when parent wants to trigger bulk delete
-  // Keep for backward compatibility if needed in future
-  const triggerBulkDelete = () => {
-    if (selectedNotes.length > 0) onBulkDelete(selectedNotes);
-  };
+  // Local selection UI removed; bulk delete handled via notebook header modal
 
   if (!selectedNotebook) {
     return (
@@ -165,25 +135,8 @@ const NotesList: React.FC<NotesListProps> = ({
             </div>
           ) : (
             <>
-              <div className="flex items-center space-x-2 mb-4">
-                <input
-                  type="checkbox"
-                  checked={selectedNotes.length === notes.length}
-                  onChange={handleSelectAll}
-                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                />
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  Select All
-                </span>
-              </div>
               {notes.map((note) => (
-                <div key={note.id} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    checked={selectedNotes.includes(note.id)}
-                    onChange={() => handleNoteSelect(note.id)}
-                    className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                  />
+                <div key={note.id} className="flex items-center">
                   <div className="flex-1">
                     <NoteItem
                       note={note}

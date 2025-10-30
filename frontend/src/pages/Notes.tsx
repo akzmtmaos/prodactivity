@@ -12,7 +12,7 @@ import GlobalSearch from '../components/notes/GlobalSearch';
 import ImportantItemsPanel from '../components/notes/ImportantItemsPanel';
 import ColorPickerModal from '../components/notes/ColorPickerModal';
 import CreateNotebookModal from '../components/notes/CreateNotebookModal';
-import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle, Star, Download, Upload, FileText, File } from 'lucide-react';
+import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle, Star, Download, Upload, FileText, File, Trash2 } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
 
@@ -215,6 +215,37 @@ const Notes = () => {
   const [isImporting, setIsImporting] = useState(false);
   const [showExportFormatModal, setShowExportFormatModal] = useState(false);
   const [showImportFormatModal, setShowImportFormatModal] = useState(false);
+  const [showExportScopeMenu, setShowExportScopeMenu] = useState(false);
+  const [showExportScopeModal, setShowExportScopeModal] = useState(false);
+  const [selectedNotesForExport, setSelectedNotesForExport] = useState<number[]>([]);
+  const [exportNotesList, setExportNotesList] = useState<Note[]>([]);
+  // Local notes search inside a notebook
+  const [showNotesLocalSearch, setShowNotesLocalSearch] = useState(false);
+  const [notesLocalSearchTerm, setNotesLocalSearchTerm] = useState('');
+  const notesLocalSearchRef = useRef<HTMLInputElement>(null);
+  // Bulk delete notes modal
+  const [showNotesBulkDeleteModal, setShowNotesBulkDeleteModal] = useState(false);
+  const [selectedNotesForDelete, setSelectedNotesForDelete] = useState<number[]>([]);
+
+  // Helpers to clean HTML content for previews in modals/lists
+  const getPlainText = (html: string): string => {
+    if (!html) return '';
+    try {
+      const div = document.createElement('div');
+      div.innerHTML = html;
+      const text = (div.textContent || div.innerText || '').replace(/\s+/g, ' ').trim();
+      return text;
+    } catch {
+      // Fallback: strip tags via regex
+      return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    }
+  };
+
+  const getPreview = (html: string, maxLen = 160): string => {
+    const text = getPlainText(html);
+    if (text.length <= maxLen) return text;
+    return text.slice(0, maxLen - 1).trimEnd() + '…';
+  };
 
   // Hierarchical navigation state - NEW
   type ViewType = 'notebooks' | 'notes';
@@ -1006,8 +1037,9 @@ const Notes = () => {
   // Local filtering and sorting logic
   const filteredNotes = notes
     .filter(note => {
-      // Search term filter
-      const term = searchTerm.toLowerCase();
+      // Search term filter (prefer local search when in notes view)
+      const activeTerm = (currentView === 'notes' && notesLocalSearchTerm) ? notesLocalSearchTerm : searchTerm;
+      const term = (activeTerm || '').toLowerCase();
       // Date range takes precedence when filtering by date
       if (filterType === 'date' && (noteDateStart || noteDateEnd)) {
         const created = new Date(note.created_at).getTime();
@@ -1387,7 +1419,7 @@ const Notes = () => {
       setToast({ message: 'No notes to export', type: 'error' });
       return;
     }
-    setShowExportFormatModal(true);
+    setShowExportScopeModal(true);
   };
 
   const exportToJSON = async () => {
@@ -1449,42 +1481,169 @@ const Notes = () => {
     
     setIsExporting(true);
     try {
-      const doc = new Document({
-        sections: [{
-          properties: {},
-          children: [
-            new Paragraph({
-              text: selectedNotebook.name,
-              heading: HeadingLevel.TITLE,
-            }),
-            new Paragraph({
-              text: `Exported on ${new Date().toLocaleDateString()}`,
-              heading: HeadingLevel.HEADING_2,
-            }),
-            new Paragraph({
-              text: selectedNotebook.description || '',
-            }),
-            new Paragraph({ text: '' }), // Empty line
-            ...notes.map(note => [
-              new Paragraph({
-                text: note.title,
-                heading: HeadingLevel.HEADING_3,
-              }),
-              new Paragraph({
-                text: note.content || 'No content',
-              }),
-              new Paragraph({
-                text: `Type: ${note.note_type} | Priority: ${note.priority} | Created: ${new Date(note.created_at).toLocaleDateString()}`,
-                children: [new TextRun({ text: '', break: 1 })]
-              }),
-              new Paragraph({ text: '' }), // Empty line between notes
-            ]).flat()
-          ],
-        }],
+      const items = (exportNotesList && exportNotesList.length > 0) ? exportNotesList : notes;
+      // Build children with sanitized content to avoid docx packing errors
+      const children: any[] = [];
+      children.push(
+        new Paragraph({ text: selectedNotebook.name, heading: HeadingLevel.TITLE }),
+        new Paragraph({ text: `Exported on ${new Date().toLocaleDateString()}`, heading: HeadingLevel.HEADING_2 }),
+        new Paragraph({ text: selectedNotebook.description || '' }),
+        new Paragraph({ text: '' })
+      );
+
+      const chunkLine = (line: string, size = 800): string[] => {
+        const parts: string[] = [];
+        let i = 0;
+        while (i < line.length) {
+          parts.push(line.slice(i, i + size));
+          i += size;
+        }
+        return parts.length ? parts : [''];
+      };
+
+      items.forEach((note) => {
+        const title = (note.title || '').toString();
+        const rawContent = (note.content || '').toString();
+        const plainContent = getPlainText ? getPlainText(rawContent) : rawContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+
+        // Heuristic formatting: inject breaks after sentences and before list-like items
+        const normalized = plainContent
+          .replace(/([.!?])\s+(?=[A-Z\[])/g, '$1\n\n')
+          .replace(/\s*-\s+/g, '\n- ')
+          .replace(/(Q\d+\.|Correct Answer:)/g, '\n\n$1')
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+
+        let paragraphs = normalized.split(/\n\n+/).filter(Boolean);
+
+        // Remove duplicated first line if it repeats the title
+        if (paragraphs.length > 0) {
+          const first = paragraphs[0].replace(/\s+/g, ' ').trim().toLowerCase();
+          const t = (title || '').replace(/\s+/g, ' ').trim().toLowerCase();
+          if (t && (first === t || first.startsWith(t))) {
+            paragraphs = paragraphs.slice(1);
+          }
+        }
+
+        // Title
+        children.push(new Paragraph({ text: title || 'Untitled', heading: HeadingLevel.HEADING_3 }));
+
+        if (paragraphs.length === 0) {
+          children.push(new Paragraph({ text: 'No content' }));
+        } else {
+          paragraphs.slice(0, 300).forEach((para) => {
+            // Markdown-style headings to DOCX headings
+            if (/^###\s+/.test(para)) {
+              const text = para.replace(/^###\s+/, '').trim();
+              children.push(new Paragraph({ text, heading: HeadingLevel.HEADING_3 }));
+              return;
+            }
+            if (/^##\s+/.test(para)) {
+              const text = para.replace(/^##\s+/, '').trim();
+              children.push(new Paragraph({ text, heading: HeadingLevel.HEADING_2 }));
+              return;
+            }
+            if (/^#\s+/.test(para)) {
+              const text = para.replace(/^#\s+/, '').trim();
+              children.push(new Paragraph({ text, heading: HeadingLevel.HEADING_1 }));
+              return;
+            }
+
+            // Bullet list
+            if (/^([-*•])\s+/.test(para)) {
+              const cleaned = para.replace(/^([-*•])\s+/, '').trim();
+              const lines = chunkLine(cleaned);
+              if (lines.length === 0) {
+                children.push(new Paragraph({ text: '', bullet: { level: 0 } }));
+              } else {
+                lines.forEach((chunk) => children.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: chunk })] })));
+              }
+              return;
+            }
+
+            // Ordered list (simple single-level 1., 2.)
+            if (/^\d+[\.)]\s+/.test(para)) {
+              const cleaned = para.replace(/^\d+[\.)]\s+/, '').trim();
+              const lines = chunkLine(cleaned);
+              if (lines.length === 0) {
+                children.push(new Paragraph({ text: '', numbering: { reference: 'ordered-list', level: 0 } }));
+              } else {
+                lines.forEach((chunk) => children.push(new Paragraph({ numbering: { reference: 'ordered-list', level: 0 }, children: [new TextRun({ text: chunk })] })));
+              }
+              return;
+            }
+
+            // Default paragraph
+            chunkLine(para).forEach((chunk) => children.push(new Paragraph({ children: [new TextRun({ text: chunk })] })));
+          });
+        }
+
+        // Spacer between notes
+        children.push(new Paragraph({ text: '' }));
       });
 
-      const buffer = await Packer.toBuffer(doc);
-      const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+      const doc = new Document({
+        numbering: {
+          config: [
+            {
+              reference: 'ordered-list',
+              levels: [
+                {
+                  level: 0,
+                  format: 'decimal',
+                  text: '%1.',
+                  alignment: 'left',
+                },
+              ],
+            },
+          ],
+        },
+        styles: {
+          default: {
+            document: {
+              run: {
+                font: 'Arial',
+                size: 24,
+              },
+              paragraph: {
+                spacing: { after: 200, line: 276, lineRule: 'auto' },
+              },
+            },
+          },
+          paragraphStyles: [
+            {
+              id: 'Heading1',
+              name: 'Heading 1',
+              basedOn: 'Heading1',
+              next: 'Normal',
+              quickFormat: true,
+              run: { font: 'Arial', size: 36, bold: true },
+              paragraph: { spacing: { after: 200 } },
+            },
+            {
+              id: 'Heading2',
+              name: 'Heading 2',
+              basedOn: 'Heading2',
+              next: 'Normal',
+              quickFormat: true,
+              run: { font: 'Arial', size: 30, bold: true },
+              paragraph: { spacing: { after: 200 } },
+            },
+            {
+              id: 'Heading3',
+              name: 'Heading 3',
+              basedOn: 'Heading3',
+              next: 'Normal',
+              quickFormat: true,
+              run: { font: 'Arial', size: 26, bold: true },
+              paragraph: { spacing: { after: 160 } },
+            },
+          ],
+        },
+        sections: [{ properties: {}, children }],
+      });
+
+      const blob = await Packer.toBlob(doc);
       const url = URL.createObjectURL(blob);
       
       const link = document.createElement('a');
@@ -1495,13 +1654,14 @@ const Notes = () => {
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      setToast({ message: `Exported ${notes.length} notes to DOCX successfully!`, type: 'success' });
+      setToast({ message: `Exported ${items.length} notes to DOCX successfully!`, type: 'success' });
     } catch (error) {
       console.error('DOCX export failed:', error);
       setToast({ message: 'Failed to export notes to DOCX', type: 'error' });
     } finally {
       setIsExporting(false);
       setShowExportFormatModal(false);
+      setExportNotesList([]);
     }
   };
 
@@ -1510,6 +1670,7 @@ const Notes = () => {
     
     setIsExporting(true);
     try {
+      const items = (exportNotesList && exportNotesList.length > 0) ? exportNotesList : notes;
       const pdf = new jsPDF();
       const pageWidth = pdf.internal.pageSize.getWidth();
       const pageHeight = pdf.internal.pageSize.getHeight();
@@ -1539,7 +1700,7 @@ const Notes = () => {
       yPosition += 10;
 
       // Add notes
-      notes.forEach((note, index) => {
+      items.forEach((note, index) => {
         // Check if we need a new page
         if (yPosition > pageHeight - 30) {
           pdf.addPage();
@@ -1578,13 +1739,14 @@ const Notes = () => {
       // Save the PDF
       pdf.save(`${selectedNotebook.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes_export.pdf`);
 
-      setToast({ message: `Exported ${notes.length} notes to PDF successfully!`, type: 'success' });
+      setToast({ message: `Exported ${items.length} notes to PDF successfully!`, type: 'success' });
     } catch (error) {
       console.error('PDF export failed:', error);
       setToast({ message: 'Failed to export notes to PDF', type: 'error' });
     } finally {
       setIsExporting(false);
       setShowExportFormatModal(false);
+      setExportNotesList([]);
     }
   };
 
@@ -2196,27 +2358,64 @@ const Notes = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {selectedForBulk.length > 0 && (
+                    {/* Local notes search */}
+                    <div className="relative">
                       <button
-                        onClick={() => setShowBulkDeleteModal(true)}
-                        className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
+                        onClick={() => {
+                          setShowNotesLocalSearch(v => !v);
+                          setTimeout(() => notesLocalSearchRef.current?.focus(), 50);
+                        }}
+                        className="p-2 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                        title="Search notes"
                       >
-                        <span>Delete Selected ({selectedForBulk.length})</span>
+                        <Search size={18} />
                       </button>
-                    )}
+                      {showNotesLocalSearch && (
+                        <div className="absolute right-0 top-10 w-64 sm:w-72 md:w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow p-2 flex items-center gap-2 z-20">
+                          <input
+                            ref={notesLocalSearchRef}
+                            value={notesLocalSearchTerm}
+                            onChange={(e) => setNotesLocalSearchTerm(e.target.value)}
+                            placeholder="Search notes..."
+                            className="flex-1 bg-transparent outline-none text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400"
+                          />
+                          {notesLocalSearchTerm && (
+                            <button
+                              onClick={() => setNotesLocalSearchTerm('')}
+                              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded"
+                              title="Clear"
+                            >
+                              ×
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Bulk delete notes (icon-only) */}
+                    <button
+                      onClick={() => {
+                        setSelectedNotesForDelete([]);
+                        setShowNotesBulkDeleteModal(true);
+                      }}
+                      className="p-2 text-red-600 hover:text-white hover:bg-red-600 rounded-lg transition-colors"
+                      title="Delete multiple notes"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                     <button
                       onClick={handleImportNotes}
                       disabled={isImporting}
-                      className="p-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-green-400 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow-md"
-                      title={isImporting ? 'Importing notes...' : 'Import notes from JSON file'}
+                      className="p-2 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={isImporting ? 'Importing notes...' : 'Import notes'}
                     >
                       <Upload size={18} />
                     </button>
                     <button
                       onClick={handleExportNotes}
                       disabled={isExporting || notes.length === 0}
-                      className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed transition-colors shadow-sm hover:shadow-md"
-                      title={isExporting ? 'Exporting notes...' : 'Export notes to JSON file'}
+                      className="p-2 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={isExporting ? 'Exporting notes...' : 'Export notes'}
                     >
                       <Download size={18} />
                     </button>
@@ -2618,17 +2817,6 @@ const Notes = () => {
             </p>
             <div className="space-y-3">
               <button
-                onClick={exportToJSON}
-                disabled={isExporting}
-                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FileText className="w-5 h-5 text-blue-600" />
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">JSON</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Structured data format (recommended)</div>
-                </div>
-              </button>
-              <button
                 onClick={exportToDOCX}
                 disabled={isExporting}
                 className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
@@ -2664,6 +2852,149 @@ const Notes = () => {
         </div>
       )}
 
+      {/* Export Scope Modal */}
+      {showExportScopeModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Export Notes</h3>
+              <button
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                onClick={() => setShowExportScopeModal(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Select notes to export, or export everything in this notebook.</p>
+              <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+                {notes.map((n) => (
+                  <label key={n.id} className="flex items-start gap-3 p-4 border-b last:border-b-0 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      checked={selectedNotesForExport.includes(n.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedNotesForExport((prev) => [...prev, n.id]);
+                        } else {
+                          setSelectedNotesForExport((prev) => prev.filter((id) => id !== n.id));
+                        }
+                      }}
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900 dark:text-white line-clamp-1">{getPlainText(n.title || '') || 'Untitled'}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{getPreview(n.content || '') || 'No content'}</div>
+                    </div>
+                    <div className="text-xs text-gray-400">{new Date(n.updated_at).toLocaleDateString()}</div>
+                  </label>
+                ))}
+                {notes.length === 0 && (
+                  <div className="p-6 text-center text-gray-500 dark:text-gray-400">No notes available.</div>
+                )}
+              </div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex justify-end gap-3 rounded-b-lg">
+              <button
+                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
+                onClick={() => setShowExportScopeModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
+                onClick={() => {
+                  setExportNotesList(notes);
+                  setShowExportScopeModal(false);
+                  setShowExportFormatModal(true);
+                }}
+              >
+                Export all ({notes.length})
+              </button>
+              <button
+                disabled={selectedNotesForExport.length === 0}
+                className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => {
+                  const list = notes.filter(n => selectedNotesForExport.includes(n.id));
+                  setExportNotesList(list);
+                  setShowExportScopeModal(false);
+                  setShowExportFormatModal(true);
+                }}
+              >
+                Export selected ({selectedNotesForExport.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Notes Modal */}
+      {showNotesBulkDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Notes</h3>
+              <button
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                onClick={() => setShowNotesBulkDeleteModal(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Select notes to delete. This action cannot be undone.</p>
+              <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+                {notes.map((n) => (
+                  <label key={n.id} className="flex items-start gap-3 p-4 border-b last:border-b-0 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                      checked={selectedNotesForDelete.includes(n.id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedNotesForDelete((prev) => [...prev, n.id]);
+                        } else {
+                          setSelectedNotesForDelete((prev) => prev.filter((id) => id !== n.id));
+                        }
+                      }}
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900 dark:text-white line-clamp-1">{getPlainText(n.title || '') || 'Untitled'}</div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{getPreview(n.content || '') || 'No content'}</div>
+                    </div>
+                    <div className="text-xs text-gray-400">{new Date(n.updated_at).toLocaleDateString()}</div>
+                  </label>
+                ))}
+                {notes.length === 0 && (
+                  <div className="p-6 text-center text-gray-500 dark:text-gray-400">No notes available.</div>
+                )}
+              </div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex justify-end gap-3 rounded-b-lg">
+              <button
+                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
+                onClick={() => setShowNotesBulkDeleteModal(false)}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={selectedNotesForDelete.length === 0}
+                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => {
+                  handleBulkDeleteNotes(selectedNotesForDelete);
+                  setSelectedNotesForDelete([]);
+                  setShowNotesBulkDeleteModal(false);
+                }}
+              >
+                Delete {selectedNotesForDelete.length > 0 ? `(${selectedNotesForDelete.length})` : ''}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Import Format Selection Modal */}
       {showImportFormatModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -2675,17 +3006,6 @@ const Notes = () => {
               Select the format of the file you want to import:
             </p>
             <div className="space-y-3">
-              <button
-                onClick={importFromJSON}
-                disabled={isImporting}
-                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FileText className="w-5 h-5 text-blue-600" />
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">JSON</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Structured data format (full support)</div>
-                </div>
-              </button>
               <button
                 onClick={importFromDOCX}
                 disabled={isImporting}
