@@ -111,11 +111,11 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     const range = selection.getRangeAt(0);
     const container = range.commonAncestorContainer;
     
-    const preElement = container.nodeType === Node.TEXT_NODE 
-      ? container.parentElement?.closest('pre')
-      : (container as Element).closest('pre');
+    const codeBlockContainer = container.nodeType === Node.TEXT_NODE 
+      ? container.parentElement?.closest('.code-block-container')
+      : (container as Element).closest('.code-block-container');
     
-    return !!preElement;
+    return !!codeBlockContainer;
   };
 
   return (

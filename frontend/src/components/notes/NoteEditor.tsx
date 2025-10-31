@@ -10,7 +10,8 @@ import {
   FileDown,
   Table,
   Settings,
-  Image
+  Image,
+  Code
 } from 'lucide-react';
 import { DocumentTextIcon, ChatBubbleLeftRightIcon, AcademicCapIcon } from '@heroicons/react/24/outline';
 import axios from 'axios';
@@ -198,6 +199,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const lastAutoSaveTime = useRef<number>(0);
   const isUpdatingFromAutosave = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const linkifyTimeout = useRef<NodeJS.Timeout | null>(null);
   const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.68.162:8000/api';
   const [colorPickerPosition, setColorPickerPosition] = useState({ x: 0, y: 0 });
   const [showColorPicker, setShowColorPicker] = useState(false);
@@ -347,96 +349,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     };
   };
 
-  // COMPLETELY DISABLED: This useEffect was causing content to disappear after autosave
-  // The editor now works purely from DOM, no React state interference
-  // useEffect(() => {
-  //   if (note) {
-  //     console.log('Note loaded:', note);
-  //     
-  //     // CRITICAL FIX: If the editor has content, NEVER overwrite it to prevent disappearing
-  //     if (contentEditableRef.current && contentEditableRef.current.innerHTML.trim()) {
-  //       console.log('Editor has content, preserving it to prevent disappearing');
-  //       // Only update title and priority, never touch content
-  //       setTitle(note.title || '');
-  //       setPriority(note.priority || 'medium');
-  //       setHasChanges(false);
-  //       return;
-  //     }
-  //     
-  //     // CRITICAL FIX: For new notes, COMPLETELY skip this useEffect to prevent any interference
-  //     if (isNewNote) {
-  //       console.log('New note detected, completely skipping useEffect to preserve editor content');
-  //       return;
-  //     }
-  //     
-  //     // CRITICAL FIX: Don't update content if we're in the middle of an autosave update
-  //     if (isUpdatingFromAutosave.current) {
-  //       console.log('Autosave update in progress, preserving editor content');
-  //       // Still update title and priority, but preserve content
-  //       setTitle(note.title || '');
-  //       setPriority(note.priority || 'medium');
-  //       setHasChanges(false);
-  //       // Don't update content state to preserve what's in the editor
-  //       return;
-  //     }
-  //     
-  //     setTitle(note.title || '');
-  //     setPriority(note.priority || 'medium');
-  //     setHasChanges(false);
-  //     
-  //     // Only update content state for existing notes that are being loaded fresh
-  //     const noteContent = note.content || '';
-  //     contentRef.current = noteContent;
-  //     setContent(noteContent);
-  //     
-  //     // Update last_visited timestamp when note is loaded
-  //     const updateLastVisited = async () => {
-  //       try {
-  //         console.log('Updating last_visited for note:', note.id);
-  //         const response = await axios.patch(`${API_URL}/notes/${note.id}/`, {
-  //           last_visited: new Date().toISOString()
-  //         }, {
-  //           headers: getAuthHeaders()
-  //         });
-  //         console.log('Visit update response:', response.data);
-  //         
-  //         // Dispatch event to notify that a note has been updated
-  //         window.dispatchEvent(new Event('noteUpdated'));
-  //       } catch (error) {
-  //         console.error('Failed to update note visit timestamp:', error);
-  //         if (axios.isAxiosError(error)) {
-  //           console.error('Error details:', {
-  //             status: error.response?.status,
-  //             data: error.response?.data,
-  //             headers: error.response?.headers
-  //           });
-  //         }
-  //       }
-  //     };
-  //     
-  //     updateLastVisited();
-  //   }
-  // }, [note, isNewNote]);
-
-  // COMPLETELY DISABLED: No title/priority updates to prevent any re-renders
-  // useEffect(() => {
-  //   if (note) {
-  //     console.log('Updating title and priority for note:', note.title, note.priority);
-  //     setTitle(note.title || '');
-  //     setPriority(note.priority || 'medium');
-  //     setHasChanges(false);
-  //   }
-  // }, [note?.title, note?.priority]);
-
-  // COMPLETELY DISABLED: No content state updates at all
-  // useEffect(() => {
-  //   if (note && isNewNote) {
-  //     console.log('New note detected - NEVER updating content state to prevent disappearing');
-  //     // Don't call setContent at all for new notes
-  //     return;
-  //   }
-  // }, [note?.content, isNewNote]);
-
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newTitle = e.target.value;
     setTitle(newTitle);
@@ -446,6 +358,78 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   const handleContentChange = (newContent: string) => {
     setContent(newContent);
     setHasChanges(true);
+  };
+
+  // Auto-linkify URLs in the editor
+  const linkifyContent = () => {
+    if (!contentEditableRef.current) return;
+    
+    const selection = window.getSelection();
+    const savedRange = selection && selection.rangeCount > 0 ? selection.getRangeAt(0).cloneRange() : null;
+    
+    // URL pattern
+    const urlPattern = /(?<!href=["'])(https?:\/\/[^\s<>"]+|www\.[^\s<>"]+)/gi;
+    
+    const processNode = (node: Node) => {
+      if (node.nodeType === Node.TEXT_NODE && node.textContent) {
+        const text = node.textContent;
+        const matches = text.match(urlPattern);
+        
+        if (matches && matches.length > 0) {
+          const parent = node.parentNode;
+          if (parent && parent.nodeName !== 'A') { // Don't linkify if already in a link
+            const fragment = document.createDocumentFragment();
+            let lastIndex = 0;
+            
+            matches.forEach(url => {
+              const index = text.indexOf(url, lastIndex);
+              
+              // Add text before URL
+              if (index > lastIndex) {
+                fragment.appendChild(document.createTextNode(text.substring(lastIndex, index)));
+              }
+              
+              // Create link
+              const link = document.createElement('a');
+              const href = url.startsWith('http') ? url : `https://${url}`;
+              link.href = href;
+              link.textContent = url;
+              link.target = '_blank';
+              link.rel = 'noopener noreferrer';
+              link.style.color = '#3b82f6';
+              link.style.textDecoration = 'underline';
+              link.className = 'auto-link';
+              fragment.appendChild(link);
+              
+              lastIndex = index + url.length;
+            });
+            
+            // Add remaining text
+            if (lastIndex < text.length) {
+              fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+            }
+            
+            parent.replaceChild(fragment, node);
+          }
+        }
+      } else if (node.nodeType === Node.ELEMENT_NODE && node.nodeName !== 'A') {
+        // Process child nodes
+        Array.from(node.childNodes).forEach(child => processNode(child));
+      }
+    };
+    
+    processNode(contentEditableRef.current);
+    
+    // Restore cursor
+    if (savedRange) {
+      try {
+        selection?.removeAllRanges();
+        selection?.addRange(savedRange);
+      } catch (e) {
+        // Cursor restoration failed, place at end
+        contentEditableRef.current.focus();
+      }
+    }
   };
 
   // Text selection and floating toolbar functions
@@ -485,24 +469,122 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Restore focus to the contentEditable div
     contentEditableRef.current.focus();
     
-    // Special handling for code blocks - check if already in a code block
+    // Special handling for code blocks - use ChatGPT style
     if (command === 'formatBlock' && value === 'pre') {
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
+        const selectedText = selection.toString();
+        
+        // Check if we're already inside a code block container
         const container = range.commonAncestorContainer;
+        const codeBlockContainer = container.nodeType === Node.TEXT_NODE 
+          ? container.parentElement?.closest('.code-block-container')
+          : (container as Element).closest('.code-block-container');
         
-        // Check if we're already inside a <pre> element
-        const preElement = container.nodeType === Node.TEXT_NODE 
-          ? container.parentElement?.closest('pre')
-          : (container as Element).closest('pre');
-        
-        if (preElement) {
-          // If already in a code block, convert it back to normal paragraph
-          document.execCommand('formatBlock', false, 'div');
+        if (codeBlockContainer) {
+          // If already in a code block, extract the text and replace with plain text
+          const textNode = document.createTextNode(selectedText || codeBlockContainer.textContent || '');
+          codeBlockContainer.parentNode?.replaceChild(textNode, codeBlockContainer);
         } else {
-          // If not in a code block, create one
-          document.execCommand('formatBlock', false, 'pre');
+          // Create ChatGPT-style code block with selected text
+          const codeContainer = document.createElement('div');
+          codeContainer.className = 'code-block-container';
+          codeContainer.style.cssText = `
+            background-color: #1e1e1e;
+            border-radius: 8px;
+            margin: 16px 0;
+            overflow: hidden;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+          `;
+          
+          // Header bar
+          const header = document.createElement('div');
+          header.className = 'code-block-header';
+          header.contentEditable = 'false';
+          header.style.cssText = `
+            background-color: #2d2d2d;
+            padding: 8px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #3e3e3e;
+          `;
+          
+          const languageLabel = document.createElement('span');
+          languageLabel.textContent = 'code';
+          languageLabel.style.cssText = `
+            color: #9ca3af;
+            font-size: 12px;
+            font-weight: 500;
+          `;
+          
+          const copyButton = document.createElement('button');
+          copyButton.textContent = 'Copy';
+          copyButton.style.cssText = `
+            background: transparent;
+            border: 1px solid #4b5563;
+            color: #9ca3af;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+          `;
+          copyButton.onmouseover = () => {
+            copyButton.style.backgroundColor = '#374151';
+            copyButton.style.color = '#fff';
+          };
+          copyButton.onmouseout = () => {
+            copyButton.style.backgroundColor = 'transparent';
+            copyButton.style.color = '#9ca3af';
+          };
+          copyButton.onclick = (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const codeText = codeContent.textContent || '';
+            navigator.clipboard.writeText(codeText).then(() => {
+              copyButton.textContent = 'Copied!';
+              setTimeout(() => {
+                copyButton.textContent = 'Copy';
+              }, 2000);
+            });
+          };
+          
+          header.appendChild(languageLabel);
+          header.appendChild(copyButton);
+          
+          // Code content area with selected text
+          const codeContent = document.createElement('div');
+          codeContent.contentEditable = 'plaintext-only';
+          codeContent.textContent = selectedText || '// Enter your code here';
+          codeContent.style.cssText = `
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            padding: 16px;
+            margin: 0;
+            overflow-x: auto;
+            font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            white-space: pre;
+            word-wrap: normal;
+            overflow-wrap: normal;
+          `;
+          
+          codeContainer.appendChild(header);
+          codeContainer.appendChild(codeContent);
+          
+          // Replace selected content with code block
+          range.deleteContents();
+          range.insertNode(codeContainer);
+          
+          // Focus on code content
+          codeContent.focus();
+          const newRange = document.createRange();
+          newRange.selectNodeContents(codeContent);
+          selection.removeAllRanges();
+          selection.addRange(newRange);
         }
       }
     } else {
@@ -687,7 +769,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       for (let j = 0; j < cols; j++) {
         const td = document.createElement('td');
         td.contentEditable = 'true';
-        td.innerHTML = '&nbsp;';
+        td.textContent = ''; // Empty, no nbsp
         td.style.cursor = 'text';
         td.setAttribute('data-row', i.toString());
         td.setAttribute('data-col', j.toString());
@@ -711,65 +793,58 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   // Simple cell navigation for arrow keys
   const addSimpleCellNavigation = (cell: HTMLTableCellElement, table: HTMLTableElement) => {
     cell.addEventListener('keydown', (e) => {
+      if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) return;
+      
       const currentRow = parseInt(cell.getAttribute('data-row') || '0');
       const currentCol = parseInt(cell.getAttribute('data-col') || '0');
       const totalRows = table.rows.length;
       const totalCols = table.rows[0]?.cells.length || 0;
       
       let targetCell: HTMLTableCellElement | null = null;
-      
-      switch (e.key) {
-        case 'ArrowDown':
-          e.preventDefault();
-          if (currentRow < totalRows - 1) {
-            targetCell = table.rows[currentRow + 1]?.cells[currentCol] as HTMLTableCellElement;
-          }
-          break;
-        case 'ArrowUp':
-          e.preventDefault();
-          if (currentRow > 0) {
-            targetCell = table.rows[currentRow - 1]?.cells[currentCol] as HTMLTableCellElement;
-          }
-          break;
-        case 'ArrowRight':
-          e.preventDefault();
-          if (currentCol < totalCols - 1) {
-            targetCell = table.rows[currentRow]?.cells[currentCol + 1] as HTMLTableCellElement;
-          }
-          break;
-        case 'ArrowLeft':
-          e.preventDefault();
+      let shouldPrevent = false;
+
+      // Tab always navigates
+      if (e.key === 'Tab') {
+        shouldPrevent = true;
+        if (e.shiftKey) {
+          // Previous cell
           if (currentCol > 0) {
             targetCell = table.rows[currentRow]?.cells[currentCol - 1] as HTMLTableCellElement;
+          } else if (currentRow > 0) {
+            targetCell = table.rows[currentRow - 1]?.cells[totalCols - 1] as HTMLTableCellElement;
           }
-          break;
-        case 'Tab':
-          e.preventDefault();
-          if (e.shiftKey) {
-            // Shift+Tab: Move to previous cell
-            if (currentCol > 0) {
-              targetCell = table.rows[currentRow]?.cells[currentCol - 1] as HTMLTableCellElement;
-            } else if (currentRow > 0) {
-              targetCell = table.rows[currentRow - 1]?.cells[totalCols - 1] as HTMLTableCellElement;
-            }
-          } else {
-            // Tab: Move to next cell
-            if (currentCol < totalCols - 1) {
-              targetCell = table.rows[currentRow]?.cells[currentCol + 1] as HTMLTableCellElement;
-            } else if (currentRow < totalRows - 1) {
-              targetCell = table.rows[currentRow + 1]?.cells[0] as HTMLTableCellElement;
-            }
+        } else {
+          // Next cell
+          if (currentCol < totalCols - 1) {
+            targetCell = table.rows[currentRow]?.cells[currentCol + 1] as HTMLTableCellElement;
+          } else if (currentRow < totalRows - 1) {
+            targetCell = table.rows[currentRow + 1]?.cells[0] as HTMLTableCellElement;
           }
-          break;
+        }
       }
-      
-      if (targetCell) {
+      // Arrow keys - always navigate between cells (simpler, always works)
+      else if (e.key === 'ArrowRight' && currentCol < totalCols - 1) {
+        targetCell = table.rows[currentRow]?.cells[currentCol + 1] as HTMLTableCellElement;
+        shouldPrevent = true;
+      } else if (e.key === 'ArrowLeft' && currentCol > 0) {
+        targetCell = table.rows[currentRow]?.cells[currentCol - 1] as HTMLTableCellElement;
+        shouldPrevent = true;
+      } else if (e.key === 'ArrowDown' && currentRow < totalRows - 1) {
+        targetCell = table.rows[currentRow + 1]?.cells[currentCol] as HTMLTableCellElement;
+        shouldPrevent = true;
+      } else if (e.key === 'ArrowUp' && currentRow > 0) {
+        targetCell = table.rows[currentRow - 1]?.cells[currentCol] as HTMLTableCellElement;
+        shouldPrevent = true;
+      }
+
+      if (shouldPrevent && targetCell) {
+        e.preventDefault();
         targetCell.focus();
-        // Move cursor to end of content
+        // Place cursor at the end of the cell content
         const range = document.createRange();
         const sel = window.getSelection();
         range.selectNodeContents(targetCell);
-        range.collapse(false);
+        range.collapse(false); // false = end of content
         sel?.removeAllRanges();
         sel?.addRange(range);
       }
@@ -998,18 +1073,162 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     // Update editor state to reflect inserted DOM
     try {
       if (contentEditableRef.current) {
-        setContent(contentEditableRef.current.innerHTML);
+        const newContent = contentEditableRef.current.innerHTML;
+        setContent(newContent);
         setHasChanges(true);
+        
+        // Dispatch input event to trigger undo history
+        const inputEvent = new Event('input', { bubbles: true, cancelable: true });
+        contentEditableRef.current.dispatchEvent(inputEvent);
       }
     } catch {}
+  };
+
+  // Insert code block
+  const insertCodeBlock = () => {
+    if (!contentEditableRef.current) return;
+    
+    const selection = window.getSelection();
+    let range: Range | null = null;
+    
+    if (selection && selection.rangeCount > 0 && contentEditableRef.current.contains(selection.anchorNode)) {
+      range = selection.getRangeAt(0);
+    } else {
+      const fallbackRange = document.createRange();
+      fallbackRange.selectNodeContents(contentEditableRef.current);
+      fallbackRange.collapse(false);
+      range = fallbackRange;
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+    
+    if (!range) return;
+    
+    // Create code block container (ChatGPT style)
+    const codeContainer = document.createElement('div');
+    codeContainer.className = 'code-block-container';
+    codeContainer.style.cssText = `
+      background-color: #1e1e1e;
+      border-radius: 8px;
+      margin: 16px 0;
+      overflow: hidden;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    `;
+    
+    // Header bar
+    const header = document.createElement('div');
+    header.className = 'code-block-header';
+    header.contentEditable = 'false';
+    header.style.cssText = `
+      background-color: #2d2d2d;
+      padding: 8px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid #3e3e3e;
+    `;
+    
+    const languageLabel = document.createElement('span');
+    languageLabel.textContent = 'code';
+    languageLabel.style.cssText = `
+      color: #9ca3af;
+      font-size: 12px;
+      font-weight: 500;
+    `;
+    
+    const copyButton = document.createElement('button');
+    copyButton.textContent = 'Copy';
+    copyButton.style.cssText = `
+      background: transparent;
+      border: 1px solid #4b5563;
+      color: #9ca3af;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    `;
+    copyButton.onmouseover = () => {
+      copyButton.style.backgroundColor = '#374151';
+      copyButton.style.color = '#fff';
+    };
+    copyButton.onmouseout = () => {
+      copyButton.style.backgroundColor = 'transparent';
+      copyButton.style.color = '#9ca3af';
+    };
+    copyButton.onclick = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const codeText = codeContent.textContent || '';
+      navigator.clipboard.writeText(codeText).then(() => {
+        copyButton.textContent = 'Copied!';
+        setTimeout(() => {
+          copyButton.textContent = 'Copy';
+        }, 2000);
+      });
+    };
+    
+    header.appendChild(languageLabel);
+    header.appendChild(copyButton);
+    
+    // Code content area
+    const codeContent = document.createElement('div');
+    codeContent.contentEditable = 'plaintext-only';
+    codeContent.textContent = '// Enter your code here';
+    codeContent.style.cssText = `
+      background-color: #1e1e1e;
+      color: #d4d4d4;
+      padding: 16px;
+      margin: 0;
+      overflow-x: auto;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 14px;
+      line-height: 1.5;
+      white-space: pre;
+      word-wrap: normal;
+      overflow-wrap: normal;
+    `;
+    
+    codeContainer.appendChild(header);
+    codeContainer.appendChild(codeContent);
+    
+    // Insert into editor
+    try {
+      range.deleteContents();
+      range.insertNode(codeContainer);
+      
+      // Add spacing after
+      const spacer = document.createElement('div');
+      spacer.innerHTML = '<br>';
+      codeContainer.parentNode?.insertBefore(spacer, codeContainer.nextSibling);
+      
+    } catch (e) {
+      contentEditableRef.current.appendChild(codeContainer);
+    }
+    
+    // Focus on code content
+    codeContent.focus();
+    const newRange = document.createRange();
+    newRange.selectNodeContents(codeContent);
+    selection?.removeAllRanges();
+    selection?.addRange(newRange);
+    
+    // Update state
+    if (contentEditableRef.current) {
+      const newContent = contentEditableRef.current.innerHTML;
+      setContent(newContent);
+      setHasChanges(true);
+      const inputEvent = new Event('input', { bubbles: true, cancelable: true });
+      contentEditableRef.current.dispatchEvent(inputEvent);
+    }
   };
 
   const [showTableGrid, setShowTableGrid] = useState(false);
   const [tableGridPosition, setTableGridPosition] = useState({ x: 0, y: 0 });
   const [hoveredTableSize, setHoveredTableSize] = useState<{ rows: number; cols: number } | null>(null);
   const [previewTable, setPreviewTable] = useState<HTMLTableElement | null>(null);
-  const [customRows, setCustomRows] = useState(3);
-  const [customCols, setCustomCols] = useState(3);
+  const [customRows, setCustomRows] = useState<number | string>(3);
+  const [customCols, setCustomCols] = useState<number | string>(3);
   const isConvertingMarkdown = useRef(false);
   const lastRangeRef = useRef<Range | null>(null);
 
@@ -1242,7 +1461,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   };
 
   const insertCustomTable = () => {
-    insertTable(customRows, customCols);
+    const rows = typeof customRows === 'string' ? parseInt(customRows) || 3 : customRows;
+    const cols = typeof customCols === 'string' ? parseInt(customCols) || 3 : customCols;
+    insertTable(rows, cols);
     setShowTableGrid(false);
     setHoveredTableSize(null);
     setPreviewTable(null);
@@ -2157,9 +2378,16 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   };
 
   // Handler for canceling discard
-  const handleCancelDiscard = () => {
+  const handleStay = () => {
     setShowUnsavedModal(false);
     setPendingClose(false);
+  };
+
+  const handleDiscardChanges = () => {
+    setShowUnsavedModal(false);
+    setPendingClose(false);
+    // Close without saving
+    onBack();
   };
 
   return (
@@ -2217,6 +2445,14 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               type="button"
             >
               <Table size={16} />
+            </button>
+            <button
+              onClick={insertCodeBlock}
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
+              title="Insert Code Block"
+              type="button"
+            >
+              <Code size={16} />
             </button>
             <div className="relative">
               <input
@@ -2735,6 +2971,20 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                       // COMPLETELY DISABLED: Just mark that there are changes, do nothing else
                       setHasChanges(true);
                       // Don't call handleFormattingChange to prevent any interference
+                      
+                      // Linkify URLs after typing stops (debounced)
+                      if (linkifyTimeout.current) clearTimeout(linkifyTimeout.current);
+                      linkifyTimeout.current = setTimeout(() => {
+                        linkifyContent();
+                      }, 1000);
+                    }}
+                    onClick={(e) => {
+                      // Handle link clicks
+                      const target = e.target as HTMLElement;
+                      if (target.tagName === 'A' && target instanceof HTMLAnchorElement) {
+                        e.preventDefault();
+                        window.open(target.href, '_blank', 'noopener,noreferrer');
+                      }
                     }}
                     onBlur={() => {}} // DISABLED: No formatting change handling
                     onMouseUp={(e) => {
@@ -3040,15 +3290,21 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             <div className="flex justify-end gap-2">
               <button
                 className="px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded hover:bg-gray-300 dark:hover:bg-gray-600"
-                onClick={handleCancelDiscard}
+                onClick={handleStay}
               >
-                Cancel
+                Stay
+              </button>
+              <button
+                className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+                onClick={handleDiscardChanges}
+              >
+                Discard
               </button>
               <button
                 className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
                 onClick={handleConfirmSave}
               >
-                Save Changes
+                Save
               </button>
             </div>
           </div>
@@ -3249,7 +3505,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
               display: 'inline-block',
             }}
             onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
           >
             <div className="flex justify-between items-center mb-3">
               <div className="text-lg font-bold text-gray-800">
@@ -3325,7 +3580,22 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                       min="1"
                       max="20"
                       value={customRows}
-                      onChange={(e) => setCustomRows(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setCustomRows('');
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num)) {
+                            setCustomRows(Math.max(1, Math.min(20, num)));
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                          setCustomRows(3);
+                        }
+                      }}
                       className="w-14 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -3336,7 +3606,22 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                       min="1"
                       max="20"
                       value={customCols}
-                      onChange={(e) => setCustomCols(Math.max(1, Math.min(20, parseInt(e.target.value) || 1)))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val === '') {
+                          setCustomCols('');
+                        } else {
+                          const num = parseInt(val);
+                          if (!isNaN(num)) {
+                            setCustomCols(Math.max(1, Math.min(20, num)));
+                          }
+                        }
+                      }}
+                      onBlur={(e) => {
+                        if (e.target.value === '' || parseInt(e.target.value) < 1) {
+                          setCustomCols(3);
+                        }
+                      }}
                       className="w-14 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                     />
                   </div>

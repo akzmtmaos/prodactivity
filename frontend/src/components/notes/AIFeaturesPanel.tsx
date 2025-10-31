@@ -181,9 +181,9 @@ const convertMarkdownToHTML = (text: string): string => {
 
     // Headings
     let m;
-    if ((m = line.match(/^###\s+(.+)/))) { closeLists(); html.push(`<h3 class="text-lg font-bold text-black dark:text-white mb-2 mt-4">${renderInline(m[1])}</h3>`); continue; }
-    if ((m = line.match(/^##\s+(.+)/))) { closeLists(); html.push(`<h2 class="text-xl font-bold text-black dark:text-white mb-3 mt-5">${renderInline(m[1])}</h2>`); continue; }
-    if ((m = line.match(/^#\s+(.+)/)))  { closeLists(); html.push(`<h1 class="text-2xl font-bold text-black dark:text-white mb-4 mt-6">${renderInline(m[1])}</h1>`); continue; }
+    if ((m = line.match(/^###\s+(.+)/))) { closeLists(); html.push(`<h3 class="text-lg font-bold mb-2 mt-4">${renderInline(m[1])}</h3>`); continue; }
+    if ((m = line.match(/^##\s+(.+)/))) { closeLists(); html.push(`<h2 class="text-xl font-bold mb-3 mt-5">${renderInline(m[1])}</h2>`); continue; }
+    if ((m = line.match(/^#\s+(.+)/)))  { closeLists(); html.push(`<h1 class="text-2xl font-bold mb-4 mt-6">${renderInline(m[1])}</h1>`); continue; }
 
     // Ordered list
     if ((m = line.match(/^\s{0,3}(\d+)\.\s+(.+)/))) {
@@ -208,9 +208,9 @@ const convertMarkdownToHTML = (text: string): string => {
       continue;
     }
 
-    // Paragraph
+    // Paragraph - inherit text color from parent
     closeLists();
-    html.push(`<p class="mb-2 text-gray-800 dark:text-gray-200">${renderInline(line)}</p>`);
+    html.push(`<p class="mb-2">${renderInline(line)}</p>`);
   }
 
   closeLists();
