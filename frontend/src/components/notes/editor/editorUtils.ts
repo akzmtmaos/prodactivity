@@ -174,23 +174,69 @@ export const insertImage = (imageUrl: string, contentEditableRef: React.RefObjec
 export const convertMarkdownToHTML = (text: string): string => {
   if (!text) return '';
   
-  return text
-    // Convert ### headings to h3
-    .replace(/^### (.+)$/gm, '<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-4">$1</h3>')
-    // Convert ## headings to h2
-    .replace(/^## (.+)$/gm, '<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3 mt-5">$1</h2>')
-    // Convert # headings to h1
-    .replace(/^# (.+)$/gm, '<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4 mt-6">$1</h1>')
-    // Convert **bold** to <strong>
-    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>')
-    // Convert *italic* to <em>
-    .replace(/\*(.+?)\*/g, '<em class="italic">$1</em>')
-    // Convert numbered lists
-    .replace(/^(\d+)\. (.+)$/gm, '<li class="ml-4 mb-1">$1. $2</li>')
-    // Convert bullet lists
-    .replace(/^[-*] (.+)$/gm, '<li class="ml-4 mb-1 list-disc">$1</li>')
-    // Convert line breaks
-    .replace(/\n/g, '<br>');
+  // First, process inline formatting (bold, italic, etc.)
+  let html = text;
+  
+  // Convert ***bold italic*** to <strong><em> (must be before ** and *)
+  html = html.replace(/\*\*\*(.+?)\*\*\*/g, '<strong class="font-semibold"><em class="italic">$1</em></strong>');
+  
+  // Convert ___bold italic___ to <strong><em> (must be before __ and _)
+  html = html.replace(/___(.+?)___/g, '<strong class="font-semibold"><em class="italic">$1</em></strong>');
+  
+  // Convert **bold** to <strong>
+  html = html.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>');
+  
+  // Convert __underline__ to <u>
+  html = html.replace(/__(.+?)__/g, '<u class="underline">$1</u>');
+  
+  // Convert ~~strikethrough~~ to <s>
+  html = html.replace(/~~(.+?)~~/g, '<s class="line-through">$1</s>');
+  
+  // Convert *italic* to <em>
+  html = html.replace(/\*(.+?)\*/g, '<em class="italic">$1</em>');
+  
+  // Convert _italic_ to <em> (be careful not to catch underlines in words)
+  html = html.replace(/\b_(.+?)_\b/g, '<em class="italic">$1</em>');
+  
+  // Convert `inline code` to <code>
+  html = html.replace(/`(.+?)`/g, '<code class="bg-gray-100 dark:bg-gray-800 px-1 py-0.5 rounded text-sm font-mono">$1</code>');
+  
+  // Now split into lines and process block-level elements
+  const lines = html.split('\n');
+  const processedLines: string[] = [];
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    if (!line) {
+      // Empty line
+      processedLines.push('<p><br></p>');
+      continue;
+    }
+    
+    // Check for headings
+    if (line.startsWith('### ')) {
+      processedLines.push(`<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-2 mt-4">${line.substring(4)}</h3>`);
+    } else if (line.startsWith('## ')) {
+      processedLines.push(`<h2 class="text-xl font-semibold text-gray-900 dark:text-white mb-3 mt-5">${line.substring(3)}</h2>`);
+    } else if (line.startsWith('# ')) {
+      processedLines.push(`<h1 class="text-2xl font-bold text-gray-900 dark:text-white mb-4 mt-6">${line.substring(2)}</h1>`);
+    }
+    // Check for numbered lists
+    else if (/^\d+\.\s/.test(line)) {
+      processedLines.push(`<li class="ml-4 mb-1">${line}</li>`);
+    }
+    // Check for bullet lists
+    else if (line.startsWith('- ') || line.startsWith('* ')) {
+      processedLines.push(`<li class="ml-4 mb-1 list-disc">${line.substring(2)}</li>`);
+    }
+    // Regular paragraph
+    else {
+      processedLines.push(`<p class="mb-2">${line}</p>`);
+    }
+  }
+  
+  return processedLines.join('');
 };
 
 // Convert HTML back to markdown for storage

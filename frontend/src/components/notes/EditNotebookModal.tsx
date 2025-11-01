@@ -42,8 +42,12 @@ const EditNotebookModal: React.FC<EditNotebookModalProps> = ({ isOpen, currentNa
             onChange={(e) => setName(e.target.value)}
             className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-gray-900 placeholder-gray-400 dark:bg-gray-700 dark:text-white dark:border-gray-600"
             placeholder="Enter notebook name"
+            maxLength={100}
             autoFocus
           />
+          {name.length === 100 && (
+            <p className="text-xs text-red-500 mt-1">Maximum 100 characters reached</p>
+          )}
           <div className="mt-4 flex justify-end space-x-2">
             <button
               type="button"

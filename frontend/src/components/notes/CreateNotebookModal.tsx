@@ -56,10 +56,10 @@ const CreateNotebookModal: React.FC<CreateNotebookModalProps> = ({
               placeholder="Enter notebook name"
               className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white text-gray-900 dark:bg-gray-700 dark:text-white"
               required
-              maxLength={30}
+              maxLength={100}
             />
-            {name.length === 30 && (
-              <p className="text-xs text-red-500 mt-1">Maximum 30 characters reached</p>
+            {name.length === 100 && (
+              <p className="text-xs text-red-500 mt-1">Maximum 100 characters reached</p>
             )}
           </div>
 

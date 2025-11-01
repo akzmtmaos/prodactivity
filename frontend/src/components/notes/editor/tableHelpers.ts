@@ -72,7 +72,7 @@ export const createSimpleTable = (rows: number = 3, cols: number = 3) => {
   table.style.width = 'auto';
   table.style.maxWidth = '100%';
   table.style.fontSize = 'inherit';
-  table.style.lineHeight = '1.25';
+  table.style.lineHeight = '1.6';
 
   for (let i = 0; i < rows; i++) {
     const tr = document.createElement('tr');
@@ -83,13 +83,17 @@ export const createSimpleTable = (rows: number = 3, cols: number = 3) => {
       td.style.cursor = 'text';
       td.setAttribute('data-row', i.toString());
       td.setAttribute('data-col', j.toString());
-      // Compact cell to match surrounding text height
-      td.style.padding = '2px 4px';
+      // Adequate padding for comfortable text display
+      td.style.padding = '12px 16px';
       td.style.border = '1px solid #d1d5db'; // gray-300
-      td.style.minWidth = '36px';
+      td.style.minWidth = '100px';
+      td.style.minHeight = '44px';
+      td.style.height = '44px';
       td.style.whiteSpace = 'normal';
       td.style.fontSize = 'inherit';
-      td.style.verticalAlign = 'baseline';
+      td.style.lineHeight = '1.6';
+      td.style.verticalAlign = 'middle';
+      td.style.boxSizing = 'border-box';
       
       addSimpleCellNavigation(td, table);
       tr.appendChild(td);

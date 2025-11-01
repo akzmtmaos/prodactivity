@@ -12,7 +12,7 @@ import UnsavedChangesModal from './editor/UnsavedChangesModal';
 import EditorSettingsModal from './editor/EditorSettingsModal';
 import ExportModal from './editor/ExportModal';
 import { createSimpleTable, createCodeBlock } from './editor/tableHelpers';
-import { convertTextToHtml, linkifyContent, insertImage, getSelection, restoreSelection } from './editor/editorUtils';
+import { convertTextToHtml, linkifyContent, insertImage, getSelection, restoreSelection, convertMarkdownToHTML } from './editor/editorUtils';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
@@ -355,6 +355,23 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     
     if (!range) return;
     
+    // Check if cursor is already inside a code block
+    let currentNode: Node | null = range.commonAncestorContainer;
+    while (currentNode && currentNode !== contentEditableRef.current) {
+      if (currentNode.nodeType === Node.ELEMENT_NODE) {
+        const element = currentNode as Element;
+        // Check for code block container or code content
+        if (element.classList?.contains('code-block-container') || 
+            element.classList?.contains('code-block-content') ||
+            element.tagName === 'PRE' ||
+            (element.tagName === 'CODE' && element.parentElement?.tagName === 'PRE')) {
+          // Already inside a code block, don't insert
+          return;
+        }
+      }
+      currentNode = currentNode.parentNode;
+    }
+    
     const { codeContainer, codeContent } = createCodeBlock();
     
     try {
@@ -458,6 +475,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }
     
     setHasChanges(true);
+    
+    // Update formatting state after applying format
+    setTimeout(() => updateFormattingState(), 10);
   };
 
   // Color picker
@@ -498,17 +518,37 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   };
 
+  // Update formatting state based on current selection
+  const updateFormattingState = () => {
+    try {
+      const formatting = {
+        bold: document.queryCommandState('bold'),
+        italic: document.queryCommandState('italic'),
+        underline: document.queryCommandState('underline'),
+        strikethrough: document.queryCommandState('strikeThrough'),
+        highlight: document.queryCommandValue('hiliteColor') !== 'transparent' && document.queryCommandValue('hiliteColor') !== ''
+      };
+      setActiveFormatting(formatting);
+    } catch (error) {
+      // Ignore errors from queryCommandState
+    }
+  };
+
   // Text selection for floating toolbar
   const handleTextSelection = (e: React.MouseEvent | React.KeyboardEvent) => {
     setTimeout(() => {
       const selection = window.getSelection();
       if (!selection || selection.rangeCount === 0) {
         setShowFloatingToolbar(false);
+        updateFormattingState();
         return;
       }
 
       const range = selection.getRangeAt(0);
       const selectedText = selection.toString().trim();
+      
+      // Update formatting state
+      updateFormattingState();
       
       if (selectedText.length > 0) {
         const rect = range.getBoundingClientRect();
@@ -807,12 +847,20 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                         e.preventDefault();
                         window.open(target.href, '_blank', 'noopener,noreferrer');
                       }
+                      // Update formatting state on click
+                      setTimeout(() => updateFormattingState(), 10);
                     }}
-                    onMouseUp={handleTextSelection}
+                    onMouseUp={(e) => {
+                      handleTextSelection(e);
+                      // Update formatting state on mouse up
+                      setTimeout(() => updateFormattingState(), 10);
+                    }}
                     onKeyUp={(e) => {
                       if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
                         handleTextSelection(e);
                       }
+                      // Update formatting state on any key up
+                      setTimeout(() => updateFormattingState(), 10);
                     }}
                     onKeyDown={(e) => {
                       // Handle Enter key in headings to exit to normal paragraph
@@ -1029,8 +1077,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
           <AIFeaturesPanel
             content={content}
             onApplySummary={(summary) => {
-              setContent(summary);
+              // Convert markdown to HTML before applying
+              const htmlContent = convertMarkdownToHTML(summary);
+              setContent(htmlContent);
               setHasChanges(true);
+              
+              // Update the contentEditable div as well
+              if (contentEditableRef.current) {
+                contentEditableRef.current.innerHTML = htmlContent;
+              }
             }}
             onActiveChange={() => {}}
             sourceNoteId={note?.id}
