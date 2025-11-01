@@ -10,7 +10,6 @@ import {
   List,
   ListOrdered,
   Strikethrough,
-  Quote,
   ChevronDown
 } from 'lucide-react';
 
@@ -20,7 +19,6 @@ interface TextFormattingProps {
     italic: boolean;
     underline: boolean;
     strikethrough: boolean;
-    blockquote: boolean;
     highlight: boolean;
   };
   onToggleFormatting: (command: string, value?: string) => void;
@@ -158,17 +156,6 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
         title="Strikethrough"
       >
         <Strikethrough size={16} />
-      </button>
-      <button
-        onClick={() => handleFormattingClick('formatBlock', 'blockquote')}
-        className={`p-2 rounded-lg ${
-          activeFormatting.blockquote
-            ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
-            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
-        }`}
-        title="Blockquote"
-      >
-        <Quote size={16} />
       </button>
       <div className="relative inline-block">
         <button
