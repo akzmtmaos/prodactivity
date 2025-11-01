@@ -19,7 +19,7 @@ import {
   Share2
 } from 'lucide-react';
 import HelpButton from '../HelpButton';
-import axios from 'axios';
+import axiosInstance from '../../utils/axiosConfig';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import ReviewerDocument from './ReviewerDocument';
@@ -92,31 +92,15 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     isLoading: false
   });
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.68.162:8000/api';
-  const REVIEWERS_URL = `${API_URL}/reviewers/`;
-
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('accessToken');
-    console.log('Auth token:', token ? `${token.substring(0, 20)}...` : 'No token');
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-  };
-
   const navigate = useNavigate();
-
-
 
   // Fetch existing reviewers
   const fetchReviewers = async () => {
     try {
       setLoading(true);
       setError(null);
-      console.log('Fetching reviewers from:', REVIEWERS_URL);
-      const response = await axios.get(REVIEWERS_URL, {
-        headers: getAuthHeaders()
-      });
+      console.log('Fetching reviewers...');
+      const response = await axiosInstance.get('/reviewers/');
       console.log('Reviewers response:', response.data);
       setReviewers(response.data || []);
     } catch (error: any) {
@@ -190,7 +174,9 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       }
 
       // Only one POST to /reviewers/ai/generate/
-      const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
+      // Use longer timeout for AI generation (5 minutes)
+      console.log('Starting reviewer generation...');
+      const response = await axiosInstance.post('/reviewers/ai/generate/', {
         text: sourceContent, // Send raw content instead of pre-formatted prompt
         title: reviewerTitle || `${sourceTitle} - Study Summary`,
         source_note: selectedSource === 'note' ? selectedNote : null,
@@ -198,19 +184,33 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         note_type: sourceNoteType || sourceNotebookType, // Send note/notebook type for context
         tags: []
       }, {
-        headers: getAuthHeaders()
+        timeout: 300000 // 5 minutes timeout for AI generation
       });
 
-      setReviewers(prev => [response.data, ...prev]);
+      console.log('Reviewer generation response:', response);
+      console.log('Response status:', response.status);
+      console.log('Response data:', response.data);
+
+      // Fetch the newly created reviewer with source titles
+      const createdReviewerId = response.data.id;
+      const reviewerResponse = await axiosInstance.get(`/reviewers/${createdReviewerId}/`);
+      
+      // Success! Add to list and show success message
+      setReviewers(prev => [reviewerResponse.data, ...prev]);
       setSelectedNote(null);
       setSelectedNotebook(null);
       setReviewerTitle('');
       setToast({ message: 'Reviewer generated successfully!', type: 'success' });
+      
+      console.log('Generate reviewer completed successfully!');
     } catch (error: any) {
-      console.error('Failed to generate reviewer:', error);
+      console.error('Failed to generate reviewer - CAUGHT ERROR:', error);
+      console.error('Error response:', error.response);
+      console.error('Error message:', error.message);
       setError(error.response?.data?.error || 'Failed to generate reviewer');
       setToast({ message: error.response?.data?.error || 'Failed to generate reviewer', type: 'error' });
     } finally {
+      console.log('Setting generating to false');
       setGenerating(false);
     }
   };
@@ -221,10 +221,8 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       const reviewer = reviewers.find(r => r.id === reviewerId);
       if (!reviewer) return;
 
-      const response = await axios.patch(`${REVIEWERS_URL}${reviewerId}/`, {
+      const response = await axiosInstance.patch(`/reviewers/${reviewerId}/`, {
         is_favorite: !reviewer.is_favorite
-      }, {
-        headers: getAuthHeaders()
       });
 
       setReviewers(prev => prev.map(r => 
@@ -264,9 +262,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     setDeleteModal(prev => ({ ...prev, isLoading: true }));
     
     try {
-      await axios.delete(`${REVIEWERS_URL}${deleteModal.reviewerId}/`, {
-        headers: getAuthHeaders()
-      });
+      await axiosInstance.delete(`/reviewers/${deleteModal.reviewerId}/`);
       setReviewers(prev => prev.filter(r => r.id !== deleteModal.reviewerId));
       setToast({ message: 'Reviewer moved to Trash.', type: 'success' });
       closeDeleteModal();
@@ -294,27 +290,21 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       const sourceNote = notes.find(n => n.id === data.sourceNote);
       const sourceNotebook = notebooks.find(n => n.id === data.sourceNotebook);
       
-      const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
+      const response = await axiosInstance.post('/reviewers/ai/generate/', {
         text: sourceNote?.content || sourceNotebook?.name || '',
         title: data.title,
         source_note: data.sourceNote,
         source_notebook: data.sourceNotebook,
         note_type: sourceNote?.note_type || sourceNotebook?.notebook_type
       }, {
-        headers: getAuthHeaders()
+        timeout: 300000 // 5 minutes timeout for AI generation
       });
 
-      const saveResponse = await axios.post(REVIEWERS_URL, {
-        title: response.data.title,
-        content: response.data.content,
-        source_note: data.sourceNote,
-        source_notebook: data.sourceNotebook,
-        tags: ['reviewer']
-      }, {
-        headers: getAuthHeaders()
-      });
-
-      setReviewers(prev => [saveResponse.data, ...prev]);
+      // Fetch the newly created reviewer with source titles
+      const createdReviewerId = response.data.id;
+      const reviewerResponse = await axiosInstance.get(`/reviewers/${createdReviewerId}/`);
+      
+      setReviewers(prev => [reviewerResponse.data, ...prev]);
       setToast({ message: 'Reviewer generated successfully!', type: 'success' });
       closeGenerateModal();
     } catch (error: any) {
@@ -341,7 +331,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         sourceContent = notebookNotes.map(n => `${n.title}\n${n.content}`).join('\n\n');
       }
 
-      const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
+      const response = await axiosInstance.post('/reviewers/ai/generate/', {
         text: sourceContent,
         title: `Quiz: ${data.title}`,
         source_note: data.sourceNote,
@@ -349,20 +339,14 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         note_type: sourceNote?.note_type || sourceNotebook?.notebook_type,
         question_count: data.questionCount
       }, {
-        headers: getAuthHeaders()
+        timeout: 300000 // 5 minutes timeout for AI generation
       });
 
-      const saveResponse = await axios.post(REVIEWERS_URL, {
-        title: response.data.title,
-        content: response.data.content,
-        source_note: data.sourceNote,
-        source_notebook: data.sourceNotebook,
-        tags: ['quiz']
-      }, {
-        headers: getAuthHeaders()
-      });
-
-      setReviewers(prev => [saveResponse.data, ...prev]);
+      // Fetch the newly created quiz with source titles
+      const createdQuizId = response.data.id;
+      const quizResponse = await axiosInstance.get(`/reviewers/${createdQuizId}/`);
+      
+      setReviewers(prev => [quizResponse.data, ...prev]);
       setToast({ message: 'Quiz generated successfully!', type: 'success' });
       closeGenerateModal();
     } catch (error: any) {
@@ -378,7 +362,19 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     const matchesSearch = reviewer.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          reviewer.content.toLowerCase().includes(searchTerm.toLowerCase());
     const isQuiz = (reviewer.tags && reviewer.tags.includes('quiz')) || (reviewer.title && reviewer.title.toLowerCase().startsWith('quiz:'));
-    return matchesSearch && !isQuiz;
+    
+    let matchesFilter = true;
+    if (filterType === 'all') {
+      matchesFilter = true;
+    } else if (filterType === 'favorites') {
+      matchesFilter = reviewer.is_favorite;
+    } else if (filterType === 'notebook') {
+      matchesFilter = reviewer.source_notebook != null;
+    } else if (filterType === 'note') {
+      matchesFilter = reviewer.source_note != null;
+    }
+    
+    return matchesSearch && !isQuiz && matchesFilter;
   }) : [];
 
   // Filter quizzes
@@ -386,7 +382,19 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     const matchesSearch = reviewer.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          reviewer.content.toLowerCase().includes(searchTerm.toLowerCase());
     const isQuiz = (reviewer.tags && reviewer.tags.includes('quiz')) || (reviewer.title && reviewer.title.toLowerCase().startsWith('quiz:'));
-    return matchesSearch && isQuiz;
+    
+    let matchesFilter = true;
+    if (filterType === 'all') {
+      matchesFilter = true;
+    } else if (filterType === 'favorites') {
+      matchesFilter = reviewer.is_favorite;
+    } else if (filterType === 'notebook') {
+      matchesFilter = reviewer.source_notebook != null;
+    } else if (filterType === 'note') {
+      matchesFilter = reviewer.source_note != null;
+    }
+    
+    return matchesSearch && isQuiz && matchesFilter;
   }) : [];
 
   // Add per-reviewer quiz generation state
@@ -394,7 +402,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     setQuizLoadingId(reviewer.id);
     setError(null);
     try {
-      const response = await axios.post(`${API_URL}/reviewers/ai/generate/`, {
+      const response = await axiosInstance.post('/reviewers/ai/generate/', {
         text: reviewer.content,
         title: `Quiz: ${reviewer.title}`,
         note_type: reviewer.source_note ? 
@@ -402,17 +410,13 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           (reviewer.source_notebook ? 
             (notebooks.find(n => n.id === reviewer.source_notebook)?.notebook_type) : 
             null)
-      }, {
-        headers: getAuthHeaders()
       });
-      const saveResponse = await axios.post(REVIEWERS_URL, {
+      const saveResponse = await axiosInstance.post('/reviewers/', {
         title: response.data.title,
         content: response.data.content,
         source_note: reviewer.source_note ?? null,
         source_notebook: reviewer.source_notebook ?? null,
         tags: ['quiz']
-      }, {
-        headers: getAuthHeaders()
       });
             setReviewers(prev => [saveResponse.data, ...prev]);
     } catch (error: any) {

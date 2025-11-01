@@ -71,9 +71,9 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
   React.useEffect(() => {
     const onDocClick = (e: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowMenu(false);
+    setShowMenu(false);
       }
-    };
+  };
     if (showMenu) {
       document.addEventListener('mousedown', onDocClick);
     }

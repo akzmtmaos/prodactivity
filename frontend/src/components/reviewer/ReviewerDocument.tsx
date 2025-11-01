@@ -2,12 +2,17 @@ import React from 'react';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
+import { useNavigate } from 'react-router-dom';
+import { ExternalLink } from 'lucide-react';
 
 interface Reviewer {
   id: number;
   title: string;
   content: string;
+  source_note?: number | null;
   source_note_title?: string;
+  source_note_notebook_id?: number | null;
+  source_notebook?: number | null;
   source_notebook_name?: string;
   created_at: string;
   updated_at: string;
@@ -56,8 +61,24 @@ const preprocessContentWithBullets = (content: string) => {
 };
 
 const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }) => {
+  const navigate = useNavigate();
+
   // Determine if this is a quiz (by tag or title)
   const isQuiz = (reviewer.tags && reviewer.tags.includes('quiz')) || (reviewer.title && reviewer.title.toLowerCase().startsWith('quiz:'));
+
+  const handleSourceClick = () => {
+    if (reviewer.source_note && reviewer.source_note_notebook_id) {
+      navigate(`/notes/notebooks/${reviewer.source_note_notebook_id}/notes/${reviewer.source_note}`);
+      onClose();
+    } else if (reviewer.source_note) {
+      // Fallback: go to notes page if notebook ID not available
+      navigate('/notes');
+      onClose();
+    } else if (reviewer.source_notebook) {
+      navigate(`/notes?notebook=${reviewer.source_notebook}`);
+      onClose();
+    }
+  };
 
   // For quizzes, robustly preprocess to ensure each question/answer is on its own line
   const preprocessQuizContent = (content: string) => {
@@ -82,11 +103,18 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
           </button>
           
           <div className="pr-12">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{reviewer.title}</h2>
-            {(reviewer.source_note_title || reviewer.source_notebook_name) && (
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                From: {reviewer.source_note_title || reviewer.source_notebook_name}
-              </p>
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">{reviewer.title}</h2>
+            {(reviewer.source_note || reviewer.source_notebook) && (
+              <button
+                onClick={handleSourceClick}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-lg transition-colors text-sm font-medium border border-indigo-200 dark:border-indigo-800"
+              >
+                <ExternalLink size={16} />
+                <span>
+                  Source: {reviewer.source_note_title || reviewer.source_notebook_name || 
+                    (reviewer.source_note ? `Note #${reviewer.source_note}` : `Notebook #${reviewer.source_notebook}`)}
+                </span>
+              </button>
             )}
           </div>
         </div>

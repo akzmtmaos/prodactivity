@@ -1,5 +1,124 @@
 // frontend/src/components/notes/editor/tableHelpers.ts
 
+// Make table columns resizable
+export const makeTableResizable = (table: HTMLTableElement) => {
+  const rows = table.querySelectorAll('tr');
+  
+  // Make cell position relative for absolute positioning
+  rows.forEach((row) => {
+    const cells = row.querySelectorAll('td, th');
+    cells.forEach((cell) => {
+      const c = cell as HTMLTableCellElement;
+      if (!c.style.position || c.style.position === 'static') {
+        c.style.position = 'relative';
+      }
+    });
+  });
+  
+  rows.forEach((row, rowIndex) => {
+    const cells = row.querySelectorAll('td, th');
+    
+    cells.forEach((col, colIndex) => {
+      const cell = col as HTMLTableCellElement;
+      
+      // Skip if already has a resizer
+      if (cell.hasAttribute('data-has-resizer')) return;
+      cell.setAttribute('data-has-resizer', 'true');
+      
+      let startX: number;
+      let startWidths: number[] = [];
+      let isResizing = false;
+      
+      // Check if mouse is near the right edge of the cell
+      const isNearRightEdge = (e: MouseEvent, element: HTMLElement) => {
+        const rect = element.getBoundingClientRect();
+        const offsetX = e.clientX - rect.left;
+        const cellWidth = rect.width;
+        return offsetX > cellWidth - 8; // Within 8px of right edge
+      };
+      
+      const onMouseMove = (e: MouseEvent) => {
+        if (isResizing) {
+          const diff = e.pageX - startX;
+          
+          // Apply width to all cells in this column
+          rows.forEach((r, rIndex) => {
+            const c = r.querySelectorAll('td, th')[colIndex] as HTMLTableCellElement;
+            if (c && startWidths[rIndex] !== undefined) {
+              const newWidth = startWidths[rIndex] + diff;
+              
+              if (newWidth >= 50) { // Minimum width
+                c.style.width = newWidth + 'px';
+                c.style.minWidth = newWidth + 'px';
+              }
+            }
+          });
+        } else {
+          // Change cursor and add visual indicator when hovering near right edge
+          if (isNearRightEdge(e, cell)) {
+            cell.style.cursor = 'col-resize';
+            cell.style.boxShadow = 'inset -2px 0 0 0 #3b82f6';
+          } else {
+            cell.style.cursor = 'text';
+            cell.style.boxShadow = '';
+          }
+        }
+      };
+      
+      const onMouseDown = (e: MouseEvent) => {
+        // Only activate if clicking near the right edge
+        if (!isNearRightEdge(e, cell)) return;
+        
+        e.preventDefault();
+        e.stopPropagation();
+        isResizing = true;
+        startX = e.pageX;
+        cell.style.cursor = 'col-resize';
+        
+        // Add visual feedback to entire column while resizing
+        rows.forEach((r) => {
+          const c = r.querySelectorAll('td, th')[colIndex] as HTMLTableCellElement;
+          if (c) {
+            c.style.boxShadow = 'inset -3px 0 0 0 #3b82f6';
+          }
+        });
+        
+        // Store width of all cells in this column
+        startWidths = [];
+        rows.forEach((r) => {
+          const c = r.querySelectorAll('td, th')[colIndex] as HTMLTableCellElement;
+          if (c) {
+            startWidths.push(c.offsetWidth);
+          }
+        });
+        
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      };
+      
+      const onMouseUp = () => {
+        if (!isResizing) return;
+        
+        isResizing = false;
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        cell.style.cursor = 'text';
+        
+        // Remove visual feedback from entire column
+        rows.forEach((r) => {
+          const c = r.querySelectorAll('td, th')[colIndex] as HTMLTableCellElement;
+          if (c) {
+            c.style.boxShadow = '';
+          }
+        });
+      };
+      
+      cell.addEventListener('mousedown', onMouseDown);
+      cell.addEventListener('mousemove', onMouseMove);
+    });
+  });
+};
+
 // Simple cell navigation for arrow keys
 export const addSimpleCellNavigation = (cell: HTMLTableCellElement, table: HTMLTableElement) => {
   cell.addEventListener('keydown', (e) => {
@@ -100,6 +219,9 @@ export const createSimpleTable = (rows: number = 3, cols: number = 3) => {
     }
     table.appendChild(tr);
   }
+  
+  // Make table columns resizable
+  makeTableResizable(table);
   
   return table;
 };

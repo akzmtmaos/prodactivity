@@ -1,7 +1,8 @@
 import React from 'react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
-import { Star, StarOff, Trash2, Download, Share2 } from 'lucide-react';
+import { Star, StarOff, Trash2, Download, Share2, ExternalLink } from 'lucide-react';
 import { truncateHtmlContent } from '../../utils/htmlUtils';
+import { useNavigate } from 'react-router-dom';
 
 interface Reviewer {
   id: number;
@@ -9,6 +10,7 @@ interface Reviewer {
   content: string;
   source_note?: number | null;
   source_note_title?: string;
+  source_note_notebook_id?: number | null;
   source_notebook?: number | null;
   source_notebook_name?: string;
   created_at: string;
@@ -38,6 +40,52 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
   showFavorite = true,
   showGenerateQuiz = true,
 }) => {
+  const navigate = useNavigate();
+
+  const handleSourceClick = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    console.log('Source click - reviewer:', reviewer);
+    console.log('source_note:', reviewer.source_note);
+    console.log('source_note_notebook_id:', reviewer.source_note_notebook_id);
+    console.log('source_notebook:', reviewer.source_notebook);
+    
+    if (reviewer.source_note) {
+      // If we have notebook ID from backend, use it
+      if (reviewer.source_note_notebook_id) {
+        console.log('Navigating to:', `/notes/notebooks/${reviewer.source_note_notebook_id}/notes/${reviewer.source_note}`);
+        navigate(`/notes/notebooks/${reviewer.source_note_notebook_id}/notes/${reviewer.source_note}`);
+      } else {
+        // Fetch the note to get notebook ID
+        console.log('Fetching note to get notebook ID...');
+        try {
+          const token = localStorage.getItem('accessToken');
+          const response = await fetch(`http://localhost:8000/api/notes/${reviewer.source_note}/`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          const note = await response.json();
+          console.log('Fetched note:', note);
+          
+          if (note.notebook) {
+            console.log('Navigating to:', `/notes/notebooks/${note.notebook}/notes/${reviewer.source_note}`);
+            navigate(`/notes/notebooks/${note.notebook}/notes/${reviewer.source_note}`);
+          } else {
+            console.log('Note has no notebook, going to /notes');
+            navigate('/notes');
+          }
+        } catch (err) {
+          console.error('Failed to fetch note:', err);
+          navigate('/notes');
+        }
+      }
+    } else if (reviewer.source_notebook) {
+      console.log('Navigating to notebook:', `/notes?notebook=${reviewer.source_notebook}`);
+      navigate(`/notes?notebook=${reviewer.source_notebook}`);
+    }
+  };
+
   const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
     const title = reviewer.title || 'reviewer';
@@ -119,10 +167,16 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
             <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
               {reviewer.title}
             </h3>
-            {(reviewer.source_note_title || reviewer.source_notebook_name) && (
-              <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
-                {reviewer.source_note_title || reviewer.source_notebook_name}
-              </span>
+            {(reviewer.source_note || reviewer.source_notebook) && (
+              <button
+                onClick={handleSourceClick}
+                className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors whitespace-nowrap"
+                title={`Go to ${reviewer.source_note ? 'note' : 'notebook'}: ${reviewer.source_note_title || reviewer.source_notebook_name || (reviewer.source_note ? `Note #${reviewer.source_note}` : `Notebook #${reviewer.source_notebook}`)}`}
+              >
+                <ExternalLink size={12} />
+                {reviewer.source_note_title || reviewer.source_notebook_name || 
+                  (reviewer.source_note ? `Note #${reviewer.source_note}` : `Notebook #${reviewer.source_notebook}`)}
+              </button>
             )}
           </div>
         </div>

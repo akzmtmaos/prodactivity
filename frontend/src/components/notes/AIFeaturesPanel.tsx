@@ -157,7 +157,7 @@ const cleanThinkingProcess = (text: string): string => {
 // Function to convert markdown to HTML
 const convertMarkdownToHTML = (text: string): string => {
   if (!text) return '';
-
+  
   // Normalize line endings
   const lines = text.replace(/\r\n?/g, '\n').split('\n');
   let html: string[] = [];
@@ -1213,33 +1213,33 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                               {/* Message bubble */}
                               <div
                                 className={`rounded-2xl p-4 break-words transition-all duration-200 ${
-                                  message.role === 'user'
+                                message.role === 'user'
                                     ? 'bg-indigo-600 text-white rounded-br-md'
                                     : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-bl-md'
-                                } ${
-                                  message.role === 'assistant' && isTyping && typingMessageIndex === index
+                              } ${
+                                message.role === 'assistant' && isTyping && typingMessageIndex === index
                                     ? 'shadow-lg ring-2 ring-indigo-200 dark:ring-indigo-800'
                                     : 'shadow-sm'
-                                }`}
-                              >
-                                {message.role === 'assistant' && isTyping && typingMessageIndex === index ? (
-                                  <>
-                                    {console.log('🎬 Rendering TypingAnimation for message', index, 'content:', message.content)}
-                                    <div 
-                                      className="text-sm leading-relaxed"
-                                      dangerouslySetInnerHTML={{ 
-                                        __html: (message.content ? convertMarkdownToHTML(message.content) : '<span class="text-gray-500 italic">Thinking...</span>') + '<span class="animate-pulse text-indigo-500 ml-1">|</span>'
-                                      }}
-                                    />
-                                  </>
-                                ) : (
+                              }`}
+                            >
+                              {message.role === 'assistant' && isTyping && typingMessageIndex === index ? (
+                                <>
+                                  {console.log('🎬 Rendering TypingAnimation for message', index, 'content:', message.content)}
                                   <div 
-                                    className="text-sm leading-relaxed"
-                                    dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(message.content) }}
+                                      className="text-sm leading-relaxed"
+                                    dangerouslySetInnerHTML={{ 
+                                        __html: (message.content ? convertMarkdownToHTML(message.content) : '<span class="text-gray-500 italic">Thinking...</span>') + '<span class="animate-pulse text-indigo-500 ml-1">|</span>'
+                                    }}
                                   />
-                                )}
-                              </div>
+                                </>
+                              ) : (
+                                <div 
+                                    className="text-sm leading-relaxed"
+                                  dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(message.content) }}
+                                />
+                              )}
                             </div>
+                          </div>
                           </div>
                         ))
                       )}

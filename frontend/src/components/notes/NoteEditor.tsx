@@ -11,7 +11,7 @@ import TableInsertModal from './editor/TableInsertModal';
 import UnsavedChangesModal from './editor/UnsavedChangesModal';
 import EditorSettingsModal from './editor/EditorSettingsModal';
 import ExportModal from './editor/ExportModal';
-import { createSimpleTable, createCodeBlock } from './editor/tableHelpers';
+import { createSimpleTable, createCodeBlock, makeTableResizable } from './editor/tableHelpers';
 import { convertTextToHtml, linkifyContent, insertImage, getSelection, restoreSelection, convertMarkdownToHTML } from './editor/editorUtils';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
@@ -244,6 +244,20 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       if (currentDOMContent !== content) {
         contentEditableRef.current.innerHTML = content;
       }
+    }
+  }, [content, isInitialized]);
+
+  // Make existing tables resizable
+  useEffect(() => {
+    if (contentEditableRef.current) {
+      const tables = contentEditableRef.current.querySelectorAll('table');
+      tables.forEach((table) => {
+        // Check if table is already made resizable by checking for resize handles
+        const hasResizers = table.querySelector('td > div[style*="col-resize"]');
+        if (!hasResizers) {
+          makeTableResizable(table as HTMLTableElement);
+        }
+      });
     }
   }, [content, isInitialized]);
 

@@ -72,7 +72,7 @@ const Reviewer = () => {
         console.error('Failed to fetch reviewer data:', err);
         // Only show error if we have nothing to show
         if (notebooks.length === 0 && notes.length === 0) {
-          setError('Failed to load data');
+        setError('Failed to load data');
         }
       }
     };
