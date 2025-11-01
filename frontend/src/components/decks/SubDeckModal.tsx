@@ -127,13 +127,13 @@ const SubDeckModal: React.FC<SubDeckModalProps> = ({
                   type="text"
                   value={subDeckEditForm.title}
                   onChange={(e) => setSubDeckEditForm({ ...subDeckEditForm, title: e.target.value })}
-                  className="text-xl font-semibold text-gray-900 dark:text-white bg-transparent border-b border-gray-300 dark:border-gray-600 focus:outline-none focus:border-indigo-500 px-2 py-1"
+                  className="text-xl font-semibold text-gray-900 dark:text-white bg-white dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600 focus:outline-none focus:border-indigo-500 px-2 py-1"
                   placeholder="Enter SubDeck title..."
                 />
                 <textarea
                   value={subDeckEditForm.description}
                   onChange={(e) => setSubDeckEditForm({ ...subDeckEditForm, description: e.target.value })}
-                  className="text-sm text-gray-600 dark:text-gray-400 bg-transparent border-b border-gray-300 dark:border-gray-600 focus:outline-none focus:border-indigo-500 px-2 py-1 resize-none"
+                  className="text-sm text-gray-600 dark:text-gray-400 bg-white dark:bg-gray-800 border-b border-gray-300 dark:border-gray-600 focus:outline-none focus:border-indigo-500 px-2 py-1 resize-none"
                   placeholder="Enter SubDeck description..."
                   rows={2}
                 />
@@ -220,7 +220,7 @@ const SubDeckModal: React.FC<SubDeckModalProps> = ({
                       value={newSubDeck.title}
                       onChange={(e) => setNewSubDeck({ ...newSubDeck, title: e.target.value })}
                       placeholder="Enter subdeck title..."
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                     />
                   </div>
                   <div>
@@ -232,7 +232,7 @@ const SubDeckModal: React.FC<SubDeckModalProps> = ({
                       onChange={(e) => setNewSubDeck({ ...newSubDeck, description: e.target.value })}
                       placeholder="Enter subdeck description..."
                       rows={2}
-                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-800 dark:text-white resize-none"
+                      className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
                     />
                   </div>
                   <div className="flex justify-end space-x-3">
@@ -288,7 +288,7 @@ const SubDeckModal: React.FC<SubDeckModalProps> = ({
                           type="text"
                           value={editForm.title}
                           onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-800 dark:text-white"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
                         />
                       </div>
                       <div>
@@ -299,7 +299,7 @@ const SubDeckModal: React.FC<SubDeckModalProps> = ({
                           value={editForm.description}
                           onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
                           rows={2}
-                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent dark:bg-gray-800 dark:text-white resize-none"
+                          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent bg-white dark:bg-gray-800 text-gray-900 dark:text-white resize-none"
                         />
                       </div>
                       <div className="flex justify-end space-x-3">

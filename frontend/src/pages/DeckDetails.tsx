@@ -5,6 +5,8 @@ import PageLayout from '../components/PageLayout';
 import CreateDeckModal from '../components/decks/CreateDeckModal';
 import AddFlashcardModal from '../components/decks/AddFlashcardModal';
 import DeleteConfirmationModal from '../components/decks/DeleteConfirmationModal';
+import EditDeckModal from '../components/decks/EditDeckModal';
+import DeckStatsModal from '../components/decks/DeckStatsModal';
 import StudySession from '../components/decks/StudySession';
 import QuizSession from '../components/decks/QuizSession';
 import DeckCard from '../components/decks/DeckCard';
@@ -68,6 +70,8 @@ const DeckDetails: React.FC = () => {
   const [showCreateSubdeck, setShowCreateSubdeck] = useState(false);
   const [showAddFlashcard, setShowAddFlashcard] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showStatsModal, setShowStatsModal] = useState(false);
   const [showStudySession, setShowStudySession] = useState(false);
   const [showQuizSession, setShowQuizSession] = useState(false);
   const [selectedSubdeck, setSelectedSubdeck] = useState<Subdeck | null>(null);
@@ -576,10 +580,16 @@ const DeckDetails: React.FC = () => {
                           setSelectedSubdeck(subdeck);
                           setShowDeleteModal(true);
                         }}
-                        onStudy={() => {}}
-                        onQuiz={() => {}}
-                        onEdit={() => {}}
-                        onViewStats={() => {}}
+                        onStudy={() => navigate(`/decks/${subdeck.id}/practice`)}
+                        onQuiz={() => navigate(`/decks/${subdeck.id}/quiz`)}
+                        onEdit={() => {
+                          setSelectedSubdeck(subdeck);
+                          setShowEditModal(true);
+                        }}
+                        onViewStats={() => {
+                          setSelectedSubdeck(subdeck);
+                          setShowStatsModal(true);
+                        }}
                       />
                     </div>
                   ))
@@ -783,7 +793,7 @@ const DeckDetails: React.FC = () => {
                             disabled={loadingNotes}
                             value={modalSelectedNotebookId ?? ''}
                             onChange={(e) => { const id = Number(e.target.value); setModalSelectedNotebookId(Number.isNaN(id) ? null : id); setSelectedNoteIds(new Set()); }}
-                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
                           >
                             {notebooks.length === 0 && <option value="">{loadingNotes ? 'Loading...' : 'No notebooks found'}</option>}
                             {notebooks.map(nb => (
@@ -792,7 +802,7 @@ const DeckDetails: React.FC = () => {
                           </select>
                           <button
                             onClick={() => ensureNotebooksLoaded()}
-                            className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600"
+                            className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 rounded border border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
                             type="button"
                           >
                             Refresh
@@ -883,6 +893,86 @@ const DeckDetails: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Subdeck Modal */}
+      {selectedSubdeck && (
+        <EditDeckModal
+          isOpen={showEditModal}
+          deck={{
+            id: selectedSubdeck.id,
+            title: selectedSubdeck.title,
+          }}
+          onClose={() => {
+            setShowEditModal(false);
+            setSelectedSubdeck(null);
+          }}
+          onUpdateDeck={async (deckId: string, updates: { title: string }) => {
+            try {
+              const token = localStorage.getItem('accessToken');
+              const res = await fetch(`${API_BASE_URL}/decks/decks/${deckId}/`, {
+                method: 'PATCH',
+                headers: {
+                  'Authorization': token ? `Bearer ${token}` : '',
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(updates),
+              });
+              
+              if (!res.ok) throw new Error('Failed to update subdeck');
+              
+              // Refresh subdecks
+              const subdecksRes = await fetch(`${API_BASE_URL}/decks/decks/?parent=${id}`, {
+                headers: {
+                  'Authorization': token ? `Bearer ${token}` : '',
+                },
+              });
+              if (subdecksRes.ok) {
+                const data = await subdecksRes.json();
+                setSubdecks(data.map((sd: any) => ({
+                  id: sd.id.toString(),
+                  title: sd.title,
+                  flashcards: (sd.flashcards || []).map((fc: any) => ({
+                    id: fc.id.toString(),
+                    question: fc.front,
+                    answer: fc.back,
+                    front: fc.front,
+                    back: fc.back,
+                    difficulty: fc.difficulty
+                  }))
+                })));
+              }
+              
+              setShowEditModal(false);
+              setSelectedSubdeck(null);
+            } catch (error) {
+              console.error('Error updating subdeck:', error);
+            }
+          }}
+        />
+      )}
+
+      {/* Stats Modal */}
+      {selectedSubdeck && (
+        <DeckStatsModal
+          isOpen={showStatsModal}
+          deckTitle={selectedSubdeck.title}
+          stats={{
+            totalCards: selectedSubdeck.flashcards.length,
+            masteredCards: 0,
+            learningCards: 0,
+            newCards: selectedSubdeck.flashcards.length,
+            averageScore: 0,
+            totalStudyTime: 0,
+            studyStreak: 0,
+            weeklyProgress: [0, 0, 0, 0, 0, 0, 0],
+            lastStudied: undefined,
+          }}
+          onClose={() => {
+            setShowStatsModal(false);
+            setSelectedSubdeck(null);
+          }}
+        />
       )}
     </PageLayout>
   );

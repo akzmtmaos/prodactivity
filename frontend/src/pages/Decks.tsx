@@ -1152,13 +1152,33 @@ interface NoteItem {
                       onArchive={handleArchive}
                       onManageSubDecks={handleManageSubDecks}
                     />
-                    {/* Subdecks display */}
+                    {/* Subdecks display - click to open deck and view subdeck */}
                     {deck.subDecks && deck.subDecks.length > 0 && (
-                      <div className="mt-2 ml-2 flex flex-wrap gap-2">
+                      <div className="mt-3 space-y-2">
                         {deck.subDecks.map((sub) => (
-                          <span key={sub.id} className="inline-block bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-medium border border-indigo-200 dark:border-indigo-700">
-                            {sub.title}
-                          </span>
+                          <div 
+                            key={sub.id} 
+                            onClick={() => navigate(`/decks/${deck.id}?subdeck=${sub.id}`)}
+                            className="group relative bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 hover:shadow-md transition-all cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 truncate">
+                                  📚 {sub.title}
+                                </h4>
+                                {sub.description && (
+                                  <p className="text-xs text-indigo-600 dark:text-indigo-400 truncate mt-0.5">
+                                    {sub.description}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="text-indigo-400 dark:text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
                         ))}
                       </div>
                     )}
@@ -1450,13 +1470,33 @@ interface NoteItem {
                           onArchive={handleArchive}
                           onManageSubDecks={handleManageSubDecks}
                         />
-                        {/* Subdecks display */}
+                        {/* Subdecks display - click to open deck and view subdeck */}
                         {deck.subDecks && deck.subDecks.length > 0 && (
-                          <div className="mt-2 ml-2 flex flex-wrap gap-2">
+                          <div className="mt-3 space-y-2">
                             {deck.subDecks.map((sub) => (
-                              <span key={sub.id} className="inline-block bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded text-xs font-medium border border-indigo-200 dark:border-indigo-700">
-                                {sub.title}
-                              </span>
+                              <div 
+                                key={sub.id} 
+                                onClick={() => navigate(`/decks/${deck.id}?subdeck=${sub.id}`)}
+                                className="group relative bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 hover:shadow-md transition-all cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 truncate">
+                                      📚 {sub.title}
+                                    </h4>
+                                    {sub.description && (
+                                      <p className="text-xs text-indigo-600 dark:text-indigo-400 truncate mt-0.5">
+                                        {sub.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="text-indigo-400 dark:text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </div>
+                                </div>
+                              </div>
                             ))}
                           </div>
                         )}

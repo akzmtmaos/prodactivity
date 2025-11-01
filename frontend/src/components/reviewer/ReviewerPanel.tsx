@@ -950,7 +950,8 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                     }}
                     onClick={() => navigate(`/reviewer/q/${quiz.id}`)}
                     onTakeQuiz={(quiz) => setInteractiveQuizData(quiz)}
-                    showFavorite={false}
+                    onFavorite={toggleFavorite}
+                    showFavorite={true}
                     showGenerateQuiz={false}
                     showTakeQuiz={true}
                   />

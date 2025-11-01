@@ -46,7 +46,7 @@ const AddFlashcardModal: React.FC<AddFlashcardModalProps> = ({ isOpen, onClose, 
             <textarea
               id="question"
               rows={3}
-              className="w-full rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               value={question}
               onChange={e => setQuestion(e.target.value)}
               placeholder="Enter your question"
@@ -60,7 +60,7 @@ const AddFlashcardModal: React.FC<AddFlashcardModalProps> = ({ isOpen, onClose, 
             <textarea
               id="answer"
               rows={3}
-              className="w-full rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-700 dark:text-white"
+              className="w-full rounded-md border-gray-300 dark:border-gray-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
               value={answer}
               onChange={e => setAnswer(e.target.value)}
               placeholder="Enter your answer"
