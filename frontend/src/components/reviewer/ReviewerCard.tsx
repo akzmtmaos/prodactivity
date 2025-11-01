@@ -1,6 +1,6 @@
 import React from 'react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
-import { Star, StarOff, Trash2, Download, Share2, ExternalLink } from 'lucide-react';
+import { Star, StarOff, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy } from 'lucide-react';
 import { truncateHtmlContent } from '../../utils/htmlUtils';
 import { useNavigate } from 'react-router-dom';
 
@@ -17,6 +17,9 @@ interface Reviewer {
   updated_at: string;
   is_favorite: boolean;
   tags: string[];
+  best_score?: number | null;
+  best_score_correct?: number | null;
+  best_score_total?: number | null;
 }
 
 interface ReviewerCardProps {
@@ -25,9 +28,11 @@ interface ReviewerCardProps {
   onDelete: (id: number) => void;
   onGenerateQuiz?: (reviewer: Reviewer) => void;
   onClick: () => void;
+  onTakeQuiz?: (reviewer: Reviewer) => void;
   quizLoadingId?: number | null;
   showFavorite?: boolean;
   showGenerateQuiz?: boolean;
+  showTakeQuiz?: boolean;
 }
 
 const ReviewerCard: React.FC<ReviewerCardProps> = ({
@@ -36,9 +41,11 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
   onDelete,
   onGenerateQuiz,
   onClick,
+  onTakeQuiz,
   quizLoadingId,
   showFavorite = true,
   showGenerateQuiz = true,
+  showTakeQuiz = false,
 }) => {
   const navigate = useNavigate();
 
@@ -183,6 +190,25 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
+          {/* Best Score Badge (for quizzes only) */}
+          {reviewer.best_score !== null && reviewer.best_score !== undefined && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border border-yellow-200 dark:border-yellow-800 rounded-full">
+              <Trophy size={14} className="text-yellow-600 dark:text-yellow-400" />
+              <div className="flex items-center gap-1">
+                <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-300">
+                  {reviewer.best_score_correct && reviewer.best_score_total 
+                    ? `${reviewer.best_score_correct}/${reviewer.best_score_total}`
+                    : `${reviewer.best_score}%`}
+                </span>
+                {reviewer.best_score_correct && reviewer.best_score_total && (
+                  <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                    ({reviewer.best_score}%)
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+          
           <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
             {new Date(reviewer.created_at).toLocaleDateString()}
           </span>
@@ -236,6 +262,20 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
               ) : (
                 <>Generate Quiz</>
               )}
+            </button>
+          )}
+          
+          {showTakeQuiz && onTakeQuiz && (
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                onTakeQuiz(reviewer);
+              }}
+              className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm hover:shadow-md whitespace-nowrap font-semibold"
+              title="Start interactive quiz"
+            >
+              <PlayCircle size={16} />
+              Take Quiz
             </button>
           )}
         </div>

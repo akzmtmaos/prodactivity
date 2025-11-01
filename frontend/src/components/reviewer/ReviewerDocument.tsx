@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
-import { ExternalLink } from 'lucide-react';
+import { ExternalLink, PlayCircle, BookOpen } from 'lucide-react';
+import InteractiveQuiz from './InteractiveQuiz';
 
 interface Reviewer {
   id: number;
@@ -134,6 +135,8 @@ const preprocessReviewerContent = (content: string) => {
 
 const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }) => {
   const navigate = useNavigate();
+  const [showInteractiveQuiz, setShowInteractiveQuiz] = useState(false);
+  const [viewMode, setViewMode] = useState<'read' | 'interactive'>('read');
 
   // Determine if this is a quiz (by tag or title)
   const isQuiz = (reviewer.tags && reviewer.tags.includes('quiz')) || (reviewer.title && reviewer.title.toLowerCase().startsWith('quiz:'));
@@ -176,18 +179,29 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
           
           <div className="pr-12">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">{reviewer.title}</h2>
-            {(reviewer.source_note || reviewer.source_notebook) && (
-              <button
-                onClick={handleSourceClick}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-lg transition-colors text-sm font-medium border border-indigo-200 dark:border-indigo-800"
-              >
-                <ExternalLink size={16} />
-                <span>
-                  Source: {reviewer.source_note_title || reviewer.source_notebook_name || 
-                    (reviewer.source_note ? `Note #${reviewer.source_note}` : `Notebook #${reviewer.source_notebook}`)}
-                </span>
-              </button>
-            )}
+            <div className="flex items-center gap-3 flex-wrap">
+              {(reviewer.source_note || reviewer.source_notebook) && (
+                <button
+                  onClick={handleSourceClick}
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-lg transition-colors text-sm font-medium border border-indigo-200 dark:border-indigo-800"
+                >
+                  <ExternalLink size={16} />
+                  <span>
+                    Source: {reviewer.source_note_title || reviewer.source_notebook_name || 
+                      (reviewer.source_note ? `Note #${reviewer.source_note}` : `Notebook #${reviewer.source_notebook}`)}
+                  </span>
+                </button>
+              )}
+              {isQuiz && (
+                <button
+                  onClick={() => setShowInteractiveQuiz(true)}
+                  className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 rounded-lg transition-all text-sm font-semibold shadow-md hover:shadow-lg"
+                >
+                  <PlayCircle size={18} />
+                  <span>Start Interactive Quiz</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
 
@@ -226,7 +240,18 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
       </div>
     </div>
   );
-  return ReactDOM.createPortal(modal, document.body);
+
+  return (
+    <>
+      {ReactDOM.createPortal(modal, document.body)}
+      {showInteractiveQuiz && isQuiz && (
+        <InteractiveQuiz
+          quiz={reviewer}
+          onClose={() => setShowInteractiveQuiz(false)}
+        />
+      )}
+    </>
+  );
 };
 
 export default ReviewerDocument; 

@@ -30,6 +30,7 @@ import ReviewerCard from './ReviewerCard';
 import Toast from '../../components/common/Toast';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import GenerateModal from './GenerateModal';
+import InteractiveQuiz from './InteractiveQuiz';
 
 interface Reviewer {
   id: number;
@@ -37,12 +38,16 @@ interface Reviewer {
   content: string;
   source_note?: number | null;
   source_note_title?: string;
+  source_note_notebook_id?: number | null;
   source_notebook?: number | null;
   source_notebook_name?: string;
   created_at: string;
   updated_at: string;
   is_favorite: boolean;
   tags: string[];
+  best_score?: number | null;
+  best_score_correct?: number | null;
+  best_score_total?: number | null;
 }
 
 
@@ -142,6 +147,9 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
   const [currentPageReviewer, setCurrentPageReviewer] = useState(1);
   const [currentPageQuiz, setCurrentPageQuiz] = useState(1);
   const itemsPerPage = 10; // Temporary: 10 items per page for testing
+
+  // Interactive Quiz state
+  const [interactiveQuizData, setInteractiveQuizData] = useState<Reviewer | null>(null);
 
   const navigate = useNavigate();
 
@@ -581,6 +589,13 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     }
   };
 
+  // Handle score update callback from InteractiveQuiz
+  const handleScoreUpdate = async (quizId: number, score: number) => {
+    // DON'T update state while quiz is still open
+    // The update will happen when the quiz modal closes
+    console.log(`✅ Quiz ${quizId} score will be refreshed when quiz closes`);
+  };
+
   // Debug loading state
   console.log('Loading state:', {
     loading,
@@ -909,21 +924,38 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
             </div>
           ) : (
             <div className="grid gap-4">
-              {paginatedQuizzes.map(quiz => (
-                <ReviewerCard
-                  key={quiz.id}
-                  reviewer={quiz}
-                  onDelete={(id) => {
-                    const reviewer = reviewers.find(r => r.id === id);
-                    if (reviewer) {
-                      openDeleteModal(id, reviewer.title);
-                    }
-                  }}
-                  onClick={() => navigate(`/reviewer/q/${quiz.id}`)}
-                  showFavorite={false}
-                  showGenerateQuiz={false}
-                />
-              ))}
+              {paginatedQuizzes.map(quiz => {
+                // Debug: Log quiz source data and best_score
+                if (quiz.id) {
+                  console.log(`Quiz ${quiz.id} data:`, {
+                    title: quiz.title,
+                    best_score: quiz.best_score,
+                    source_note: quiz.source_note,
+                    source_note_title: quiz.source_note_title,
+                    source_note_notebook_id: quiz.source_note_notebook_id,
+                    source_notebook: quiz.source_notebook,
+                    source_notebook_name: quiz.source_notebook_name
+                  });
+                }
+                
+                return (
+                  <ReviewerCard
+                    key={quiz.id}
+                    reviewer={quiz}
+                    onDelete={(id) => {
+                      const reviewer = reviewers.find(r => r.id === id);
+                      if (reviewer) {
+                        openDeleteModal(id, reviewer.title);
+                      }
+                    }}
+                    onClick={() => navigate(`/reviewer/q/${quiz.id}`)}
+                    onTakeQuiz={(quiz) => setInteractiveQuizData(quiz)}
+                    showFavorite={false}
+                    showGenerateQuiz={false}
+                    showTakeQuiz={true}
+                  />
+                );
+              })}
             </div>
           )
         )}
@@ -1099,6 +1131,19 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           </div>
         </div>,
         document.body
+      )}
+
+      {/* Interactive Quiz Modal */}
+      {interactiveQuizData && (
+        <InteractiveQuiz
+          quiz={interactiveQuizData}
+          onClose={() => {
+            setInteractiveQuizData(null);
+            // Refresh reviewers list to show updated best score
+            fetchReviewers();
+          }}
+          onScoreUpdate={handleScoreUpdate}
+        />
       )}
     </div>
   );
