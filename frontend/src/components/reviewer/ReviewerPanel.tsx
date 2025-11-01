@@ -16,7 +16,9 @@ import {
   Search,
   Filter,
   Download,
-  Share2
+  Share2,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import HelpButton from '../HelpButton';
 import axiosInstance from '../../utils/axiosConfig';
@@ -51,6 +53,39 @@ interface ReviewerPanelProps {
   activeTab: 'reviewer' | 'quiz';
   setActiveTab: (tab: 'reviewer' | 'quiz') => void;
 }
+
+// Helper function to strip HTML and convert to plain text while preserving structure
+const stripHtmlToText = (html: string): string => {
+  // Create a temporary div to parse HTML
+  const temp = document.createElement('div');
+  temp.innerHTML = html;
+  
+  // Process block elements to add line breaks
+  const blockElements = temp.querySelectorAll('h1, h2, h3, h4, h5, h6, p, div, li, br');
+  blockElements.forEach(el => {
+    if (el.tagName === 'BR') {
+      el.replaceWith('\n');
+    } else {
+      // Add line break after block elements
+      const text = el.textContent || '';
+      if (text.trim()) {
+        el.textContent = text + '\n';
+      }
+    }
+  });
+  
+  // Get text content
+  let text = temp.textContent || temp.innerText || '';
+  
+  // Clean up excessive whitespace but preserve line breaks
+  text = text
+    .split('\n')
+    .map(line => line.trim())
+    .filter(line => line.length > 0)
+    .join('\n');
+  
+  return text;
+};
 
 const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeTab, setActiveTab }) => {
   // Debug props
@@ -91,6 +126,22 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     isOpen: false,
     isLoading: false
   });
+
+  // Bulk delete modal state
+  const [bulkDeleteModal, setBulkDeleteModal] = useState<{
+    isOpen: boolean;
+    selectedIds: number[];
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    selectedIds: [],
+    isLoading: false
+  });
+
+  // Pagination state
+  const [currentPageReviewer, setCurrentPageReviewer] = useState(1);
+  const [currentPageQuiz, setCurrentPageQuiz] = useState(1);
+  const itemsPerPage = 10; // Temporary: 10 items per page for testing
 
   const navigate = useNavigate();
 
@@ -153,7 +204,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       if (selectedSource === 'note' && selectedNote && notes && Array.isArray(notes)) {
         const note = notes.find(n => n.id === selectedNote);
         if (note) {
-          sourceContent = note.content;
+          sourceContent = stripHtmlToText(note.content);
           sourceTitle = note.title;
           sourceNoteType = note.note_type;
         }
@@ -161,7 +212,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         const notebook = notebooks.find(n => n.id === selectedNotebook);
         if (notebook) {
           const notebookNotes = notes.filter(n => n.notebook_name === notebook.name);
-          sourceContent = notebookNotes.map(n => `${n.title}\n${n.content}`).join('\n\n');
+          sourceContent = notebookNotes.map(n => `${n.title}\n${stripHtmlToText(n.content)}`).join('\n\n');
           sourceTitle = notebook.name;
           sourceNotebookType = notebook.notebook_type;
         }
@@ -283,19 +334,93 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     setGenerateModal({ isOpen: false, isLoading: false });
   };
 
-  const handleGenerateReviewer = async (data: { title: string; sourceNote: number | null; sourceNotebook: number | null }) => {
+  // Bulk delete modal functions
+  const openBulkDeleteModal = () => {
+    setBulkDeleteModal({
+      isOpen: true,
+      selectedIds: [],
+      isLoading: false
+    });
+  };
+
+  const closeBulkDeleteModal = () => {
+    setBulkDeleteModal({
+      isOpen: false,
+      selectedIds: [],
+      isLoading: false
+    });
+  };
+
+  // Toggle item selection in bulk delete modal
+  const toggleBulkDeleteSelection = (id: number) => {
+    setBulkDeleteModal(prev => ({
+      ...prev,
+      selectedIds: prev.selectedIds.includes(id)
+        ? prev.selectedIds.filter(selectedId => selectedId !== id)
+        : [...prev.selectedIds, id]
+    }));
+  };
+
+  // Confirm bulk delete
+  const confirmBulkDelete = async () => {
+    if (bulkDeleteModal.selectedIds.length === 0) return;
+    
+    setBulkDeleteModal(prev => ({ ...prev, isLoading: true }));
+    
+    try {
+      // Delete all selected reviewers in parallel
+      await Promise.all(
+        bulkDeleteModal.selectedIds.map(id => axiosInstance.delete(`/reviewers/${id}/`))
+      );
+      
+      // Remove deleted reviewers from state
+      setReviewers(prev => prev.filter(r => !bulkDeleteModal.selectedIds.includes(r.id)));
+      
+      const count = bulkDeleteModal.selectedIds.length;
+      setToast({ 
+        message: `${count} ${activeTab === 'reviewer' ? 'reviewer' : 'quiz'}${count > 1 ? 's' : ''} deleted successfully!`, 
+        type: 'success' 
+      });
+      
+      closeBulkDeleteModal();
+    } catch (error: any) {
+      console.error('Failed to bulk delete:', error);
+      setToast({ message: 'Failed to delete some items', type: 'error' });
+      setBulkDeleteModal(prev => ({ ...prev, isLoading: false }));
+    }
+  };
+
+  const handleGenerateReviewer = async (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; fileText?: string }) => {
     setGenerateModal(prev => ({ ...prev, isLoading: true }));
     
     try {
-      const sourceNote = notes.find(n => n.id === data.sourceNote);
-      const sourceNotebook = notebooks.find(n => n.id === data.sourceNotebook);
+      let textContent = '';
+      let noteType = null;
+      
+      if (data.fileText) {
+        // Use extracted text from uploaded file
+        textContent = data.fileText;
+      } else {
+        // Get content from note or notebook
+        const sourceNote = notes.find(n => n.id === data.sourceNote);
+        const sourceNotebook = notebooks.find(n => n.id === data.sourceNotebook);
+        
+        if (sourceNote) {
+          textContent = stripHtmlToText(sourceNote.content);
+          noteType = sourceNote.note_type;
+        } else if (sourceNotebook) {
+          const notebookNotes = notes.filter(n => n.notebook_name === sourceNotebook.name);
+          textContent = notebookNotes.map(n => `${n.title}\n${stripHtmlToText(n.content)}`).join('\n\n');
+          noteType = sourceNotebook.notebook_type;
+        }
+      }
       
       const response = await axiosInstance.post('/reviewers/ai/generate/', {
-        text: sourceNote?.content || sourceNotebook?.name || '',
+        text: textContent,
         title: data.title,
         source_note: data.sourceNote,
         source_notebook: data.sourceNotebook,
-        note_type: sourceNote?.note_type || sourceNotebook?.notebook_type
+        note_type: noteType
       }, {
         timeout: 300000 // 5 minutes timeout for AI generation
       });
@@ -315,20 +440,29 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     }
   };
 
-  const handleGenerateQuiz = async (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; questionCount: number }) => {
+  const handleGenerateQuiz = async (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; questionCount: number; fileText?: string }) => {
     setGenerateModal(prev => ({ ...prev, isLoading: true }));
     
     try {
-      const sourceNote = notes.find(n => n.id === data.sourceNote);
-      const sourceNotebook = notebooks.find(n => n.id === data.sourceNotebook);
-
-      // Build source content: use note content, or aggregate all notes from the selected notebook
       let sourceContent = '';
-      if (sourceNote) {
-        sourceContent = sourceNote.content;
-      } else if (sourceNotebook) {
-        const notebookNotes = notes.filter(n => n.notebook_name === sourceNotebook.name);
-        sourceContent = notebookNotes.map(n => `${n.title}\n${n.content}`).join('\n\n');
+      let noteType = null;
+      
+      if (data.fileText) {
+        // Use extracted text from uploaded file
+        sourceContent = data.fileText;
+      } else {
+        // Get content from note or notebook
+        const sourceNote = notes.find(n => n.id === data.sourceNote);
+        const sourceNotebook = notebooks.find(n => n.id === data.sourceNotebook);
+
+        if (sourceNote) {
+          sourceContent = stripHtmlToText(sourceNote.content);
+          noteType = sourceNote.note_type;
+        } else if (sourceNotebook) {
+          const notebookNotes = notes.filter(n => n.notebook_name === sourceNotebook.name);
+          sourceContent = notebookNotes.map(n => `${n.title}\n${stripHtmlToText(n.content)}`).join('\n\n');
+          noteType = sourceNotebook.notebook_type;
+        }
       }
 
       const response = await axiosInstance.post('/reviewers/ai/generate/', {
@@ -336,7 +470,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         title: `Quiz: ${data.title}`,
         source_note: data.sourceNote,
         source_notebook: data.sourceNotebook,
-        note_type: sourceNote?.note_type || sourceNotebook?.notebook_type,
+        note_type: noteType,
         question_count: data.questionCount
       }, {
         timeout: 300000 // 5 minutes timeout for AI generation
@@ -396,6 +530,27 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     
     return matchesSearch && isQuiz && matchesFilter;
   }) : [];
+
+  // Pagination logic for reviewers
+  const totalPagesReviewer = Math.ceil(filteredReviewers.length / itemsPerPage);
+  const startIndexReviewer = (currentPageReviewer - 1) * itemsPerPage;
+  const endIndexReviewer = startIndexReviewer + itemsPerPage;
+  const paginatedReviewers = filteredReviewers.slice(startIndexReviewer, endIndexReviewer);
+
+  // Pagination logic for quizzes
+  const totalPagesQuiz = Math.ceil(filteredQuizzes.length / itemsPerPage);
+  const startIndexQuiz = (currentPageQuiz - 1) * itemsPerPage;
+  const endIndexQuiz = startIndexQuiz + itemsPerPage;
+  const paginatedQuizzes = filteredQuizzes.slice(startIndexQuiz, endIndexQuiz);
+
+  // Reset pagination when search/filter changes
+  useEffect(() => {
+    setCurrentPageReviewer(1);
+  }, [searchTerm, filterType]);
+
+  useEffect(() => {
+    setCurrentPageQuiz(1);
+  }, [searchTerm, filterType]);
 
   // Add per-reviewer quiz generation state
   const generateQuizForReviewer = async (reviewer: Reviewer) => {
@@ -519,6 +674,14 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
               <option value="notebook">By Notebook</option>
               <option value="note">By Note</option>
             </select>
+            {/* Bulk Delete Button */}
+            <button
+              onClick={openBulkDeleteModal}
+              className="p-2 text-red-600 hover:text-white hover:bg-red-600 rounded-lg transition-colors"
+              title={`Delete multiple ${activeTab === 'reviewer' ? 'reviewers' : 'quizzes'}`}
+            >
+              <Trash2 size={18} />
+            </button>
             {/* Generate Button */}
             <button
               onClick={openGenerateModal}
@@ -708,7 +871,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
               </div>
             ) : (
               <div className="grid gap-4">
-                {filteredReviewers.map(reviewer => (
+                {paginatedReviewers.map(reviewer => (
                   <ReviewerCard
                     key={reviewer.id}
                     reviewer={reviewer}
@@ -746,7 +909,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
             </div>
           ) : (
             <div className="grid gap-4">
-              {filteredQuizzes.map(quiz => (
+              {paginatedQuizzes.map(quiz => (
                 <ReviewerCard
                   key={quiz.id}
                   reviewer={quiz}
@@ -765,6 +928,61 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           )
         )}
       </div>
+
+      {/* Pagination Controls - Outside Scrollable Area */}
+      {activeTab === 'reviewer' && totalPagesReviewer > 1 && (
+        <div className="flex items-center justify-between mt-4 px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-b-lg">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Showing {startIndexReviewer + 1}-{Math.min(endIndexReviewer, filteredReviewers.length)} of {filteredReviewers.length} reviewers
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPageReviewer(prev => Math.max(1, prev - 1))}
+              disabled={currentPageReviewer === 1}
+              className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Page {currentPageReviewer} of {totalPagesReviewer}
+            </span>
+            <button
+              onClick={() => setCurrentPageReviewer(prev => Math.min(totalPagesReviewer, prev + 1))}
+              disabled={currentPageReviewer === totalPagesReviewer}
+              className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        </div>
+      )}
+      
+      {activeTab === 'quiz' && totalPagesQuiz > 1 && (
+        <div className="flex items-center justify-between mt-4 px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-b-lg">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Showing {startIndexQuiz + 1}-{Math.min(endIndexQuiz, filteredQuizzes.length)} of {filteredQuizzes.length} quizzes
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPageQuiz(prev => Math.max(1, prev - 1))}
+              disabled={currentPageQuiz === 1}
+              className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronLeft size={20} />
+            </button>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Page {currentPageQuiz} of {totalPagesQuiz}
+            </span>
+            <button
+              onClick={() => setCurrentPageQuiz(prev => Math.min(totalPagesQuiz, prev + 1))}
+              disabled={currentPageQuiz === totalPagesQuiz}
+              className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <ChevronRight size={20} />
+            </button>
+          </div>
+        </div>
+      )}
       {toast && (
         <Toast
           message={toast.message}
@@ -793,6 +1011,95 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         notebooks={notebooks}
         isLoading={generateModal.isLoading}
       />
+
+      {/* Bulk Delete Modal */}
+      {bulkDeleteModal.isOpen && ReactDOM.createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+                Delete {activeTab === 'reviewer' ? 'Reviewers' : 'Quizzes'}
+              </h3>
+              <button
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                onClick={closeBulkDeleteModal}
+                disabled={bulkDeleteModal.isLoading}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-6">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Select {activeTab === 'reviewer' ? 'reviewers' : 'quizzes'} to delete. This action cannot be undone.
+              </p>
+              <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+                {(activeTab === 'reviewer' ? filteredReviewers : filteredQuizzes).map((item) => (
+                  <label 
+                    key={item.id} 
+                    className="flex items-start gap-3 p-4 border-b last:border-b-0 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                      checked={bulkDeleteModal.selectedIds.includes(item.id)}
+                      onChange={() => toggleBulkDeleteSelection(item.id)}
+                      disabled={bulkDeleteModal.isLoading}
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-gray-900 dark:text-white line-clamp-1">
+                        {item.title || 'Untitled'}
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2 mt-1">
+                        {item.content.substring(0, 150)}...
+                      </div>
+                      {(item.source_note_title || item.source_notebook_name) && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          Source: {item.source_note_title || item.source_notebook_name}
+                        </div>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-400">
+                      {new Date(item.updated_at).toLocaleDateString()}
+                    </div>
+                  </label>
+                ))}
+                {(activeTab === 'reviewer' ? filteredReviewers : filteredQuizzes).length === 0 && (
+                  <div className="p-6 text-center text-gray-500 dark:text-gray-400">
+                    No {activeTab === 'reviewer' ? 'reviewers' : 'quizzes'} available.
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex justify-end gap-3 rounded-b-lg">
+              <button
+                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={closeBulkDeleteModal}
+                disabled={bulkDeleteModal.isLoading}
+              >
+                Cancel
+              </button>
+              <button
+                disabled={bulkDeleteModal.selectedIds.length === 0 || bulkDeleteModal.isLoading}
+                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                onClick={confirmBulkDelete}
+              >
+                {bulkDeleteModal.isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Deleting...
+                  </>
+                ) : (
+                  <>
+                    Delete {bulkDeleteModal.selectedIds.length > 0 ? `(${bulkDeleteModal.selectedIds.length})` : ''}
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

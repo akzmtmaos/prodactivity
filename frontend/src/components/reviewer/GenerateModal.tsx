@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { X, BookOpen, Target, Brain, FileText } from 'lucide-react';
+import { X, BookOpen, Target, Brain, FileText, Upload, File } from 'lucide-react';
+import axiosInstance from '../../utils/axiosConfig';
 
 interface GenerateModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGenerateReviewer: (data: { title: string; sourceNote: number | null; sourceNotebook: number | null }) => void;
-  onGenerateQuiz: (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; questionCount: number }) => void;
+  onGenerateReviewer: (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; fileText?: string }) => void;
+  onGenerateQuiz: (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; questionCount: number; fileText?: string }) => void;
   notes: Array<{ id: number; title: string; content: string; notebook_name: string; note_type?: string }>;
   notebooks: Array<{ id: number; name: string; notebook_type?: string }>;
   isLoading: boolean;
@@ -21,7 +22,7 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
   isLoading
 }) => {
   const [activeTab, setActiveTab] = useState<'reviewer' | 'quiz'>('reviewer');
-  const [selectedSource, setSelectedSource] = useState<'note' | 'notebook'>('note');
+  const [selectedSource, setSelectedSource] = useState<'note' | 'notebook' | 'file'>('note');
   const [selectedNote, setSelectedNote] = useState<number | null>(null);
   const [selectedNotebook, setSelectedNotebook] = useState<number | null>(null);
   const [title, setTitle] = useState('');
@@ -29,12 +30,78 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
   // Quiz question count options
   const [questionCountOption, setQuestionCountOption] = useState<'10' | '20' | 'custom'>('10');
   const [customQuestionCount, setCustomQuestionCount] = useState<number>(10);
+  
+  // File upload state
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [extractedText, setExtractedText] = useState<string>('');
+  const [fileError, setFileError] = useState<string>('');
+  const [isDragging, setIsDragging] = useState(false);
 
   if (!isOpen) return null;
 
   const handleBackdropClick = (e: React.MouseEvent) => {
     if (e.target === e.currentTarget) {
       onClose();
+    }
+  };
+
+  const handleFileUpload = async (file: File) => {
+    setFileError('');
+    setUploadingFile(true);
+    
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await axiosInstance.post('/reviewers/upload/extract/', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+      
+      setExtractedText(response.data.text);
+      setUploadedFile(file);
+      
+      // Auto-fill title with file name if title is empty
+      if (!title) {
+        const fileName = file.name.replace(/\.[^/.]+$/, ''); // Remove extension
+        setTitle(fileName);
+      }
+    } catch (error: any) {
+      const errorMsg = error.response?.data?.error || 'Failed to extract text from file';
+      setFileError(errorMsg);
+      setUploadedFile(null);
+      setExtractedText('');
+    } finally {
+      setUploadingFile(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      handleFileUpload(file);
     }
   };
 
@@ -45,7 +112,8 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
       onGenerateReviewer({
         title: title.trim(),
         sourceNote: selectedSource === 'note' ? selectedNote : null,
-        sourceNotebook: selectedSource === 'notebook' ? selectedNotebook : null
+        sourceNotebook: selectedSource === 'notebook' ? selectedNotebook : null,
+        fileText: selectedSource === 'file' ? extractedText : undefined
       });
     } else {
       const questionCount = questionCountOption === 'custom' ? customQuestionCount : parseInt(questionCountOption);
@@ -53,7 +121,8 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
         title: title.trim(),
         sourceNote: selectedSource === 'note' ? selectedNote : null,
         sourceNotebook: selectedSource === 'notebook' ? selectedNotebook : null,
-        questionCount: questionCount
+        questionCount: questionCount,
+        fileText: selectedSource === 'file' ? extractedText : undefined
       });
     }
   };
@@ -65,6 +134,10 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
     setSelectedSource('note');
     setQuestionCountOption('10');
     setCustomQuestionCount(10);
+    setUploadedFile(null);
+    setExtractedText('');
+    setFileError('');
+    setIsDragging(false);
   };
 
   const handleClose = () => {
@@ -159,7 +232,7 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
                   name="source"
                   value="note"
                   checked={selectedSource === 'note'}
-                  onChange={(e) => setSelectedSource(e.target.value as 'note' | 'notebook')}
+                  onChange={(e) => setSelectedSource(e.target.value as 'note' | 'notebook' | 'file')}
                   className="mr-2"
                   disabled={isLoading}
                 />
@@ -171,11 +244,23 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
                   name="source"
                   value="notebook"
                   checked={selectedSource === 'notebook'}
-                  onChange={(e) => setSelectedSource(e.target.value as 'note' | 'notebook')}
+                  onChange={(e) => setSelectedSource(e.target.value as 'note' | 'notebook' | 'file')}
                   className="mr-2"
                   disabled={isLoading}
                 />
                 <span className="text-sm text-gray-700">Notebook</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="source"
+                  value="file"
+                  checked={selectedSource === 'file'}
+                  onChange={(e) => setSelectedSource(e.target.value as 'note' | 'notebook' | 'file')}
+                  className="mr-2"
+                  disabled={isLoading}
+                />
+                <span className="text-sm text-gray-700">File</span>
               </label>
             </div>
 
@@ -220,6 +305,96 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
                     </option>
                   ))}
                 </select>
+              </div>
+            )}
+
+            {/* File Upload */}
+            {selectedSource === 'file' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Upload File
+                </label>
+                
+                {/* Drag and Drop Zone */}
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`relative border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                    isDragging
+                      ? 'border-indigo-500 bg-indigo-50'
+                      : uploadedFile
+                      ? 'border-green-300 bg-green-50'
+                      : 'border-gray-300 bg-gray-50 hover:border-indigo-400'
+                  } ${isLoading || uploadingFile ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                >
+                  <input
+                    type="file"
+                    onChange={handleFileChange}
+                    accept=".pdf,.docx,.doc,.txt,.md,.markdown"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    disabled={isLoading || uploadingFile}
+                  />
+                  
+                  {uploadingFile ? (
+                    <div className="flex flex-col items-center space-y-2">
+                      <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-indigo-600"></div>
+                      <p className="text-sm text-gray-600">Extracting text from file...</p>
+                    </div>
+                  ) : uploadedFile ? (
+                    <div className="flex flex-col items-center space-y-2">
+                      <File className="h-10 w-10 text-green-600" />
+                      <p className="text-sm font-medium text-gray-900">{uploadedFile.name}</p>
+                      <p className="text-xs text-gray-500">
+                        {Math.round(uploadedFile.size / 1024)} KB • {extractedText.split(' ').length} words extracted
+                      </p>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setUploadedFile(null);
+                          setExtractedText('');
+                          setFileError('');
+                        }}
+                        className="text-xs text-indigo-600 hover:text-indigo-700"
+                        disabled={isLoading}
+                      >
+                        Remove file
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center space-y-2">
+                      <Upload className="h-10 w-10 text-gray-400" />
+                      <p className="text-sm font-medium text-gray-900">
+                        Drop your file here or click to browse
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Supports: PDF, DOCX, TXT, MD (Max 10MB)
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* File Error */}
+                {fileError && (
+                  <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                    <p className="text-sm text-red-600">{fileError}</p>
+                  </div>
+                )}
+
+                {/* Text Preview */}
+                {extractedText && (
+                  <div className="mt-4">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Extracted Text Preview
+                    </label>
+                    <div className="max-h-32 overflow-y-auto p-3 bg-gray-50 border border-gray-200 rounded-md">
+                      <p className="text-xs text-gray-600 whitespace-pre-wrap">
+                        {extractedText.slice(0, 500)}{extractedText.length > 500 ? '...' : ''}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -329,7 +504,13 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
           <button
             onClick={handleGenerate}
             className="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={isLoading || !title.trim() || (!selectedNote && !selectedNotebook)}
+            disabled={
+              isLoading || 
+              !title.trim() || 
+              (selectedSource === 'note' && !selectedNote) ||
+              (selectedSource === 'notebook' && !selectedNotebook) ||
+              (selectedSource === 'file' && !extractedText)
+            }
           >
             {isLoading ? (
               <div className="flex items-center space-x-2">

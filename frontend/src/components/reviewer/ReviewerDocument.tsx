@@ -25,38 +25,110 @@ interface ReviewerDocumentProps {
   onClose: () => void;
 }
 
-const preprocessContentWithBullets = (content: string) => {
+const preprocessReviewerContent = (content: string) => {
+  // Section titles we want to format as headers
   const sectionTitles = [
     'Summary:',
+    'Key Terms:',
     'Terminology:',
     'Key Points:',
-    'Main Idea:'
+    'Main Idea:',
+    'Main Ideas:',
+    'Conclusion:',
+    'Content Analysis:',
+    'Main Point:'
   ];
+  
   const lines = content.split(/\r?\n/);
   let processed: string[] = [];
-  let inSection = false;
+  let currentSection: string | null = null;
+  let lineNumber = 0;
+  
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    if (sectionTitles.includes(line)) {
-      processed.push(line);
-      // Always insert a blank line after section title
+    
+    // Skip empty lines
+    if (!line) {
       processed.push('');
-      inSection = true;
+      currentSection = null;
+      lineNumber = 0;
       continue;
     }
-    // If next line is a section title, stop section
-    if (sectionTitles.includes(line) || line === '') {
-      processed.push(line);
-      inSection = false;
+    
+    // Check if line is a section title
+    const matchedSection = sectionTitles.find(title => line === title || line === title.replace(':', ''));
+    
+    if (matchedSection) {
+      currentSection = matchedSection;
+      lineNumber = 0;
+      // Add spacing before section (except first one)
+      if (processed.length > 0 && processed[processed.length - 1] !== '') {
+        processed.push('');
+      }
+      // Convert to markdown heading
+      processed.push(`### ${line.replace(':', '')}`);
+      processed.push('');
       continue;
     }
-    // If in a section and line is not a bullet or section title, add bullet
-    if (inSection && !line.startsWith('- ') && !line.startsWith('* ') && !sectionTitles.includes(line)) {
-      processed.push('- ' + line);
-    } else {
+    
+    // If line already has bullet points, keep it
+    if (line.startsWith('- ') || line.startsWith('* ') || line.startsWith('• ')) {
       processed.push(line);
+      lineNumber++;
+      continue;
     }
+    
+    // If line starts with a number followed by period (like "1.", "2."), it's a numbered list item
+    if (/^\d+\./.test(line)) {
+      processed.push(line);
+      lineNumber++;
+      continue;
+    }
+    
+    // If line looks like a term definition (Term: Definition), format it specially
+    if (line.includes(':') && !line.endsWith(':')) {
+      const colonIndex = line.indexOf(':');
+      const beforeColon = line.substring(0, colonIndex).trim();
+      const afterColon = line.substring(colonIndex + 1).trim();
+      
+      // Check if it's a simple term (not a sentence)
+      if (beforeColon.length < 60 && !beforeColon.includes('.') && afterColon.length > 0) {
+        processed.push(`- **${beforeColon}:** ${afterColon}`);
+        lineNumber++;
+        continue;
+      }
+    }
+    
+    // For lines in Key Terms, Key Points, or Main Idea sections, add bullets if not already present
+    if (currentSection && (
+      currentSection.includes('Key Terms') || 
+      currentSection.includes('Terminology') || 
+      currentSection.includes('Key Points') || 
+      currentSection.includes('Main Idea')
+    )) {
+      // Only add bullet if line is not too long (likely a paragraph)
+      if (line.length < 200) {
+        processed.push(`- ${line}`);
+      } else {
+        // Long text, keep as paragraph
+        processed.push(line);
+      }
+      lineNumber++;
+      continue;
+    }
+    
+    // Summary section - keep as paragraphs
+    if (currentSection && currentSection.includes('Summary')) {
+      processed.push(line);
+      lineNumber++;
+      continue;
+    }
+    
+    // Default: add line as-is
+    processed.push(line);
+    lineNumber++;
   }
+  
   return processed.join('\n');
 };
 
@@ -122,15 +194,16 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
         {/* Content area */}
         <div className="overflow-y-auto flex-1 px-8 py-6 bg-gray-50 dark:bg-gray-800/50">
           <div className="prose prose-lg dark:prose-invert max-w-none 
-            prose-headings:text-gray-900 dark:prose-headings:text-white prose-headings:font-semibold prose-headings:mb-3
-            prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg
-            prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:leading-relaxed prose-p:mb-3
-            prose-li:text-gray-700 dark:prose-li:text-gray-300
-            prose-strong:text-gray-900 dark:prose-strong:text-white prose-strong:font-semibold
-            prose-code:text-indigo-600 dark:prose-code:text-indigo-400 prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:font-mono prose-code:text-sm
-            prose-pre:bg-gray-900 dark:prose-pre:bg-gray-950 prose-pre:text-gray-100 prose-pre:rounded-lg
-            prose-blockquote:border-l-4 prose-blockquote:border-gray-300 dark:prose-blockquote:border-gray-600 prose-blockquote:pl-4 prose-blockquote:italic
-            prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline">
+            prose-headings:text-gray-900 dark:prose-headings:text-white prose-headings:font-bold prose-headings:tracking-tight
+            prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-4 prose-h3:text-indigo-900 dark:prose-h3:text-indigo-300 prose-h3:border-b prose-h3:border-gray-200 dark:prose-h3:border-gray-700 prose-h3:pb-2
+            prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:leading-relaxed prose-p:mb-4 prose-p:text-base
+            prose-ul:my-4 prose-ul:space-y-2
+            prose-li:text-gray-700 dark:prose-li:text-gray-300 prose-li:leading-relaxed
+            prose-strong:text-gray-900 dark:prose-strong:text-white prose-strong:font-bold prose-strong:text-indigo-700 dark:prose-strong:text-indigo-400
+            prose-code:text-indigo-600 dark:prose-code:text-indigo-400 prose-code:bg-indigo-50 dark:prose-code:bg-gray-800 prose-code:px-2 prose-code:py-1 prose-code:rounded prose-code:font-mono prose-code:text-sm prose-code:font-semibold
+            prose-pre:bg-gray-900 dark:prose-pre:bg-gray-950 prose-pre:text-gray-100 prose-pre:rounded-lg prose-pre:shadow-lg
+            prose-blockquote:border-l-4 prose-blockquote:border-indigo-400 dark:prose-blockquote:border-indigo-600 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:bg-indigo-50 dark:prose-blockquote:bg-indigo-950/20 prose-blockquote:py-2 prose-blockquote:rounded-r
+            prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline prose-a:font-medium">
             {isQuiz ? (
               <div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
                 <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-gray-800 dark:text-gray-200">
@@ -138,7 +211,7 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
                 </div>
               </div>
             ) : (
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{preprocessContentWithBullets(reviewer.content)}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{preprocessReviewerContent(reviewer.content)}</ReactMarkdown>
             )}
           </div>
         </div>
