@@ -15,7 +15,30 @@ interface SessionLogEntry {
 }
 
 const SessionLogs: React.FC<{ logs: SessionLogEntry[] }> = ({ logs }) => {
-  // Calculate statistics
+  // Filter state
+  const [filter, setFilter] = useState<'All' | 'Study' | 'Break' | 'Long Break'>('All');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 30;
+
+  // Filter logs based on selected filter
+  const filteredLogs = filter === 'All' 
+    ? logs 
+    : logs.filter(log => log.type === filter);
+  
+  // Reset to page 1 when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter]);
+  
+  // Calculate pagination
+  const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex).reverse(); // Show newest first
+
+  // Calculate statistics (using all logs, not filtered)
   const studySessions = logs.filter(log => log.type === 'Study');
   const totalStudyTime = studySessions.reduce((total, log) => total + log.duration, 0);
   const totalStudyMinutes = Math.floor(totalStudyTime / 60);
@@ -81,36 +104,115 @@ const SessionLogs: React.FC<{ logs: SessionLogEntry[] }> = ({ logs }) => {
 
       {/* Session Logs */}
       <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
-        <h2 className="text-lg font-semibold mb-4 text-gray-900 dark:text-white">Recent Sessions</h2>
-        {logs.length === 0 ? (
-          <p className="text-gray-500 dark:text-gray-400">No sessions logged yet. Start a timer to begin tracking!</p>
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Recent Sessions</h2>
+          <div className="flex items-center space-x-2">
+            <span className="text-sm text-gray-600 dark:text-gray-400">Filter:</span>
+            {(['All', 'Study', 'Break', 'Long Break'] as const).map((filterType) => (
+              <button
+                key={filterType}
+                onClick={() => setFilter(filterType)}
+                className={`px-3 py-1 text-sm rounded-md font-medium transition-colors ${
+                  filter === filterType
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {filterType}
+              </button>
+            ))}
+          </div>
+        </div>
+        {filteredLogs.length === 0 ? (
+          <p className="text-gray-500 dark:text-gray-400">
+            {logs.length === 0 
+              ? 'No sessions logged yet. Start a timer to begin tracking!' 
+              : `No ${filter === 'All' ? '' : filter.toLowerCase()} sessions found.`}
+          </p>
         ) : (
-          <div className="space-y-3">
-            {logs.slice(-10).reverse().map((log, idx) => (
-              <div key={idx} className="flex justify-between items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
-                <div className="flex items-center space-x-3">
-                  <div className={`w-3 h-3 rounded-full ${
-                    log.type === 'Study' ? 'bg-blue-500' : 
-                    log.type === 'Break' ? 'bg-green-500' : 'bg-purple-500'
-                  }`}></div>
-                  <span className="font-medium text-gray-800 dark:text-gray-200">{log.type}</span>
+          <>
+            <div className="space-y-3 max-h-[600px] overflow-y-auto">
+              {paginatedLogs.map((log, idx) => (
+                <div key={startIndex + idx} className="flex justify-between items-center p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50">
+                  <div className="flex items-center space-x-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      log.type === 'Study' ? 'bg-blue-500' : 
+                      log.type === 'Break' ? 'bg-green-500' : 'bg-purple-500'
+                    }`}></div>
+                    <span className="font-medium text-gray-800 dark:text-gray-200">{log.type}</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      {log.start.toLocaleDateString()} {log.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {log.end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {Math.floor(log.duration / 60)}m {log.duration % 60}s
+                    </div>
+                  </div>
                 </div>
-                <div className="text-right">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
-                    {log.start.toLocaleDateString()} {log.start.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} - {log.end.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+              ))}
+            </div>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="mt-6 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 pt-4">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Showing {startIndex + 1} to {Math.min(endIndex, filteredLogs.length)} of {filteredLogs.length} {filter === 'All' ? 'sessions' : `${filter.toLowerCase()} sessions`}
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                    disabled={currentPage === 1}
+                    className={`px-3 py-1 text-sm rounded-md font-medium transition-colors ${
+                      currentPage === 1
+                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Previous
+                  </button>
+                  <div className="flex items-center space-x-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum: number;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => setCurrentPage(pageNum)}
+                          className={`px-3 py-1 text-sm rounded-md font-medium transition-colors ${
+                            currentPage === pageNum
+                              ? 'bg-indigo-600 text-white'
+                              : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
                   </div>
-                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                    {Math.floor(log.duration / 60)}m {log.duration % 60}s
-                  </div>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                    disabled={currentPage === totalPages}
+                    className={`px-3 py-1 text-sm rounded-md font-medium transition-colors ${
+                      currentPage === totalPages
+                        ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    Next
+                  </button>
                 </div>
               </div>
-            ))}
-            {logs.length > 10 && (
-              <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
-                Showing last 10 sessions. Total: {logs.length} sessions
-              </p>
             )}
-          </div>
+          </>
         )}
       </div>
     </div>
@@ -124,7 +226,7 @@ const StudyTimer: React.FC = () => {
   const [tempSettings, setTempSettings] = useState<any>(null);
   const [sessionLogs, setSessionLogs] = useState<SessionLogEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'timer' | 'sessions'>('timer');
-  const [pomodoroMode, setPomodoroMode] = useState(false);
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
 
   // Use the timer context
   const { 
@@ -132,7 +234,9 @@ const StudyTimer: React.FC = () => {
     startTimer, 
     pauseTimer, 
     resetTimer, 
-    updateSettings 
+    updateSettings,
+    pomodoroMode,
+    setPomodoroMode
   } = useTimer();
 
   // Pomodoro preset values
@@ -259,37 +363,38 @@ const StudyTimer: React.FC = () => {
   const handlePomodoroToggle = (enabled: boolean) => {
     setPomodoroMode(enabled);
     if (enabled) {
+      // Pomodoro ON: Set to classic Pomodoro preset
       updateSettings(pomodoroPreset);
     }
+    // Pomodoro OFF: Keep current settings, just change behavior
   };
 
   const clearSessionLogs = async () => {
-    if (window.confirm('Are you sure you want to clear all session logs? This action cannot be undone.')) {
-      try {
-        const token = localStorage.getItem('accessToken');
-        if (token) {
-          // Delete all sessions from backend
-          try {
-            const response = await axiosInstance.get('/tasks/study-timer-sessions/');
-            const sessions = response.data || [];
-            // Delete each session
-            await Promise.all(
-              sessions.map((session: any) => 
-                axiosInstance.delete(`/tasks/study-timer-sessions/${session.id}/`)
-              )
-            );
-            console.log('All sessions deleted from backend');
-          } catch (apiError) {
-            console.warn('Failed to delete from backend:', apiError);
-          }
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (token) {
+        // Delete all sessions from backend
+        try {
+          const response = await axiosInstance.get('/tasks/study-timer-sessions/');
+          const sessions = response.data || [];
+          // Delete each session
+          await Promise.all(
+            sessions.map((session: any) => 
+              axiosInstance.delete(`/tasks/study-timer-sessions/${session.id}/`)
+            )
+          );
+          console.log('All sessions deleted from backend');
+        } catch (apiError) {
+          console.warn('Failed to delete from backend:', apiError);
         }
-        
-        // Also clear localStorage
-        localStorage.removeItem('studyTimerLogs');
-        setSessionLogs([]);
-      } catch (error) {
-        console.error('Error clearing session logs:', error);
       }
+      
+      // Also clear localStorage
+      localStorage.removeItem('studyTimerLogs');
+      setSessionLogs([]);
+      setShowClearConfirm(false);
+    } catch (error) {
+      console.error('Error clearing session logs:', error);
     }
   };
 
@@ -459,7 +564,12 @@ const StudyTimer: React.FC = () => {
                         {/* Pomodoro Mode Toggle inside settings */}
                         <div className="mb-6">
                           <PomodoroModeToggle enabled={pomodoroMode} onToggle={handlePomodoroToggle} />
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">Classic Pomodoro: 25 min study, 5 min break, 15 min long break, 4 sessions per long break.</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                            <strong>Pomodoro ON:</strong> Timer automatically switches between study and break sessions.
+                            <br />
+                            <strong>Pomodoro OFF:</strong> Timer stops when it reaches 00:00 (no auto-switching).
+                            {pomodoroMode && <><br />Classic Pomodoro: 25 min study, 5 min break, 15 min long break, 4 sessions per long break.</>}
+                          </p>
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -561,7 +671,7 @@ const StudyTimer: React.FC = () => {
                     </button>
                     {sessionLogs.length > 0 && (
                       <button
-                        onClick={clearSessionLogs}
+                        onClick={() => setShowClearConfirm(true)}
                         className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors"
                       >
                         Clear All
@@ -574,6 +684,41 @@ const StudyTimer: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Clear All Confirmation Modal */}
+        {showClearConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Clear All Sessions</h2>
+              </div>
+              
+              <div className="p-6">
+                <p className="text-gray-700 dark:text-gray-300 mb-4">
+                  Are you sure you want to clear all session logs? This action cannot be undone.
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+                  This will delete all {sessionLogs.length} session{sessionLogs.length !== 1 ? 's' : ''} from your history.
+                </p>
+                
+                <div className="flex justify-end space-x-3">
+                  <button
+                    onClick={() => setShowClearConfirm(false)}
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={clearSessionLogs}
+                    className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors"
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </PageLayout>
   );
