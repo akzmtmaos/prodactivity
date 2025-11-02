@@ -2,17 +2,21 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import MultiPartParser, FormParser
 import requests
 import logging
+import os
+import tempfile
 from .serializers import ReviewerSerializer
 from rest_framework.decorators import api_view, permission_classes
 from .models import Reviewer
 from core.utils import get_ai_config
+from .file_extractors import extract_text_from_file
 
 logger = logging.getLogger(__name__)
 
 OLLAMA_API_URL = 'http://localhost:11434/api/generate'
-OLLAMA_MODEL = 'deepseek-r1:1.5b'
+OLLAMA_MODEL = 'gpt-oss:20b-cloud'
 
 def analyze_content_type(content):
     """Analyze content to determine its structure and type for optimal reviewer generation"""
@@ -88,7 +92,7 @@ def analyze_content_type(content):
 
 def get_default_quiz_prompt(content: str, question_count: int = 10) -> str:
     """Fallback quiz prompt when DB config is missing."""
-    return f"""Generate {question_count} multiple-choice questions strictly in this format. Do not include any extra commentary, headings or Markdown, only the questions block:
+    return f"""Generate EXACTLY {question_count} UNIQUE multiple-choice questions in this strict format:
 
 Q1. [Question text]
 A) [Option A]
@@ -97,15 +101,23 @@ C) [Option C]
 D) [Option D]
 Correct Answer: [A/B/C/D]
 
-Repeat for all questions from Q1 to Q{question_count}. Make each distractor plausible and only one correct option. Base questions ONLY on the content below.
+CRITICAL REQUIREMENTS:
+1. Each question MUST be completely UNIQUE - NO repetition
+2. Each question MUST test a DIFFERENT concept from the content
+3. Questions must be clear, specific, and directly answerable from the content
+4. All 4 options (A/B/C/D) must be plausible but only ONE is correct
+5. Do NOT add section headers, titles, or extra formatting
+6. Do NOT add blank lines between question number and options
+7. Stop after exactly Q{question_count}
 
-Content:
+Base ALL questions on the content below:
+
 {content}
 """
 
 def get_default_quiz_repair_prompt(content: str, question_count: int = 10) -> str:
     """Fallback repair prompt to coerce free-form text into strict quiz format."""
-    return f"""You are given content that should contain quiz questions but may be unstructured. Convert it into EXACTLY {question_count} multiple-choice questions with this strict format and nothing else:
+    return f"""Convert the content below into EXACTLY {question_count} UNIQUE multiple-choice questions using this strict format:
 
 Q1. [Question text]
 A) [Option A]
@@ -114,10 +126,13 @@ C) [Option C]
 D) [Option D]
 Correct Answer: [A/B/C/D]
 
-Rules:
-- Output ONLY the questions block, no explanations, no extra headings.
-- Ensure exactly one correct answer per question.
-- Use only information present in the source content.
+CRITICAL RULES:
+1. Each question MUST be UNIQUE - remove any duplicates
+2. Each question must test a DIFFERENT concept
+3. Output ONLY the questions block - no extra text, headers, or formatting
+4. Ensure exactly ONE correct answer per question
+5. Do NOT add blank lines between question number and options
+6. Stop after exactly Q{question_count}
 
 Source content to repair:
 {content}
@@ -127,116 +142,115 @@ def get_adaptive_prompt(content_type, content, note_type=None):
     """Get adaptive prompt based on content analysis"""
     
     if content_type == 'qa':
-        return f"""You are an expert study assistant. Create a comprehensive study reviewer from the Q&A content below.
+        return f"""You are an expert study assistant. Create a comprehensive and detailed study reviewer from the content below.
 
-CRITICAL REQUIREMENTS:
-- Follow the EXACT format specified below
-- Include ALL sections in the correct order
-- Do NOT generate new questions
-- Focus on organizing and explaining the existing content
-- Provide detailed explanations and context
-
-You MUST format your response EXACTLY as follows with proper line breaks:
+FORMAT REQUIREMENTS:
+Use EXACTLY these 4 sections with proper bullet formatting:
 
 Summary:
+Write a detailed 3-5 sentence summary that captures:
+- The main topic and its context
+- Why this topic is important
+- What will be covered
 
-[Write a comprehensive summary of the main topics covered - 2-3 paragraphs]
-
-Terminology:
-
-- [Term 1]: [Clear definition and explanation]
-- [Term 2]: [Clear definition and explanation]
-- [Term 3]: [Clear definition and explanation]
-- [Continue with all important terms from the content]
+Key Terms:
+List ALL important terms, concepts, and definitions from the content.
+Format each as: - Term: Clear, detailed explanation
+Include at least 5-10 key terms with full definitions.
 
 Key Points:
-
-- [Main point 1 with detailed explanation]
-- [Main point 2 with detailed explanation]
-- [Main point 3 with detailed explanation]
-- [Continue with all key points]
+List ALL major concepts, ideas, and takeaways from the content.
+Format each as: - Complete explanation of the point
+Include at least 5-10 detailed points that cover the entire content.
 
 Main Idea:
+Write 2-4 sentences explaining:
+- The central concept or theme
+- Why it matters
+- How it all connects together
 
-- [Primary concept 1 with context]
-- [Primary concept 2 with context]
-- [Primary concept 3 with context]
+CRITICAL RULES:
+- Include ONLY these 4 sections (NO "Content Analysis", "Conclusion", or other sections)
+- Add bullet points (-) to ALL items in Key Terms and Key Points
+- Be thorough and comprehensive - extract ALL important information
+- Do NOT skip details or summarize too much
+- Stop immediately after the Main Idea section
 
 Content to analyze:
 {content}"""
 
     elif content_type == 'structured':
-        return f"""You are an expert study assistant. Create a comprehensive study reviewer from the structured content below.
+        return f"""You are an expert study assistant. Create a comprehensive and detailed study reviewer from the content below.
 
-CRITICAL REQUIREMENTS:
-- Follow the EXACT format specified below
-- Include ALL sections in the correct order
-- Focus on organizing and explaining the existing content
-- Provide detailed explanations and context
-
-You MUST format your response EXACTLY as follows with proper line breaks:
+FORMAT REQUIREMENTS:
+Use EXACTLY these 4 sections with proper bullet formatting:
 
 Summary:
+Write a detailed 3-5 sentence summary that captures:
+- The main topic and its context
+- Why this topic is important
+- What will be covered
 
-[Write a comprehensive summary of the main topics covered - 2-3 paragraphs]
-
-Terminology:
-
-- [Term 1]: [Clear definition and explanation]
-- [Term 2]: [Clear definition and explanation]
-- [Term 3]: [Clear definition and explanation]
-- [Continue with all important terms from the content]
+Key Terms:
+List ALL important terms, concepts, and definitions from the content.
+Format each as: - Term: Clear, detailed explanation
+Include at least 5-10 key terms with full definitions.
 
 Key Points:
-
-- [Main point 1 with detailed explanation]
-- [Main point 2 with detailed explanation]
-- [Main point 3 with detailed explanation]
-- [Continue with all key points]
+List ALL major concepts, ideas, and takeaways from the content.
+Format each as: - Complete explanation of the point
+Include at least 5-10 detailed points that cover the entire content.
 
 Main Idea:
+Write 2-4 sentences explaining:
+- The central concept or theme
+- Why it matters
+- How it all connects together
 
-- [Primary concept 1 with context]
-- [Primary concept 2 with context]
-- [Primary concept 3 with context]
+CRITICAL RULES:
+- Include ONLY these 4 sections (NO "Content Analysis", "Conclusion", or other sections)
+- Add bullet points (-) to ALL items in Key Terms and Key Points
+- Be thorough and comprehensive - extract ALL important information
+- Do NOT skip details or summarize too much
+- Stop immediately after the Main Idea section
 
 Content to analyze:
 {content}"""
 
     elif content_type == 'educational':
-        return f"""You are an expert study assistant. Create a comprehensive study reviewer from the educational content below.
+        return f"""You are an expert study assistant. Create a comprehensive and detailed study reviewer from the content below.
 
-CRITICAL REQUIREMENTS:
-- Follow the EXACT format specified below
-- Include ALL sections in the correct order
-- Focus on organizing and explaining the existing content
-- Provide detailed explanations and context
-
-You MUST format your response EXACTLY as follows with proper line breaks:
+FORMAT REQUIREMENTS:
+Use EXACTLY these 4 sections with proper bullet formatting:
 
 Summary:
+Write a detailed 3-5 sentence summary that captures:
+- The main topic and its context
+- Why this topic is important
+- What will be covered
 
-[Write a comprehensive summary of the main topics covered - 2-3 paragraphs]
-
-Terminology:
-
-- [Term 1]: [Clear definition and explanation]
-- [Term 2]: [Clear definition and explanation]
-- [Term 3]: [Clear definition and explanation]
-- [Continue with all important terms from the content]
+Key Terms:
+List ALL important terms, concepts, and definitions from the content.
+Format each as: - Term: Clear, detailed explanation
+Include at least 5-10 key terms with full definitions.
 
 Key Points:
-
-- [Main point 1 with detailed explanation]
-- [Main point 2 with detailed explanation]
-- [Main point 3 with detailed explanation]
-- [Continue with all key points]
+List ALL major concepts, ideas, and takeaways from the content.
+Format each as: - Complete explanation of the point
+Include at least 5-10 detailed points that cover the entire content.
 
 Main Idea:
+Write 2-4 sentences explaining:
+- The central concept or theme
+- Why it matters
+- How it all connects together
 
-- [Primary concept 1 with context]
-- [Primary concept 2 with context]
-- [Primary concept 3 with context]
+CRITICAL RULES:
+- Include ONLY these 4 sections (NO "Content Analysis", "Conclusion", or other sections)
+- Add bullet points (-) to ALL items in Key Terms and Key Points
+- Be thorough and comprehensive - extract ALL important information
+- Do NOT skip details or summarize too much
+- Stop immediately after the Main Idea section
 
 Content to analyze:
 {content}"""
@@ -270,40 +284,39 @@ Content:
 {content}"""
 
     else:  # general content
-        return f"""You are an expert study assistant. Create a comprehensive study reviewer from the content below.
+        return f"""You are an expert study assistant. Create a comprehensive and detailed study reviewer from the content below.
 
-CRITICAL REQUIREMENTS:
-- Follow the EXACT format specified below
-- Include ALL sections in the correct order
-- Do NOT generate new questions
-- Focus on organizing and explaining the existing content
-- Provide detailed explanations and context
-
-You MUST format your response EXACTLY as follows with proper line breaks:
+FORMAT REQUIREMENTS:
+Use EXACTLY these 4 sections with proper bullet formatting:
 
 Summary:
+Write a detailed 3-5 sentence summary that captures:
+- The main topic and its context
+- Why this topic is important
+- What will be covered
 
-[Write a comprehensive summary of the main topics covered - 2-3 paragraphs]
-
-Terminology:
-
-- [Term 1]: [Clear definition and explanation]
-- [Term 2]: [Clear definition and explanation]
-- [Term 3]: [Clear definition and explanation]
-- [Continue with all important terms from the content]
+Key Terms:
+List ALL important terms, concepts, and definitions from the content.
+Format each as: - Term: Clear, detailed explanation
+Include at least 5-10 key terms with full definitions.
 
 Key Points:
-
-- [Main point 1 with detailed explanation]
-- [Main point 2 with detailed explanation]
-- [Main point 3 with detailed explanation]
-- [Continue with all key points]
+List ALL major concepts, ideas, and takeaways from the content.
+Format each as: - Complete explanation of the point
+Include at least 5-10 detailed points that cover the entire content.
 
 Main Idea:
+Write 2-4 sentences explaining:
+- The central concept or theme
+- Why it matters
+- How it all connects together
 
-- [Primary concept 1 with context]
-- [Primary concept 2 with context]
-- [Primary concept 3 with context]
+CRITICAL RULES:
+- Include ONLY these 4 sections (NO "Content Analysis", "Conclusion", or other sections)
+- Add bullet points (-) to ALL items in Key Terms and Key Points
+- Be thorough and comprehensive - extract ALL important information
+- Do NOT skip details or summarize too much
+- Stop immediately after the Main Idea section
 
 Content to analyze:
 {content}"""
@@ -436,18 +449,33 @@ class AIAutomaticReviewerView(APIView):
                 prompt = get_adaptive_prompt(content_type, text, note_type)
                 logger.info(f"Using adaptive prompt for content type: {content_type}")
 
-            payload = {
-                "model": OLLAMA_MODEL,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.3,
-                    "top_p": 0.7,
-                    "top_k": 40,
-                    "num_predict": 3000,  # Increased to 3000 to allow even longer responses
-                    "repeat_penalty": 1.1
+            # Use stricter settings for quiz generation to reduce repetition
+            if title.lower().startswith('quiz:'):
+                payload = {
+                    "model": OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.5,  # Higher temp for more diversity
+                        "top_p": 0.8,
+                        "top_k": 50,
+                        "num_predict": 3000,
+                        "repeat_penalty": 1.5  # Much higher to reduce repetition
+                    }
                 }
-            }
+            else:
+                payload = {
+                    "model": OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    "options": {
+                        "temperature": 0.3,
+                        "top_p": 0.7,
+                        "top_k": 40,
+                        "num_predict": 3000,
+                        "repeat_penalty": 1.1
+                    }
+                }
 
             try:
                 response = requests.post(OLLAMA_API_URL, json=payload, timeout=300)
@@ -504,11 +532,11 @@ class AIAutomaticReviewerView(APIView):
                             "prompt": repair_prompt,
                             "stream": False,
                             "options": {
-                                "temperature": 0.2,
-                                "top_p": 0.7,
-                                "top_k": 40,
+                                "temperature": 0.5,
+                                "top_p": 0.8,
+                                "top_k": 50,
                                 "num_predict": 3000,
-                                "repeat_penalty": 1.1
+                                "repeat_penalty": 1.5  # Higher to reduce repetition
                             }
                         }
 
@@ -580,4 +608,86 @@ def deleted_reviewers(request):
     reviewers = Reviewer.objects.filter(user=request.user, is_deleted=True)
     print(f"[DEBUG] Trash API - User: {request.user}, Deleted Reviewers: {list(reviewers.values('id', 'title', 'is_deleted', 'deleted_at'))}")
     serializer = ReviewerSerializer(reviewers, many=True)
-    return Response(serializer.data) 
+    return Response(serializer.data)
+
+
+class FileUploadExtractView(APIView):
+    """
+    Upload a file (PDF, DOCX, TXT) and extract its text content for reviewer generation.
+    """
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        try:
+            uploaded_file = request.FILES.get('file')
+            
+            if not uploaded_file:
+                return Response(
+                    {'error': 'No file uploaded. Please select a file.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Get file extension
+            file_name = uploaded_file.name
+            file_extension = os.path.splitext(file_name)[1].lower()
+            
+            # Validate file size (max 10MB)
+            max_size = 10 * 1024 * 1024  # 10MB
+            if uploaded_file.size > max_size:
+                return Response(
+                    {'error': 'File size too large. Maximum file size is 10MB.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Validate file type
+            allowed_extensions = ['.pdf', '.docx', '.doc', '.txt', '.md', '.markdown', '.rst']
+            if file_extension not in allowed_extensions:
+                return Response(
+                    {'error': f'Unsupported file format: {file_extension}. Supported formats: PDF, DOCX, TXT, MD'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Save file temporarily
+            with tempfile.NamedTemporaryFile(delete=False, suffix=file_extension) as tmp_file:
+                for chunk in uploaded_file.chunks():
+                    tmp_file.write(chunk)
+                tmp_file_path = tmp_file.name
+            
+            try:
+                # Extract text from file
+                extracted_text, error_message = extract_text_from_file(tmp_file_path, file_extension)
+                
+                if error_message:
+                    return Response(
+                        {'error': error_message},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                if not extracted_text or len(extracted_text.strip()) < 50:
+                    return Response(
+                        {'error': 'Extracted text is too short or empty. Please upload a file with more content.'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                # Return extracted text to frontend
+                return Response({
+                    'file_name': file_name,
+                    'text': extracted_text,
+                    'word_count': len(extracted_text.split()),
+                    'char_count': len(extracted_text)
+                }, status=status.HTTP_200_OK)
+                
+            finally:
+                # Clean up temporary file
+                try:
+                    os.unlink(tmp_file_path)
+                except Exception as e:
+                    logger.warning(f"Failed to delete temporary file {tmp_file_path}: {e}")
+            
+        except Exception as e:
+            logger.error(f"Error in file upload extraction: {str(e)}")
+            return Response(
+                {'error': f'Failed to process file: {str(e)}'},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            ) 

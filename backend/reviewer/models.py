@@ -18,6 +18,9 @@ class Reviewer(models.Model):
     tags = models.JSONField(default=list, blank=True)
     is_deleted = models.BooleanField(default=False)
     deleted_at = models.DateTimeField(null=True, blank=True)
+    best_score = models.IntegerField(null=True, blank=True, help_text="Best quiz score (percentage)")
+    best_score_correct = models.IntegerField(null=True, blank=True, help_text="Number of correct answers in best attempt")
+    best_score_total = models.IntegerField(null=True, blank=True, help_text="Total number of questions")
 
     class Meta:
         ordering = ['-created_at']

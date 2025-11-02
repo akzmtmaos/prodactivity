@@ -1,0 +1,463 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{{ title }} | {{ site_title|default:_('Django site admin') }}{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<style>
+.dashboard-container {
+    padding: 20px;
+    max-width: 1400px;
+    margin: 0 auto;
+    width: 100%;
+    box-sizing: border-box;
+    clear: both;
+    overflow: hidden;
+}
+
+.dashboard-title {
+    font-size: 2rem;
+    font-weight: 600;
+    margin-bottom: 30px;
+    color: #343a40;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+}
+
+.dashboard-title i {
+    color: #17a2b8;
+}
+
+.stats-grid {
+    display: grid !important;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)) !important;
+    gap: 20px !important;
+    margin-bottom: 40px !important;
+    width: 100% !important;
+    grid-auto-flow: row !important;
+    align-items: stretch !important;
+}
+
+.stat-card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    transition: transform 0.2s, box-shadow 0.2s;
+    border-left: 4px solid #6c757d;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.stat-card-primary {
+    border-left-color: #007bff;
+}
+
+.stat-card-info {
+    border-left-color: #17a2b8;
+}
+
+.stat-card-success {
+    border-left-color: #28a745;
+}
+
+.stat-card-warning {
+    border-left-color: #ffc107;
+}
+
+.stat-card-danger {
+    border-left-color: #dc3545;
+}
+
+.stat-card-secondary {
+    border-left-color: #6c757d;
+}
+
+.stat-icon {
+    font-size: 2.5rem;
+    color: #6c757d;
+    min-width: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.stat-card-primary .stat-icon {
+    color: #007bff;
+}
+
+.stat-card-info .stat-icon {
+    color: #17a2b8;
+}
+
+.stat-card-success .stat-icon {
+    color: #28a745;
+}
+
+.stat-card-warning .stat-icon {
+    color: #ffc107;
+}
+
+.stat-card-danger .stat-icon {
+    color: #dc3545;
+}
+
+.stat-card-secondary .stat-icon {
+    color: #6c757d;
+}
+
+.stat-content {
+    flex: 1;
+}
+
+.stat-number {
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    color: #343a40;
+}
+
+.stat-label {
+    margin: 5px 0 0 0;
+    color: #6c757d;
+    font-size: 0.9rem;
+}
+
+.stat-link {
+    margin-left: auto;
+}
+
+.stat-link a {
+    text-decoration: none;
+    color: white;
+    padding: 6px 12px;
+    border-radius: 4px;
+    font-size: 0.875rem;
+}
+
+.quick-actions {
+    margin-top: 40px;
+}
+
+.section-title {
+    font-size: 1.5rem;
+    font-weight: 600;
+    margin-bottom: 20px;
+    color: #343a40;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-title i {
+    color: #ffc107;
+}
+
+.actions-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.action-card {
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 20px;
+    text-align: center;
+    text-decoration: none;
+    color: #343a40;
+    transition: all 0.2s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+.action-card:hover {
+    background: #f8f9fa;
+    border-color: #007bff;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.action-card i {
+    font-size: 2rem;
+    color: #007bff;
+}
+
+.action-card span {
+    font-weight: 500;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+    .dashboard-title,
+    .stat-number,
+    .section-title {
+        color: #f8f9fa;
+    }
+    
+    .stat-card {
+        background: #2c3e50;
+        border-color: #495057;
+    }
+    
+    .stat-label {
+        color: #adb5bd;
+    }
+    
+    .action-card {
+        background: #2c3e50;
+        border-color: #495057;
+        color: #f8f9fa;
+    }
+    
+    .action-card:hover {
+        background: #34495e;
+    }
+}
+</style>
+{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+<a href="{% url 'admin:index' %}">{% trans 'Home' %}</a>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Statistics Dashboard Section -->
+<div class="dashboard-container" style="margin: 0 auto; width: 100%;">
+    <h1 class="dashboard-title">
+        <i class="fas fa-chart-line"></i> Admin Dashboard
+    </h1>
+    
+    <div class="stats-grid">
+        <!-- User Stats -->
+        <div class="stat-card stat-card-primary">
+            <div class="stat-icon">
+                <i class="fas fa-users"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ user_count|default:0 }}</h3>
+                <p class="stat-label">Total Users</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:auth_user_changelist' %}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Notes Stats -->
+        <div class="stat-card stat-card-info">
+            <div class="stat-icon">
+                <i class="fas fa-sticky-note"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ note_count|default:0 }}</h3>
+                <p class="stat-label">Total Notes</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:notes_note_changelist' %}" class="btn btn-sm btn-info">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Notebooks Stats -->
+        <div class="stat-card stat-card-warning">
+            <div class="stat-icon">
+                <i class="fas fa-book"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ notebook_count|default:0 }}</h3>
+                <p class="stat-label">Notebooks</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:notes_notebook_changelist' %}" class="btn btn-sm btn-warning">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Decks Stats -->
+        <div class="stat-card stat-card-success">
+            <div class="stat-icon">
+                <i class="fas fa-layer-group"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ deck_count|default:0 }}</h3>
+                <p class="stat-label">Flashcard Decks</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:decks_deck_changelist' %}" class="btn btn-sm btn-success">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Flashcards Stats -->
+        <div class="stat-card stat-card-secondary">
+            <div class="stat-icon">
+                <i class="fas fa-clone"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ flashcard_count|default:0 }}</h3>
+                <p class="stat-label">Flashcards</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:decks_flashcard_changelist' %}" class="btn btn-sm btn-secondary">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Tasks Stats -->
+        <div class="stat-card stat-card-danger">
+            <div class="stat-icon">
+                <i class="fas fa-tasks"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ task_count|default:0 }}</h3>
+                <p class="stat-label">Tasks</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:tasks_task_changelist' %}" class="btn btn-sm btn-danger">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Schedule Stats -->
+        <div class="stat-card stat-card-info">
+            <div class="stat-icon">
+                <i class="fas fa-calendar-alt"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ event_count|default:0 }}</h3>
+                <p class="stat-label">Events</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:schedule_event_changelist' %}" class="btn btn-sm btn-info">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Reviewer Stats -->
+        <div class="stat-card stat-card-primary">
+            <div class="stat-icon">
+                <i class="fas fa-user-check"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ reviewer_count|default:0 }}</h3>
+                <p class="stat-label">Reviewers</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:reviewer_reviewer_changelist' %}" class="btn btn-sm btn-primary">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Quiz Sessions -->
+        <div class="stat-card stat-card-success">
+            <div class="stat-icon">
+                <i class="fas fa-graduation-cap"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ quiz_session_count|default:0 }}</h3>
+                <p class="stat-label">Quiz Sessions</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:decks_quizsession_changelist' %}" class="btn btn-sm btn-success">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- Notifications -->
+        <div class="stat-card stat-card-warning">
+            <div class="stat-icon">
+                <i class="fas fa-bell"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ notification_count|default:0 }}</h3>
+                <p class="stat-label">Notifications</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:core_notification_changelist' %}" class="btn btn-sm btn-warning">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- AI Configurations -->
+        <div class="stat-card stat-card-info">
+            <div class="stat-icon">
+                <i class="fas fa-robot"></i>
+            </div>
+            <div class="stat-content">
+                <h3 class="stat-number">{{ ai_config_count|default:0 }}</h3>
+                <p class="stat-label">Active AI Configs</p>
+            </div>
+            <div class="stat-link">
+                <a href="{% url 'admin:core_aiconfiguration_changelist' %}" class="btn btn-sm btn-info">
+                    <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Actions Section -->
+    <div class="quick-actions">
+        <h2 class="section-title">
+            <i class="fas fa-bolt"></i> Quick Actions
+        </h2>
+        <div class="actions-grid">
+            <a href="{% url 'admin:auth_user_add' %}" class="action-card">
+                <i class="fas fa-user-plus"></i>
+                <span>Add New User</span>
+            </a>
+            <a href="{% url 'admin:core_aiconfiguration_add' %}" class="action-card">
+                <i class="fas fa-cog"></i>
+                <span>Manage AI Config</span>
+            </a>
+            <a href="{% url 'admin:core_termsandconditions_changelist' %}" class="action-card">
+                <i class="fas fa-file-contract"></i>
+                <span>Terms & Conditions</span>
+            </a>
+            <a href="{% url 'admin:core_notification_changelist' %}" class="action-card">
+                <i class="fas fa-bell"></i>
+                <span>View Notifications</span>
+            </a>
+            <a href="{% url 'admin:activity_logs' %}" class="action-card">
+                <i class="fas fa-history"></i>
+                <span>Activity Logs</span>
+            </a>
+            <a href="{% url 'admin:reports' %}" class="action-card">
+                <i class="fas fa-chart-bar"></i>
+                <span>Reports & Analytics</span>
+            </a>
+            <a href="{% url 'admin:system_logs' %}" class="action-card">
+                <i class="fas fa-server"></i>
+                <span>System Logs</span>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

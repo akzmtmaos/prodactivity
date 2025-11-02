@@ -27,8 +27,8 @@ if not HUGGINGFACE_API_KEY:
 # Application definition
 
 INSTALLED_APPS = [
+    'core',   # core app for CMS and terms (MUST BE BEFORE JAZZMIN to override templates)
     'jazzmin',  # Modern admin theme
-    'core',   # core app for CMS and terms
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',

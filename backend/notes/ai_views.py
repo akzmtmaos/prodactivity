@@ -23,7 +23,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Ollama API configuration
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "deepseek-r1:1.5b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b-cloud")
 # Allow multiple candidate URLs to avoid localhost/host resolution issues
 OLLAMA_URLS = [
     os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate"),
@@ -56,6 +56,9 @@ def clean_ai_response(response_text):
     
     # Remove <think>...</think> blocks completely
     cleaned = re.sub(r'<think>.*?</think>', '', response_text, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Strip common zero-width/control marks that can corrupt text rendering
+    cleaned = re.sub(r'[\u200B-\u200F\u202A-\u202E\u2060-\u206F]', '', cleaned)
     
     # Clean up excessive whitespace
     cleaned = re.sub(r'\n\s*\n\s*\n+', '\n\n', cleaned)  # Max 2 newlines
@@ -346,14 +349,26 @@ class ReviewView(APIView):
                     status=status.HTTP_400_BAD_REQUEST
                 )
             
-            # Get review prompt from database configuration
+            # Get review prompt from database configuration; use safe fallback if missing
             try:
                 review_prompt = get_ai_config('reviewer_prompt', content=text)
             except ValueError as e:
-                logger.error(f"Failed to get review configuration: {e}")
-                return Response(
-                    {'error': 'AI configuration not found. Please contact administrator.'}, 
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                logger.warning(f"Reviewer prompt missing, using fallback: {e}")
+                review_prompt = (
+                    "You are an expert study reviewer. Provide a clear, useful review without showing reasoning.\n"
+                    "Respond ONLY in these sections with concise bullets and short sentences:\n"
+                    "Summary (2-3 sentences)\n"
+                    "Terminology (3-8 bullets: term: brief definition)\n"
+                    "Key Points (5-10 bullets)\n"
+                    "Examples (2-4 concrete examples)\n"
+                    "Common Mistakes (2-4 bullets)\n"
+                    "Study Tips (3-5 actionable bullets)\n"
+                    "Main Idea (1-2 bullets)\n\n"
+                    "Rules:\n"
+                    "- No chain-of-thought or analysis, just the final content.\n"
+                    "- Do not invent facts; use only the provided content.\n"
+                    "- Prefer bullets; keep each bullet under 20 words.\n\n"
+                    f"Content:\n{text}"
                 )
             
             payload = {
@@ -361,11 +376,11 @@ class ReviewView(APIView):
                 "prompt": review_prompt,
                 "stream": False,
                 "options": {
-                    "temperature": 0.3,
-                    "top_p": 0.7,
+                    "temperature": 0.25,
+                    "top_p": 0.85,
                     "top_k": 40,
-                    "num_predict": 200,
-                    "repeat_penalty": 1.1
+                    "num_predict": 1100,
+                    "repeat_penalty": 1.15
                 }
             }
             
@@ -375,8 +390,12 @@ class ReviewView(APIView):
                 result = response.json()
                 raw_review = result.get('response', '').strip()
                 
-                # Clean the response to remove thinking tags
+                # Clean the response to remove thinking tags and invisible controls
                 review = clean_ai_response(raw_review)
+                
+                # Final light normalization: collapse stray multiple dashes and odd spacing
+                review = review.replace('\u200b', '').replace('\ufeff', '')
+                review = re.sub(r'\s+\n', '\n', review)
                 
                 if not review:
                     return Response(
