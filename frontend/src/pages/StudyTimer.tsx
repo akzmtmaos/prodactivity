@@ -4,6 +4,7 @@ import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
 import PomodoroModeToggle from '../components/studytimer/PomodoroModeToggle';
 import { useTimer } from '../context/TimerContext';
+import axiosInstance from '../utils/axiosConfig';
 
 // SessionLogs component
 interface SessionLogEntry {
@@ -142,6 +143,53 @@ const StudyTimer: React.FC = () => {
     sessionsUntilLongBreak: 4,
   };
 
+  // Load session logs function (fetches from backend API)
+  const loadSessionLogs = async () => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (token) {
+        // Try to fetch from backend API
+        try {
+          const response = await axiosInstance.get('/tasks/study-timer-sessions/');
+          const backendLogs = response.data || [];
+          
+          // Convert backend format to frontend format
+          const formattedLogs = backendLogs.map((log: any) => ({
+            type: log.session_type,
+            start: new Date(log.start_time),
+            end: new Date(log.end_time),
+            duration: log.duration
+          }));
+          
+          setSessionLogs(formattedLogs);
+          
+          // Also update localStorage for backward compatibility
+          localStorage.setItem('studyTimerLogs', JSON.stringify(formattedLogs));
+          return;
+        } catch (apiError) {
+          console.warn('Failed to fetch from backend, using localStorage:', apiError);
+        }
+      }
+      
+      // Fallback to localStorage
+      const logs = localStorage.getItem('studyTimerLogs');
+      if (logs) {
+        try {
+          const parsedLogs = JSON.parse(logs).map((log: any) => ({
+            ...log,
+            start: new Date(log.start),
+            end: new Date(log.end)
+          }));
+          setSessionLogs(parsedLogs);
+        } catch (e) {
+          console.error('Error parsing session logs:', e);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading session logs:', error);
+    }
+  };
+
   // On initial mount, always reset to Study Time
   useEffect(() => {
     // Get user data from localStorage
@@ -168,38 +216,9 @@ const StudyTimer: React.FC = () => {
     else if (hour < 18) setGreeting('Good afternoon');
     else setGreeting('Good evening');
 
-    // Load session logs from localStorage
-    const logs = localStorage.getItem('studyTimerLogs');
-    if (logs) {
-      try {
-        const parsedLogs = JSON.parse(logs).map((log: any) => ({
-          ...log,
-          start: new Date(log.start),
-          end: new Date(log.end)
-        }));
-        setSessionLogs(parsedLogs);
-      } catch (e) {
-        console.error('Error parsing session logs:', e);
-      }
-    }
+    // Load session logs on mount
+    loadSessionLogs();
   }, []);
-
-  // Load session logs function
-  const loadSessionLogs = () => {
-    const logs = localStorage.getItem('studyTimerLogs');
-    if (logs) {
-      try {
-        const parsedLogs = JSON.parse(logs).map((log: any) => ({
-          ...log,
-          start: new Date(log.start),
-          end: new Date(log.end)
-        }));
-        setSessionLogs(parsedLogs);
-      } catch (e) {
-        console.error('Error parsing session logs:', e);
-      }
-    }
-  };
 
   // Refresh session logs when timer state changes (new sessions completed)
   useEffect(() => {
@@ -244,10 +263,33 @@ const StudyTimer: React.FC = () => {
     }
   };
 
-  const clearSessionLogs = () => {
+  const clearSessionLogs = async () => {
     if (window.confirm('Are you sure you want to clear all session logs? This action cannot be undone.')) {
-      localStorage.removeItem('studyTimerLogs');
-      setSessionLogs([]);
+      try {
+        const token = localStorage.getItem('accessToken');
+        if (token) {
+          // Delete all sessions from backend
+          try {
+            const response = await axiosInstance.get('/tasks/study-timer-sessions/');
+            const sessions = response.data || [];
+            // Delete each session
+            await Promise.all(
+              sessions.map((session: any) => 
+                axiosInstance.delete(`/tasks/study-timer-sessions/${session.id}/`)
+              )
+            );
+            console.log('All sessions deleted from backend');
+          } catch (apiError) {
+            console.warn('Failed to delete from backend:', apiError);
+          }
+        }
+        
+        // Also clear localStorage
+        localStorage.removeItem('studyTimerLogs');
+        setSessionLogs([]);
+      } catch (error) {
+        console.error('Error clearing session logs:', error);
+      }
     }
   };
 

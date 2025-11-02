@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
 import { playTimerCompleteSound, playBreakStartSound } from '../utils/audioUtils';
+import axiosInstance from '../utils/axiosConfig';
 
 interface TimerSettings {
   studyDuration: number;
@@ -72,6 +73,7 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
   });
 
   const [intervalId, setIntervalId] = useState<NodeJS.Timeout | null>(null);
+  const isCompletingRef = useRef(false); // Guard to prevent duplicate completion calls
 
   // Timer logic
   useEffect(() => {
@@ -84,10 +86,17 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
     if (timerState.isActive && timerState.timeLeft > 0) {
       const id = setInterval(() => {
         setTimerState(prev => {
-          if (prev.timeLeft <= 1) {
-            // Timer completed
-            handleTimerComplete(prev);
+          // Guard: Prevent duplicate completion calls
+          if (isCompletingRef.current) {
             return prev;
+          }
+          
+          if (prev.timeLeft <= 1) {
+            // Timer completed - set guard and stop timer immediately
+            isCompletingRef.current = true;
+            handleTimerComplete(prev);
+            // Return state with timer stopped to prevent further ticks
+            return { ...prev, isActive: false, timeLeft: 0 };
           }
           return { ...prev, timeLeft: prev.timeLeft - 1 };
         });
@@ -112,6 +121,7 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
 
     // Log the session
     if (prevState.sessionStart) {
+      const sessionStart = prevState.sessionStart; // Store in local variable for TypeScript
       const end = new Date();
       const duration = prevState.isBreak
         ? (prevState.sessionsCompleted + 1 >= prevState.settings.sessionsUntilLongBreak 
@@ -119,17 +129,43 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
             : prevState.settings.breakDuration)
         : prevState.settings.studyDuration;
       
-      // Store session log in localStorage
+      const sessionType = prevState.isBreak
+        ? (prevState.sessionsCompleted + 1 >= prevState.settings.sessionsUntilLongBreak ? 'Long Break' : 'Break')
+        : 'Study';
+      
+      // Store session log in localStorage (for backward compatibility)
       const logs = JSON.parse(localStorage.getItem('studyTimerLogs') || '[]');
       logs.push({
-        type: prevState.isBreak
-          ? (prevState.sessionsCompleted + 1 >= prevState.settings.sessionsUntilLongBreak ? 'Long Break' : 'Break')
-          : 'Study',
-        start: prevState.sessionStart,
+        type: sessionType,
+        start: sessionStart,
         end,
         duration,
       });
       localStorage.setItem('studyTimerLogs', JSON.stringify(logs));
+      
+      // Save to backend API for permanent storage
+      const saveSessionToBackend = async () => {
+        try {
+          const token = localStorage.getItem('accessToken');
+          if (!token) {
+            console.warn('No access token found, skipping backend save');
+            return;
+          }
+          
+          await axiosInstance.post('/tasks/study-timer-sessions/', {
+            session_type: sessionType,
+            start_time: sessionStart.toISOString(),
+            end_time: end.toISOString(),
+            duration: duration,
+          });
+          console.log('Session saved to backend successfully');
+        } catch (error) {
+          console.error('Failed to save session to backend:', error);
+          // Continue anyway - localStorage backup is already saved
+        }
+      };
+      
+      saveSessionToBackend();
     }
 
     if (!prevState.isBreak) {
@@ -146,6 +182,11 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         sessionsCompleted: newSessionsCompleted,
         sessionStart: new Date()
       });
+      
+      // Reset guard after state update completes
+      setTimeout(() => {
+        isCompletingRef.current = false;
+      }, 100);
     } else {
       // Break completed
       setTimerState({
@@ -156,10 +197,17 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         sessionStart: new Date(),
         sessionsCompleted: prevState.sessionsCompleted >= prevState.settings.sessionsUntilLongBreak ? 0 : prevState.sessionsCompleted
       });
+      
+      // Reset guard after state update completes
+      setTimeout(() => {
+        isCompletingRef.current = false;
+      }, 100);
     }
   };
 
   const startTimer = () => {
+    // Reset guard when starting a new timer
+    isCompletingRef.current = false;
     setTimerState(prev => ({
       ...prev,
       isActive: true,
@@ -175,6 +223,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
   };
 
   const resetTimer = () => {
+    // Reset guard when resetting timer
+    isCompletingRef.current = false;
     setTimerState(prev => ({
       ...prev,
       isActive: false,
