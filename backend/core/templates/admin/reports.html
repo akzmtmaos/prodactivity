@@ -18,18 +18,18 @@
     font-size: 2rem;
     font-weight: 600;
     margin-bottom: 10px;
-    color: #343a40;
+    color: #e2e8f0;
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
 .reports-title i {
-    color: #17a2b8;
+    color: #3b82f6;
 }
 
 .reports-subtitle {
-    color: #6c757d;
+    color: #cbd5e1;
     font-size: 1rem;
     margin-bottom: 30px;
 }
@@ -42,14 +42,14 @@
     font-size: 1.5rem;
     font-weight: 600;
     margin-bottom: 20px;
-    color: #343a40;
+    color: #e2e8f0;
     display: flex;
     align-items: center;
     gap: 10px;
 }
 
 .section-title i {
-    color: #ffc107;
+    color: #f59e0b;
 }
 
 .stats-grid {
@@ -60,15 +60,16 @@
 }
 
 .stat-card {
-    background: white;
+    background: #1e293b;
     border-radius: 8px;
     padding: 20px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     display: flex;
     align-items: center;
     gap: 15px;
     transition: transform 0.2s, box-shadow 0.2s;
-    border-left: 4px solid #6c757d;
+    border-left: 4px solid #475569;
+    border: 1px solid #334155;
 }
 
 .stat-card:hover {
@@ -98,11 +99,19 @@
 
 .stat-icon {
     font-size: 2.5rem;
-    color: #6c757d;
+    color: #94a3b8;
     min-width: 60px;
     display: flex;
     align-items: center;
     justify-content: center;
+}
+
+.stat-number {
+    color: #e2e8f0;
+}
+
+.stat-label {
+    color: #cbd5e1;
 }
 
 .stat-card-primary .stat-icon {
@@ -143,31 +152,35 @@
 }
 
 .chart-card {
-    background: white;
+    background: #1e293b;
     border-radius: 8px;
     padding: 25px;
     margin-bottom: 30px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+    border: 1px solid #334155;
 }
 
 .chart-title {
     font-size: 1.25rem;
     font-weight: 600;
     margin-bottom: 20px;
-    color: #343a40;
+    color: #e2e8f0;
     display: flex;
     align-items: center;
     gap: 8px;
 }
 
 .chart-title i {
-    color: #17a2b8;
+    color: #3b82f6;
 }
 
 .chart-container {
     height: 300px;
     position: relative;
     padding: 20px 0;
+    background: #0f172a;
+    border-radius: 6px;
+    border: 1px solid #334155;
 }
 
 .bar-chart {
@@ -189,7 +202,7 @@
 
 .bar {
     width: 100%;
-    background: linear-gradient(to top, #007bff 0%, #0056b3 100%);
+    background: linear-gradient(to top, #3b82f6 0%, #2563eb 100%);
     border-radius: 4px 4px 0 0;
     position: relative;
     transition: opacity 0.2s;
@@ -202,15 +215,16 @@
 
 .bar-label {
     font-size: 0.75rem;
-    color: #6c757d;
+    color: #cbd5e1;
     text-align: center;
     writing-mode: horizontal-tb;
+    margin-top: 8px;
 }
 
 .bar-value {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #343a40;
+    color: #e2e8f0;
     margin-top: 5px;
 }
 
@@ -227,6 +241,7 @@
     align-items: center;
     gap: 8px;
     font-size: 0.9rem;
+    color: #cbd5e1;
 }
 
 .legend-color {
@@ -236,11 +251,12 @@
 }
 
 .table-card {
-    background: white;
+    background: #1e293b;
     border-radius: 8px;
     padding: 25px;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
     overflow-x: auto;
+    border: 1px solid #334155;
 }
 
 .data-table {
@@ -249,26 +265,26 @@
 }
 
 .data-table thead {
-    background: #f8f9fa;
+    background: #0f172a;
 }
 
 .data-table th {
     padding: 12px;
     text-align: left;
     font-weight: 600;
-    color: #343a40;
-    border-bottom: 2px solid #dee2e6;
+    color: #e2e8f0;
+    border-bottom: 2px solid #334155;
     font-size: 0.9rem;
 }
 
 .data-table td {
     padding: 12px;
-    border-bottom: 1px solid #e9ecef;
-    color: #495057;
+    border-bottom: 1px solid #334155;
+    color: #cbd5e1;
 }
 
 .data-table tbody tr:hover {
-    background: #f8f9fa;
+    background: #334155;
 }
 
 .user-avatar-small {
@@ -531,17 +547,29 @@
             <div class="chart-container">
                 <div class="bar-chart">
                     <div class="bar-item">
-                        <div class="bar" style="height: {% widthratio priority_distribution.high total_tasks 100 %}%; background: linear-gradient(to top, #dc3545 0%, #c82333 100%);"></div>
+                        {% if max_priority_count > 0 %}
+                        <div class="bar" style="height: {% widthratio priority_distribution.high max_priority_count 100 %}%; background: linear-gradient(to top, #dc3545 0%, #c82333 100%);"></div>
+                        {% else %}
+                        <div class="bar" style="height: 0%; background: linear-gradient(to top, #dc3545 0%, #c82333 100%);"></div>
+                        {% endif %}
                         <div class="bar-label">High</div>
                         <div class="bar-value">{{ priority_distribution.high }}</div>
                     </div>
                     <div class="bar-item">
-                        <div class="bar" style="height: {% widthratio priority_distribution.medium total_tasks 100 %}%; background: linear-gradient(to top, #ffc107 0%, #e0a800 100%);"></div>
+                        {% if max_priority_count > 0 %}
+                        <div class="bar" style="height: {% widthratio priority_distribution.medium max_priority_count 100 %}%; background: linear-gradient(to top, #ffc107 0%, #e0a800 100%);"></div>
+                        {% else %}
+                        <div class="bar" style="height: 0%; background: linear-gradient(to top, #ffc107 0%, #e0a800 100%);"></div>
+                        {% endif %}
                         <div class="bar-label">Medium</div>
                         <div class="bar-value">{{ priority_distribution.medium }}</div>
                     </div>
                     <div class="bar-item">
-                        <div class="bar" style="height: {% widthratio priority_distribution.low total_tasks 100 %}%; background: linear-gradient(to top, #28a745 0%, #218838 100%);"></div>
+                        {% if max_priority_count > 0 %}
+                        <div class="bar" style="height: {% widthratio priority_distribution.low max_priority_count 100 %}%; background: linear-gradient(to top, #28a745 0%, #218838 100%);"></div>
+                        {% else %}
+                        <div class="bar" style="height: 0%; background: linear-gradient(to top, #28a745 0%, #218838 100%);"></div>
+                        {% endif %}
                         <div class="bar-label">Low</div>
                         <div class="bar-value">{{ priority_distribution.low }}</div>
                     </div>
@@ -559,7 +587,11 @@
             <div class="bar-chart">
                 {% for reg in user_registrations %}
                 <div class="bar-item">
-                    <div class="bar" style="height: {% widthratio reg.count 10 100 %}%;"></div>
+                    {% if max_user_reg_count > 0 %}
+                        <div class="bar" style="height: {% widthratio reg.count max_user_reg_count 100 %}%; min-height: {% if reg.count > 0 %}8px{% else %}0px{% endif %};"></div>
+                    {% else %}
+                        <div class="bar" style="height: 0%;"></div>
+                    {% endif %}
                     <div class="bar-label">{{ reg.date_label }}</div>
                     <div class="bar-value">{{ reg.count }}</div>
                 </div>
@@ -584,9 +616,15 @@
                 {% for item in content_creation_combined %}
                     <div class="bar-item">
                         <div style="display: flex; flex-direction: column; gap: 4px; width: 100%; align-items: center;">
-                            <div class="bar" style="height: {% widthratio item.notes_count 20 100 %}%; background: linear-gradient(to top, #007bff 0%, #0056b3 100%); width: 30%;"></div>
-                            <div class="bar" style="height: {% widthratio item.tasks_count 20 100 %}%; background: linear-gradient(to top, #28a745 0%, #218838 100%); width: 30%;"></div>
-                            <div class="bar" style="height: {% widthratio item.decks_count 20 100 %}%; background: linear-gradient(to top, #ffc107 0%, #e0a800 100%); width: 30%;"></div>
+                            {% if max_content_count > 0 %}
+                                <div class="bar" style="height: {% widthratio item.notes_count max_content_count 100 %}%; background: linear-gradient(to top, #3b82f6 0%, #2563eb 100%); width: 30%; min-height: {% if item.notes_count > 0 %}6px{% else %}0px{% endif %};"></div>
+                                <div class="bar" style="height: {% widthratio item.tasks_count max_content_count 100 %}%; background: linear-gradient(to top, #22c55e 0%, #16a34a 100%); width: 30%; min-height: {% if item.tasks_count > 0 %}6px{% else %}0px{% endif %};"></div>
+                                <div class="bar" style="height: {% widthratio item.decks_count max_content_count 100 %}%; background: linear-gradient(to top, #f59e0b 0%, #d97706 100%); width: 30%; min-height: {% if item.decks_count > 0 %}6px{% else %}0px{% endif %};"></div>
+                            {% else %}
+                                <div class="bar" style="height: 0%; width: 30%;"></div>
+                                <div class="bar" style="height: 0%; width: 30%;"></div>
+                                <div class="bar" style="height: 0%; width: 30%;"></div>
+                            {% endif %}
                         </div>
                         <div class="bar-label">{{ item.date_label }}</div>
                         <div class="bar-value">N:{{ item.notes_count }} T:{{ item.tasks_count }} D:{{ item.decks_count }}</div>

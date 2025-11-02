@@ -198,29 +198,51 @@ class MyAdminSite(admin.AdminSite):
                     'rate': 0
                 })
         
-        # User Registration Trends (Last 7 days)
+        # User Registration Trends (Last 7 days) - Real-time data
         user_registrations = []
         for i in range(6, -1, -1):
             date = today - timedelta(days=i)
-            count = User.objects.filter(date_joined__date=date).count()
+            # Use timezone-aware date range for accurate real-time data
+            start_datetime = timezone.make_aware(datetime.combine(date, datetime.min.time()))
+            end_datetime = timezone.make_aware(datetime.combine(date, datetime.max.time()))
+            count = User.objects.filter(
+                date_joined__gte=start_datetime,
+                date_joined__lt=end_datetime + timedelta(days=1)
+            ).count()
             user_registrations.append({
                 'date': date.strftime('%Y-%m-%d'),
                 'date_label': date.strftime('%b %d'),
                 'count': count
             })
         
-        # Content Creation Trends (Last 7 days) - Combined list
+        # Content Creation Trends (Last 7 days) - Real-time data with proper date filtering
         content_creation_combined = []
         for i in range(6, -1, -1):
             date = today - timedelta(days=i)
             date_str = date.strftime('%Y-%m-%d')
             date_label = date.strftime('%b %d')
+            # Use timezone-aware date range for accurate real-time data
+            start_datetime = timezone.make_aware(datetime.combine(date, datetime.min.time()))
+            end_datetime = timezone.make_aware(datetime.combine(date, datetime.max.time()))
+            # Fetch real-time counts for each content type
+            notes_count = Note.objects.filter(
+                created_at__gte=start_datetime,
+                created_at__lt=end_datetime + timedelta(days=1)
+            ).count()
+            tasks_count = Task.objects.filter(
+                created_at__gte=start_datetime,
+                created_at__lt=end_datetime + timedelta(days=1)
+            ).count()
+            decks_count = Deck.objects.filter(
+                created_at__gte=start_datetime,
+                created_at__lt=end_datetime + timedelta(days=1)
+            ).count()
             content_creation_combined.append({
                 'date': date_str,
                 'date_label': date_label,
-                'notes_count': Note.objects.filter(created_at__date=date).count(),
-                'tasks_count': Task.objects.filter(created_at__date=date).count(),
-                'decks_count': Deck.objects.filter(created_at__date=date).count()
+                'notes_count': notes_count,
+                'tasks_count': tasks_count,
+                'decks_count': decks_count
             })
         
         # Also keep separate lists for backward compatibility
@@ -242,7 +264,7 @@ class MyAdminSite(admin.AdminSite):
         pending_tasks = Task.objects.filter(completed=False).count()
         completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
         
-        # Task Priority Distribution
+        # Task Priority Distribution - Real-time data from all tasks
         priority_stats = Task.objects.values('priority').annotate(count=Count('id'))
         priority_distribution = {
             'high': 0,
@@ -250,7 +272,16 @@ class MyAdminSite(admin.AdminSite):
             'low': 0
         }
         for stat in priority_stats:
-            priority_distribution[stat['priority']] = stat['count']
+            priority_value = stat['priority']
+            if priority_value in priority_distribution:
+                priority_distribution[priority_value] = stat['count']
+        
+        # Calculate max priority for chart scaling
+        max_priority_count = max(priority_distribution.values()) if priority_distribution.values() and max(priority_distribution.values()) > 0 else 1
+        
+        # Calculate max counts for trend charts
+        max_user_reg_count = max([r['count'] for r in user_registrations]) if user_registrations and max([r['count'] for r in user_registrations]) > 0 else 1
+        max_content_count = max([max(item['notes_count'], item['tasks_count'], item['decks_count']) for item in content_creation_combined]) if content_creation_combined and max([max(item['notes_count'], item['tasks_count'], item['decks_count']) for item in content_creation_combined]) > 0 else 1
         
         context = dict(
             self.each_context(request),
@@ -288,6 +319,9 @@ class MyAdminSite(admin.AdminSite):
             pending_tasks=pending_tasks,
             completion_rate=round(completion_rate, 1),
             priority_distribution=priority_distribution,
+            max_priority_count=max_priority_count,  # For chart scaling
+            max_user_reg_count=max_user_reg_count,  # For user registration chart scaling
+            max_content_count=max_content_count,  # For content creation chart scaling
         )
         return TemplateResponse(request, "admin/reports.html", context)
 
