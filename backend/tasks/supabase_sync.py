@@ -389,3 +389,103 @@ def update_productivity_log_in_supabase(productivity_log):
     except Exception as e:
         print(f"❌ Error updating productivity log in Supabase: {e}")
         return False
+
+def sync_study_timer_session_to_supabase(session):
+    """
+    Sync a Django StudyTimerSession to Supabase
+    
+    Args:
+        session: Django StudyTimerSession instance
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        print(f"🔄 [sync_study_timer_session_to_supabase] STARTING - Session ID: {session.id}, User: {session.user.username}")
+        
+        # Get Supabase user ID
+        supabase_user_id = get_user_supabase_id(session.user)
+        if not supabase_user_id:
+            print(f"⚠️  Cannot sync study timer session - user '{session.user.username}' not found in Supabase")
+            return False
+        
+        print(f"✅ [sync_study_timer_session_to_supabase] Found Supabase user ID: {supabase_user_id}")
+        
+        # Prepare data for Supabase
+        data = {
+            'id': session.id,
+            'user_id': supabase_user_id,
+            'session_type': session.session_type,
+            'start_time': session.start_time.isoformat(),
+            'end_time': session.end_time.isoformat(),
+            'duration': session.duration,
+            'created_at': session.created_at.isoformat(),
+            'updated_at': session.updated_at.isoformat()
+        }
+        
+        print(f"📤 [sync_study_timer_session_to_supabase] Sending data to Supabase: {data}")
+        
+        # Insert into Supabase
+        response = requests.post(
+            f"{SUPABASE_URL}/rest/v1/study_timer_sessions",
+            headers=get_supabase_headers(),
+            json=data
+        )
+        
+        print(f"📥 [sync_study_timer_session_to_supabase] Supabase response: {response.status_code}")
+        
+        if response.status_code == 201:
+            print(f"✅ [sync_study_timer_session_to_supabase] SUCCESS - Synced session: {session.user.username} - {session.session_type} (ID: {session.id})")
+            return True
+        else:
+            print(f"❌ [sync_study_timer_session_to_supabase] FAILED - Status: {response.status_code}, Response: {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error syncing study timer session to Supabase: {e}")
+        return False
+
+def update_study_timer_session_in_supabase(session):
+    """
+    Update an existing StudyTimerSession in Supabase
+    
+    Args:
+        session: Django StudyTimerSession instance
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Get Supabase user ID
+        supabase_user_id = get_user_supabase_id(session.user)
+        if not supabase_user_id:
+            print(f"⚠️  Cannot update study timer session - user '{session.user.username}' not found in Supabase")
+            return False
+        
+        # Prepare data for Supabase
+        data = {
+            'user_id': supabase_user_id,
+            'session_type': session.session_type,
+            'start_time': session.start_time.isoformat(),
+            'end_time': session.end_time.isoformat(),
+            'duration': session.duration,
+            'updated_at': session.updated_at.isoformat()
+        }
+        
+        # Update in Supabase
+        response = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/study_timer_sessions?id=eq.{session.id}",
+            headers=get_supabase_headers(),
+            json=data
+        )
+        
+        if response.status_code == 200 or response.status_code == 204:
+            print(f"✅ Updated study timer session in Supabase: {session.user.username} - {session.session_type} (ID: {session.id})")
+            return True
+        else:
+            print(f"❌ Failed to update study timer session in Supabase: {response.status_code} - {response.text}")
+            return False
+            
+    except Exception as e:
+        print(f"❌ Error updating study timer session in Supabase: {e}")
+        return False

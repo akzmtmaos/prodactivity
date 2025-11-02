@@ -140,39 +140,146 @@ class MyAdminSite(admin.AdminSite):
         return TemplateResponse(request, "admin/activity_logs.html", context)
 
     def reports_view(self, request):
-        """Reports and analytics view with charts and statistics."""
+        """Reports and analytics view with charts and statistics - fetches data from Supabase."""
         from django.template.response import TemplateResponse
         from django.db.models import Count, Q, Sum, Avg
         from django.utils import timezone
         from datetime import timedelta, datetime
         from tasks.models import ProductivityLog
         from collections import defaultdict
+        import requests
+        from django.conf import settings
+        
+        # Get Supabase configuration
+        SUPABASE_URL = getattr(settings, 'SUPABASE_URL', 'https://tyuiugbvqmeatyjpenzg.supabase.co')
+        SUPABASE_ANON_KEY = getattr(settings, 'SUPABASE_ANON_KEY', '')
+        
+        def get_supabase_headers():
+            return {
+                'apikey': SUPABASE_ANON_KEY,
+                'Authorization': f'Bearer {SUPABASE_ANON_KEY}',
+                'Content-Type': 'application/json',
+                'Prefer': 'return=representation'
+            }
+        
+        def fetch_from_supabase(table, filters=None, select='*'):
+            """Fetch data from Supabase table"""
+            try:
+                url = f"{SUPABASE_URL}/rest/v1/{table}"
+                params = {}
+                if filters:
+                    params.update(filters)
+                if select != '*':
+                    params['select'] = select
+                
+                response = requests.get(url, headers=get_supabase_headers(), params=params)
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    print(f"Error fetching {table}: {response.status_code} - {response.text}")
+                    return []
+            except Exception as e:
+                print(f"Error fetching {table} from Supabase: {e}")
+                return []
         
         # Date ranges
         today = timezone.now().date()
         week_ago = today - timedelta(days=7)
         month_ago = today - timedelta(days=30)
         
-        # User Statistics
-        total_users = User.objects.count()
-        new_users_today = User.objects.filter(date_joined__date=today).count()
-        new_users_week = User.objects.filter(date_joined__gte=week_ago).count()
-        new_users_month = User.objects.filter(date_joined__gte=month_ago).count()
-        active_users = User.objects.filter(is_active=True).count()
+        # Try to fetch from Supabase first, fallback to Django if fails
+        use_supabase = True
+        profiles = None
+        notes = None
+        notebooks = None
+        decks = None
+        flashcards = None
+        tasks = None
+        events = None
         
-        # Content Statistics
-        total_notes = Note.objects.count()
-        total_notebooks = Notebook.objects.count()
-        total_decks = Deck.objects.count()
-        total_flashcards = Flashcard.objects.count()
-        total_tasks = Task.objects.count()
-        total_events = Event.objects.count()
+        try:
+            # User Statistics - Try Supabase first
+            profiles = fetch_from_supabase('profiles', select='id,created_at,email_verified')
+            if profiles and len(profiles) > 0:
+                total_users = len(profiles)
+                today_str = today.strftime('%Y-%m-%d')
+                week_ago_str = week_ago.strftime('%Y-%m-%d')
+                month_ago_str = month_ago.strftime('%Y-%m-%d')
+                
+                new_users_today = len([p for p in profiles if p.get('created_at', '').startswith(today_str)])
+                new_users_week = len([p for p in profiles if p.get('created_at', '') >= week_ago_str])
+                new_users_month = len([p for p in profiles if p.get('created_at', '') >= month_ago_str])
+                active_users = len([p for p in profiles if p.get('email_verified', False)])
+            else:
+                # Fallback to Django
+                use_supabase = False
+                total_users = User.objects.count()
+                new_users_today = User.objects.filter(date_joined__date=today).count()
+                new_users_week = User.objects.filter(date_joined__gte=week_ago).count()
+                new_users_month = User.objects.filter(date_joined__gte=month_ago).count()
+                active_users = User.objects.filter(is_active=True).count()
+            
+            # Content Statistics - Try Supabase first
+            if use_supabase:
+                notes = fetch_from_supabase('notes', select='id,created_at,is_deleted')
+                notebooks = fetch_from_supabase('notebooks', select='id,created_at')
+                decks = fetch_from_supabase('decks', select='id,created_at')
+                flashcards = fetch_from_supabase('flashcards', select='id,created_at')
+                tasks = fetch_from_supabase('tasks', select='id,created_at,is_deleted,priority,completed')
+                events = fetch_from_supabase('events', select='id,created_at')
+                
+                if (notes is not None and len(notes) > 0) or (tasks is not None and len(tasks) > 0):
+                    total_notes = len([n for n in notes if not n.get('is_deleted', False)]) if notes else 0
+                    total_notebooks = len(notebooks) if notebooks else 0
+                    total_decks = len(decks) if decks else 0
+                    total_flashcards = len(flashcards) if flashcards else 0
+                    total_tasks = len([t for t in tasks if not t.get('is_deleted', False)]) if tasks else 0
+                    total_events = len(events) if events else 0
+                else:
+                    use_supabase = False
+                    # Fallback to Django
+                    total_notes = Note.objects.count()
+                    total_notebooks = Notebook.objects.count()
+                    total_decks = Deck.objects.count()
+                    total_flashcards = Flashcard.objects.count()
+                    total_tasks = Task.objects.count()
+                    total_events = Event.objects.count()
+            else:
+                # Fallback to Django
+                total_notes = Note.objects.count()
+                total_notebooks = Notebook.objects.count()
+                total_decks = Deck.objects.count()
+                total_flashcards = Flashcard.objects.count()
+                total_tasks = Task.objects.count()
+                total_events = Event.objects.count()
+        except Exception as e:
+            print(f"Error fetching from Supabase, using Django fallback: {e}")
+            use_supabase = False
+            # Fallback to Django
+            total_users = User.objects.count()
+            new_users_today = User.objects.filter(date_joined__date=today).count()
+            new_users_week = User.objects.filter(date_joined__gte=week_ago).count()
+            new_users_month = User.objects.filter(date_joined__gte=month_ago).count()
+            active_users = User.objects.filter(is_active=True).count()
+            total_notes = Note.objects.count()
+            total_notebooks = Notebook.objects.count()
+            total_decks = Deck.objects.count()
+            total_flashcards = Flashcard.objects.count()
+            total_tasks = Task.objects.count()
+            total_events = Event.objects.count()
         
         # Recent Activity (Last 7 days)
-        notes_week = Note.objects.filter(created_at__gte=week_ago).count()
-        notebooks_week = Notebook.objects.filter(created_at__gte=week_ago).count()
-        decks_week = Deck.objects.filter(created_at__gte=week_ago).count()
-        tasks_week = Task.objects.filter(created_at__gte=week_ago).count()
+        if use_supabase and notes is not None:
+            week_ago_str = week_ago.strftime('%Y-%m-%d')
+            notes_week = len([n for n in notes if n.get('created_at', '') >= week_ago_str and not n.get('is_deleted', False)]) if notes else 0
+            notebooks_week = len([nb for nb in notebooks if nb.get('created_at', '') >= week_ago_str]) if notebooks else 0
+            decks_week = len([d for d in decks if d.get('created_at', '') >= week_ago_str]) if decks else 0
+            tasks_week = len([t for t in tasks if t.get('created_at', '') >= week_ago_str and not t.get('is_deleted', False)]) if tasks else 0
+        else:
+            notes_week = Note.objects.filter(created_at__gte=week_ago).count()
+            notebooks_week = Notebook.objects.filter(created_at__gte=week_ago).count()
+            decks_week = Deck.objects.filter(created_at__gte=week_ago).count()
+            tasks_week = Task.objects.filter(created_at__gte=week_ago).count()
         
         # Productivity Statistics
         productivity_logs = ProductivityLog.objects.all()
@@ -198,52 +305,111 @@ class MyAdminSite(admin.AdminSite):
                     'rate': 0
                 })
         
-        # User Registration Trends (Last 7 days) - Real-time data
+        # User Registration Trends (Last 7 days) - Real-time data from Supabase
         user_registrations = []
-        for i in range(6, -1, -1):
-            date = today - timedelta(days=i)
-            # Use timezone-aware date range for accurate real-time data
-            start_datetime = timezone.make_aware(datetime.combine(date, datetime.min.time()))
-            end_datetime = timezone.make_aware(datetime.combine(date, datetime.max.time()))
-            count = User.objects.filter(
-                date_joined__gte=start_datetime,
-                date_joined__lt=end_datetime + timedelta(days=1)
-            ).count()
-            user_registrations.append({
-                'date': date.strftime('%Y-%m-%d'),
-                'date_label': date.strftime('%b %d'),
-                'count': count
-            })
+        if use_supabase and profiles is not None and len(profiles) > 0:
+            # Group profiles by date
+            from collections import defaultdict
+            registrations_by_date = defaultdict(int)
+            for profile in profiles:
+                created_at = profile.get('created_at', '')
+                if created_at:
+                    # Extract date from ISO datetime string
+                    date_str = created_at.split('T')[0] if 'T' in created_at else created_at.split(' ')[0]
+                    registrations_by_date[date_str] += 1
+            
+            for i in range(6, -1, -1):
+                date = today - timedelta(days=i)
+                date_str = date.strftime('%Y-%m-%d')
+                count = registrations_by_date.get(date_str, 0)
+                user_registrations.append({
+                    'date': date_str,
+                    'date_label': date.strftime('%b %d'),
+                    'count': count
+                })
+        else:
+            # Fallback to Django
+            for i in range(6, -1, -1):
+                date = today - timedelta(days=i)
+                start_datetime = timezone.make_aware(datetime.combine(date, datetime.min.time()))
+                end_datetime = timezone.make_aware(datetime.combine(date, datetime.max.time()))
+                count = User.objects.filter(
+                    date_joined__gte=start_datetime,
+                    date_joined__lt=end_datetime + timedelta(days=1)
+                ).count()
+                user_registrations.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'date_label': date.strftime('%b %d'),
+                    'count': count
+                })
         
-        # Content Creation Trends (Last 7 days) - Real-time data with proper date filtering
+        # Content Creation Trends (Last 7 days) - Real-time data from Supabase
         content_creation_combined = []
-        for i in range(6, -1, -1):
-            date = today - timedelta(days=i)
-            date_str = date.strftime('%Y-%m-%d')
-            date_label = date.strftime('%b %d')
-            # Use timezone-aware date range for accurate real-time data
-            start_datetime = timezone.make_aware(datetime.combine(date, datetime.min.time()))
-            end_datetime = timezone.make_aware(datetime.combine(date, datetime.max.time()))
-            # Fetch real-time counts for each content type
-            notes_count = Note.objects.filter(
-                created_at__gte=start_datetime,
-                created_at__lt=end_datetime + timedelta(days=1)
-            ).count()
-            tasks_count = Task.objects.filter(
-                created_at__gte=start_datetime,
-                created_at__lt=end_datetime + timedelta(days=1)
-            ).count()
-            decks_count = Deck.objects.filter(
-                created_at__gte=start_datetime,
-                created_at__lt=end_datetime + timedelta(days=1)
-            ).count()
-            content_creation_combined.append({
-                'date': date_str,
-                'date_label': date_label,
-                'notes_count': notes_count,
-                'tasks_count': tasks_count,
-                'decks_count': decks_count
-            })
+        if use_supabase and notes is not None and tasks is not None and decks is not None:
+            # Group by date
+            from collections import defaultdict
+            notes_by_date = defaultdict(int)
+            tasks_by_date = defaultdict(int)
+            decks_by_date = defaultdict(int)
+            
+            for note in notes if notes else []:
+                if not note.get('is_deleted', False):
+                    created_at = note.get('created_at', '')
+                    if created_at:
+                        date_str = created_at.split('T')[0] if 'T' in created_at else created_at.split(' ')[0]
+                        notes_by_date[date_str] += 1
+            
+            for task in tasks if tasks else []:
+                if not task.get('is_deleted', False):
+                    created_at = task.get('created_at', '')
+                    if created_at:
+                        date_str = created_at.split('T')[0] if 'T' in created_at else created_at.split(' ')[0]
+                        tasks_by_date[date_str] += 1
+            
+            for deck in decks if decks else []:
+                created_at = deck.get('created_at', '')
+                if created_at:
+                    date_str = created_at.split('T')[0] if 'T' in created_at else created_at.split(' ')[0]
+                    decks_by_date[date_str] += 1
+            
+            for i in range(6, -1, -1):
+                date = today - timedelta(days=i)
+                date_str = date.strftime('%Y-%m-%d')
+                date_label = date.strftime('%b %d')
+                content_creation_combined.append({
+                    'date': date_str,
+                    'date_label': date_label,
+                    'notes_count': notes_by_date.get(date_str, 0),
+                    'tasks_count': tasks_by_date.get(date_str, 0),
+                    'decks_count': decks_by_date.get(date_str, 0)
+                })
+        else:
+            # Fallback to Django
+            for i in range(6, -1, -1):
+                date = today - timedelta(days=i)
+                date_str = date.strftime('%Y-%m-%d')
+                date_label = date.strftime('%b %d')
+                start_datetime = timezone.make_aware(datetime.combine(date, datetime.min.time()))
+                end_datetime = timezone.make_aware(datetime.combine(date, datetime.max.time()))
+                notes_count = Note.objects.filter(
+                    created_at__gte=start_datetime,
+                    created_at__lt=end_datetime + timedelta(days=1)
+                ).count()
+                tasks_count = Task.objects.filter(
+                    created_at__gte=start_datetime,
+                    created_at__lt=end_datetime + timedelta(days=1)
+                ).count()
+                decks_count = Deck.objects.filter(
+                    created_at__gte=start_datetime,
+                    created_at__lt=end_datetime + timedelta(days=1)
+                ).count()
+                content_creation_combined.append({
+                    'date': date_str,
+                    'date_label': date_label,
+                    'notes_count': notes_count,
+                    'tasks_count': tasks_count,
+                    'decks_count': decks_count
+                })
         
         # Also keep separate lists for backward compatibility
         content_creation = {
@@ -259,22 +425,31 @@ class MyAdminSite(admin.AdminSite):
             deck_count=Count('deck_decks')
         ).order_by('-task_count', '-note_count')[:10]
         
-        # Task Completion Statistics
-        completed_tasks = Task.objects.filter(completed=True).count()
-        pending_tasks = Task.objects.filter(completed=False).count()
-        completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
-        
-        # Task Priority Distribution - Real-time data from all tasks
-        priority_stats = Task.objects.values('priority').annotate(count=Count('id'))
-        priority_distribution = {
-            'high': 0,
-            'medium': 0,
-            'low': 0
-        }
-        for stat in priority_stats:
-            priority_value = stat['priority']
-            if priority_value in priority_distribution:
-                priority_distribution[priority_value] = stat['count']
+        # Task Completion Statistics - From Supabase or Django
+        if use_supabase and tasks is not None and len(tasks) > 0:
+            task_list = [t for t in tasks if not t.get('is_deleted', False)]
+            completed_tasks = len([t for t in task_list if t.get('completed', False)])
+            pending_tasks = len([t for t in task_list if not t.get('completed', False)])
+            completion_rate = (completed_tasks / len(task_list) * 100) if task_list else 0
+            
+            # Task Priority Distribution - From Supabase
+            priority_distribution = {'high': 0, 'medium': 0, 'low': 0}
+            for task in task_list:
+                priority = task.get('priority', 'medium')
+                if priority in priority_distribution:
+                    priority_distribution[priority] += 1
+        else:
+            # Fallback to Django
+            completed_tasks = Task.objects.filter(completed=True).count()
+            pending_tasks = Task.objects.filter(completed=False).count()
+            completion_rate = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+            
+            priority_stats = Task.objects.values('priority').annotate(count=Count('id'))
+            priority_distribution = {'high': 0, 'medium': 0, 'low': 0}
+            for stat in priority_stats:
+                priority_value = stat['priority']
+                if priority_value in priority_distribution:
+                    priority_distribution[priority_value] = stat['count']
         
         # Calculate max priority for chart scaling
         max_priority_count = max(priority_distribution.values()) if priority_distribution.values() and max(priority_distribution.values()) > 0 else 1

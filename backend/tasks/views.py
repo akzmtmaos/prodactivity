@@ -1,8 +1,8 @@
 from rest_framework import viewsets, filters, status
 from rest_framework.permissions import IsAuthenticated
 # from django_filters.rest_framework import DjangoFilterBackend
-from .models import Task, XPLog, ProductivityLog, Subtask
-from .serializers import TaskSerializer, SubtaskSerializer
+from .models import Task, XPLog, ProductivityLog, Subtask, StudyTimerSession
+from .serializers import TaskSerializer, SubtaskSerializer, StudyTimerSessionSerializer
 # from .utils import get_user_local_date_from_request
 import logging
 from rest_framework.response import Response
@@ -410,3 +410,20 @@ class SubtaskViewSet(viewsets.ModelViewSet):
             from rest_framework.exceptions import PermissionDenied
             raise PermissionDenied("You do not have permission to create a subtask for this task.")
         return subtask
+
+
+class StudyTimerSessionViewSet(viewsets.ModelViewSet):
+    serializer_class = StudyTimerSessionSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.OrderingFilter]
+    ordering_fields = ['start_time', 'created_at']
+    ordering = ['-start_time']
+    pagination_class = None
+
+    def get_queryset(self):
+        """Return sessions for the authenticated user."""
+        return StudyTimerSession.objects.filter(user=self.request.user)
+
+    def perform_create(self, serializer):
+        """Automatically set the user when creating a session."""
+        serializer.save(user=self.request.user)

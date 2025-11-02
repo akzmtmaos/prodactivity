@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Task, Subtask
+from .models import Task, Subtask, StudyTimerSession
 
 class TaskSerializer(serializers.ModelSerializer):
     subtasks = serializers.SerializerMethodField()
@@ -26,3 +26,10 @@ class SubtaskSerializer(serializers.ModelSerializer):
         model = Subtask
         fields = ['id', 'task', 'title', 'completed', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
+
+
+class StudyTimerSessionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StudyTimerSession
+        fields = ['id', 'user', 'session_type', 'start_time', 'end_time', 'duration', 'created_at', 'updated_at']
+        read_only_fields = ['user', 'created_at', 'updated_at']

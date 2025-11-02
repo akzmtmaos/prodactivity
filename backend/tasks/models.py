@@ -3,7 +3,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 from django.db.models.signals import post_save, post_delete
 from django.dispatch import receiver
-from .supabase_sync import sync_subtask_to_supabase, update_subtask_in_supabase, sync_productivity_log_to_supabase, update_productivity_log_in_supabase, sync_task_to_supabase, update_task_in_supabase, delete_task_from_supabase
+from .supabase_sync import sync_subtask_to_supabase, update_subtask_in_supabase, sync_productivity_log_to_supabase, update_productivity_log_in_supabase, sync_task_to_supabase, update_task_in_supabase, delete_task_from_supabase, sync_study_timer_session_to_supabase, update_study_timer_session_in_supabase
 
 class TaskManager(models.Manager):
     def get_queryset(self):
@@ -191,6 +191,33 @@ class ProductivityLog(models.Model):
         ordering = ['-period_start']
 
 
+class StudyTimerSession(models.Model):
+    """Model to store study timer sessions for permanent storage."""
+    SESSION_TYPE_CHOICES = [
+        ('Study', 'Study'),
+        ('Break', 'Break'),
+        ('Long Break', 'Long Break'),
+    ]
+    
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='study_timer_sessions')
+    session_type = models.CharField(max_length=20, choices=SESSION_TYPE_CHOICES)
+    start_time = models.DateTimeField()
+    end_time = models.DateTimeField()
+    duration = models.IntegerField(help_text="Duration in seconds")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['-start_time']
+        indexes = [
+            models.Index(fields=['user', '-start_time']),
+            models.Index(fields=['-start_time']),
+        ]
+    
+    def __str__(self):
+        return f"{self.user.username} - {self.session_type} - {self.start_time.strftime('%Y-%m-%d %H:%M')}"
+
+
 # =============================================
 # DJANGO SIGNALS FOR REAL-TIME SYNC
 # =============================================
@@ -294,4 +321,15 @@ def delete_task_from_supabase_signal(sender, instance, **kwargs):
     try:
         delete_task_from_supabase(instance)
     except Exception as e:
-        print(f"Error deleting task from Supabase: {e}") 
+        print(f"Error deleting task from Supabase: {e}")
+
+@receiver(post_save, sender=StudyTimerSession)
+def sync_study_timer_session_on_save(sender, instance, created, **kwargs):
+    """Sync study timer session to Supabase when created or updated"""
+    try:
+        if created:
+            sync_study_timer_session_to_supabase(instance)
+        else:
+            update_study_timer_session_in_supabase(instance)
+    except Exception as e:
+        print(f"Error in study timer session sync signal: {e}") 
