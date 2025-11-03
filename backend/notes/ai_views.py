@@ -60,9 +60,30 @@ def clean_ai_response(response_text):
     # Strip common zero-width/control marks that can corrupt text rendering
     cleaned = re.sub(r'[\u200B-\u200F\u202A-\u202E\u2060-\u206F]', '', cleaned)
     
+    # Remove empty markdown formatting patterns
+    # Empty bold markers (**, **, ** **)
+    cleaned = re.sub(r'\*\*\s*\*\*', '', cleaned)
+    cleaned = re.sub(r'\*\s+\*', ' ', cleaned)
+    
+    # Empty italic markers (* *, _ _)
+    cleaned = re.sub(r'\*\s+\*', ' ', cleaned)
+    cleaned = re.sub(r'_\s+_', ' ', cleaned)
+    
+    # Standalone horizontal rules that are just dashes (---)
+    cleaned = re.sub(r'^---+\s*$', '', cleaned, flags=re.MULTILINE)
+    
+    # Empty headings (### , ## , # )
+    cleaned = re.sub(r'^#+\s+$', '', cleaned, flags=re.MULTILINE)
+    
+    # Table separators that are just dashes (|--------------|)
+    cleaned = re.sub(r'^\|\s*[-:]+\s*\|.*$', '', cleaned, flags=re.MULTILINE)
+    
+    # Empty code blocks (``` ```)
+    cleaned = re.sub(r'```\s*```', '', cleaned)
+    
     # Clean up excessive whitespace
     cleaned = re.sub(r'\n\s*\n\s*\n+', '\n\n', cleaned)  # Max 2 newlines
-    cleaned = re.sub(r'[ \t]+', ' ', cleaned)             # Collapse spaces/tabs
+    cleaned = re.sub(r'[ \t]{3,}', '  ', cleaned)  # Max 2 spaces
     cleaned = cleaned.strip()
     
     return cleaned
@@ -767,7 +788,17 @@ class NotebookSummaryView(APIView):
             # Fetch notebook and notes
             from .models import Notebook, Note
             notebook = Notebook.objects.get(id=notebook_id, user=user)
-            notes = Note.objects.filter(notebook=notebook)
+            # Only fetch notes that belong to this specific notebook and user, exclude deleted
+            # Use explicit notebook_id to ensure we only get notes from this notebook
+            notes = Note.objects.filter(notebook_id=notebook_id, notebook__user=user, is_deleted=False, is_archived=False)
+            
+            # Log for debugging
+            import logging
+            logger = logging.getLogger('notes.ai_views')
+            logger.info(f"[NB_SUMMARY] Notebook ID: {notebook_id}, Notebook Name: {notebook.name}")
+            logger.info(f"[NB_SUMMARY] Found {notes.count()} notes for this notebook")
+            for note in notes:
+                logger.info(f"[NB_SUMMARY]   - Note ID: {note.id}, Title: {note.title}, Notebook ID: {note.notebook_id}")
 
             # Helper to clean HTML to plain text
             import re
@@ -780,29 +811,77 @@ class NotebookSummaryView(APIView):
                 return cleaned
 
             # Combine all note content (trim long notes to avoid overlong prompts)
+            # Only include notes that actually belong to this notebook (double-check)
             parts = []
             for note in notes:
+                # Double-check: ensure note belongs to the correct notebook
+                if note.notebook_id != notebook_id:
+                    logger.warning(f"[NB_SUMMARY] Skipping note {note.id} - belongs to notebook {note.notebook_id}, not {notebook_id}")
+                    continue
+                
                 title = (note.title or '').strip()
                 content = clean_html(note.content or '')
                 content = content[:4000]
-                parts.append(f"Title: {title}\nContent: {content}")
+                parts.append(f"Note ID: {note.id}\nTitle: {title}\nContent: {content}")
+            
+            if not parts:
+                logger.warning(f"[NB_SUMMARY] No notes found for notebook {notebook_id}")
+                return Response(
+                    {"error": "No notes found in this notebook to summarize."},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
             combined_content = "\n\n".join(parts)
 
-            import logging
-            logger = logging.getLogger('notes.ai_views')
+            # Log the actual notes being included in the summary
+            logger.info(f"[NB_SUMMARY] Including {len(parts)} notes in summary:")
+            for i, part in enumerate(parts, 1):
+                note_id_match = re.search(r'Note ID: (\d+)', part)
+                title_match = re.search(r'Title: (.+)', part)
+                if note_id_match and title_match:
+                    logger.info(f"[NB_SUMMARY]   {i}. Note ID: {note_id_match.group(1)}, Title: {title_match.group(1)}")
+            
             logger.info(f"[NB_SUMMARY] Combined content (len={len(combined_content)}):\n{combined_content[:800]}...")
             try:
                 summary_prompt = get_ai_config('notebook_summary_prompt', content=combined_content)
             except ValueError:
+                # Improved prompt for better summary generation with explicit instruction to only use provided content
+                # IMPORTANT: Instruct AI to avoid tables and use alternatives like lists
                 summary_prompt = (
-                    "You are DeepSeek-R1 composing a clear, concise notebook summary.\n"
-                    "Requirements:\n"
-                    "- Output only the summary. No system thoughts, no preamble.\n"
-                    "- Use short sections with headings.\n"
-                    "- Preserve meaningful bullets/numbered lists.\n"
-                    "- Remove filler and repetitions; do NOT say generic lines like 'This notebook contains X notes'.\n"
-                    "- Highlight key topics, important definitions, and any step-by-step lists if present.\n\n"
-                    f"Notebook Content (cleaned):\n{combined_content}"
+                    f"You are an AI assistant creating a comprehensive summary of a notebook named '{notebook.name}'.\n\n"
+                    "CRITICAL INSTRUCTION: You MUST ONLY summarize the content provided below. Do NOT include any information from other notebooks or sources.\n"
+                    "ONLY use the notes provided in the 'Notebook Content to Summarize' section below.\n\n"
+                    "FORMATTING REQUIREMENTS - DO NOT USE TABLES:\n"
+                    "- DO NOT use markdown tables (no | or table syntax).\n"
+                    "- Instead, use bullet points, numbered lists, or simple text formatting.\n"
+                    "- For structured data (like comparisons or multiple items with properties), use:\n"
+                    "  * Bullet points with labels: '• Letter ㄱ: Sound \"g/k\", Example: 가 (ga)'\n"
+                    "  * Numbered lists: '1. Letter ㄱ - Sound: \"g/k\", Example: 가 (ga)'\n"
+                    "  * Simple text with colons: 'ㄱ: \"g/k\" sound, Example: 가 (ga)'\n"
+                    "  * Line breaks between items instead of table rows\n"
+                    "- Use clear headings (##, ###) to organize sections\n"
+                    "- Use bullet points (-, •, *) for lists\n"
+                    "- Use numbered lists (1., 2., 3.) for sequences or steps\n"
+                    "- Use bold (**text**) for emphasis only\n"
+                    "- AVOID any table syntax - use lists or simple text instead\n\n"
+                    "Your task is to analyze ONLY the notes provided below and create a well-structured summary that:\n"
+                    "1. Identifies and highlights the main topics and themes across ONLY the provided notes\n"
+                    "2. Captures important concepts, definitions, and key information from ONLY these notes\n"
+                    "3. Preserves structured information like lists, steps, and numbered items from ONLY these notes\n"
+                    "4. Organizes content logically with clear sections based ONLY on the provided content\n"
+                    "5. Avoids repetition and generic statements\n\n"
+                    "Additional Guidelines:\n"
+                    "- Use clear headings and sections to organize the summary\n"
+                    "- Preserve important lists, steps, and formatted content from the provided notes\n"
+                    "- Focus on the actual content from the notes provided below, not meta-information\n"
+                    "- Do NOT include statements like 'This notebook contains X notes'\n"
+                    "- Do NOT include content from other notebooks or sources\n"
+                    "- Do NOT use markdown tables - use bullet points or lists instead\n"
+                    "- Make the summary useful for quick review and understanding\n"
+                    "- Output ONLY the summary content based on the provided notes, no preamble or explanation\n\n"
+                    f"Notebook: {notebook.name}\n"
+                    f"Number of notes provided: {len(parts)}\n\n"
+                    f"Notebook Content to Summarize (ONLY use content from these notes):\n{combined_content}"
                 )
             payload = {
                 "model": OLLAMA_MODEL,  # deepseek-r1:1.5b (configured above)

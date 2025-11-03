@@ -81,12 +81,23 @@ class MyAdminSite(admin.AdminSite):
                 logs = logs.filter(action_flag=3)
         
         if date_filter:
+            from datetime import datetime as dt
+            now = timezone.now()
             if date_filter == 'today':
-                logs = logs.filter(action_time__date=timezone.now().date())
+                # Filter by today's date (start of day to end of day)
+                today_start = timezone.make_aware(dt.combine(now.date(), dt.min.time()))
+                today_end = timezone.make_aware(dt.combine(now.date(), dt.max.time()))
+                logs = logs.filter(action_time__gte=today_start, action_time__lte=today_end)
             elif date_filter == 'week':
-                logs = logs.filter(action_time__gte=timezone.now() - timedelta(days=7))
+                # Last 7 days from start of today
+                today_start = timezone.make_aware(dt.combine(now.date(), dt.min.time()))
+                seven_days_ago = today_start - timedelta(days=7)
+                logs = logs.filter(action_time__gte=seven_days_ago)
             elif date_filter == 'month':
-                logs = logs.filter(action_time__gte=timezone.now() - timedelta(days=30))
+                # Last 30 days from start of today
+                today_start = timezone.make_aware(dt.combine(now.date(), dt.min.time()))
+                thirty_days_ago = today_start - timedelta(days=30)
+                logs = logs.filter(action_time__gte=thirty_days_ago)
         
         if search_query:
             logs = logs.filter(
