@@ -1122,14 +1122,14 @@ interface NoteItem {
                   Archived
                 </button>
               </div>
-              <Pagination
-                currentPage={currentPage}
-                totalPages={activeTab === 'decks' 
-                  ? Math.ceil(filteredDecks.length / PAGE_SIZE)
-                  : Math.ceil(1 / PAGE_SIZE) // Placeholder for archived pagination
-                }
-                onPageChange={setCurrentPage}
-              />
+              {/* Pagination next to tabs on the right */}
+              {activeTab === 'decks' && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(filteredDecks.length / PAGE_SIZE)}
+                  onPageChange={setCurrentPage}
+                />
+              )}
             </div>
             {/* Removed the <hr> below the tabs for consistency */}
           </div>

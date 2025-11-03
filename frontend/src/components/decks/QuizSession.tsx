@@ -344,9 +344,13 @@ const QuizSession: React.FC<QuizSessionProps> = ({
         {/* Question Card */}
         <div className="mb-8 w-full max-w-4xl">
           <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 shadow text-center">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              {currentQuestion.front}
-            </h2>
+            <div className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              {currentQuestion.front && currentQuestion.front.includes('<img') ? (
+                <div dangerouslySetInnerHTML={{ __html: currentQuestion.front.replace(/<br\/?>/gi, '<br/>') }} className="[&_img]:max-w-full [&_img]:max-h-64 [&_img]:h-auto [&_img]:rounded-lg [&_img]:border [&_img]:border-gray-300 [&_img]:dark:border-gray-600 [&_img]:mt-2 [&_img]:mx-auto [&_img]:block" />
+              ) : (
+                <>{currentQuestion.front}</>
+              )}
+            </div>
             <div className="space-y-3">
               {options.map((option, idx) => (
                 <button

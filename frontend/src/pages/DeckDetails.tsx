@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Plus, Edit2, Trash2, ChevronRight, Play, HelpCircle, ChevronLeft, FileText } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
+import Pagination from '../components/common/Pagination';
 import CreateDeckModal from '../components/decks/CreateDeckModal';
-import AddFlashcardModal from '../components/decks/AddFlashcardModal';
 import DeleteConfirmationModal from '../components/decks/DeleteConfirmationModal';
 import EditDeckModal from '../components/decks/EditDeckModal';
 import DeckStatsModal from '../components/decks/DeckStatsModal';
@@ -68,8 +68,16 @@ const DeckDetails: React.FC = () => {
   const [deck, setDeck] = useState<Deck | null>(null);
   const [loading, setLoading] = useState(true);
   const [showCreateSubdeck, setShowCreateSubdeck] = useState(false);
-  const [showAddFlashcard, setShowAddFlashcard] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [newFlashcard, setNewFlashcard] = useState({ question: '', answer: '', questionImage: null as File | null });
+  const [questionImagePreview, setQuestionImagePreview] = useState<string | null>(null);
+  const [isAddingFlashcard, setIsAddingFlashcard] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingFlashcardId, setEditingFlashcardId] = useState<string | null>(null);
+  const [editingFlashcard, setEditingFlashcard] = useState({ question: '', answer: '' });
+  const [isUpdatingFlashcard, setIsUpdatingFlashcard] = useState(false);
+  const [flashcardCurrentPage, setFlashcardCurrentPage] = useState(1);
+  const FLASHCARD_PAGE_SIZE = 10;
   const [showEditModal, setShowEditModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showStudySession, setShowStudySession] = useState(false);
@@ -226,14 +234,162 @@ const DeckDetails: React.FC = () => {
     }
   };
 
-  const handleAddFlashcard = (flashcard: Omit<Flashcard, 'id'>) => {
-    // Mock implementation - in real app, this would make an API call
-    const newFlashcard: Flashcard = {
-      ...flashcard,
-      id: Date.now().toString()
-    };
-    console.log('Adding flashcard:', newFlashcard);
-    setShowAddFlashcard(false);
+  // Handle image upload for question
+  const handleQuestionImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file && file.type.startsWith('image/')) {
+      setNewFlashcard({ ...newFlashcard, questionImage: file });
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setQuestionImagePreview(e.target?.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeQuestionImage = () => {
+    setNewFlashcard({ ...newFlashcard, questionImage: null });
+    setQuestionImagePreview(null);
+  };
+
+  const handleAddFlashcard = async () => {
+    if (!deck) return;
+    // Validate: must have either question text OR image
+    if (!newFlashcard.question.trim() && !newFlashcard.questionImage) return;
+    if (!newFlashcard.answer.trim()) return;
+    
+    try {
+      setIsAddingFlashcard(true);
+      const token = localStorage.getItem('accessToken');
+      
+      // Prepare question text with image if available
+      let questionText = newFlashcard.question.trim();
+      if (newFlashcard.questionImage && questionImagePreview) {
+        // If there's an image, append it as an img tag in the question
+        questionText = questionText ? `${questionText}<br/><img src="${questionImagePreview}" alt="Question image" style="max-width: 100%; height: auto; border-radius: 8px; margin-top: 8px;" />` : `<img src="${questionImagePreview}" alt="Question image" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
+      }
+      
+      const res = await fetch(`${API_BASE_URL}/decks/flashcards/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          deck: deck.id,
+          front: questionText || 'Image Question',
+          back: newFlashcard.answer.trim()
+        })
+      });
+      
+      if (!res.ok) throw new Error('Failed to create flashcard');
+      
+      const data = await res.json();
+      const createdFlashcard: Flashcard = {
+        id: data.id.toString(),
+        question: data.front,
+        answer: data.back,
+        front: data.front,
+        back: data.back,
+        difficulty: data.difficulty
+      };
+      
+      // Update deck state - add new flashcard at the top
+      setDeck({
+        ...deck,
+        flashcards: [createdFlashcard, ...deck.flashcards],
+        flashcardCount: deck.flashcardCount + 1
+      });
+      
+      // Reset form but keep it open for adding more
+      setNewFlashcard({ question: '', answer: '', questionImage: null });
+      setQuestionImagePreview(null);
+      
+      // Reset to first page after adding new flashcard
+      setFlashcardCurrentPage(1);
+      
+      // Focus question field again for quick input
+      setTimeout(() => {
+        if (questionRef.current) {
+          questionRef.current.focus();
+        }
+      }, 0);
+    } catch (error) {
+      console.error('Error creating flashcard:', error);
+      alert('Error creating flashcard. Please try again.');
+    } finally {
+      setIsAddingFlashcard(false);
+    }
+  };
+
+  // Autofocus question when opening the add form
+  const questionRef = useRef<HTMLTextAreaElement | null>(null);
+  useEffect(() => {
+    if (showAddForm && questionRef.current) {
+      questionRef.current.focus();
+    }
+  }, [showAddForm]);
+
+  // Handle update flashcard
+  const handleUpdateFlashcard = async () => {
+    if (!deck || !editingFlashcardId || !editingFlashcard.question.trim() || !editingFlashcard.answer.trim()) return;
+    
+    try {
+      setIsUpdatingFlashcard(true);
+      const token = localStorage.getItem('accessToken');
+      const res = await fetch(`${API_BASE_URL}/decks/flashcards/${editingFlashcardId}/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          front: editingFlashcard.question.trim(),
+          back: editingFlashcard.answer.trim()
+        })
+      });
+      
+      if (!res.ok) throw new Error('Failed to update flashcard');
+      
+      const data = await res.json();
+      
+      // Update deck state
+      setDeck({
+        ...deck,
+        flashcards: deck.flashcards.map(card => 
+          card.id === editingFlashcardId 
+            ? {
+                ...card,
+                question: data.front,
+                answer: data.back,
+                front: data.front,
+                back: data.back,
+              }
+            : card
+        )
+      });
+      
+      // Reset edit state
+      setEditingFlashcardId(null);
+      setEditingFlashcard({ question: '', answer: '' });
+    } catch (error) {
+      console.error('Error updating flashcard:', error);
+      alert('Error updating flashcard. Please try again.');
+    } finally {
+      setIsUpdatingFlashcard(false);
+    }
+  };
+
+  // Handle start editing
+  const handleStartEdit = (card: Flashcard) => {
+    setEditingFlashcardId(card.id);
+    setEditingFlashcard({ question: card.question, answer: card.answer });
+  };
+
+  // Handle cancel edit
+  const handleCancelEdit = () => {
+    setEditingFlashcardId(null);
+    setEditingFlashcard({ question: '', answer: '' });
   };
 
   const handleDeleteSubdeck = (subdeckId: string) => {
@@ -602,7 +758,7 @@ const DeckDetails: React.FC = () => {
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Flashcards</h2>
-                <div className="flex space-x-3">
+                <div className="flex gap-3">
                   <button 
                     onClick={() => setShowImportModal(true)}
                     className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
@@ -611,70 +767,282 @@ const DeckDetails: React.FC = () => {
                     Import from Notes
                   </button>
                   <button 
-                    onClick={() => setShowAddFlashcard(true)}
+                    onClick={() => setShowAddForm((v) => !v)}
                     className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
                   >
                     <Plus size={20} className="mr-2" />
-                    Add Flashcard
+                    {showAddForm ? 'Hide Form' : 'Add Flashcard'}
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {deck.flashcards.length === 0 ? (
-                  <div className="col-span-full text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
-                    <BookOpen size={48} className="mx-auto text-gray-400 mb-4" />
-                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No flashcards yet</h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">Add your first flashcard to start learning</p>
-                    <button
-                      onClick={() => setShowAddFlashcard(true)}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium"
-                    >
-                      Add Flashcard
-                    </button>
-                  </div>
-                ) : (
-                  deck.flashcards.map(card => (
-                    <div key={card.id} className="bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex-1">
-                          <div className="mb-2 text-gray-900 dark:text-white font-medium">Q: {card.question}</div>
-                          <div className="text-gray-700 dark:text-gray-300">A: {card.answer}</div>
-                        </div>
-                        <div className="flex space-x-2">
+              
+              {/* Add Flashcard Container */}
+              {showAddForm && (
+                <div className="mb-6 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-md overflow-hidden">
+                  {/* Question Input */}
+                  <div className="p-4">
+                    <textarea
+                      id="new-flashcard-question"
+                      ref={questionRef}
+                      rows={3}
+                      maxLength={800}
+                      className="w-full border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 dark:text-white text-sm resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      value={newFlashcard.question}
+                      onChange={e => setNewFlashcard({ ...newFlashcard, question: e.target.value })}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && e.ctrlKey && (newFlashcard.question.trim() || newFlashcard.questionImage) && newFlashcard.answer.trim()) {
+                          e.preventDefault();
+                          handleAddFlashcard();
+                        }
+                      }}
+                      placeholder="Question goes here (or add image below)"
+                    />
+                    {/* Image Upload for Question */}
+                    <div className="mt-3">
+                      <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
+                        Add Image to Question (Optional)
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={handleQuestionImageChange}
+                          className="block w-full text-xs text-gray-500 file:mr-2 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-medium file:bg-indigo-50 dark:file:bg-indigo-900/30 file:text-indigo-700 dark:file:text-indigo-400 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-900/50"
+                        />
+                        {questionImagePreview && (
                           <button
-                            onClick={() => {
-                              setSelectedFlashcard(card);
-                              setShowAddFlashcard(true);
-                            }}
-                            className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                            onClick={removeQuestionImage}
+                            className="px-2 py-1 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors"
                           >
-                            <Edit2 size={18} />
+                            Remove
                           </button>
-                          <button
-                            onClick={() => {
-                              setSelectedFlashcard(card);
-                              setShowDeleteModal(true);
-                            }}
-                            className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                        </div>
+                        )}
                       </div>
-                      {card.difficulty && (
-                        <div className="mt-4">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            card.difficulty === 'easy' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-                            card.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
-                            'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                          }`}>
-                            {card.difficulty.charAt(0).toUpperCase() + card.difficulty.slice(1)}
-                          </span>
+                      {questionImagePreview && (
+                        <div className="mt-2 relative inline-block">
+                          <img
+                            src={questionImagePreview}
+                            alt="Question preview"
+                            className="max-w-full max-h-32 rounded-lg border border-gray-300 dark:border-gray-600"
+                          />
                         </div>
                       )}
                     </div>
-                  ))
-                )}
+                  </div>
+                  
+                  {/* Divider */}
+                  <div className="border-t border-gray-200 dark:border-gray-700"></div>
+                  
+                  {/* Answer Input */}
+                  <div className="p-4">
+                    <textarea
+                      id="new-flashcard-answer"
+                      rows={3}
+                      maxLength={800}
+                      className="w-full border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 dark:text-white text-sm resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                      value={newFlashcard.answer}
+                      onChange={e => setNewFlashcard({ ...newFlashcard, answer: e.target.value })}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter' && e.ctrlKey && newFlashcard.question.trim() && newFlashcard.answer.trim()) {
+                          e.preventDefault();
+                          handleAddFlashcard();
+                        }
+                      }}
+                      placeholder="Answer goes here"
+                    />
+                  </div>
+                  
+                  {/* Action Buttons */}
+                  <div className="px-4 pb-4 flex items-center justify-between border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Tip: Press Ctrl+Enter to add</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { 
+                          setShowAddForm(false); 
+                          setNewFlashcard({ question: '', answer: '', questionImage: null }); 
+                          setQuestionImagePreview(null);
+                        }}
+                        type="button"
+                        className="px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleAddFlashcard}
+                        disabled={isAddingFlashcard || (!newFlashcard.question.trim() && !newFlashcard.questionImage) || !newFlashcard.answer.trim()}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center"
+                      >
+                        {isAddingFlashcard ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                            Adding...
+                          </>
+                        ) : (
+                          <>
+                            <Plus size={16} className="mr-2" />
+                            Add Flashcard
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div className="flex flex-col gap-4">
+                {deck.flashcards.length === 0 ? (
+                  <div className="text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
+                    <BookOpen size={48} className="mx-auto text-gray-400 mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No flashcards yet</h3>
+                    <p className="text-gray-600 dark:text-gray-400 mb-4">Use the form above to add your first flashcard</p>
+                  </div>
+                ) : (
+                  <>
+                    {(() => {
+                      const startIndex = (flashcardCurrentPage - 1) * FLASHCARD_PAGE_SIZE;
+                      const endIndex = startIndex + FLASHCARD_PAGE_SIZE;
+                      const paginatedFlashcards = deck.flashcards.slice(startIndex, endIndex);
+                      const flashcardTotalPages = Math.ceil(deck.flashcards.length / FLASHCARD_PAGE_SIZE);
+                      
+                      return (
+                        <>
+                          {paginatedFlashcards.map(card => (
+                    <div key={card.id} className="relative bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 overflow-hidden">
+                      {/* Vertical colored bar on the left - using system indigo color */}
+                      <div className="absolute left-0 top-0 bottom-0 w-3 min-w-[12px] bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-l-xl" />
+                      <div className="ml-6">
+                      {editingFlashcardId === card.id ? (
+                        // Edit Mode
+                        <div className="space-y-4">
+                          <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+                            <div className="p-4">
+                              <textarea
+                                rows={4}
+                                maxLength={800}
+                                className="w-full border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 dark:text-white text-base resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                                value={editingFlashcard.question}
+                                onChange={e => setEditingFlashcard({ ...editingFlashcard, question: e.target.value })}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' && e.ctrlKey && editingFlashcard.question.trim() && editingFlashcard.answer.trim()) {
+                                    e.preventDefault();
+                                    handleUpdateFlashcard();
+                                  }
+                                }}
+                                placeholder="Question goes here"
+                              />
+                            </div>
+                            <div className="border-t border-gray-200 dark:border-gray-700"></div>
+                            <div className="p-4">
+                              <textarea
+                                rows={4}
+                                maxLength={800}
+                                className="w-full border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 dark:text-white text-base resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                                value={editingFlashcard.answer}
+                                onChange={e => setEditingFlashcard({ ...editingFlashcard, answer: e.target.value })}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter' && e.ctrlKey && editingFlashcard.question.trim() && editingFlashcard.answer.trim()) {
+                                    e.preventDefault();
+                                    handleUpdateFlashcard();
+                                  }
+                                }}
+                                placeholder="Answer goes here"
+                              />
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={handleCancelEdit}
+                              type="button"
+                              className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={handleUpdateFlashcard}
+                              disabled={isUpdatingFlashcard || !editingFlashcard.question.trim() || !editingFlashcard.answer.trim()}
+                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center"
+                            >
+                              {isUpdatingFlashcard ? (
+                                <>
+                                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                                  Updating...
+                                </>
+                              ) : (
+                                <>
+                                  <Edit2 size={16} className="mr-2" />
+                                  Save Changes
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        // View Mode
+                        <>
+                          <div className="flex items-start justify-between mb-4">
+                            <div className="flex-1">
+                              <div className="mb-3 text-gray-900 dark:text-white font-semibold text-lg">
+                                {card.question && card.question.includes('<img') ? (
+                                  <div>
+                                    <span className="block mb-2">Q:</span>
+                                    {card.question.split('<img')[0].trim() && (
+                                      <div className="mb-2">{card.question.split('<img')[0].trim()}</div>
+                                    )}
+                                    <div dangerouslySetInnerHTML={{ __html: card.question.match(/<img[^>]+>/)?.[0] || '' }} className="[&_img]:max-w-full [&_img]:max-h-64 [&_img]:h-auto [&_img]:rounded-lg [&_img]:border [&_img]:border-gray-300 [&_img]:dark:border-gray-600 [&_img]:mt-2" />
+                                  </div>
+                                ) : (
+                                  <>Q: {card.question}</>
+                                )}
+                              </div>
+                              <div className="text-gray-700 dark:text-gray-300 text-base">A: {card.answer}</div>
+                            </div>
+                            <div className="flex space-x-2">
+                              <button
+                                onClick={() => handleStartEdit(card)}
+                                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setSelectedFlashcard(card);
+                                  setShowDeleteModal(true);
+                                }}
+                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                              >
+                                <Trash2 size={18} />
+                              </button>
+                            </div>
+                          </div>
+                          {card.difficulty && (
+                            <div className="mt-4">
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                card.difficulty === 'easy' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
+                                card.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
+                                'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                              }`}>
+                                {card.difficulty.charAt(0).toUpperCase() + card.difficulty.slice(1)}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                      </div>
+                    </div>
+                        ))}
+                        {/* Pagination below flashcard list */}
+                        {flashcardTotalPages > 1 && (
+                          <Pagination
+                            currentPage={flashcardCurrentPage}
+                            totalPages={flashcardTotalPages}
+                            onPageChange={setFlashcardCurrentPage}
+                          />
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
+              )}
               </div>
             </div>
           )}
@@ -690,14 +1058,6 @@ const DeckDetails: React.FC = () => {
         />
       )}
 
-      <AddFlashcardModal
-        isOpen={showAddFlashcard}
-        onClose={() => {
-          setShowAddFlashcard(false);
-          setSelectedFlashcard(null);
-        }}
-        onAddFlashcard={handleAddFlashcard}
-      />
 
       {showDeleteModal && (
         <DeleteConfirmationModal

@@ -79,9 +79,15 @@ const Flashcard: React.FC<FlashcardProps> = ({
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                   Question
                 </h3>
-                <p className="text-xl text-gray-800 dark:text-gray-200 leading-relaxed">
-                  {flashcard.front}
-                </p>
+                {flashcard.front && flashcard.front.includes('<img') ? (
+                  <div className="text-xl text-gray-800 dark:text-gray-200 leading-relaxed">
+                    <div dangerouslySetInnerHTML={{ __html: flashcard.front.replace(/<br\/?>/gi, '<br/>') }} className="[&_img]:max-w-full [&_img]:max-h-64 [&_img]:h-auto [&_img]:rounded-lg [&_img]:border [&_img]:border-gray-300 [&_img]:dark:border-gray-600 [&_img]:mt-2" />
+                  </div>
+                ) : (
+                  <p className="text-xl text-gray-800 dark:text-gray-200 leading-relaxed">
+                    {flashcard.front}
+                  </p>
+                )}
                 <p className="text-sm text-gray-500 dark:text-gray-400 mt-6">
                   Click to reveal answer
                 </p>
