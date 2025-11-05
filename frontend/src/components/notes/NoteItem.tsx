@@ -3,6 +3,7 @@ import React from 'react';
 import { Edit, Trash2, MoreVertical, Archive, RotateCcw, AlertTriangle } from 'lucide-react';
 import EditTitleModal from './EditTitleModal';
 import axiosInstance from '../../utils/axiosConfig';
+import axios from 'axios';
 
 interface Note {
   id: number;
