@@ -531,9 +531,11 @@ def change_password(request):
 def recover_account(request):
     """
     Recover account that exists in Supabase but not in Django.
-    Creates Django user and sends password reset email.
+    Creates Django user from Supabase data.
+    Optionally accepts password to set directly, otherwise sends password reset email.
     """
     email = request.data.get('email', '').strip()
+    password = request.data.get('password', '').strip()  # Optional: allow setting password directly
     
     if not email:
         return Response({'detail': 'Email is required'}, status=400)
@@ -541,16 +543,20 @@ def recover_account(request):
     # Check if user already exists in Django
     django_user = User.objects.filter(email__iexact=email).first()
     if django_user:
+        print(f"✅ User already exists in Django: {django_user.username}")
         return Response({
-            'detail': 'Account already exists in Django. Please use the login page.',
+            'success': True,
+            'detail': 'Account already exists in Django. You can log in now.',
+            'message': 'Account already exists. Please use the login page.',
             'error_code': 'USER_EXISTS_IN_DJANGO'
-        }, status=400)
+        })
     
     # Check if user exists in Supabase
     print(f"🔍 Checking Supabase for user: {email}")
     supabase_user = get_user_from_supabase_by_email(email.lower())
     
     if not supabase_user:
+        print(f"❌ User not found in Supabase")
         # Don't reveal whether email exists
         return Response({
             'detail': 'If an account exists for that email, a recovery link has been sent.',
@@ -558,14 +564,11 @@ def recover_account(request):
         })
     
     print(f"✅ Found user in Supabase: {supabase_user}")
+    print(f"📦 Supabase user data: {list(supabase_user.keys())}")
     
     # Create Django user from Supabase data
     try:
-        # Generate a temporary random password (user will reset it)
-        from django.utils.crypto import get_random_string
-        temp_password = get_random_string(32)
-        
-        # Create Django user
+        # Get username from Supabase or generate from email
         username = supabase_user.get('username', email.split('@')[0])
         # Make sure username is unique
         base_username = username.lower()
@@ -574,32 +577,76 @@ def recover_account(request):
             base_username = f"{username.lower()}{counter}"
             counter += 1
         
+        # Use provided password or generate temporary one
+        if password:
+            # Validate password strength
+            is_valid_password, password_error = validate_password(password)
+            if not is_valid_password:
+                return Response({'detail': password_error}, status=400)
+            user_password = password
+            print(f"✅ Using provided password")
+        else:
+            # Generate a temporary random password (user will reset it)
+            from django.utils.crypto import get_random_string
+            user_password = get_random_string(32)
+            print(f"✅ Generated temporary password")
+        
+        # Create Django user
         django_user = User.objects.create_user(
             username=base_username,
             email=email.lower(),
-            password=temp_password  # Temporary password, user will reset
+            password=user_password
         )
-        
-        # Set user properties from Supabase
-        if supabase_user.get('email_verified'):
-            django_user.is_active = True
-            if hasattr(django_user, 'profile'):
-                django_user.profile.email_verified = True
-                if supabase_user.get('email_verified_at'):
-                    try:
-                        from dateutil import parser
-                        django_user.profile.email_verified_at = parser.parse(supabase_user['email_verified_at'])
-                    except ImportError:
-                        # Fallback to datetime parsing if dateutil not available
-                        from datetime import datetime
-                        django_user.profile.email_verified_at = datetime.fromisoformat(supabase_user['email_verified_at'].replace('Z', '+00:00'))
-                django_user.profile.save()
-        
-        django_user.save()
         
         print(f"✅ Created Django user: {django_user.username} (ID: {django_user.id})")
         
-        # Send password reset email so user can set their password
+        # Sync all data from Supabase to Django Profile
+        if hasattr(django_user, 'profile'):
+            profile = django_user.profile
+            
+            # Sync email verification status
+            if supabase_user.get('email_verified'):
+                django_user.is_active = True
+                profile.email_verified = True
+                if supabase_user.get('email_verified_at'):
+                    try:
+                        from dateutil import parser
+                        profile.email_verified_at = parser.parse(supabase_user['email_verified_at'])
+                    except ImportError:
+                        # Fallback to datetime parsing if dateutil not available
+                        from datetime import datetime
+                        profile.email_verified_at = datetime.fromisoformat(supabase_user['email_verified_at'].replace('Z', '+00:00'))
+                    except Exception as e:
+                        print(f"⚠️ Could not parse email_verified_at: {e}")
+            
+            # Sync date_joined if available
+            if supabase_user.get('created_at'):
+                try:
+                    from dateutil import parser
+                    django_user.date_joined = parser.parse(supabase_user['created_at'])
+                except ImportError:
+                    from datetime import datetime
+                    django_user.date_joined = datetime.fromisoformat(supabase_user['created_at'].replace('Z', '+00:00'))
+                except Exception as e:
+                    print(f"⚠️ Could not parse created_at: {e}")
+            
+            profile.save()
+            print(f"✅ Synced profile data from Supabase")
+        
+        django_user.save()
+        print(f"✅ Saved Django user with all Supabase data")
+        
+        # If password was provided, user can log in immediately
+        if password:
+            return Response({
+                'success': True,
+                'detail': 'Account recovered successfully! You can now log in with your email and password.',
+                'message': 'Account recovered. You can log in now.',
+                'user_id': django_user.id,
+                'username': django_user.username
+            })
+        
+        # Otherwise, send password reset email
         if is_email_configured():
             token = generate_verification_token()
             store_verification_token(token, django_user.id, 'password_reset')
