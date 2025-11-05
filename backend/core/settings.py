@@ -15,14 +15,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-i$uch6xcxz80fiq6td7+#z_lrz(thlxfqsha-1#r(w7&n*^o8e')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.getenv('DEBUG', 'True').lower() == 'true'
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.56.1', '192.168.68.114', '192.168.68.162', '0.0.0.0', '*']
+# Allow hosts from environment variable or use default for development
+ALLOWED_HOSTS_ENV = os.getenv('ALLOWED_HOSTS', '')
+if ALLOWED_HOSTS_ENV:
+    ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS_ENV.split(',')]
+else:
+    ALLOWED_HOSTS = ['localhost', '127.0.0.1', '192.168.56.1', '192.168.68.114', '192.168.68.162', '0.0.0.0', '*']
 
-# Hugging Face API Key
-HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY')
-if not HUGGINGFACE_API_KEY:
-    raise ValueError("HUGGINGFACE_API_KEY environment variable is not set")
+# Hugging Face API Key (optional - only needed if using Hugging Face features)
+HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY', '')
 
 # Application definition
 
@@ -35,6 +38,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'whitenoise.runserver_nostatic',  # WhiteNoise for static files in production
     'rest_framework',
     'rest_framework_simplejwt',
     'corsheaders',
@@ -129,8 +133,9 @@ SIMPLE_JWT = {
 }
 
 MIDDLEWARE = [
-    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  # WhiteNoise for static files in production
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -226,7 +231,11 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
+# WhiteNoise storage settings for serving static files in production
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
@@ -281,21 +290,30 @@ CACHES = {
     }
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://192.168.56.1:3000",
-    "http://192.168.68.114:3000",
-    "http://192.168.68.162:3000",
-]
+# CORS settings - allow from environment variable or use defaults
+CORS_ALLOWED_ORIGINS_ENV = os.getenv('CORS_ALLOWED_ORIGINS', '')
+if CORS_ALLOWED_ORIGINS_ENV:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS_ENV.split(',')]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://192.168.56.1:3000",
+        "http://192.168.68.114:3000",
+        "http://192.168.68.162:3000",
+    ]
 
-CSRF_TRUSTED_ORIGINS = [
-    "http://localhost:3000",
-    "http://127.0.0.1:3000",
-    "http://192.168.56.1:3000",
-    "http://192.168.68.114:3000",
-    "http://192.168.68.162:3000",
-]
+CSRF_TRUSTED_ORIGINS_ENV = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+if CSRF_TRUSTED_ORIGINS_ENV:
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_ENV.split(',')]
+else:
+    CSRF_TRUSTED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://192.168.56.1:3000",
+        "http://192.168.68.114:3000",
+        "http://192.168.68.162:3000",
+    ]
 
 # Supabase Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://tyuiugbvqmeatyjpenzg.supabase.co')
