@@ -127,14 +127,26 @@ def login_view(request):
         return Response({'message': 'Email and password required.'}, status=400)
 
     try:
-        # Get the first user with this email (in case of duplicates)
-        user = User.objects.filter(email=email).first()
+        # Try case-insensitive email matching first
+        email_lower = email.lower().strip()
+        user = User.objects.filter(email__iexact=email_lower).first()
+        
+        # If not found, try exact match (for backward compatibility)
+        if not user:
+            user = User.objects.filter(email=email).first()
+        
         print(f"User found: {user}")
+        print(f"Total users in database: {User.objects.count()}")
         if not user:
             print("No user found with this email")
+            # Check if there are any users at all
+            all_users = User.objects.all()[:5]
+            print(f"Sample users in database: {[u.email for u in all_users]}")
             return Response({'message': 'Invalid credentials'}, status=401)
     except Exception as e:
         print(f"Exception finding user: {e}")
+        import traceback
+        print(traceback.format_exc())
         return Response({'message': 'Invalid credentials'}, status=401)
 
     print(f"Checking password for user: {user.username}")
