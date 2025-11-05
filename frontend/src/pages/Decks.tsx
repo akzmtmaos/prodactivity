@@ -16,7 +16,7 @@ import QuizSession from '../components/decks/QuizSession';
 import Toast from '../components/common/Toast';
 import type { SubDeck } from '../components/decks/SubDeckModal';
 import { truncateHtmlContent } from '../utils/htmlUtils';
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL_URL } from '../config/api';
 import axiosInstance from '../utils/axiosConfig';
 
 interface FlashcardData {
@@ -244,7 +244,7 @@ interface NoteItem {
       
       // Create single deck with AI-generated name
       const deckTitle = deckName.trim() || 'AI Generated Deck';
-      const res = await fetch(`${API_BASE}/decks/decks/`, {
+      const res = await fetch(`${API_BASE_URL}/decks/decks/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
         body: JSON.stringify({ title: deckTitle })
@@ -257,7 +257,7 @@ interface NoteItem {
         `Title: ${note.title}\nContent: ${note.content}`
       ).join('\n\n---\n\n');
       
-      const aiResponse = await fetch(`${API_BASE}/decks/ai/generate-flashcards/`, {
+      const aiResponse = await fetch(`${API_BASE_URL}/decks/ai/generate-flashcards/`, {
         method: 'POST',
         headers: getAuthHeaders(),
         body: JSON.stringify({
@@ -276,7 +276,7 @@ interface NoteItem {
       const aiData = await aiResponse.json();
       
       // Fetch the updated deck with flashcards
-      const updatedDeckRes = await fetch(`${API_BASE}/decks/decks/${deckData.id}/`, {
+      const updatedDeckRes = await fetch(`${API_BASE_URL}/decks/decks/${deckData.id}/`, {
         headers: { 'Authorization': token ? `Bearer ${token}` : '' }
       });
       if (updatedDeckRes.ok) {
@@ -430,7 +430,7 @@ interface NoteItem {
   const handleCreateDeck = async (deckData: { title: string }) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_BASE}/decks/decks/`, {
+      const res = await fetch(`${API_BASE_URL}/decks/decks/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -474,7 +474,7 @@ interface NoteItem {
   const handleDeleteDeck = async (deck: Deck) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_BASE}/decks/decks/${deck.id}/`, {
+      const res = await fetch(`${API_BASE_URL}/decks/decks/${deck.id}/`, {
         method: 'DELETE',
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
@@ -492,7 +492,7 @@ interface NoteItem {
   const handleArchiveDeck = async (deck: Deck, archive: boolean) => {
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_BASE}/decks/decks/${deck.id}/`, {
+      const res = await fetch(`${API_BASE_URL}/decks/decks/${deck.id}/`, {
         method: 'PATCH',
         headers: {
           'Authorization': token ? `Bearer ${token}` : '',
@@ -754,7 +754,7 @@ interface NoteItem {
     if (!selectedDeck) return;
     try {
       const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_BASE}/decks/flashcards/`, {
+      const res = await fetch(`${API_BASE_URL}/decks/flashcards/`, {
           method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -890,7 +890,7 @@ interface NoteItem {
             ));
             // Persist progress to backend
             const token = localStorage.getItem('accessToken');
-            fetch(`${API_BASE}/decks/decks/${selectedDeck.id}/`, {
+            fetch(`${API_BASE_URL}/decks/decks/${selectedDeck.id}/`, {
               method: 'PATCH',
               headers: {
                 'Content-Type': 'application/json',
@@ -922,7 +922,7 @@ interface NoteItem {
           onComplete={async (results) => {
             // Refetch deck from backend for updated progress
             const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_BASE}/decks/decks/${selectedDeck.id}/`, {
+      const res = await fetch(`${API_BASE_URL}/decks/decks/${selectedDeck.id}/`, {
               headers: {
                 'Authorization': token ? `Bearer ${token}` : '',
               },
