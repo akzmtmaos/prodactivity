@@ -103,6 +103,27 @@ def register(request):
         print(f"Verification - User in database: {saved_user}")
         print(f"Total users in database: {User.objects.count()}")
         
+        # Check if profile was created (should be created by signal)
+        try:
+            profile = user.profile
+            print(f"Profile exists for user {user.username}: ID={profile.id}, email_verified={profile.email_verified}")
+            
+            # Verify Supabase sync status
+            from .supabase_sync import check_user_exists_in_supabase
+            supabase_exists = check_user_exists_in_supabase(user.id)
+            print(f"User {user.username} exists in Supabase: {supabase_exists}")
+            
+            # If sync failed, try to sync again
+            if not supabase_exists:
+                print(f"⚠️  User {user.username} not found in Supabase, attempting sync...")
+                from .supabase_sync import sync_user_to_supabase
+                sync_success = sync_user_to_supabase(user, profile)
+                print(f"Sync result for {user.username}: {sync_success}")
+        except Exception as profile_error:
+            print(f"⚠️  Error checking profile or Supabase sync: {profile_error}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
+        
         # Send verification email if required
         if settings.EMAIL_VERIFICATION_REQUIRED and is_email_configured():
             token = generate_verification_token()

@@ -22,7 +22,7 @@ def get_supabase_headers():
 
 def sync_user_to_supabase(user, profile):
     """
-    Sync a Django user and profile to Supabase
+    Sync a Django user and profile to Supabase (upsert - create or update)
     
     Args:
         user: Django User instance
@@ -32,6 +32,9 @@ def sync_user_to_supabase(user, profile):
         bool: True if successful, False otherwise
     """
     try:
+        # Check if user already exists in Supabase
+        user_exists = check_user_exists_in_supabase(user.id)
+        
         # Handle avatar path length limitation
         avatar = None
         if profile.avatar:
@@ -51,26 +54,35 @@ def sync_user_to_supabase(user, profile):
             'avatar': avatar,
             'email_verified': profile.email_verified,
             'email_verified_at': profile.email_verified_at.isoformat() if profile.email_verified_at else None,
-            'created_at': user.date_joined.isoformat(),
             'updated_at': datetime.now().isoformat()
         }
         
-        # Insert into Supabase
-        response = requests.post(
-            f"{SUPABASE_URL}/rest/v1/profiles",
-            headers=get_supabase_headers(),
-            json=data
-        )
-        
-        if response.status_code == 201:
-            print(f"✅ Synced user {user.username} to Supabase")
-            return True
+        if not user_exists:
+            # Insert new user
+            data['created_at'] = user.date_joined.isoformat()
+            response = requests.post(
+                f"{SUPABASE_URL}/rest/v1/profiles",
+                headers=get_supabase_headers(),
+                json=data
+            )
+            
+            if response.status_code == 201:
+                print(f"✅ Synced new user {user.username} (ID: {user.id}) to Supabase")
+                return True
+            else:
+                print(f"❌ Failed to sync new user {user.username} to Supabase: {response.status_code} - {response.text}")
+                # Try update if insert failed (might be a race condition)
+                if response.status_code == 409:  # Conflict - user might exist
+                    return update_user_in_supabase(user, profile)
+                return False
         else:
-            print(f"❌ Failed to sync user {user.username} to Supabase: {response.status_code} - {response.text}")
-            return False
+            # Update existing user
+            return update_user_in_supabase(user, profile)
             
     except Exception as e:
         print(f"❌ Error syncing user {user.username} to Supabase: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return False
 
 def update_user_in_supabase(user, profile):
@@ -110,18 +122,37 @@ def update_user_in_supabase(user, profile):
         response = requests.patch(
             f"{SUPABASE_URL}/rest/v1/profiles?id=eq.{user.id}",
             headers=get_supabase_headers(),
-            json=data
+            json=data,
+            timeout=10
         )
         
-        if response.status_code == 200:
-            print(f"✅ Updated user {user.username} in Supabase")
+        if response.status_code == 200 or response.status_code == 204:
+            print(f"✅ Updated user {user.username} (ID: {user.id}) in Supabase")
             return True
         else:
             print(f"❌ Failed to update user {user.username} in Supabase: {response.status_code} - {response.text}")
+            # Try to insert if update failed (user might not exist)
+            if response.status_code == 404:
+                print(f"⚠️  User {user.username} not found in Supabase, attempting insert...")
+                data['id'] = user.id
+                data['created_at'] = user.date_joined.isoformat()
+                insert_response = requests.post(
+                    f"{SUPABASE_URL}/rest/v1/profiles",
+                    headers=get_supabase_headers(),
+                    json=data,
+                    timeout=10
+                )
+                if insert_response.status_code == 201:
+                    print(f"✅ Inserted user {user.username} (ID: {user.id}) into Supabase")
+                    return True
+                else:
+                    print(f"❌ Failed to insert user {user.username} to Supabase: {insert_response.status_code} - {insert_response.text}")
             return False
             
     except Exception as e:
         print(f"❌ Error updating user {user.username} in Supabase: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
         return False
 
 def check_user_exists_in_supabase(user_id):
