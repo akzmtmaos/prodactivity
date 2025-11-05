@@ -544,25 +544,54 @@ def recover_account(request):
         print(f"❌ Email is missing or empty")
         return Response({'detail': 'Email is required'}, status=400)
     
+    # Check Supabase first to get the correct username
+    print(f"🔍 Checking Supabase for correct username...")
+    supabase_user = get_user_from_supabase_by_email(email.lower())
+    supabase_username = None
+    if supabase_user:
+        supabase_username = supabase_user.get('username')
+        print(f"📦 Supabase username: {supabase_username}")
+    
     # Check if user already exists in Django
     django_user = User.objects.filter(email__iexact=email).first()
     if django_user:
         print(f"✅ User already exists in Django: {django_user.username} (ID: {django_user.id})")
         
-        # Check Supabase to get the correct username
-        print(f"🔍 Checking Supabase for correct username...")
-        supabase_user = get_user_from_supabase_by_email(email.lower())
-        if supabase_user:
-            supabase_username = supabase_user.get('username')
+        # Check if there are multiple users with same email (duplicates)
+        all_users_with_email = User.objects.filter(email__iexact=email)
+        print(f"📊 Total users with email {email}: {all_users_with_email.count()}")
+        if all_users_with_email.count() > 1:
+            print(f"⚠️ Found {all_users_with_email.count()} users with same email!")
+            for u in all_users_with_email:
+                print(f"  - User ID {u.id}: username='{u.username}', email='{u.email}', is_active={u.is_active}")
+        
+        # If Supabase username is provided, use the user with matching username OR update current user
+        if supabase_username:
             print(f"📦 Supabase username: {supabase_username}, Django username: {django_user.username}")
             
+            # Check if there's a user with the Supabase username
+            correct_user = User.objects.filter(username__iexact=supabase_username).first()
+            if correct_user and correct_user.id != django_user.id:
+                print(f"🔄 Found user with correct username '{supabase_username}' (ID: {correct_user.id})")
+                # Check if this user has the same email
+                if correct_user.email.lower() == email.lower():
+                    print(f"✅ Using user with correct username: {correct_user.username}")
+                    django_user = correct_user
+                else:
+                    print(f"⚠️ User with username '{supabase_username}' has different email: {correct_user.email}")
+            
             # Update username if it doesn't match Supabase
-            if supabase_username and supabase_username.lower() != django_user.username.lower():
+            if supabase_username.lower() != django_user.username.lower():
                 print(f"🔄 Username mismatch! Updating Django username from '{django_user.username}' to '{supabase_username}'...")
                 
                 # Check if the Supabase username is already taken by another user
                 if User.objects.filter(username__iexact=supabase_username).exclude(id=django_user.id).exists():
-                    print(f"⚠️ Username '{supabase_username}' is already taken by another user, keeping current username")
+                    print(f"⚠️ Username '{supabase_username}' is already taken by another user")
+                    # Try to find the user with the correct username
+                    correct_user = User.objects.filter(username__iexact=supabase_username).first()
+                    if correct_user:
+                        print(f"🔄 Using existing user with correct username: {correct_user.username} (ID: {correct_user.id})")
+                        django_user = correct_user
                 else:
                     django_user.username = supabase_username.lower()
                     django_user.save()
@@ -579,6 +608,15 @@ def recover_account(request):
             django_user.set_password(password)
             django_user.save()
             print(f"✅ Password updated successfully!")
+            
+            # Sync email_verified status from Supabase if available
+            if supabase_user and hasattr(django_user, 'profile'):
+                if supabase_user.get('email_verified'):
+                    django_user.profile.email_verified = True
+                    django_user.is_active = True
+                    django_user.profile.save()
+                    django_user.save()
+                    print(f"✅ Email verification status synced from Supabase")
             
             return Response({
                 'success': True,
