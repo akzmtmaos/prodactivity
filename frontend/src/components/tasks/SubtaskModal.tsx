@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import axios from 'axios';
 import { Subtask } from '../../types/task';
 import { supabase } from '../../lib/supabase';
+import { API_BASE_URL } from '../../config/api';
 
 interface SubtaskModalProps {
   taskId: number;
@@ -10,8 +11,6 @@ interface SubtaskModalProps {
   onClose: () => void;
   onChange?: (subtasks: Subtask[]) => void;
 }
-
-const API_BASE_URL = 'http://192.168.68.162:8000/api';
 
 const SubtaskModal: React.FC<SubtaskModalProps> = ({ taskId, isOpen, initialSubtasks = [], onClose, onChange }) => {
   const [subtasks, setSubtasks] = useState<Subtask[]>(initialSubtasks);

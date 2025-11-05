@@ -66,7 +66,8 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
         console.log('Fetching note to get notebook ID...');
         try {
           const token = localStorage.getItem('accessToken');
-          const response = await fetch(`http://localhost:8000/api/notes/${reviewer.source_note}/`, {
+          const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+          const response = await fetch(`${API_URL}/notes/${reviewer.source_note}/`, {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json'

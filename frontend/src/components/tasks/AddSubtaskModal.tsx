@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import { Subtask } from '../../types/task';
 import { supabase } from '../../lib/supabase';
+import { API_BASE_URL } from '../../config/api';
 
 interface AddSubtaskModalProps {
   taskId: number;
@@ -9,8 +10,6 @@ interface AddSubtaskModalProps {
   onClose: () => void;
   onAdded: (subtask: Subtask) => void;
 }
-
-const API_BASE_URL = 'http://192.168.68.162:8000/api';
 
 const AddSubtaskModal: React.FC<AddSubtaskModalProps> = ({ taskId, isOpen, onClose, onAdded }) => {
   const [title, setTitle] = useState('');
