@@ -5,6 +5,7 @@ from .serializers import NotificationSerializer
 from rest_framework.views import APIView
 from .models import TermsAndConditions
 from .serializers import TermsAndConditionsSerializer
+from django.http import JsonResponse
 
 class LatestTermsAndConditionsView(APIView):
     def get(self, request):
@@ -31,4 +32,24 @@ class NotificationMarkReadView(APIView):
             notification.save()
             return Response({'status': 'marked as read'})
         except Notification.DoesNotExist:
-            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND) 
+            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+
+class HealthCheckView(APIView):
+    """Simple health check endpoint"""
+    permission_classes = []  # No authentication required
+    
+    def get(self, request):
+        return Response({
+            'status': 'ok',
+            'message': 'Prodactivity API is running',
+            'version': '1.0.0',
+            'endpoints': {
+                'api': '/api/',
+                'admin': '/admin/',
+                'token': '/api/token/',
+                'notes': '/api/notes/',
+                'decks': '/api/decks/',
+                'tasks': '/api/tasks/',
+                'reviewers': '/api/reviewers/',
+            }
+        }) 
