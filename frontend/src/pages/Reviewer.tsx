@@ -53,10 +53,19 @@ const Reviewer = () => {
       // 2) Kick off fresh fetch in background with short timeouts
       setLoading(false);
       try {
-        const [notebooksRes, notesRes] = await Promise.all([
-          axiosInstance.get(`/notes/notebooks/`, { timeout: 4000 }),
-          axiosInstance.get(`/notes/`, { timeout: 4000, params: { archived: 'false' } })
+        const doFetch = async () => Promise.all([
+          axiosInstance.get(`/notes/notebooks/`, { timeout: 12000 }),
+          axiosInstance.get(`/notes/`, { timeout: 12000, params: { archived: 'false' } })
         ]);
+
+        let notebooksRes, notesRes;
+        try {
+          [notebooksRes, notesRes] = await doFetch();
+        } catch (_first) {
+          // Retry once after a short delay (handles cold starts)
+          await new Promise(r => setTimeout(r, 800));
+          [notebooksRes, notesRes] = await doFetch();
+        }
 
         const notebooksData = notebooksRes.data?.results || notebooksRes.data || [];
         const notesData = notesRes.data?.results || notesRes.data || [];
