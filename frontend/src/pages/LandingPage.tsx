@@ -258,7 +258,7 @@ const LandingPage = () => {
           name: newReview.name.trim() || "Anonymous",
           rating: newReview.rating,
           content: newReview.content.trim(),
-          avatar: "≡ƒæñ"
+          avatar: "👤"
         };
         
         const submittedReview = await reviewsService.submitReview(reviewData);
