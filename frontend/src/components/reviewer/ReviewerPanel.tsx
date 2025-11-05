@@ -94,8 +94,6 @@ const stripHtmlToText = (html: string): string => {
   return text;
 };
 
-const REVIEWERS_CACHE_KEY = 'reviewersCachedV1';
-
 const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeTab, setActiveTab }) => {
   // Debug props
   console.log('ReviewerPanel props:', { notes, notebooks, activeTab });
