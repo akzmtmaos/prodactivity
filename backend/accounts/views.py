@@ -549,6 +549,25 @@ def recover_account(request):
     if django_user:
         print(f"✅ User already exists in Django: {django_user.username} (ID: {django_user.id})")
         
+        # Check Supabase to get the correct username
+        print(f"🔍 Checking Supabase for correct username...")
+        supabase_user = get_user_from_supabase_by_email(email.lower())
+        if supabase_user:
+            supabase_username = supabase_user.get('username')
+            print(f"📦 Supabase username: {supabase_username}, Django username: {django_user.username}")
+            
+            # Update username if it doesn't match Supabase
+            if supabase_username and supabase_username.lower() != django_user.username.lower():
+                print(f"🔄 Username mismatch! Updating Django username from '{django_user.username}' to '{supabase_username}'...")
+                
+                # Check if the Supabase username is already taken by another user
+                if User.objects.filter(username__iexact=supabase_username).exclude(id=django_user.id).exists():
+                    print(f"⚠️ Username '{supabase_username}' is already taken by another user, keeping current username")
+                else:
+                    django_user.username = supabase_username.lower()
+                    django_user.save()
+                    print(f"✅ Username updated to '{django_user.username}'")
+        
         # If password is provided, update it
         if password:
             print(f"🔑 Updating password for existing user...")
@@ -589,12 +608,19 @@ def recover_account(request):
         })
     
     print(f"✅ Found user in Supabase: {supabase_user}")
-    print(f"📦 Supabase user data: {list(supabase_user.keys())}")
+    print(f"📦 Supabase user data: {supabase_user}")
+    print(f"📦 Supabase user keys: {list(supabase_user.keys())}")
     
     # Create Django user from Supabase data
     try:
-        # Get username from Supabase or generate from email
-        username = supabase_user.get('username', email.split('@')[0])
+        # Get username from Supabase - it should be 'markramos'
+        supabase_username = supabase_user.get('username')
+        if not supabase_username:
+            print(f"⚠️ No username in Supabase, generating from email...")
+            supabase_username = email.split('@')[0]
+        
+        print(f"📝 Using username from Supabase: '{supabase_username}'")
+        username = supabase_username
         # Make sure username is unique
         base_username = username.lower()
         counter = 1
