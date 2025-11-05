@@ -1214,19 +1214,18 @@ const DeckDetails: React.FC = () => {
               // Refresh subdecks
               const subdecksRes = await axiosInstance.get(`/decks/decks/?parent=${id}`);
               const data = subdecksRes.data;
-                setSubdecks(data.map((sd: any) => ({
-                  id: sd.id.toString(),
-                  title: sd.title,
-                  flashcards: (sd.flashcards || []).map((fc: any) => ({
-                    id: fc.id.toString(),
-                    question: fc.front,
-                    answer: fc.back,
-                    front: fc.front,
-                    back: fc.back,
-                    difficulty: fc.difficulty
-                  }))
-                })));
-              }
+              setSubdecks(data.map((sd: any) => ({
+                id: sd.id.toString(),
+                title: sd.title,
+                flashcards: (sd.flashcards || []).map((fc: any) => ({
+                  id: fc.id.toString(),
+                  question: fc.front,
+                  answer: fc.back,
+                  front: fc.front,
+                  back: fc.back,
+                  difficulty: fc.difficulty
+                }))
+              })));
               
               setShowEditModal(false);
               setSelectedSubdeck(null);
