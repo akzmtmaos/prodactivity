@@ -3,6 +3,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { Star, StarOff, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy } from 'lucide-react';
 import { truncateHtmlContent } from '../../utils/htmlUtils';
 import { useNavigate } from 'react-router-dom';
+import axiosInstance from '../../utils/axiosConfig';
 
 interface Reviewer {
   id: number;
@@ -65,15 +66,8 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
         // Fetch the note to get notebook ID
         console.log('Fetching note to get notebook ID...');
         try {
-          const token = localStorage.getItem('accessToken');
-          const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
-          const response = await fetch(`${API_URL}/notes/${reviewer.source_note}/`, {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-              'Content-Type': 'application/json'
-            }
-          });
-          const note = await response.json();
+          const response = await axiosInstance.get(`/notes/${reviewer.source_note}/`);
+          const note = response.data;
           console.log('Fetched note:', note);
           
           if (note.notebook) {

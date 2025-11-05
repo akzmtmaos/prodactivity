@@ -14,6 +14,7 @@ import {
   CreditCard
 } from 'lucide-react';
 import axiosInstance from '../../utils/axiosConfig';
+import { API_BASE_URL } from '../../config/api';
 import TypingAnimation from '../common/TypingAnimation';
 
 // Helper to get current user's avatar URL
@@ -595,15 +596,14 @@ Click "View Deck" to see your flashcards in the Decks section.`);
       setIsTyping(true);
       console.log('🎬 Starting typing animation, isTyping:', true);
 
-      const response = await fetch('/api/notes/chat/', {
+      const token = localStorage.getItem('accessToken');
+      const response = await fetch(`${API_BASE_URL}/notes/chat/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+          'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ 
-          messages: messages
-        })
+        body: JSON.stringify({ messages: messages })
       });
 
       if (!response.ok) {

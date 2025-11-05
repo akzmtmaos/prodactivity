@@ -127,7 +127,7 @@ interface NoteItem {
   };
 
   // Use centralized API base URL (for any direct fetch fallbacks)
-  const API_BASE = API_BASE_URL;
+  // Note: All API calls now use axiosInstance instead
 
   const DECKS_CACHE_KEY = 'cachedDecksV1';
   const ARCHIVED_DECKS_CACHE_KEY = 'cachedArchivedDecksV1';
@@ -141,11 +141,9 @@ interface NoteItem {
     if (notebooks.length > 0) return;
     try {
       setLoadingNotes(true);
-      const res = await fetch(`${API_BASE}/notes/notebooks/`, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Failed to fetch notebooks');
-      const data = await res.json();
+      const res = await axiosInstance.get('/notes/notebooks/');
       // Handle paginated response
-      const notebooksData = data.results || data;
+      const notebooksData = res.data.results || res.data;
       setNotebooks(notebooksData);
       if (notebooksData.length > 0) setModalSelectedNotebookId(notebooksData[0].id);
     } catch (e) {
@@ -159,11 +157,9 @@ interface NoteItem {
     if (notesByNotebook[notebookId]) return; // already loaded
     try {
       setLoadingNotes(true);
-      const res = await fetch(`${API_BASE}/notes/?notebook=${notebookId}`, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Failed to fetch notes');
-      const data = await res.json();
+      const res = await axiosInstance.get(`/notes/?notebook=${notebookId}`);
       // Handle paginated response
-      const notesData = data.results || data;
+      const notesData = res.data.results || res.data;
       setNotesByNotebook(prev => ({ ...prev, [notebookId]: notesData }));
     } catch (e) {
       setToast({ message: 'Failed to load notes', type: 'error' });

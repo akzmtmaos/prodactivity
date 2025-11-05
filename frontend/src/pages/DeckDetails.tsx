@@ -12,6 +12,7 @@ import QuizSession from '../components/decks/QuizSession';
 import DeckCard from '../components/decks/DeckCard';
 import { truncateHtmlContent } from '../utils/htmlUtils';
 import { API_BASE_URL } from '../config/api';
+import axiosInstance from '../utils/axiosConfig';
 
 interface Flashcard {
   id: string;
@@ -103,16 +104,8 @@ const DeckDetails: React.FC = () => {
       
       try {
         setLoading(true);
-        const token = localStorage.getItem('accessToken');
-        const res = await fetch(`${API_BASE_URL}/decks/decks/${id}/`, {
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-          },
-        });
-        
-        if (!res.ok) throw new Error('Failed to fetch deck');
-        
-        const data = await res.json();
+        const res = await axiosInstance.get(`/decks/decks/${id}/`);
+        const data = res.data;
         setDeck({
           id: data.id.toString(),
           title: data.title,
@@ -149,14 +142,8 @@ const DeckDetails: React.FC = () => {
       if (!id) return;
       setSubdecksLoading(true);
       try {
-        const token = localStorage.getItem('accessToken');
-        const res = await fetch(`${API_BASE_URL}/decks/decks/?parent=${id}`, {
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-          },
-        });
-        if (!res.ok) throw new Error('Failed to fetch subdecks');
-        const data = await res.json();
+        const res = await axiosInstance.get(`/decks/decks/?parent=${id}`);
+        const data = res.data;
         setSubdecks(data.map((sd: any) => ({
           id: sd.id.toString(),
           title: sd.title,
@@ -202,17 +189,11 @@ const DeckDetails: React.FC = () => {
   const handleCreateSubdeck = async (deckData: { title: string }) => {
     if (!id) return;
     try {
-      const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_BASE_URL}/decks/decks/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify({ title: deckData.title, parent: id })
+      const res = await axiosInstance.post('/decks/decks/', {
+        title: deckData.title,
+        parent: id
       });
-      if (!res.ok) throw new Error('Failed to create subdeck');
-      const newSubdeck = await res.json();
+      const newSubdeck = res.data;
       setSubdecks(prev => [
         ...prev,
         {
@@ -269,22 +250,13 @@ const DeckDetails: React.FC = () => {
         questionText = questionText ? `${questionText}<br/><img src="${questionImagePreview}" alt="Question image" style="max-width: 100%; height: auto; border-radius: 8px; margin-top: 8px;" />` : `<img src="${questionImagePreview}" alt="Question image" style="max-width: 100%; height: auto; border-radius: 8px;" />`;
       }
       
-      const res = await fetch(`${API_BASE_URL}/decks/flashcards/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify({
-          deck: deck.id,
-          front: questionText || 'Image Question',
-          back: newFlashcard.answer.trim()
-        })
+      const res = await axiosInstance.post('/decks/flashcards/', {
+        deck: deck.id,
+        front: questionText || 'Image Question',
+        back: newFlashcard.answer.trim()
       });
       
-      if (!res.ok) throw new Error('Failed to create flashcard');
-      
-      const data = await res.json();
+      const data = res.data;
       const createdFlashcard: Flashcard = {
         id: data.id.toString(),
         question: data.front,
@@ -336,22 +308,12 @@ const DeckDetails: React.FC = () => {
     
     try {
       setIsUpdatingFlashcard(true);
-      const token = localStorage.getItem('accessToken');
-      const res = await fetch(`${API_BASE_URL}/decks/flashcards/${editingFlashcardId}/`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify({
-          front: editingFlashcard.question.trim(),
-          back: editingFlashcard.answer.trim()
-        })
+      const res = await axiosInstance.patch(`/decks/flashcards/${editingFlashcardId}/`, {
+        front: editingFlashcard.question.trim(),
+        back: editingFlashcard.answer.trim()
       });
       
-      if (!res.ok) throw new Error('Failed to update flashcard');
-      
-      const data = await res.json();
+      const data = res.data;
       
       // Update deck state
       setDeck({
@@ -412,23 +374,13 @@ const DeckDetails: React.FC = () => {
   };
 
   // Import notes functionality
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('accessToken');
-    return {
-      'Authorization': token ? `Bearer ${token}` : '',
-      'Content-Type': 'application/json',
-    } as Record<string, string>;
-  };
-
-  const API_BASE = API_BASE_URL;
 
   const ensureNotebooksLoaded = async () => {
     if (notebooks.length > 0) return;
     try {
       setLoadingNotes(true);
-      const res = await fetch(`${API_BASE}/notes/notebooks/`, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Failed to fetch notebooks');
-      const data = await res.json();
+      const res = await axiosInstance.get('/notes/notebooks/');
+      const data = res.data.results || res.data;
       setNotebooks(data);
       if (data.length > 0) setModalSelectedNotebookId(data[0].id);
     } catch (e) {
@@ -442,9 +394,8 @@ const DeckDetails: React.FC = () => {
     if (notesByNotebook[notebookId]) return; // already loaded
     try {
       setLoadingNotes(true);
-      const res = await fetch(`${API_BASE}/notes/?notebook=${notebookId}`, { headers: getAuthHeaders() });
-      if (!res.ok) throw new Error('Failed to fetch notes');
-      const data = await res.json();
+      const res = await axiosInstance.get(`/notes/?notebook=${notebookId}`);
+      const data = res.data.results || res.data;
       setNotesByNotebook(prev => ({ ...prev, [notebookId]: data }));
     } catch (e) {
       console.error('Failed to load notes:', e);
@@ -549,23 +500,19 @@ const DeckDetails: React.FC = () => {
       alert('Select at least one note');
       return;
     }
-    const token = localStorage.getItem('accessToken');
     try {
       setLoadingNotes(true);
       const allCards = parseNotesToCards(selectedNotes);
       for (const card of allCards) {
-        await fetch(`${API_BASE_URL}/decks/flashcards/`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'Authorization': token ? `Bearer ${token}` : '' },
-          body: JSON.stringify({ deck: deck.id, front: card.question, back: card.answer })
+        await axiosInstance.post('/decks/flashcards/', {
+          deck: deck.id,
+          front: card.question,
+          back: card.answer
         });
       }
       // Refresh deck data
-              const res = await fetch(`${API_BASE_URL}/decks/decks/${deck.id}/`, {
-        headers: { 'Authorization': token ? `Bearer ${token}` : '' },
-      });
-      if (res.ok) {
-        const data = await res.json();
+      const res = await axiosInstance.get(`/decks/decks/${deck.id}/`);
+      const data = res.data;
         setDeck({
           ...deck,
           flashcards: [...deck.flashcards, ...allCards.map((c, idx) => ({
@@ -1109,19 +1056,12 @@ const DeckDetails: React.FC = () => {
           onClose={() => setShowQuizSession(false)}
           onComplete={async (results) => {
             // Refetch deck from backend for updated progress
-            const token = localStorage.getItem('accessToken');
-            const res = await fetch(`${API_BASE_URL}/decks/decks/${deck.id}/`, {
-              headers: {
-                'Authorization': token ? `Bearer ${token}` : '',
-              },
+            const res = await axiosInstance.get(`/decks/decks/${deck.id}/`);
+            const data = res.data;
+            setDeck({
+              ...deck,
+              progress: data.progress || 0
             });
-            if (res.ok) {
-              const data = await res.json();
-              setDeck({
-                ...deck,
-                progress: data.progress || 0
-              });
-            }
             setShowQuizSession(false);
           }}
         />
@@ -1269,26 +1209,11 @@ const DeckDetails: React.FC = () => {
           }}
           onUpdateDeck={async (deckId: string, updates: { title: string }) => {
             try {
-              const token = localStorage.getItem('accessToken');
-              const res = await fetch(`${API_BASE_URL}/decks/decks/${deckId}/`, {
-                method: 'PATCH',
-                headers: {
-                  'Authorization': token ? `Bearer ${token}` : '',
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(updates),
-              });
-              
-              if (!res.ok) throw new Error('Failed to update subdeck');
+              await axiosInstance.patch(`/decks/decks/${deckId}/`, updates);
               
               // Refresh subdecks
-              const subdecksRes = await fetch(`${API_BASE_URL}/decks/decks/?parent=${id}`, {
-                headers: {
-                  'Authorization': token ? `Bearer ${token}` : '',
-                },
-              });
-              if (subdecksRes.ok) {
-                const data = await subdecksRes.json();
+              const subdecksRes = await axiosInstance.get(`/decks/decks/?parent=${id}`);
+              const data = subdecksRes.data;
                 setSubdecks(data.map((sd: any) => ({
                   id: sd.id.toString(),
                   title: sd.title,

@@ -2,7 +2,7 @@
 import React from 'react';
 import { Edit, Trash2, MoreVertical, Archive, RotateCcw, AlertTriangle } from 'lucide-react';
 import EditTitleModal from './EditTitleModal';
-import axios from 'axios';
+import axiosInstance from '../../utils/axiosConfig';
 
 interface Note {
   id: number;
@@ -37,7 +37,6 @@ interface NoteItemProps {
 const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete, onArchive, onToggleImportant: _onToggleImportant, deletingNoteId }) => {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showEditModal, setShowEditModal] = React.useState(false);
-  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.68.162:8000/api/notes';
   const menuRef = React.useRef<HTMLDivElement>(null);
 
   // Helper function to format dates
@@ -152,13 +151,8 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
   const handleNoteClick = async () => {
     try {
       // Update last_visited timestamp
-      const response = await axios.patch(`${API_URL}/notes/${note.id}/`, {
+      const response = await axiosInstance.patch(`/notes/${note.id}/`, {
         last_visited: new Date().toISOString()
-      }, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-          'Content-Type': 'application/json'
-        }
       });
       
       console.log('Visit update response:', response.data);

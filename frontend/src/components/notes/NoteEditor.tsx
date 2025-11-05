@@ -1,6 +1,8 @@
 // frontend/src/components/notes/NoteEditor.tsx
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
+import axiosInstance from '../../utils/axiosConfig';
+import { API_BASE_URL } from '../../config/api';
 import * as pdfjsLib from 'pdfjs-dist';
 import ImportModal from '../../components/common/ImportModal';
 import Toast from '../../components/common/Toast';
@@ -117,8 +119,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     strikethrough: false,
     highlight: false
   });
-  
-  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.68.162:8000/api';
   
   // Keep last selection range updated
   useEffect(() => {
@@ -663,11 +663,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       const formData = new FormData();
       formData.append('file', file);
       
-      const endpoint = `${API_URL.replace(/\/?$/, '')}/notes/convert-doc/`;
-      
-      const response = await axios.post(endpoint, formData, {
+      const response = await axiosInstance.post('/notes/convert-doc/', formData, {
         headers: {
-          ...getAuthHeaders(),
           'Content-Type': 'multipart/form-data',
         },
       });
@@ -691,15 +688,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     if (!note) return;
     
     try {
-      const response = await axios.post(`/api/notes/export/`, {
+      const response = await axiosInstance.post(`/notes/export/`, {
         note_id: note.id,
         format: format
       }, {
-        responseType: 'blob',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`,
-          'Content-Type': 'application/json'
-        }
+        responseType: 'blob'
       });
       
       const url = window.URL.createObjectURL(new Blob([response.data]));

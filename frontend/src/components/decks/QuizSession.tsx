@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, CheckCircle, Target } from 'lucide-react';
 import { useNavbar } from '../../context/NavbarContext';
+import axiosInstance from '../../utils/axiosConfig';
 
 interface FlashcardData {
   id: string;
@@ -155,18 +156,10 @@ const QuizSession: React.FC<QuizSessionProps> = ({
 
     // POST QuizSession to backend
     if (deckId) {
-      const token = localStorage.getItem('accessToken') || localStorage.getItem('access');
-      await fetch('/api/decks/quizzes/sessions/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : ''
-        },
-        body: JSON.stringify({
-          deck: deckId,
-          score: quizResults.score,
-          completed_at: new Date().toISOString()
-        })
+      await axiosInstance.post('/decks/quizzes/sessions/', {
+        deck: deckId,
+        score: quizResults.score,
+        completed_at: new Date().toISOString()
       });
     }
 

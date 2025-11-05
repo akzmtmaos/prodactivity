@@ -8,6 +8,8 @@ import DeleteConfirmationModal from '../components/common/DeleteConfirmationModa
 import { Trash2 } from 'lucide-react';
 import { useRef } from 'react';
 import Pagination from '../components/common/Pagination';
+import axiosInstance from '../utils/axiosConfig';
+import { API_BASE_URL } from '../config/api';
 
 // Define TrashItem type here for use in state
 export type TrashItem = {
@@ -47,8 +49,6 @@ const Trash = () => {
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
-
-  const API_URL = process.env.REACT_APP_API_URL || 'http://192.168.68.162:8000/api';
 
   // Sync activeTab with URL param
   useEffect(() => {
@@ -98,12 +98,10 @@ const Trash = () => {
   const fetchTrash = async () => {
     setLoading(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      const headers: HeadersInit = token ? { 'Authorization': `Bearer ${token}` } : {};
 
       // Fetch deleted notes
-      const notesRes = await fetch(`${API_URL}/trash/notes/`, { headers });
-      const notesData = await notesRes.json();
+      const notesRes = await axiosInstance.get('/trash/notes/');
+      const notesData = notesRes.data;
       setNotes(
         notesData.map((note: any) => ({
           id: note.id,
@@ -114,8 +112,8 @@ const Trash = () => {
       );
 
       // Fetch deleted decks
-      const decksRes = await fetch(`${API_URL}/trash/decks/`, { headers });
-      const decksData = await decksRes.json();
+      const decksRes = await axiosInstance.get('/trash/decks/');
+      const decksData = decksRes.data;
       setDecks(
         decksData.map((deck: any) => ({
           id: deck.id,
@@ -127,19 +125,9 @@ const Trash = () => {
 
       // Fetch deleted notebooks
       try {
-        console.log('Fetching deleted notebooks from:', `${API_URL}/notes/notebooks/?is_deleted=true`);
-        const notebooksRes = await fetch(`${API_URL}/notes/notebooks/?is_deleted=true`, { headers });
-        console.log('Notebooks response status:', notebooksRes.status);
-        console.log('Notebooks response headers:', notebooksRes.headers);
-        
-        if (!notebooksRes.ok) {
-          console.error('Notebooks fetch failed with status:', notebooksRes.status);
-          console.error('Response text:', await notebooksRes.text());
-          setNotebooks([]);
-          return;
-        }
-        
-        const notebooksData = await notebooksRes.json();
+        console.log('Fetching deleted notebooks from:', `${API_BASE_URL}/notes/notebooks/?is_deleted=true`);
+        const notebooksRes = await axiosInstance.get('/notes/notebooks/?is_deleted=true');
+        const notebooksData = notebooksRes.data;
         console.log('Raw notebooks data:', notebooksData);
         
         const notebooksList = notebooksData.results || notebooksData;
@@ -159,8 +147,8 @@ const Trash = () => {
       }
 
       // Fetch deleted reviewers
-      const reviewersRes = await fetch(`${API_URL}/trash/reviewers/`, { headers });
-      const reviewersData = await reviewersRes.json();
+      const reviewersRes = await axiosInstance.get('/trash/reviewers/');
+      const reviewersData = reviewersRes.data;
       setReviewers(
         reviewersData.map((reviewer: any) => ({
           id: reviewer.id,
@@ -198,21 +186,13 @@ const Trash = () => {
   const confirmRestore = async () => {
     if (!restoreTarget) return;
     const { id, type } = restoreTarget;
-    const token = localStorage.getItem('accessToken');
-    let url = '';
-    if (type === 'note') url = `${API_URL}/notes/${id}/`;
-    if (type === 'deck') url = `${API_URL}/decks/decks/${id}/`;
-    if (type === 'notebook') url = `${API_URL}/notes/notebooks/${id}/`;
-    if (type === 'reviewer') url = `${API_URL}/reviewers/${id}/`;
+    let endpoint = '';
+    if (type === 'note') endpoint = `/notes/${id}/`;
+    if (type === 'deck') endpoint = `/decks/decks/${id}/`;
+    if (type === 'notebook') endpoint = `/notes/notebooks/${id}/`;
+    if (type === 'reviewer') endpoint = `/reviewers/${id}/`;
     try {
-      await fetch(url, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-        body: JSON.stringify({ is_deleted: false, deleted_at: null })
-      });
+      await axiosInstance.patch(endpoint, { is_deleted: false, deleted_at: null });
       fetchTrash();
       setToast({ message: 'Item restored successfully!', type: 'success' });
     } catch (error) {
@@ -232,19 +212,13 @@ const Trash = () => {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     const { id, type } = deleteTarget;
-    const token = localStorage.getItem('accessToken');
-    let url = '';
-    if (type === 'note') url = `${API_URL}/notes/${id}/`;
-    if (type === 'deck') url = `${API_URL}/decks/decks/${id}/`;
-    if (type === 'notebook') url = `${API_URL}/notes/notebooks/${id}/`;
-    if (type === 'reviewer') url = `${API_URL}/reviewers/${id}/`;
+    let endpoint = '';
+    if (type === 'note') endpoint = `/notes/${id}/`;
+    if (type === 'deck') endpoint = `/decks/decks/${id}/`;
+    if (type === 'notebook') endpoint = `/notes/notebooks/${id}/`;
+    if (type === 'reviewer') endpoint = `/reviewers/${id}/`;
     try {
-      await fetch(url, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': token ? `Bearer ${token}` : '',
-        },
-      });
+      await axiosInstance.delete(endpoint);
       fetchTrash();
       setToast({ message: 'Item permanently deleted.', type: 'success' });
     } catch (error) {
@@ -258,20 +232,14 @@ const Trash = () => {
 
   const handleDeleteAll = async () => {
     setShowDeleteAllModal(false);
-    const token = localStorage.getItem('accessToken');
     for (const item of filteredItems) {
-      let url = '';
-      if (item.type === 'note') url = `${API_URL}/notes/${item.id}/`;
-      if (item.type === 'deck') url = `${API_URL}/decks/decks/${item.id}/`;
-      if (item.type === 'notebook') url = `${API_URL}/notes/notebooks/${item.id}/`;
-      if (item.type === 'reviewer') url = `${API_URL}/reviewers/${item.id}/`;
+      let endpoint = '';
+      if (item.type === 'note') endpoint = `/notes/${item.id}/`;
+      if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
+      if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
+      if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
       try {
-        await fetch(url, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-          },
-        });
+        await axiosInstance.delete(endpoint);
       } catch (error) {
         // Continue deleting others even if one fails
       }
@@ -301,24 +269,16 @@ const Trash = () => {
 
   const handleRestoreSelected = async () => {
     setShowRestoreSelectedModal(false);
-    const token = localStorage.getItem('accessToken');
     const itemsToRestore = filteredItems.filter(item => selectedItems.has(item.id));
     
     for (const item of itemsToRestore) {
-      let url = '';
-      if (item.type === 'note') url = `${API_URL}/notes/${item.id}/`;
-      if (item.type === 'deck') url = `${API_URL}/decks/decks/${item.id}/`;
-      if (item.type === 'notebook') url = `${API_URL}/notes/notebooks/${item.id}/`;
-      if (item.type === 'reviewer') url = `${API_URL}/reviewers/${item.id}/`;
+      let endpoint = '';
+      if (item.type === 'note') endpoint = `/notes/${item.id}/`;
+      if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
+      if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
+      if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
       try {
-        await fetch(url, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': token ? `Bearer ${token}` : '',
-          },
-          body: JSON.stringify({ is_deleted: false, deleted_at: null })
-        });
+        await axiosInstance.patch(endpoint, { is_deleted: false, deleted_at: null });
       } catch (error) {
         // Continue restoring others even if one fails
       }
@@ -330,22 +290,16 @@ const Trash = () => {
 
   const handleDeleteSelected = async () => {
     setShowDeleteSelectedModal(false);
-    const token = localStorage.getItem('accessToken');
     const itemsToDelete = filteredItems.filter(item => selectedItems.has(item.id));
     
     for (const item of itemsToDelete) {
-      let url = '';
-      if (item.type === 'note') url = `${API_URL}/notes/${item.id}/`;
-      if (item.type === 'deck') url = `${API_URL}/decks/decks/${item.id}/`;
-      if (item.type === 'notebook') url = `${API_URL}/notes/notebooks/${item.id}/`;
-      if (item.type === 'reviewer') url = `${API_URL}/reviewers/${item.id}/`;
+      let endpoint = '';
+      if (item.type === 'note') endpoint = `/notes/${item.id}/`;
+      if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
+      if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
+      if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
       try {
-        await fetch(url, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
-          },
-        });
+        await axiosInstance.delete(endpoint);
       } catch (error) {
         // Continue deleting others even if one fails
       }
