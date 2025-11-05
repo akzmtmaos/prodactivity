@@ -70,36 +70,24 @@ function App() {
 
   // More stable authentication check that runs only once on initial load
   useEffect(() => {
-    // Only run this once to prevent loops
-    if (!authState.checkedStorage) {
-      const userData = localStorage.getItem("user");
-      console.log("App: Checking localStorage for user data");
-      
-      if (userData && userData !== "undefined") {
-        try {
-          // Parse the user data
-          const parsed = JSON.parse(userData);
-          if (parsed && typeof parsed === 'object' && parsed.username) {
-            // Valid user found
-            console.log("App: Valid user found in localStorage:", parsed.username);
-            setAuthState({ 
-              isAuthenticated: true, 
-              isLoading: false, 
-              checkedStorage: true 
-            });
-          } else {
-            // Invalid user data
-            console.log("App: Invalid user data (missing username)");
-            localStorage.removeItem("user");
-            setAuthState({ 
-              isAuthenticated: false, 
-              isLoading: false, 
-              checkedStorage: true 
-            });
-          }
-        } catch (e) {
-          // Error parsing JSON
-          console.error("App: Invalid user data in localStorage:", e);
+    const userData = localStorage.getItem("user");
+    console.log("App: Checking localStorage for user data");
+    
+    if (userData && userData !== "undefined") {
+      try {
+        // Parse the user data
+        const parsed = JSON.parse(userData);
+        if (parsed && typeof parsed === 'object' && parsed.username) {
+          // Valid user found
+          console.log("App: Valid user found in localStorage:", parsed.username);
+          setAuthState({ 
+            isAuthenticated: true, 
+            isLoading: false, 
+            checkedStorage: true 
+          });
+        } else {
+          // Invalid user data
+          console.log("App: Invalid user data (missing username)");
           localStorage.removeItem("user");
           setAuthState({ 
             isAuthenticated: false, 
@@ -107,17 +95,26 @@ function App() {
             checkedStorage: true 
           });
         }
-      } else {
-        // No user data
-        console.log("App: No user data found in localStorage");
+      } catch (e) {
+        // Error parsing JSON
+        console.error("App: Invalid user data in localStorage:", e);
+        localStorage.removeItem("user");
         setAuthState({ 
           isAuthenticated: false, 
           isLoading: false, 
           checkedStorage: true 
         });
       }
+    } else {
+      // No user data
+      console.log("App: No user data found in localStorage");
+      setAuthState({ 
+        isAuthenticated: false, 
+        isLoading: false, 
+        checkedStorage: true 
+      });
     }
-  }, [authState.checkedStorage]);
+  }, []); // Empty dependency array - run only once on mount
 
   // Add listener for login events
   useEffect(() => {
