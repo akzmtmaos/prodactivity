@@ -16,7 +16,7 @@ import QuizSession from '../components/decks/QuizSession';
 import Toast from '../components/common/Toast';
 import type { SubDeck } from '../components/decks/SubDeckModal';
 import { truncateHtmlContent } from '../utils/htmlUtils';
-import { API_BASE_URL_URL } from '../config/api';
+import { API_BASE_URL } from '../config/api';
 import axiosInstance from '../utils/axiosConfig';
 
 interface FlashcardData {
