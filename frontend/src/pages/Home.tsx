@@ -3,12 +3,14 @@ import React, { useEffect, useState } from 'react';
 import { Clock, Calendar, BookOpen, CheckSquare, ChevronLeft, ChevronRight, Search, X, FileText, Target, CheckCircle } from 'lucide-react';
 import { useNavbar } from '../context/NavbarContext';
 import axios from 'axios';
+import axiosInstance from '../utils/axiosConfig';
 import { useNavigate } from 'react-router-dom';
 import PageLayout from '../components/PageLayout';
 import { Task } from '../types/task';
 import { ScheduleEvent } from '../types/schedule';
 import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
+import { API_BASE_URL } from '../config/api';
 
 interface User {
   username: string;
@@ -49,8 +51,6 @@ interface SearchResult {
   category: string;
   timestamp?: string;
 }
-
-const API_BASE_URL = '/api';
 
 const Home = () => {
   const [user, setUser] = useState<User | null>(null);
@@ -172,9 +172,7 @@ const Home = () => {
 
       // Search Notes
       try {
-        const notesResponse = await axios.get(`${API_BASE_URL}/notes/?search=${encodeURIComponent(query)}`, {
-          headers: getAuthHeaders()
-        });
+        const notesResponse = await axiosInstance.get(`/notes/?search=${encodeURIComponent(query)}`);
         
         const notesData = notesResponse.data.results || notesResponse.data;
         if (Array.isArray(notesData)) {
@@ -198,9 +196,7 @@ const Home = () => {
 
       // Search Decks
       try {
-        const decksResponse = await axios.get(`${API_BASE_URL}/decks/decks/?search=${encodeURIComponent(query)}`, {
-          headers: getAuthHeaders()
-        });
+        const decksResponse = await axiosInstance.get(`/decks/decks/?search=${encodeURIComponent(query)}`);
         
         const decksData = decksResponse.data.results || decksResponse.data;
         if (Array.isArray(decksData)) {
@@ -223,9 +219,7 @@ const Home = () => {
 
       // Search Tasks (exclude completed tasks)
       try {
-        const tasksResponse = await axios.get(`${API_BASE_URL}/tasks/?search=${encodeURIComponent(query)}&completed=false`, {
-          headers: getAuthHeaders()
-        });
+        const tasksResponse = await axiosInstance.get(`/tasks/?search=${encodeURIComponent(query)}&completed=false`);
         
         const tasksData = tasksResponse.data.results || tasksResponse.data;
         if (Array.isArray(tasksData)) {
@@ -456,9 +450,7 @@ const Home = () => {
     try {
       console.log('Fetching recent notes...');
       console.log('Notes API URL:', `${API_BASE_URL}/notes/`);
-      const response = await axios.get(`${API_BASE_URL}/notes/`, {
-        headers: getAuthHeaders()
-      });
+      const response = await axiosInstance.get(`/notes/`);
       
       console.log('Received notes:', response.data);
       
@@ -557,7 +549,7 @@ const Home = () => {
     try {
       const params = new URLSearchParams();
       params.append('completed', 'true');
-      const response = await axios.get(`${API_BASE_URL}/tasks/?${params.toString()}`, { headers: getAuthHeaders() });
+      const response = await axiosInstance.get(`/tasks/?${params.toString()}`);
       console.log('Completed tasks response:', response.data);
       
       // Handle paginated response
@@ -625,9 +617,7 @@ const Home = () => {
   const fetchNotesCount = async () => {
     try {
       console.log('Fetching notes count...');
-      const response = await axios.get(`${API_BASE_URL}/notes/`, {
-        headers: getAuthHeaders()
-      });
+      const response = await axiosInstance.get(`/notes/`);
       
       // Handle paginated response
       if (response.data && typeof response.data.count === 'number') {
@@ -756,10 +746,8 @@ const Home = () => {
     try {
       console.log('Opening note:', noteId);
       // Update the last_visited timestamp
-      const response = await axios.patch(`${API_BASE_URL}/notes/${noteId}/`, {
+      const response = await axiosInstance.patch(`/notes/${noteId}/`, {
         last_visited: new Date().toISOString()
-      }, {
-        headers: getAuthHeaders()
       });
       
       console.log('Visit update response:', response.data);
