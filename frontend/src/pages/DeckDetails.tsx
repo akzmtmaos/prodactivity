@@ -13,6 +13,7 @@ import DeckCard from '../components/decks/DeckCard';
 import { truncateHtmlContent } from '../utils/htmlUtils';
 import { API_BASE_URL } from '../config/api';
 import axiosInstance from '../utils/axiosConfig';
+import axios from 'axios';
 
 interface Flashcard {
   id: string;
