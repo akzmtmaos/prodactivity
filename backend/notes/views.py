@@ -122,8 +122,22 @@ class NoteRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         note = self.get_object()
         print(f"[DEBUG] PUT /api/notes/{note.id}/ - data: {request.data}")
         
-        # Update the note with the provided data
-        serializer = self.get_serializer(note, data=request.data, partial=False)
+        # Merge request data with existing note data to ensure all fields are present
+        # This allows partial updates while maintaining full object validation
+        update_data = {
+            'title': request.data.get('title', note.title),
+            'content': request.data.get('content', note.content),
+            'notebook': request.data.get('notebook', note.notebook.id),
+            'note_type': request.data.get('note_type', note.note_type),
+            'priority': request.data.get('priority', note.priority),
+            'is_urgent': request.data.get('is_urgent', note.is_urgent),
+            'tags': request.data.get('tags', note.tags or ''),
+            'is_deleted': request.data.get('is_deleted', note.is_deleted),
+            'is_archived': request.data.get('is_archived', note.is_archived),
+        }
+        
+        # Update the note with the merged data
+        serializer = self.get_serializer(note, data=update_data, partial=False)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
