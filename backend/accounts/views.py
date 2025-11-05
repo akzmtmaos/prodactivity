@@ -524,3 +524,103 @@ def change_password(request):
     request.user.save()
     
     return Response({'detail': 'Password changed successfully'})
+
+# Account recovery endpoint: Recreate Django user from Supabase
+@api_view(['POST'])
+@throttle_classes([AnonRateThrottle])
+def recover_account(request):
+    """
+    Recover account that exists in Supabase but not in Django.
+    Creates Django user and sends password reset email.
+    """
+    email = request.data.get('email', '').strip()
+    
+    if not email:
+        return Response({'detail': 'Email is required'}, status=400)
+    
+    # Check if user already exists in Django
+    django_user = User.objects.filter(email__iexact=email).first()
+    if django_user:
+        return Response({
+            'detail': 'Account already exists in Django. Please use the login page.',
+            'error_code': 'USER_EXISTS_IN_DJANGO'
+        }, status=400)
+    
+    # Check if user exists in Supabase
+    print(f"🔍 Checking Supabase for user: {email}")
+    supabase_user = get_user_from_supabase_by_email(email.lower())
+    
+    if not supabase_user:
+        # Don't reveal whether email exists
+        return Response({
+            'detail': 'If an account exists for that email, a recovery link has been sent.',
+            'error_code': 'USER_NOT_FOUND'
+        })
+    
+    print(f"✅ Found user in Supabase: {supabase_user}")
+    
+    # Create Django user from Supabase data
+    try:
+        # Generate a temporary random password (user will reset it)
+        from django.utils.crypto import get_random_string
+        temp_password = get_random_string(32)
+        
+        # Create Django user
+        username = supabase_user.get('username', email.split('@')[0])
+        # Make sure username is unique
+        base_username = username.lower()
+        counter = 1
+        while User.objects.filter(username=base_username).exists():
+            base_username = f"{username.lower()}{counter}"
+            counter += 1
+        
+        django_user = User.objects.create_user(
+            username=base_username,
+            email=email.lower(),
+            password=temp_password  # Temporary password, user will reset
+        )
+        
+        # Set user properties from Supabase
+        if supabase_user.get('email_verified'):
+            django_user.is_active = True
+            if hasattr(django_user, 'profile'):
+                django_user.profile.email_verified = True
+                if supabase_user.get('email_verified_at'):
+                    try:
+                        from dateutil import parser
+                        django_user.profile.email_verified_at = parser.parse(supabase_user['email_verified_at'])
+                    except ImportError:
+                        # Fallback to datetime parsing if dateutil not available
+                        from datetime import datetime
+                        django_user.profile.email_verified_at = datetime.fromisoformat(supabase_user['email_verified_at'].replace('Z', '+00:00'))
+                django_user.profile.save()
+        
+        django_user.save()
+        
+        print(f"✅ Created Django user: {django_user.username} (ID: {django_user.id})")
+        
+        # Send password reset email so user can set their password
+        if is_email_configured():
+            token = generate_verification_token()
+            store_verification_token(token, django_user.id, 'password_reset')
+            send_password_reset_email(django_user, token)
+            return Response({
+                'success': True,
+                'detail': 'Account recovered successfully! A password reset link has been sent to your email. Please check your inbox to set your password.',
+                'message': 'Account recovered. Please check your email to set your password.'
+            })
+        else:
+            return Response({
+                'success': True,
+                'detail': 'Account recovered successfully! However, email service is not configured. Please contact support to set your password.',
+                'message': 'Account recovered but email not configured.'
+            }, status=200)
+            
+    except Exception as e:
+        print(f"❌ Error recovering account: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return Response({
+            'detail': f'Failed to recover account: {str(e)}',
+            'error_code': 'RECOVERY_FAILED'
+        }, status=500)
