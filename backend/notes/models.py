@@ -7,28 +7,8 @@ from django.dispatch import receiver
 from .supabase_sync import sync_notebook_to_supabase, update_notebook_in_supabase, sync_note_to_supabase, update_note_in_supabase
 
 class Notebook(models.Model):
-    NOTEBOOK_TYPE_CHOICES = [
-        ('study', 'Study Notes'),
-        ('meeting', 'Meeting Notes'),
-        ('personal', 'Personal Notes'),
-        ('work', 'Work Notes'),
-        ('project', 'Project Notes'),
-        ('research', 'Research Notes'),
-        ('other', 'Other'),
-    ]
-    
-    URGENCY_CHOICES = [
-        ('normal', 'Normal'),
-        ('important', 'Important'),
-        ('urgent', 'Urgent'),
-        ('critical', 'Critical'),
-    ]
-    
     name = models.CharField(max_length=255)
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='notebooks')
-    notebook_type = models.CharField(max_length=20, choices=NOTEBOOK_TYPE_CHOICES, default='other')
-    urgency_level = models.CharField(max_length=20, choices=URGENCY_CHOICES, default='normal')
-    description = models.TextField(blank=True, help_text="Brief description of the notebook's purpose")
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
     is_archived = models.BooleanField(default=False)

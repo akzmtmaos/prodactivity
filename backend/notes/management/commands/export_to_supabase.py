@@ -93,9 +93,6 @@ class Command(BaseCommand):
                 'id': notebook.id,
                 'name': notebook.name,
                 'user_id': notebook.user.id,  # Django user ID
-                'notebook_type': notebook.notebook_type,
-                'urgency_level': notebook.urgency_level,
-                'description': notebook.description,
                 'created_at': notebook.created_at.isoformat(),
                 'updated_at': notebook.updated_at.isoformat(),
                 'is_archived': notebook.is_archived,
@@ -117,13 +114,10 @@ class Command(BaseCommand):
                 f.write('-- Replace user_id values with actual Supabase user IDs\n\n')
                 
                 for notebook in notebooks_data:
-                    f.write(f"INSERT INTO notebooks (id, name, user_id, notebook_type, urgency_level, description, created_at, updated_at, is_archived, archived_at) VALUES (\n")
+                    f.write(f"INSERT INTO notebooks (id, name, user_id, created_at, updated_at, is_archived, archived_at) VALUES (\n")
                     f.write(f"  {notebook['id']},\n")
                     f.write(f"  '{notebook['name'].replace(\"'\", \"''\")}',\n")
                     f.write(f"  '[REPLACE_WITH_SUPABASE_USER_ID]', -- Django user ID: {notebook['user_id']}\n")
-                    f.write(f"  '{notebook['notebook_type']}',\n")
-                    f.write(f"  '{notebook['urgency_level']}',\n")
-                    f.write(f"  '{notebook['description'].replace(\"'\", \"''\")}',\n")
                     f.write(f"  '{notebook['created_at']}',\n")
                     f.write(f"  '{notebook['updated_at']}',\n")
                     f.write(f"  {str(notebook['is_archived']).lower()},\n")

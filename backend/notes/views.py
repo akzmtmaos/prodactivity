@@ -377,20 +377,11 @@ def urgent_notes_and_notebooks(request):
         ).select_related('notebook').order_by('-updated_at')
         
         # Get urgent notebooks
-        urgent_notebooks = Notebook.objects.filter(
-            user=request.user,
-            is_archived=False
-        ).filter(
-            Q(urgency_level='urgent') | Q(urgency_level='critical')
-        ).order_by('-updated_at')
+        # Get urgent notes only (notebook urgency_level field removed)
+        urgent_notebooks = Notebook.objects.none()  # No longer filtering by urgency_level
         
-        # Get notes from urgent notebooks
-        notes_from_urgent_notebooks = Note.objects.filter(
-            user=request.user,
-            is_deleted=False,
-            is_archived=False,
-            notebook__urgency_level__in=['urgent', 'critical']
-        ).select_related('notebook').order_by('-updated_at')
+        # Get notes from urgent notebooks (notebook urgency_level field removed)
+        notes_from_urgent_notebooks = Note.objects.none()  # No longer filtering by urgency_level
         
         # Combine and deduplicate
         all_urgent_notes = list(urgent_notes) + list(notes_from_urgent_notebooks)
@@ -444,28 +435,24 @@ def notes_by_type(request):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def notebooks_by_type(request):
-    """Get notebooks filtered by type (study, work, etc.)"""
-    notebook_type = request.query_params.get('type', None)
-    if not notebook_type:
-        return Response({'error': 'Notebook type parameter is required'}, status=status.HTTP_400_BAD_REQUEST)
-    
+    """Get notebooks filtered by type (DEPRECATED: notebook_type field removed)"""
+    # Notebook type field has been removed, return all notebooks
     try:
         notebooks = Notebook.objects.filter(
             user=request.user,
-            is_archived=False,
-            notebook_type=notebook_type
+            is_archived=False
         ).order_by('-updated_at')
         
         serializer = NotebookSerializer(notebooks, many=True)
         return Response({
             'notebooks': serializer.data,
-            'type': notebook_type,
-            'count': len(notebooks)
+            'count': len(notebooks),
+            'message': 'Notebook type filtering has been removed. Returning all notebooks.'
         })
         
     except Exception as e:
         return Response(
-            {'error': f'Failed to fetch notebooks by type: {str(e)}'}, 
+            {'error': f'Failed to fetch notebooks: {str(e)}'}, 
             status=status.HTTP_500_INTERNAL_SERVER_ERROR
         )
 
