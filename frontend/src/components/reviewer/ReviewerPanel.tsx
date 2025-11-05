@@ -202,7 +202,10 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       const cached = localStorage.getItem(REVIEWERS_CACHE_KEY);
       if (cached) {
         const parsed = JSON.parse(cached);
-        if (parsed && Array.isArray(parsed.data)) setReviewers(parsed.data);
+        if (parsed && Array.isArray(parsed.data)) {
+          setReviewers(parsed.data);
+          setLoading(false); // Set loading to false immediately after cache hydration
+        }
       }
     } catch {}
 
@@ -210,12 +213,15 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     
     // Add timeout to prevent infinite loading
     const timeout = setTimeout(() => {
-      if (loading) {
-        console.log('Loading timeout reached, forcing loading to false');
-        setLoading(false);
-        setError('Loading timeout - please refresh the page');
-      }
-    }, 10000); // 10 second timeout
+      setLoading(prev => {
+        if (prev) {
+          console.log('Loading timeout reached, forcing loading to false');
+          setError('Loading timeout - please refresh the page');
+          return false;
+        }
+        return prev;
+      });
+    }, 15000); // 15 second timeout
     
     return () => clearTimeout(timeout);
   }, []);
