@@ -149,24 +149,36 @@ class NoteRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         note = self.get_object()
         print(f"[DEBUG] PATCH /api/notes/{note.id}/ - data: {request.data}")
         
-        # Handle archive status
-        is_archived = request.data.get('is_archived', None)
-        if is_archived is not None:
-            note.is_archived = is_archived
-            note.archived_at = timezone.now() if is_archived else None
-            note.save()
-            print(f"[DEBUG] Note {note.id} updated: is_archived={note.is_archived}, archived_at={note.archived_at}")
-        
-        # Handle delete status
-        is_deleted = request.data.get('is_deleted', None)
-        if is_deleted is not None:
-            note.is_deleted = is_deleted
-            note.deleted_at = None if not is_deleted else timezone.now()
-            note.save()
-            print(f"[DEBUG] Note {note.id} updated: is_deleted={note.is_deleted}, deleted_at={note.deleted_at}")
-        
-        serializer = self.get_serializer(note)
-        return Response(serializer.data)
+        # Use serializer with partial=True to handle all fields properly
+        serializer = self.get_serializer(note, data=request.data, partial=True)
+        if serializer.is_valid():
+            # Save the note with all updates from serializer
+            serializer.save()
+            
+            # Handle special timestamp fields that need custom logic
+            needs_save = False
+            if 'is_archived' in request.data:
+                is_archived = request.data.get('is_archived')
+                note.archived_at = timezone.now() if is_archived else None
+                needs_save = True
+                print(f"[DEBUG] Note {note.id} updated: is_archived={note.is_archived}, archived_at={note.archived_at}")
+            
+            if 'is_deleted' in request.data:
+                is_deleted = request.data.get('is_deleted')
+                note.deleted_at = None if not is_deleted else timezone.now()
+                needs_save = True
+                print(f"[DEBUG] Note {note.id} updated: is_deleted={note.is_deleted}, deleted_at={note.deleted_at}")
+            
+            # Save timestamp fields if they were updated
+            if needs_save:
+                note.save(update_fields=['archived_at', 'deleted_at'])
+            
+            # Return updated note data
+            updated_serializer = self.get_serializer(note)
+            return Response(updated_serializer.data)
+        else:
+            print(f"[DEBUG] Validation errors: {serializer.errors}")
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 def convert_docx_to_html(doc):
     """Convert DOCX document to HTML while preserving formatting like bullet lists and tables"""
