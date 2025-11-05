@@ -658,19 +658,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     console.log('Reviewers data:', reviewers);
   }
 
-  // Don't render until reviewers are loaded (notes/notebooks are optional for display)
-  if (loading) {
-    return (
-      <div className="space-y-6 h-full">
-        <div className="text-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto"></div>
-          <p className="mt-2 text-gray-600 dark:text-gray-400">
-            Loading reviewers... (Notes: {notes?.length || 0}, Notebooks: {notebooks?.length || 0}, Reviewers: {reviewers?.length || 0})
-          </p>
-        </div>
-      </div>
-    );
-  }
+  // Render UI immediately; background fetch will hydrate data when ready
 
   return (
     <div className="space-y-6 h-full">
