@@ -537,17 +537,42 @@ def recover_account(request):
     email = request.data.get('email', '').strip()
     password = request.data.get('password', '').strip()  # Optional: allow setting password directly
     
+    print(f"🔍 Recovery request received - Email: '{email}', Has password: {bool(password)}")
+    print(f"📦 Request data: {request.data}")
+    
     if not email:
+        print(f"❌ Email is missing or empty")
         return Response({'detail': 'Email is required'}, status=400)
     
     # Check if user already exists in Django
     django_user = User.objects.filter(email__iexact=email).first()
     if django_user:
-        print(f"✅ User already exists in Django: {django_user.username}")
+        print(f"✅ User already exists in Django: {django_user.username} (ID: {django_user.id})")
+        
+        # If password is provided, update it
+        if password:
+            print(f"🔑 Updating password for existing user...")
+            # Validate password strength
+            is_valid_password, password_error = validate_password(password)
+            if not is_valid_password:
+                return Response({'detail': password_error}, status=400)
+            
+            django_user.set_password(password)
+            django_user.save()
+            print(f"✅ Password updated successfully!")
+            
+            return Response({
+                'success': True,
+                'detail': 'Account found and password updated! You can now log in with your email and password.',
+                'message': 'Password updated. You can log in now.',
+                'user_id': django_user.id,
+                'username': django_user.username
+            })
+        
         return Response({
             'success': True,
-            'detail': 'Account already exists in Django. You can log in now.',
-            'message': 'Account already exists. Please use the login page.',
+            'detail': 'Account already exists in Django. If you cannot log in, please use the password reset feature.',
+            'message': 'Account already exists. Please use the login page or password reset.',
             'error_code': 'USER_EXISTS_IN_DJANGO'
         })
     
