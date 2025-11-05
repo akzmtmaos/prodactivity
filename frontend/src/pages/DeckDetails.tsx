@@ -513,19 +513,19 @@ const DeckDetails: React.FC = () => {
       // Refresh deck data
       const res = await axiosInstance.get(`/decks/decks/${deck.id}/`);
       const data = res.data;
-        setDeck({
-          ...deck,
-          flashcards: [...deck.flashcards, ...allCards.map((c, idx) => ({
-            id: `${deck.id}-imported-${idx}`,
-            question: c.question,
-            answer: c.answer,
-            front: c.question,
-            back: c.answer,
-            difficulty: undefined
-          }))],
-          flashcardCount: deck.flashcardCount + allCards.length
-        });
-      }
+      setDeck({
+        ...deck,
+        flashcards: [...deck.flashcards, ...allCards.map((c, idx) => ({
+          id: `${deck.id}-imported-${idx}`,
+          question: c.question,
+          answer: c.answer,
+          front: c.question,
+          back: c.answer,
+          difficulty: undefined
+        }))],
+        flashcardCount: deck.flashcardCount + allCards.length
+      });
+      
       setShowImportModal(false);
       setSelectedNoteIds(new Set());
     } catch (e) {
