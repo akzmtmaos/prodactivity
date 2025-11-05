@@ -92,6 +92,8 @@ const stripHtmlToText = (html: string): string => {
   return text;
 };
 
+const REVIEWERS_CACHE_KEY = 'reviewersCachedV1';
+
 const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeTab, setActiveTab }) => {
   // Debug props
   console.log('ReviewerPanel props:', { notes, notebooks, activeTab });
@@ -169,12 +171,25 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         response = await doFetch();
       }
       console.log('Reviewers response:', response.data);
-      setReviewers(response.data || []);
+      const data = Array.isArray(response.data) ? response.data : [];
+      setReviewers(data);
+      try {
+        localStorage.setItem(REVIEWERS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+      } catch {}
     } catch (error: any) {
       console.error('Failed to fetch reviewers:', error);
       console.error('Error details:', error.response?.data);
-      setError('Failed to load reviewers');
-      setReviewers([]); // Set empty array on error
+      // Only surface error if nothing cached is shown
+      try {
+        const cached = localStorage.getItem(REVIEWERS_CACHE_KEY);
+        if (!cached) {
+          setError('Failed to load reviewers');
+          setReviewers([]);
+        }
+      } catch {
+        setError('Failed to load reviewers');
+        setReviewers([]);
+      }
     } finally {
       setLoading(false);
       console.log('Fetch reviewers completed, loading set to false');
@@ -182,6 +197,15 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
   };
 
   useEffect(() => {
+    // Instant hydrate from cache for fast first paint
+    try {
+      const cached = localStorage.getItem(REVIEWERS_CACHE_KEY);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (parsed && Array.isArray(parsed.data)) setReviewers(parsed.data);
+      }
+    } catch {}
+
     fetchReviewers();
     
     // Add timeout to prevent infinite loading
