@@ -159,7 +159,15 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       setLoading(true);
       setError(null);
       console.log('Fetching reviewers...');
-      const response = await axiosInstance.get('/reviewers/');
+      const doFetch = () => axiosInstance.get('/reviewers/', { timeout: 12000 });
+      let response;
+      try {
+        response = await doFetch();
+      } catch (_first) {
+        // Retry once after short delay (handles cold start)
+        await new Promise(r => setTimeout(r, 800));
+        response = await doFetch();
+      }
       console.log('Reviewers response:', response.data);
       setReviewers(response.data || []);
     } catch (error: any) {
