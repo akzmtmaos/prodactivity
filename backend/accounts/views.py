@@ -26,7 +26,7 @@ from core.email_utils import (
     delete_verification_token,
     is_email_configured
 )
-from .supabase_sync import update_user_in_supabase, check_user_exists_in_supabase, get_user_from_supabase_by_email
+from .supabase_sync import update_user_in_supabase, check_user_exists_in_supabase, get_user_from_supabase_by_email, get_all_supabase_profiles
 
 def validate_username(username):
     """Validate username format and length"""
@@ -760,3 +760,65 @@ def recover_account(request):
             'detail': f'Failed to recover account: {str(e)}',
             'error_code': 'RECOVERY_FAILED'
         }, status=500)
+
+# Admin-only: bulk sync Supabase profiles -> Django auth_user
+@api_view(['POST'])
+def admin_sync_profiles(request):
+    from django.conf import settings
+    admin_token = request.headers.get('X-Admin-Token', '')
+    if not settings.SYNC_ADMIN_TOKEN or admin_token != settings.SYNC_ADMIN_TOKEN:
+        return Response({'detail': 'Forbidden'}, status=403)
+
+    profiles = get_all_supabase_profiles()
+    created = 0
+    updated = 0
+    skipped = 0
+    errors = []
+    for p in profiles:
+        try:
+            email = (p.get('email') or '').strip().lower()
+            username = (p.get('username') or (email.split('@')[0] if email else '')).strip().lower()
+            if not email or not username:
+                skipped += 1
+                continue
+
+            user = User.objects.filter(email__iexact=email).first()
+            if not user:
+                base_username = username
+                counter = 1
+                while User.objects.filter(username__iexact=username).exists():
+                    username = f"{base_username}{counter}"
+                    counter += 1
+                tmp_pwd = get_random_string(32)
+                user = User.objects.create_user(username=username, email=email, password=tmp_pwd)
+                created += 1
+            else:
+                if username and username != user.username and not User.objects.filter(username__iexact=username).exclude(id=user.id).exists():
+                    user.username = username
+                    updated += 1
+
+            if hasattr(user, 'profile'):
+                if p.get('email_verified'):
+                    user.is_active = True
+                    user.profile.email_verified = True
+                if p.get('email_verified_at'):
+                    try:
+                        from dateutil import parser
+                        user.profile.email_verified_at = parser.parse(p['email_verified_at'])
+                    except Exception:
+                        pass
+                user.profile.save()
+            user.save()
+        except Exception as e:
+            errors.append(str(e))
+
+    return Response({
+        'success': True,
+        'summary': {
+            'profiles_fetched': len(profiles),
+            'created': created,
+            'updated': updated,
+            'skipped': skipped,
+            'errors': len(errors)
+        }
+    })

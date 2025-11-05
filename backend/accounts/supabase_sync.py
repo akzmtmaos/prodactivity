@@ -178,3 +178,22 @@ def get_user_from_supabase_by_email(email):
     except Exception as e:
         print(f"❌ Error getting user from Supabase: {e}")
         return None
+
+def get_all_supabase_profiles(limit: int = 1000):
+    """
+    Fetch all profiles from Supabase REST API.
+    Returns a list of dicts.
+    """
+    try:
+        response = requests.get(
+            f"{SUPABASE_URL}/rest/v1/profiles?select=*&limit={limit}",
+            headers=get_supabase_headers(),
+            timeout=30,
+        )
+        if response.status_code == 200:
+            return response.json()
+        print(f"❌ Failed to list Supabase profiles: {response.status_code} - {response.text}")
+        return []
+    except Exception as e:
+        print(f"❌ Error listing Supabase profiles: {e}")
+        return []

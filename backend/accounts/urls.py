@@ -6,6 +6,7 @@ from .views import password_reset_request, password_reset_confirm, change_passwo
 from .views import verify_email, resend_verification
 from .views import me, verify_password, delete_account
 from .views import recover_account
+from .views import admin_sync_profiles
 
 urlpatterns = [
     path('register/', register, name='register'),
@@ -20,4 +21,5 @@ urlpatterns = [
     path('verify-password/', verify_password, name='verify_password'),
     path('delete-account/', delete_account, name='delete_account'),
     path('recover-account/', recover_account, name='recover_account'),
+    path('admin/sync-profiles/', admin_sync_profiles, name='admin_sync_profiles'),
 ]
