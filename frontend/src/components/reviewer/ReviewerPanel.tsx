@@ -32,6 +32,8 @@ import DeleteConfirmationModal from './DeleteConfirmationModal';
 import GenerateModal from './GenerateModal';
 import InteractiveQuiz from './InteractiveQuiz';
 
+const REVIEWERS_CACHE_KEY = 'reviewerCachedReviewersV1';
+
 interface Reviewer {
   id: number;
   title: string;
@@ -99,7 +101,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
   console.log('ReviewerPanel props:', { notes, notebooks, activeTab });
   
   const [reviewers, setReviewers] = useState<Reviewer[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selectedSource, setSelectedSource] = useState<'note' | 'notebook'>('note');
   const [selectedNote, setSelectedNote] = useState<number | null>(null);
