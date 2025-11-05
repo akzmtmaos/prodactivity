@@ -150,3 +150,31 @@ def check_user_exists_in_supabase(user_id):
     except Exception as e:
         print(f"❌ Error checking user existence in Supabase: {e}")
         return False
+
+def get_user_from_supabase_by_email(email):
+    """
+    Get user data from Supabase by email
+    
+    Args:
+        email: User email address
+    
+    Returns:
+        dict: User data from Supabase, or None if not found
+    """
+    try:
+        response = requests.get(
+            f"{SUPABASE_URL}/rest/v1/profiles?email=eq.{email}",
+            headers=get_supabase_headers()
+        )
+        
+        if response.status_code == 200:
+            data = response.json()
+            if len(data) > 0:
+                return data[0]
+        else:
+            print(f"❌ Failed to get user from Supabase: {response.status_code}")
+            return None
+            
+    except Exception as e:
+        print(f"❌ Error getting user from Supabase: {e}")
+        return None

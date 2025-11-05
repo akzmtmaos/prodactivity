@@ -26,7 +26,7 @@ from core.email_utils import (
     delete_verification_token,
     is_email_configured
 )
-from .supabase_sync import update_user_in_supabase, check_user_exists_in_supabase
+from .supabase_sync import update_user_in_supabase, check_user_exists_in_supabase, get_user_from_supabase_by_email
 
 def validate_username(username):
     """Validate username format and length"""
@@ -153,10 +153,22 @@ def login_view(request):
         print(f"User found: {user}")
         print(f"Total users in database: {User.objects.count()}")
         if not user:
-            print("No user found with this email")
+            print("No user found with this email in Django database")
             # Check if there are any users at all
             all_users = User.objects.all()[:5]
             print(f"Sample users in database: {[u.email for u in all_users]}")
+            
+            # Check if user exists in Supabase but not in Django
+            print(f"Checking if user exists in Supabase...")
+            supabase_user = get_user_from_supabase_by_email(email_lower)
+            if supabase_user:
+                print(f"⚠️ User found in Supabase but NOT in Django database!")
+                print(f"Supabase user data: {supabase_user}")
+                return Response({
+                    'message': 'Account exists in Supabase but not in Django. Please reset your password or contact support.',
+                    'error_code': 'USER_IN_SUPABASE_NOT_DJANGO'
+                }, status=401)
+            
             return Response({'message': 'Invalid credentials'}, status=401)
     except Exception as e:
         print(f"Exception finding user: {e}")
