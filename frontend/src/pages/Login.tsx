@@ -4,6 +4,7 @@ import { Mail, Lock, LogIn, Eye, EyeOff } from 'lucide-react';
 // @ts-ignore
 import { motion, AnimatePresence } from 'framer-motion';
 import ResendVerificationModal from '../components/common/ResendVerificationModal';
+import { API_BASE_URL } from '../config/api';
 
 interface LoginProps {
   setIsAuthenticated: (value: boolean | ((prevState: boolean) => boolean)) => void;
@@ -45,7 +46,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
     setMessage(null);
 
     try {
-      const res = await fetch('/api/login/', {
+      const res = await fetch(`${API_BASE_URL}/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -109,7 +110,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
     
     setForgotStatus('sending');
     try {
-      const res = await fetch('http://192.168.68.162:8000/api/password-reset/', {
+      const res = await fetch(`${API_BASE_URL}/password-reset/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: trimmedEmail })
