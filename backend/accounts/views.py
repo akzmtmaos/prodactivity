@@ -77,17 +77,31 @@ def register(request):
         return Response({'success': False, 'message': password_error}, status=status.HTTP_400_BAD_REQUEST)
 
     # Check for existing email BEFORE creating user
+    print(f"Registration attempt - Email: {email}, Username: {username}")
+    print(f"Checking if email exists: {User.objects.filter(email=email).exists()}")
+    print(f"Checking if username exists: {User.objects.filter(username=username).exists()}")
+    
     if User.objects.filter(email=email).exists():
+        print(f"Email {email} already exists!")
         return Response({'success': False, 'message': 'Email is already registered'}, status=status.HTTP_400_BAD_REQUEST)
     
     # Check for existing username BEFORE creating user
     if User.objects.filter(username=username).exists():
+        print(f"Username {username} already exists!")
         return Response({'success': False, 'message': 'Username is already taken'}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
+        print(f"Creating user with email: {email}, username: {username}")
         user = User.objects.create_user(username=username, email=email, password=password)
+        print(f"User created successfully! User ID: {user.id}, Username: {user.username}, Email: {user.email}")
+        
         user.is_active = not settings.EMAIL_VERIFICATION_REQUIRED  # Deactivate if email verification required
         user.save()
+        
+        # Verify user was saved
+        saved_user = User.objects.filter(email=email).first()
+        print(f"Verification - User in database: {saved_user}")
+        print(f"Total users in database: {User.objects.count()}")
         
         # Send verification email if required
         if settings.EMAIL_VERIFICATION_REQUIRED and is_email_configured():
@@ -98,6 +112,7 @@ def register(request):
         else:
             message = 'Account created successfully!'
         
+        print(f"Registration successful for user: {user.username}")
         return Response({
             'success': True, 
             'message': message,
