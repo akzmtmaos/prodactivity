@@ -1906,109 +1906,139 @@ const Notes = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.docx';
+    input.multiple = true; // Enable multiple file selection
     input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+      const files = (e.target as HTMLInputElement).files;
+      if (!files || files.length === 0) return;
 
       setIsImporting(true);
-      try {
-        const fileName = file.name.replace('.docx', '');
-        
-        // Parse DOCX content using mammoth
-        const arrayBuffer = await file.arrayBuffer();
-        const result = await mammoth.extractRawText({ arrayBuffer });
-        const docxContent = result.value;
-        const warnings = result.messages;
-        
-        // Create content with extracted text and metadata
-        let content = `# ${fileName}\n\n`;
-        
-        if (docxContent.trim()) {
-          content += `## Document Content\n\n`;
-          
-          // First, try to split by common patterns to create proper paragraphs
-          let processedContent = docxContent
-            // Split by double spaces or periods followed by space and capital letter
-            .replace(/([.!?])\s+([A-Z])/g, '$1\n\n$2')
-            // Split by question patterns
-            .replace(/(Q\d+\.)/g, '\n\n$1')
-            // Split by answer patterns
-            .replace(/([A-D]\))/g, '\n$1')
-            // Split by "Correct Answer:" patterns
-            .replace(/(Correct Answer:)/g, '\n\n$1')
-            // Clean up multiple newlines
-            .replace(/\n{3,}/g, '\n\n')
-            .trim();
-          
-          // Now format the processed content
-          const lines = processedContent.split('\n').map(line => line.trim()).filter(line => line);
-          const formattedLines = [];
-          
-          for (let i = 0; i < lines.length; i++) {
-            const line = lines[i];
-            
-            // Format questions (Q1., Q2., etc.)
-            if (/^Q\d+\./.test(line)) {
-              formattedLines.push(`### ${line}`);
-            }
-            // Format answers (A), B), C), D))
-            else if (/^[A-D]\)/.test(line)) {
-              formattedLines.push(`- ${line}`);
-            }
-            // Format "Correct Answer:" lines
-            else if (/^Correct Answer:/.test(line)) {
-              formattedLines.push(`**${line}**`);
-            }
-            // Format other content (titles, descriptions, etc.)
-            else {
-              // If it's a standalone line that looks like a title or description
-              if (line.length > 10 && !line.includes('.') && !line.includes(':')) {
-                formattedLines.push(`**${line}**`);
-              } else {
-                formattedLines.push(line);
-              }
-            }
-          }
-          
-          content += formattedLines.join('\n\n') + '\n\n';
-        } else {
-          content += `*No text content found in the document.*\n\n`;
-        }
-        
-        // Add file metadata
-        content += `---\n\n**File Information:**\n`;
-        content += `- **Name:** ${file.name}\n`;
-        content += `- **Size:** ${(file.size / 1024).toFixed(2)} KB\n`;
-        content += `- **Type:** Microsoft Word Document\n`;
-        content += `- **Imported:** ${new Date().toLocaleString()}\n`;
-        
-        if (warnings.length > 0) {
-          content += `\n**Parsing Warnings:**\n`;
-          warnings.forEach(warning => {
-            content += `- ${warning.message}\n`;
-          });
-        }
-        
-        await axiosInstance.post('/notes/', {
-          title: fileName,
-          content: content,
-          note_type: 'other',
-          priority: 'medium',
-          is_urgent: false,
-          tags: 'imported,docx,parsed',
-          notebook: selectedNotebook.id
-        });
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
 
-        // Refresh notes list
+      try {
+        // Process all selected files
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          try {
+            const fileName = file.name.replace('.docx', '');
+            
+            // Parse DOCX content using mammoth
+            const arrayBuffer = await file.arrayBuffer();
+            const result = await mammoth.extractRawText({ arrayBuffer });
+            const docxContent = result.value;
+            const warnings = result.messages;
+            
+            // Create content with extracted text and metadata
+            let content = `# ${fileName}\n\n`;
+            
+            if (docxContent.trim()) {
+              content += `## Document Content\n\n`;
+              
+              // First, try to split by common patterns to create proper paragraphs
+              let processedContent = docxContent
+                // Split by double spaces or periods followed by space and capital letter
+                .replace(/([.!?])\s+([A-Z])/g, '$1\n\n$2')
+                // Split by question patterns
+                .replace(/(Q\d+\.)/g, '\n\n$1')
+                // Split by answer patterns
+                .replace(/([A-D]\))/g, '\n$1')
+                // Split by "Correct Answer:" patterns
+                .replace(/(Correct Answer:)/g, '\n\n$1')
+                // Clean up multiple newlines
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+              
+              // Now format the processed content
+              const lines = processedContent.split('\n').map(line => line.trim()).filter(line => line);
+              const formattedLines = [];
+              
+              for (let j = 0; j < lines.length; j++) {
+                const line = lines[j];
+                
+                // Format questions (Q1., Q2., etc.)
+                if (/^Q\d+\./.test(line)) {
+                  formattedLines.push(`### ${line}`);
+                }
+                // Format answers (A), B), C), D))
+                else if (/^[A-D]\)/.test(line)) {
+                  formattedLines.push(`- ${line}`);
+                }
+                // Format "Correct Answer:" lines
+                else if (/^Correct Answer:/.test(line)) {
+                  formattedLines.push(`**${line}**`);
+                }
+                // Format other content (titles, descriptions, etc.)
+                else {
+                  // If it's a standalone line that looks like a title or description
+                  if (line.length > 10 && !line.includes('.') && !line.includes(':')) {
+                    formattedLines.push(`**${line}**`);
+                  } else {
+                    formattedLines.push(line);
+                  }
+                }
+              }
+              
+              content += formattedLines.join('\n\n') + '\n\n';
+            } else {
+              content += `*No text content found in the document.*\n\n`;
+            }
+            
+            // Add file metadata
+            content += `---\n\n**File Information:**\n`;
+            content += `- **Name:** ${file.name}\n`;
+            content += `- **Size:** ${(file.size / 1024).toFixed(2)} KB\n`;
+            content += `- **Type:** Microsoft Word Document\n`;
+            content += `- **Imported:** ${new Date().toLocaleString()}\n`;
+            
+            if (warnings.length > 0) {
+              content += `\n**Parsing Warnings:**\n`;
+              warnings.forEach(warning => {
+                content += `- ${warning.message}\n`;
+              });
+            }
+            
+            await axiosInstance.post('/notes/', {
+              title: fileName,
+              content: content,
+              note_type: 'other',
+              priority: 'medium',
+              is_urgent: false,
+              tags: 'imported,docx,parsed',
+              notebook: selectedNotebook.id
+            });
+
+            successCount++;
+          } catch (error) {
+            console.error(`DOCX import failed for ${file.name}:`, error);
+            errorCount++;
+            errors.push(file.name);
+          }
+        }
+
+        // Refresh notes list after all imports
         await fetchNotes(selectedNotebook.id);
 
-        setToast({ 
-          message: `Imported DOCX file as a note successfully!`, 
-          type: 'success' 
-        });
+        // Show summary toast
+        if (successCount > 0 && errorCount === 0) {
+          setToast({ 
+            message: `Successfully imported ${successCount} DOCX file${successCount > 1 ? 's' : ''}!`, 
+            type: 'success' 
+          });
+        } else if (successCount > 0 && errorCount > 0) {
+          setToast({ 
+            message: `Imported ${successCount} file${successCount > 1 ? 's' : ''}, ${errorCount} failed: ${errors.join(', ')}`, 
+            type: 'error' 
+          });
+        } else {
+          setToast({ 
+            message: `Failed to import DOCX files: ${errors.join(', ')}`, 
+            type: 'error' 
+          });
+        }
       } catch (error) {
         console.error('DOCX import failed:', error);
-        setToast({ message: 'Failed to import DOCX file.', type: 'error' });
+        setToast({ message: 'Failed to import DOCX files.', type: 'error' });
       } finally {
         setIsImporting(false);
         setShowImportFormatModal(false);
@@ -2023,35 +2053,65 @@ const Notes = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.pdf';
+    input.multiple = true; // Enable multiple file selection
     input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+      const files = (e.target as HTMLInputElement).files;
+      if (!files || files.length === 0) return;
 
       setIsImporting(true);
-      try {
-        const fileName = file.name.replace('.pdf', '');
-        
-        // Create a note with file information
-        await axiosInstance.post('/notes/', {
-          title: fileName,
-          content: `📄 **PDF File Imported**\n\n**File:** ${file.name}\n**Size:** ${(file.size / 1024).toFixed(2)} KB\n**Type:** Portable Document Format\n\n*Note: The actual PDF content cannot be directly parsed in the browser. For full content extraction, please use a desktop application or convert to plain text first.*`,
-          note_type: 'other',
-          priority: 'medium',
-          is_urgent: false,
-          tags: 'imported,pdf,file',
-          notebook: selectedNotebook.id
-        });
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
 
-        // Refresh notes list
+      try {
+        // Process all selected files
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          try {
+            const fileName = file.name.replace('.pdf', '');
+            
+            // Create a note with file information
+            await axiosInstance.post('/notes/', {
+              title: fileName,
+              content: `📄 **PDF File Imported**\n\n**File:** ${file.name}\n**Size:** ${(file.size / 1024).toFixed(2)} KB\n**Type:** Portable Document Format\n\n*Note: The actual PDF content cannot be directly parsed in the browser. For full content extraction, please use a desktop application or convert to plain text first.*`,
+              note_type: 'other',
+              priority: 'medium',
+              is_urgent: false,
+              tags: 'imported,pdf,file',
+              notebook: selectedNotebook.id
+            });
+
+            successCount++;
+          } catch (error) {
+            console.error(`PDF import failed for ${file.name}:`, error);
+            errorCount++;
+            errors.push(file.name);
+          }
+        }
+
+        // Refresh notes list after all imports
         await fetchNotes(selectedNotebook.id);
 
-        setToast({ 
-          message: `Imported PDF file as a note successfully!`, 
-          type: 'success' 
-        });
+        // Show summary toast
+        if (successCount > 0 && errorCount === 0) {
+          setToast({ 
+            message: `Successfully imported ${successCount} PDF file${successCount > 1 ? 's' : ''}!`, 
+            type: 'success' 
+          });
+        } else if (successCount > 0 && errorCount > 0) {
+          setToast({ 
+            message: `Imported ${successCount} file${successCount > 1 ? 's' : ''}, ${errorCount} failed: ${errors.join(', ')}`, 
+            type: 'error' 
+          });
+        } else {
+          setToast({ 
+            message: `Failed to import PDF files: ${errors.join(', ')}`, 
+            type: 'error' 
+          });
+        }
       } catch (error) {
         console.error('PDF import failed:', error);
-        setToast({ message: 'Failed to import PDF file.', type: 'error' });
+        setToast({ message: 'Failed to import PDF files.', type: 'error' });
       } finally {
         setIsImporting(false);
         setShowImportFormatModal(false);
@@ -2066,36 +2126,66 @@ const Notes = () => {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.txt';
+    input.multiple = true; // Enable multiple file selection
     input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (!file) return;
+      const files = (e.target as HTMLInputElement).files;
+      if (!files || files.length === 0) return;
 
       setIsImporting(true);
-      try {
-        const fileName = file.name.replace('.txt', '');
-        const fileContent = await file.text();
-        
-        // Create a note with actual file content
-        await axiosInstance.post('/notes/', {
-          title: fileName,
-          content: fileContent,
-          note_type: 'other',
-          priority: 'medium',
-          is_urgent: false,
-          tags: 'imported,txt,text',
-          notebook: selectedNotebook.id
-        });
+      let successCount = 0;
+      let errorCount = 0;
+      const errors: string[] = [];
 
-        // Refresh notes list
+      try {
+        // Process all selected files
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          try {
+            const fileName = file.name.replace('.txt', '');
+            const fileContent = await file.text();
+            
+            // Create a note with actual file content
+            await axiosInstance.post('/notes/', {
+              title: fileName,
+              content: fileContent,
+              note_type: 'other',
+              priority: 'medium',
+              is_urgent: false,
+              tags: 'imported,txt,text',
+              notebook: selectedNotebook.id
+            });
+
+            successCount++;
+          } catch (error) {
+            console.error(`TXT import failed for ${file.name}:`, error);
+            errorCount++;
+            errors.push(file.name);
+          }
+        }
+
+        // Refresh notes list after all imports
         await fetchNotes(selectedNotebook.id);
 
-        setToast({ 
-          message: `Imported TXT file as a note successfully!`, 
-          type: 'success' 
-        });
+        // Show summary toast
+        if (successCount > 0 && errorCount === 0) {
+          setToast({ 
+            message: `Successfully imported ${successCount} TXT file${successCount > 1 ? 's' : ''}!`, 
+            type: 'success' 
+          });
+        } else if (successCount > 0 && errorCount > 0) {
+          setToast({ 
+            message: `Imported ${successCount} file${successCount > 1 ? 's' : ''}, ${errorCount} failed: ${errors.join(', ')}`, 
+            type: 'error' 
+          });
+        } else {
+          setToast({ 
+            message: `Failed to import TXT files: ${errors.join(', ')}`, 
+            type: 'error' 
+          });
+        }
       } catch (error) {
         console.error('TXT import failed:', error);
-        setToast({ message: 'Failed to import TXT file.', type: 'error' });
+        setToast({ message: 'Failed to import TXT files.', type: 'error' });
       } finally {
         setIsImporting(false);
         setShowImportFormatModal(false);
