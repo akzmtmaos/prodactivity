@@ -163,11 +163,43 @@ def login_view(request):
         return Response({'message': 'Email and password required.'}, status=400)
 
     try:
-        # Try case-insensitive email matching first
+        # Check Supabase FIRST to get the correct username
         email_lower = email.lower().strip()
-        user = User.objects.filter(email__iexact=email_lower).first()
+        print(f"🔍 Checking Supabase for correct username...")
+        supabase_user = get_user_from_supabase_by_email(email_lower)
+        supabase_username = None
+        if supabase_user:
+            supabase_username = supabase_user.get('username')
+            print(f"📦 Supabase username: {supabase_username}")
         
-        # If not found, try exact match (for backward compatibility)
+        # Try to find user with Supabase username first (if available)
+        user = None
+        if supabase_username:
+            user = User.objects.filter(username__iexact=supabase_username).first()
+            if user:
+                print(f"✅ Found user with Supabase username: {user.username} (ID: {user.id})")
+                # Verify email matches
+                if user.email.lower() != email_lower:
+                    print(f"⚠️ Username matches but email doesn't! Username: {user.username}, Email: {user.email}")
+                    user = None
+        
+        # If not found by username, try email matching
+        if not user:
+            user = User.objects.filter(email__iexact=email_lower).first()
+            if user:
+                print(f"✅ Found user by email: {user.username} (ID: {user.id})")
+                # Check if username matches Supabase
+                if supabase_username and user.username.lower() != supabase_username.lower():
+                    print(f"⚠️ Username mismatch! Django: {user.username}, Supabase: {supabase_username}")
+                    # Try to find the correct user with Supabase username
+                    correct_user = User.objects.filter(username__iexact=supabase_username).first()
+                    if correct_user:
+                        print(f"🔄 Found correct user with Supabase username: {correct_user.username} (ID: {correct_user.id})")
+                        user = correct_user
+                    else:
+                        print(f"⚠️ User with email exists but wrong username. Will update username and password.")
+        
+        # If still not found, try exact match (for backward compatibility)
         if not user:
             user = User.objects.filter(email=email).first()
         
@@ -179,9 +211,10 @@ def login_view(request):
             all_users = User.objects.all()[:5]
             print(f"Sample users in database: {[u.email for u in all_users]}")
             
-            # Check if user exists in Supabase but not in Django
-            print(f"Checking if user exists in Supabase...")
-            supabase_user = get_user_from_supabase_by_email(email_lower)
+            # Check if user exists in Supabase but not in Django (if not already checked)
+            if not supabase_user:
+                print(f"Checking if user exists in Supabase...")
+                supabase_user = get_user_from_supabase_by_email(email_lower)
             if supabase_user:
                 print(f"⚠️ User found in Supabase but NOT in Django database!")
                 print(f"Supabase user data: {supabase_user}")
@@ -250,7 +283,34 @@ def login_view(request):
     if hasattr(user, 'profile'):
         print(f"Profile email_verified: {user.profile.email_verified}")
     
-    if user.check_password(password):
+    # If username doesn't match Supabase, update it
+    if supabase_username and user.username.lower() != supabase_username.lower():
+        print(f"🔄 Updating username from '{user.username}' to '{supabase_username}'...")
+        # Check if Supabase username is already taken by another user
+        if User.objects.filter(username__iexact=supabase_username).exclude(id=user.id).exists():
+            print(f"⚠️ Username '{supabase_username}' is already taken by another user")
+            # Try to find the user with the correct username
+            correct_user = User.objects.filter(username__iexact=supabase_username).first()
+            if correct_user and correct_user.email.lower() == email_lower:
+                print(f"🔄 Using existing user with correct username: {correct_user.username} (ID: {correct_user.id})")
+                user = correct_user
+        else:
+            user.username = supabase_username.lower()
+            user.save()
+            print(f"✅ Username updated to '{user.username}'")
+    
+    # Check password
+    password_correct = user.check_password(password)
+    
+    # If password is incorrect but we have Supabase user, update the password
+    if not password_correct and supabase_user:
+        print(f"⚠️ Password incorrect, but user exists in Supabase. Updating password...")
+        user.set_password(password)
+        user.save()
+        print(f"✅ Password updated! Re-checking...")
+        password_correct = user.check_password(password)
+    
+    if password_correct:
         print("Password is correct!")
         # Check if email verification is required and user is not verified
         if settings.EMAIL_VERIFICATION_REQUIRED and not user.profile.email_verified:
