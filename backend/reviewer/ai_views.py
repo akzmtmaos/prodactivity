@@ -421,13 +421,19 @@ class AIAutomaticReviewerView(APIView):
         try:
             text = request.data.get('text', '')
             title = request.data.get('title', 'AI Generated Reviewer')
+            # Support both single note (backward compatibility) and multiple notes
             source_note = request.data.get('source_note')
+            source_notes = request.data.get('source_notes', [])  # Array of note IDs
             source_notebook = request.data.get('source_notebook')
             tags = request.data.get('tags', [])
             note_type = request.data.get('note_type')  # Get note type for better context
             question_count = request.data.get('question_count', 10)  # Get question count for quiz generation
 
-            logger.info(f"AIAutomaticReviewerView POST: text length={len(text)}, title={title}, note_type={note_type}")
+            # If source_notes array is provided, use the first one as source_note (for backward compatibility)
+            if source_notes and isinstance(source_notes, list) and len(source_notes) > 0:
+                source_note = source_notes[0] if not source_note else source_note
+
+            logger.info(f"AIAutomaticReviewerView POST: text length={len(text)}, title={title}, note_type={note_type}, source_notes={source_notes}")
 
             if not text or not text.strip():
                 logger.warning("AIAutomaticReviewerView: No text provided.")

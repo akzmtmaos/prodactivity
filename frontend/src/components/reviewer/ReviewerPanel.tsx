@@ -446,7 +446,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     }
   };
 
-  const handleGenerateReviewer = async (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; fileText?: string }) => {
+  const handleGenerateReviewer = async (data: { title: string; sourceNotes: number[]; sourceNotebook: number | null; fileText?: string }) => {
     setGenerateModal(prev => ({ ...prev, isLoading: true }));
     
     try {
@@ -456,17 +456,20 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       if (data.fileText) {
         // Use extracted text from uploaded file
         textContent = data.fileText;
-      } else {
-        // Get content from note or notebook
-        const sourceNote = notes.find(n => n.id === data.sourceNote);
+      } else if (data.sourceNotes.length > 0) {
+        // Get content from multiple notes
+        const selectedNotes = notes.filter(n => data.sourceNotes.includes(n.id));
+        if (selectedNotes.length > 0) {
+          textContent = selectedNotes.map(n => `${n.title}\n${stripHtmlToText(n.content)}`).join('\n\n---\n\n');
+          // Use the note type from the first note (or most common type)
+          noteType = selectedNotes[0]?.note_type || null;
+        }
+      } else if (data.sourceNotebook) {
+        // Get content from notebook
         const sourceNotebook = notebooks.find(n => n.id === data.sourceNotebook);
-        
-        if (sourceNote) {
-          textContent = stripHtmlToText(sourceNote.content);
-          noteType = sourceNote.note_type;
-        } else if (sourceNotebook) {
+        if (sourceNotebook) {
           const notebookNotes = notes.filter(n => n.notebook_name === sourceNotebook.name);
-          textContent = notebookNotes.map(n => `${n.title}\n${stripHtmlToText(n.content)}`).join('\n\n');
+          textContent = notebookNotes.map(n => `${n.title}\n${stripHtmlToText(n.content)}`).join('\n\n---\n\n');
           noteType = sourceNotebook.notebook_type;
         }
       }
@@ -474,7 +477,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       const response = await axiosInstance.post('/reviewers/ai/generate/', {
         text: textContent,
         title: data.title,
-        source_note: data.sourceNote,
+        source_notes: data.sourceNotes, // Send array of note IDs
         source_notebook: data.sourceNotebook,
         note_type: noteType
       }, {
@@ -496,7 +499,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     }
   };
 
-  const handleGenerateQuiz = async (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; questionCount: number; fileText?: string }) => {
+  const handleGenerateQuiz = async (data: { title: string; sourceNotes: number[]; sourceNotebook: number | null; questionCount: number; fileText?: string }) => {
     setGenerateModal(prev => ({ ...prev, isLoading: true }));
     
     try {
@@ -506,17 +509,20 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       if (data.fileText) {
         // Use extracted text from uploaded file
         sourceContent = data.fileText;
-      } else {
-        // Get content from note or notebook
-        const sourceNote = notes.find(n => n.id === data.sourceNote);
+      } else if (data.sourceNotes.length > 0) {
+        // Get content from multiple notes
+        const selectedNotes = notes.filter(n => data.sourceNotes.includes(n.id));
+        if (selectedNotes.length > 0) {
+          sourceContent = selectedNotes.map(n => `${n.title}\n${stripHtmlToText(n.content)}`).join('\n\n---\n\n');
+          // Use the note type from the first note (or most common type)
+          noteType = selectedNotes[0]?.note_type || null;
+        }
+      } else if (data.sourceNotebook) {
+        // Get content from notebook
         const sourceNotebook = notebooks.find(n => n.id === data.sourceNotebook);
-
-        if (sourceNote) {
-          sourceContent = stripHtmlToText(sourceNote.content);
-          noteType = sourceNote.note_type;
-        } else if (sourceNotebook) {
+        if (sourceNotebook) {
           const notebookNotes = notes.filter(n => n.notebook_name === sourceNotebook.name);
-          sourceContent = notebookNotes.map(n => `${n.title}\n${stripHtmlToText(n.content)}`).join('\n\n');
+          sourceContent = notebookNotes.map(n => `${n.title}\n${stripHtmlToText(n.content)}`).join('\n\n---\n\n');
           noteType = sourceNotebook.notebook_type;
         }
       }
@@ -524,7 +530,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       const response = await axiosInstance.post('/reviewers/ai/generate/', {
         text: sourceContent,
         title: `Quiz: ${data.title}`,
-        source_note: data.sourceNote,
+        source_notes: data.sourceNotes, // Send array of note IDs
         source_notebook: data.sourceNotebook,
         note_type: noteType,
         question_count: data.questionCount

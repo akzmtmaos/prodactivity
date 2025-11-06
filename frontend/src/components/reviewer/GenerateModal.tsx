@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, BookOpen, Target, Brain, FileText, Upload, File } from 'lucide-react';
 import axiosInstance from '../../utils/axiosConfig';
 
 interface GenerateModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onGenerateReviewer: (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; fileText?: string }) => void;
-  onGenerateQuiz: (data: { title: string; sourceNote: number | null; sourceNotebook: number | null; questionCount: number; fileText?: string }) => void;
+  onGenerateReviewer: (data: { title: string; sourceNotes: number[]; sourceNotebook: number | null; fileText?: string }) => void;
+  onGenerateQuiz: (data: { title: string; sourceNotes: number[]; sourceNotebook: number | null; questionCount: number; fileText?: string }) => void;
   notes: Array<{ id: number; title: string; content: string; notebook_name: string; note_type?: string }>;
   notebooks: Array<{ id: number; name: string; notebook_type?: string }>;
   isLoading: boolean;
@@ -23,9 +23,10 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
 }) => {
   const [activeTab, setActiveTab] = useState<'reviewer' | 'quiz'>('reviewer');
   const [selectedSource, setSelectedSource] = useState<'note' | 'notebook' | 'file'>('note');
-  const [selectedNote, setSelectedNote] = useState<number | null>(null);
+  const [selectedNotes, setSelectedNotes] = useState<number[]>([]);
   const [selectedNotebook, setSelectedNotebook] = useState<number | null>(null);
   const [title, setTitle] = useState('');
+  const [autoTitleEnabled, setAutoTitleEnabled] = useState(true);
   
   // Quiz question count options
   const [questionCountOption, setQuestionCountOption] = useState<'10' | '20' | 'custom'>('10');
@@ -105,13 +106,41 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
     }
   };
 
+  // Auto-generate title based on selected notes
+  useEffect(() => {
+    if (autoTitleEnabled && selectedSource === 'note' && selectedNotes.length > 0) {
+      const selectedNoteTitles = selectedNotes
+        .map(id => notes.find(n => n.id === id)?.title)
+        .filter(Boolean)
+        .slice(0, 3); // Limit to first 3 notes for title
+      
+      if (selectedNoteTitles.length > 0) {
+        if (selectedNoteTitles.length === 1) {
+          setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${selectedNoteTitles[0]}`);
+        } else if (selectedNoteTitles.length === 2) {
+          setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${selectedNoteTitles[0]} & ${selectedNoteTitles[1]}`);
+        } else {
+          setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${selectedNoteTitles[0]}, ${selectedNoteTitles[1]}, and ${selectedNotes.length - 2} more`);
+        }
+      }
+    } else if (autoTitleEnabled && selectedSource === 'notebook' && selectedNotebook) {
+      const notebook = notebooks.find(n => n.id === selectedNotebook);
+      if (notebook) {
+        setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${notebook.name}`);
+      }
+    } else if (autoTitleEnabled && selectedSource === 'file' && uploadedFile) {
+      const fileName = uploadedFile.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${fileName}`);
+    }
+  }, [selectedNotes, selectedNotebook, selectedSource, uploadedFile, activeTab, autoTitleEnabled, notes, notebooks]);
+
   const handleGenerate = () => {
     if (!title.trim()) return;
     
     if (activeTab === 'reviewer') {
       onGenerateReviewer({
         title: title.trim(),
-        sourceNote: selectedSource === 'note' ? selectedNote : null,
+        sourceNotes: selectedSource === 'note' ? selectedNotes : [],
         sourceNotebook: selectedSource === 'notebook' ? selectedNotebook : null,
         fileText: selectedSource === 'file' ? extractedText : undefined
       });
@@ -119,7 +148,7 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
       const questionCount = questionCountOption === 'custom' ? customQuestionCount : parseInt(questionCountOption);
       onGenerateQuiz({
         title: title.trim(),
-        sourceNote: selectedSource === 'note' ? selectedNote : null,
+        sourceNotes: selectedSource === 'note' ? selectedNotes : [],
         sourceNotebook: selectedSource === 'notebook' ? selectedNotebook : null,
         questionCount: questionCount,
         fileText: selectedSource === 'file' ? extractedText : undefined
@@ -129,7 +158,7 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
 
   const resetForm = () => {
     setTitle('');
-    setSelectedNote(null);
+    setSelectedNotes([]);
     setSelectedNotebook(null);
     setSelectedSource('note');
     setQuestionCountOption('10');
@@ -138,6 +167,17 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
     setExtractedText('');
     setFileError('');
     setIsDragging(false);
+    setAutoTitleEnabled(true);
+  };
+
+  const handleNoteToggle = (noteId: number) => {
+    setSelectedNotes(prev => {
+      if (prev.includes(noteId)) {
+        return prev.filter(id => id !== noteId);
+      } else {
+        return [...prev, noteId];
+      }
+    });
   };
 
   const handleClose = () => {
@@ -207,17 +247,37 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
         <div className="p-6 space-y-6 max-h-96 overflow-y-auto">
           {/* Title Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Title
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-sm font-medium text-gray-700">
+                Title
+              </label>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={autoTitleEnabled}
+                  onChange={(e) => setAutoTitleEnabled(e.target.checked)}
+                  disabled={isLoading}
+                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                />
+                <span className="text-xs text-gray-600">Auto-generate title</span>
+              </label>
+            </div>
             <input
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setAutoTitleEnabled(false); // Disable auto-title when user manually edits
+              }}
               placeholder={`Enter ${activeTab} title...`}
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               disabled={isLoading}
             />
+            {autoTitleEnabled && (
+              <p className="mt-1 text-xs text-gray-500">
+                Title will be auto-generated based on selected notes
+              </p>
+            )}
           </div>
 
           {/* Source Selection */}
@@ -264,25 +324,41 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
               </label>
             </div>
 
-            {/* Note Selection */}
+            {/* Note Selection - Multiple Selection */}
             {selectedSource === 'note' && (
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Select Note
+                  Select Notes (Multiple selection allowed)
                 </label>
-                <select
-                  value={selectedNote || ''}
-                  onChange={(e) => setSelectedNote(Number(e.target.value) || null)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                  disabled={isLoading}
-                >
-                  <option value="">Choose a note...</option>
-                  {notes.map(note => (
-                    <option key={note.id} value={note.id}>
-                      {note.title} ({note.notebook_name})
-                    </option>
-                  ))}
-                </select>
+                <div className="max-h-48 overflow-y-auto border border-gray-300 rounded-md p-2 space-y-2">
+                  {notes.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">No notes available</p>
+                  ) : (
+                    notes.map(note => (
+                      <label
+                        key={note.id}
+                        className="flex items-center space-x-2 p-2 hover:bg-gray-50 rounded cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedNotes.includes(note.id)}
+                          onChange={() => handleNoteToggle(note.id)}
+                          disabled={isLoading}
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                        <div className="flex-1">
+                          <span className="text-sm font-medium text-gray-900">{note.title}</span>
+                          <span className="text-xs text-gray-500 ml-2">({note.notebook_name})</span>
+                        </div>
+                      </label>
+                    ))
+                  )}
+                </div>
+                {selectedNotes.length > 0 && (
+                  <p className="mt-2 text-xs text-gray-500">
+                    {selectedNotes.length} note{selectedNotes.length > 1 ? 's' : ''} selected
+                  </p>
+                )}
               </div>
             )}
 
@@ -507,7 +583,7 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
             disabled={
               isLoading || 
               !title.trim() || 
-              (selectedSource === 'note' && !selectedNote) ||
+              (selectedSource === 'note' && selectedNotes.length === 0) ||
               (selectedSource === 'notebook' && !selectedNotebook) ||
               (selectedSource === 'file' && !extractedText)
             }
