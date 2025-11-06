@@ -8,17 +8,26 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        # First, make description nullable if it still exists
+        # Remove columns if they still exist (migration 0009 should have removed them, but just in case)
+        # Use DO block to check if column exists before trying to modify it
         migrations.RunSQL(
-            sql="ALTER TABLE notes_notebook ALTER COLUMN description DROP NOT NULL;",
-            reverse_sql="ALTER TABLE notes_notebook ALTER COLUMN description SET NOT NULL;",
+            sql="""
+            DO $$ 
+            BEGIN
+                -- Make description nullable if it exists
+                IF EXISTS (SELECT 1 FROM information_schema.columns 
+                          WHERE table_name='notes_notebook' AND column_name='description') THEN
+                    ALTER TABLE notes_notebook ALTER COLUMN description DROP NOT NULL;
+                END IF;
+            END $$;
+            """,
+            reverse_sql=migrations.RunSQL.noop,
         ),
-        # Then remove the column if it exists
+        # Drop columns if they exist
         migrations.RunSQL(
             sql="ALTER TABLE notes_notebook DROP COLUMN IF EXISTS description;",
             reverse_sql=migrations.RunSQL.noop,
         ),
-        # Also handle notebook_type and urgency_level if they still exist
         migrations.RunSQL(
             sql="ALTER TABLE notes_notebook DROP COLUMN IF EXISTS notebook_type;",
             reverse_sql=migrations.RunSQL.noop,
