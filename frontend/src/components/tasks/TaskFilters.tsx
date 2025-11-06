@@ -100,7 +100,6 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
             Reset Filters
           </button>
         )}
-      </div>
     </div>
   );
 };
