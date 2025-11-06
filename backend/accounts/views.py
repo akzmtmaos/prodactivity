@@ -170,7 +170,12 @@ def login_view(request):
         supabase_username = None
         if supabase_user:
             supabase_username = supabase_user.get('username')
+            print(f"📦 Supabase user found: {supabase_user}")
             print(f"📦 Supabase username: {supabase_username}")
+            print(f"📦 Supabase email: {supabase_user.get('email')}")
+            print(f"📦 Supabase email_verified: {supabase_user.get('email_verified')}")
+        else:
+            print(f"⚠️ No user found in Supabase for email: {email_lower}")
         
         # Try to find user with Supabase username first (if available)
         user = None
@@ -279,6 +284,11 @@ def login_view(request):
     print(f"Password received: '{password}'")
     print(f"Password length: {len(password)}")
     print(f"User is_active: {user.is_active}")
+    
+    # Ensure profile exists
+    profile, created = Profile.objects.get_or_create(user=user)
+    if created:
+        print(f"✅ Created profile for user: {user.username}")
     print(f"User has profile: {hasattr(user, 'profile')}")
     if hasattr(user, 'profile'):
         print(f"Profile email_verified: {user.profile.email_verified}")
@@ -294,21 +304,41 @@ def login_view(request):
             if correct_user and correct_user.email.lower() == email_lower:
                 print(f"🔄 Using existing user with correct username: {correct_user.username} (ID: {correct_user.id})")
                 user = correct_user
+                # Ensure profile exists for the correct user too
+                profile, _ = Profile.objects.get_or_create(user=user)
         else:
             user.username = supabase_username.lower()
             user.save()
             print(f"✅ Username updated to '{user.username}'")
     
+    # Sync email_verified status from Supabase if available
+    if supabase_user and hasattr(user, 'profile'):
+        if supabase_user.get('email_verified'):
+            user.profile.email_verified = True
+            user.is_active = True
+            user.profile.save()
+            user.save()
+            print(f"✅ Email verification status synced from Supabase")
+    
     # Check password
     password_correct = user.check_password(password)
+    print(f"Password check result: {password_correct}")
     
     # If password is incorrect but we have Supabase user, update the password
     if not password_correct and supabase_user:
         print(f"⚠️ Password incorrect, but user exists in Supabase. Updating password...")
-        user.set_password(password)
-        user.save()
-        print(f"✅ Password updated! Re-checking...")
-        password_correct = user.check_password(password)
+        try:
+            user.set_password(password)
+            user.save()
+            print(f"✅ Password updated! Re-checking...")
+            password_correct = user.check_password(password)
+            print(f"Password check after update: {password_correct}")
+            if not password_correct:
+                print(f"❌ Password still incorrect after update! This should not happen.")
+        except Exception as e:
+            print(f"❌ Error updating password: {e}")
+            import traceback
+            print(traceback.format_exc())
     
     if password_correct:
         print("Password is correct!")
