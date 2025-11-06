@@ -7,6 +7,7 @@ import requests
 import logging
 import json
 import re
+import os
 from .models import Deck, Flashcard
 from .serializers import FlashcardSerializer
 from core.utils import get_ai_config
@@ -14,8 +15,8 @@ from core.utils import get_ai_config
 logger = logging.getLogger(__name__)
 
 # Ollama API configuration
-OLLAMA_API_URL = 'http://localhost:11434/api/generate'
-OLLAMA_MODEL = 'gpt-oss:20b-cloud'
+OLLAMA_API_URL = os.getenv("OLLAMA_API_URL", "http://localhost:11434/api/generate")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b-cloud")
 
 def clean_ai_response(response_text):
     """Clean AI response by removing thinking tags and other unwanted content"""

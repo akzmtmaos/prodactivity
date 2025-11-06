@@ -301,24 +301,24 @@ if CORS_ALLOWED_ORIGINS_ENV:
     CORS_ALLOWED_ORIGINS = [origin.strip() for origin in CORS_ALLOWED_ORIGINS_ENV.split(',')]
 else:
     CORS_ALLOWED_ORIGINS = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://192.168.56.1:3000",
-        "http://192.168.68.114:3000",
-        "http://192.168.68.162:3000",
-    ]
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.56.1:3000",
+    "http://192.168.68.114:3000",
+    "http://192.168.68.162:3000",
+]
 
 CSRF_TRUSTED_ORIGINS_ENV = os.getenv('CSRF_TRUSTED_ORIGINS', '')
 if CSRF_TRUSTED_ORIGINS_ENV:
     CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS_ENV.split(',')]
 else:
     CSRF_TRUSTED_ORIGINS = [
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://192.168.56.1:3000",
-        "http://192.168.68.114:3000",
-        "http://192.168.68.162:3000",
-    ]
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "http://192.168.56.1:3000",
+    "http://192.168.68.114:3000",
+    "http://192.168.68.162:3000",
+]
 
 # Supabase Configuration
 SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://tyuiugbvqmeatyjpenzg.supabase.co')

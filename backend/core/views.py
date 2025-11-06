@@ -32,7 +32,7 @@ class NotificationMarkReadView(APIView):
             notification.save()
             return Response({'status': 'marked as read'})
         except Notification.DoesNotExist:
-            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND)
+            return Response({'error': 'Notification not found'}, status=status.HTTP_404_NOT_FOUND) 
 
 class HealthCheckView(APIView):
     """Simple health check endpoint"""
