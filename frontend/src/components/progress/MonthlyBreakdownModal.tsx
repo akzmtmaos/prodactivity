@@ -75,10 +75,27 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
       const dailyPromises = [];
       const currentDate = new Date(firstDay);
       
-            while (currentDate <= lastDay) {
-              const dateStr = currentDate.toISOString().split('T')[0];
-              
-              dailyPromises.push(
+      // Ensure we're working with local dates to avoid timezone issues
+      currentDate.setHours(0, 0, 0, 0);
+      lastDay.setHours(23, 59, 59, 999);
+      
+      while (currentDate <= lastDay) {
+        // Use local date formatting to avoid timezone shifts
+        const year = currentDate.getFullYear();
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const day = String(currentDate.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+        
+        // Double-check that the date is actually in the selected month
+        const currentMonth = currentDate.getMonth();
+        const currentYear = currentDate.getFullYear();
+        if (currentMonth !== (month - 1) || currentYear !== year) {
+          // Skip if date is not in the selected month (shouldn't happen, but safety check)
+          currentDate.setDate(currentDate.getDate() + 1);
+          continue;
+        }
+        
+        dailyPromises.push(
           supabase
             .from('productivity_logs')
             .select('completion_rate, status, total_tasks, completed_tasks')
@@ -105,7 +122,17 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
       }
       
             const results = await Promise.all(dailyPromises);
-            setDailyData(results);
+            
+            // Filter out any dates that don't belong to the selected month (safety check)
+            const filteredResults = results.filter(day => {
+              if (!day.date) return false;
+              const dayDate = new Date(day.date + 'T00:00:00');
+              const dayMonth = dayDate.getMonth() + 1; // getMonth() returns 0-11
+              const dayYear = dayDate.getFullYear();
+              return dayMonth === month && dayYear === year;
+            });
+            
+            setDailyData(filteredResults);
     } catch (err) {
       console.error('Error fetching daily breakdown:', err);
       setError('Failed to fetch daily breakdown data');
