@@ -39,6 +39,34 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
   const [fileError, setFileError] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
 
+  // Auto-generate title based on selected notes
+  useEffect(() => {
+    if (autoTitleEnabled && selectedSource === 'note' && selectedNotes.length > 0) {
+      const selectedNoteTitles = selectedNotes
+        .map(id => notes.find(n => n.id === id)?.title)
+        .filter(Boolean)
+        .slice(0, 3); // Limit to first 3 notes for title
+      
+      if (selectedNoteTitles.length > 0) {
+        if (selectedNoteTitles.length === 1) {
+          setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${selectedNoteTitles[0]}`);
+        } else if (selectedNoteTitles.length === 2) {
+          setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${selectedNoteTitles[0]} & ${selectedNoteTitles[1]}`);
+        } else {
+          setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${selectedNoteTitles[0]}, ${selectedNoteTitles[1]}, and ${selectedNotes.length - 2} more`);
+        }
+      }
+    } else if (autoTitleEnabled && selectedSource === 'notebook' && selectedNotebook) {
+      const notebook = notebooks.find(n => n.id === selectedNotebook);
+      if (notebook) {
+        setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${notebook.name}`);
+      }
+    } else if (autoTitleEnabled && selectedSource === 'file' && uploadedFile) {
+      const fileName = uploadedFile.name.replace(/\.[^/.]+$/, ''); // Remove extension
+      setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${fileName}`);
+    }
+  }, [selectedNotes, selectedNotebook, selectedSource, uploadedFile, activeTab, autoTitleEnabled, notes, notebooks]);
+
   if (!isOpen) return null;
 
   const handleBackdropClick = (e: React.MouseEvent) => {
@@ -105,34 +133,6 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
       handleFileUpload(file);
     }
   };
-
-  // Auto-generate title based on selected notes
-  useEffect(() => {
-    if (autoTitleEnabled && selectedSource === 'note' && selectedNotes.length > 0) {
-      const selectedNoteTitles = selectedNotes
-        .map(id => notes.find(n => n.id === id)?.title)
-        .filter(Boolean)
-        .slice(0, 3); // Limit to first 3 notes for title
-      
-      if (selectedNoteTitles.length > 0) {
-        if (selectedNoteTitles.length === 1) {
-          setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${selectedNoteTitles[0]}`);
-        } else if (selectedNoteTitles.length === 2) {
-          setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${selectedNoteTitles[0]} & ${selectedNoteTitles[1]}`);
-        } else {
-          setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${selectedNoteTitles[0]}, ${selectedNoteTitles[1]}, and ${selectedNotes.length - 2} more`);
-        }
-      }
-    } else if (autoTitleEnabled && selectedSource === 'notebook' && selectedNotebook) {
-      const notebook = notebooks.find(n => n.id === selectedNotebook);
-      if (notebook) {
-        setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${notebook.name}`);
-      }
-    } else if (autoTitleEnabled && selectedSource === 'file' && uploadedFile) {
-      const fileName = uploadedFile.name.replace(/\.[^/.]+$/, ''); // Remove extension
-      setTitle(`${activeTab === 'reviewer' ? 'Reviewer' : 'Quiz'}: ${fileName}`);
-    }
-  }, [selectedNotes, selectedNotebook, selectedSource, uploadedFile, activeTab, autoTitleEnabled, notes, notebooks]);
 
   const handleGenerate = () => {
     if (!title.trim()) return;
