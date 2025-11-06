@@ -193,21 +193,60 @@ def get_user_from_supabase_by_email(email):
         dict: User data from Supabase, or None if not found
     """
     try:
+        # Try exact match first
+        email_lower = email.lower().strip()
+        email_encoded = requests.utils.quote(email_lower, safe='')
+        
+        print(f"🔍 Querying Supabase for email: {email_lower}")
+        print(f"🔍 Encoded email: {email_encoded}")
+        print(f"🔍 Supabase URL: {SUPABASE_URL}")
+        
+        # Try exact match
         response = requests.get(
-            f"{SUPABASE_URL}/rest/v1/profiles?email=eq.{email}",
-            headers=get_supabase_headers()
+            f"{SUPABASE_URL}/rest/v1/profiles?email=eq.{email_encoded}",
+            headers=get_supabase_headers(),
+            timeout=10
         )
+        
+        print(f"📡 Supabase response status: {response.status_code}")
         
         if response.status_code == 200:
             data = response.json()
+            print(f"📦 Supabase response data: {data}")
             if len(data) > 0:
+                print(f"✅ Found user in Supabase: {data[0]}")
                 return data[0]
+            else:
+                print(f"⚠️ No user found with exact email match")
+                # Try case-insensitive search by getting all profiles and filtering
+                print(f"🔍 Trying to get all profiles to search...")
+                all_profiles_response = requests.get(
+                    f"{SUPABASE_URL}/rest/v1/profiles?select=*&limit=1000",
+                    headers=get_supabase_headers(),
+                    timeout=10
+                )
+                if all_profiles_response.status_code == 200:
+                    all_profiles = all_profiles_response.json()
+                    print(f"📦 Found {len(all_profiles)} total profiles in Supabase")
+                    # Search for email (case-insensitive)
+                    for profile in all_profiles:
+                        if profile.get('email', '').lower() == email_lower:
+                            print(f"✅ Found user in Supabase (case-insensitive): {profile}")
+                            return profile
+                    print(f"⚠️ No user found with email (case-insensitive): {email_lower}")
+                    # Log sample emails for debugging
+                    if all_profiles:
+                        sample_emails = [p.get('email', 'N/A') for p in all_profiles[:5]]
+                        print(f"📋 Sample emails in Supabase: {sample_emails}")
         else:
             print(f"❌ Failed to get user from Supabase: {response.status_code}")
+            print(f"❌ Response text: {response.text}")
             return None
             
     except Exception as e:
         print(f"❌ Error getting user from Supabase: {e}")
+        import traceback
+        print(traceback.format_exc())
         return None
 
 def get_all_supabase_profiles(limit: int = 1000):
