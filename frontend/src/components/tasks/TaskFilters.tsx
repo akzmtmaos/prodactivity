@@ -11,6 +11,10 @@ interface TaskFiltersProps {
   filterCategory?: string;
   onFilterCategoryChange?: (value: string) => void;
   categories?: string[];
+  sortField?: 'dueDate' | 'priority' | 'title';
+  onSortFieldChange?: (value: 'dueDate' | 'priority' | 'title') => void;
+  sortDirection?: 'asc' | 'desc';
+  onSortDirectionChange?: (value: 'asc' | 'desc') => void;
   onResetFilters?: () => void; // New prop
 }
 
@@ -24,6 +28,10 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
   filterCategory = 'all',
   onFilterCategoryChange,
   categories = [],
+  sortField = 'dueDate',
+  onSortFieldChange,
+  sortDirection = 'asc',
+  onSortDirectionChange,
   onResetFilters,
 }) => {
   return (
@@ -74,6 +82,31 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
               </option>
             ))}
           </select>
+        )}
+        
+        {/* Sort by field */}
+        {onSortFieldChange && (
+          <select
+            className="rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"
+            value={sortField}
+            onChange={(e) => onSortFieldChange(e.target.value as 'dueDate' | 'priority' | 'title')}
+          >
+            <option value="dueDate">Sort by Due Date</option>
+            <option value="priority">Sort by Priority</option>
+            <option value="title">Sort by Title</option>
+          </select>
+        )}
+        
+        {/* Sort direction */}
+        {onSortDirectionChange && (
+          <button
+            type="button"
+            onClick={() => onSortDirectionChange(sortDirection === 'asc' ? 'desc' : 'asc')}
+            className="px-3 py-2 rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition"
+            title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
+          >
+            {sortDirection === 'asc' ? '↑' : '↓'}
+          </button>
         )}
         
         {/* Reset Filters Button */}

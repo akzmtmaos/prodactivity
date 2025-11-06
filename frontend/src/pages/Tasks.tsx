@@ -898,12 +898,15 @@ const TasksContent = ({ user }: { user: any }) => {
     return acc;
   }, {} as Record<string, Task[]>);
   
-  // Extract existing categories for the TaskForm dropdown
-  const existingCategories = Array.from(new Set(
+  // Extract existing categories for the TaskForm dropdown and filter
+  const uniqueCategories = Array.from(new Set(
     tasks
       .map(task => task.task_category)
       .filter((category): category is string => category !== undefined && category.trim() !== '')
   )).sort();
+  
+  // Also keep existingCategories for TaskForm compatibility
+  const existingCategories = uniqueCategories;
   
   const displayedTasks = activeTab === 'categories' ? [] : tasks; // Categories tab will handle its own display
 
@@ -953,10 +956,16 @@ const TasksContent = ({ user }: { user: any }) => {
                 filterCategory={filterCategory}
                 onFilterCategoryChange={setFilterCategory}
                 categories={uniqueCategories}
+                sortField={sortField}
+                onSortFieldChange={setSortField}
+                sortDirection={sortDirection}
+                onSortDirectionChange={setSortDirection}
                 onResetFilters={() => {
                   setSearchTerm('');
                   setFilterPriority('all');
                   setFilterCategory('all');
+                  setSortField('dueDate');
+                  setSortDirection('asc');
                 }}
               />
               <button
