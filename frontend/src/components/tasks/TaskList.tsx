@@ -10,7 +10,7 @@ interface TaskListProps {
   onTaskCompleted?: (completedTask: any) => void;
   sortField: keyof Task;
   sortDirection: 'asc' | 'desc';
-  onSort: (field: keyof Task) => void;
+  onSort: (field: 'dueDate' | 'priority' | 'title') => void;
   onAddTask?: () => void; // New prop for Add Task button
   compact?: boolean; // New prop for compact layout
 }
