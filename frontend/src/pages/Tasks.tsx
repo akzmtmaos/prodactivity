@@ -1019,7 +1019,7 @@ const TasksContent = ({ user }: { user: any }) => {
               </button>
             </div>
             
-            {/* Search and Filters on the right */}
+            {/* Filters on the right */}
             <div className="flex items-center gap-4">
               <TaskFilters
                 searchTerm={searchTerm}
