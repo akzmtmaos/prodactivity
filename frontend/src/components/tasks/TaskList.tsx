@@ -8,7 +8,7 @@ interface TaskListProps {
   onEdit: (task: Task) => void;
   onDelete: (id: number) => void;
   onTaskCompleted?: (completedTask: any) => void;
-  sortField: keyof Task;
+  sortField: 'dueDate' | 'priority' | 'title';
   sortDirection: 'asc' | 'desc';
   onSort: (field: 'dueDate' | 'priority' | 'title') => void;
   onAddTask?: () => void; // New prop for Add Task button
