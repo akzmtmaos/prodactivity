@@ -824,8 +824,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     .note-editor ol { list-style-type: decimal !important; padding-left: 2rem !important; margin: 0.5rem 0 !important; }
                     .note-editor ol li { margin: 0.25rem 0 !important; line-height: 1.5 !important; }
                     .note-editor .notion-table { border-collapse: collapse !important; width: 100% !important; max-width: 100% !important; margin: 16px 0 !important; background: white !important; border: 1px solid #e1e5e9 !important; border-radius: 6px !important; table-layout: fixed !important; word-wrap: break-word !important; overflow-wrap: break-word !important; }
-                    .note-editor .notion-table td { border: 1px solid #e1e5e9 !important; padding: 8px 12px !important; background: white !important; cursor: text !important; min-height: 32px !important; max-width: 200px !important; word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; }
+                    .dark .note-editor .notion-table { background: #1f2937 !important; border: 1px solid #374151 !important; }
+                    .note-editor .notion-table td { border: 1px solid #e1e5e9 !important; padding: 8px 12px !important; background: white !important; cursor: text !important; min-height: 32px !important; max-width: 200px !important; word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; color: #000000 !important; }
+                    .dark .note-editor .notion-table td { background: #1f2937 !important; border: 1px solid #374151 !important; color: #ffffff !important; }
                     .note-editor .notion-table td:hover { background: #f8f9fa !important; }
+                    .dark .note-editor .notion-table td:hover { background: #374151 !important; }
                     .note-editor .code-block-container { background-color: #1e1e1e; border-radius: 8px; margin: 16px 0; overflow: hidden; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; }
                   `}</style>
                   
