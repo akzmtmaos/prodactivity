@@ -585,25 +585,7 @@ Click "View Full Review" to see the complete reviewer with all features.`);
         throw new Error('No text content found. Please ensure your note has readable content.');
       }
       
-      // First, get flashcards from AI
-      const response = await axiosInstance.post('/notes/convert-to-flashcards/', {
-        text: plainTextContent
-      }, {
-        timeout: 120000 // 2 minutes timeout
-      });
-      
-      if (response.data.error) {
-        throw new Error(response.data.error);
-      }
-      
-      const generatedFlashcards = response.data.flashcards || [];
-      if (!generatedFlashcards.length) {
-        throw new Error('No flashcards were generated. The content might be too short or unclear.');
-      }
-      
-      setFlashcards(generatedFlashcards);
-      
-      // Create a deck for the flashcards
+      // Create a deck first (same as Decks page)
       const deckTitle = sourceTitle ? `${sourceTitle} - Flashcards` : 'Note Flashcards';
       const deckResponse = await axiosInstance.post('/decks/decks/', {
         title: deckTitle
@@ -616,36 +598,44 @@ Click "View Full Review" to see the complete reviewer with all features.`);
       const deckId = deckResponse.data.id;
       setCreatedDeckId(deckId);
       
-      // Create flashcards in the deck
-      const createdFlashcards = [];
-      let successCount = 0;
-      let errorCount = 0;
+      // Use the same AI endpoint as Decks page (this creates flashcards automatically)
+      const aiResponse = await axiosInstance.post('/decks/ai/generate-flashcards/', {
+        content: plainTextContent,
+        title: deckTitle,
+        strategy: 'ai_enhanced',
+        deck_id: deckId
+      }, {
+        timeout: 120000 // 2 minutes timeout
+      });
       
-      for (const flashcard of generatedFlashcards) {
-        try {
-          const flashcardResponse = await axiosInstance.post('/decks/flashcards/', {
-            deck: deckId,
-            front: flashcard.front || flashcard.question || 'Definition',
-            back: flashcard.back || flashcard.answer || 'Term'
-          });
-          createdFlashcards.push(flashcardResponse.data);
-          successCount++;
-        } catch (flashcardError: any) {
-          console.error('Failed to create flashcard:', flashcardError);
-          errorCount++;
-        }
+      if (aiResponse.data.error) {
+        throw new Error(aiResponse.data.error);
       }
       
-      if (successCount > 0) {
-        setFlashcardResult(`✅ Successfully created ${successCount} out of ${generatedFlashcards.length} flashcards!
+      const aiData = aiResponse.data;
+      const createdFlashcards = aiData.flashcards || [];
+      const flashcardCount = aiData.count || createdFlashcards.length;
+      
+      if (!flashcardCount || flashcardCount === 0) {
+        throw new Error('No flashcards were generated. The content might be too short or unclear.');
+      }
+      
+      // Fetch the updated deck with flashcards to show preview
+      const updatedDeckResponse = await axiosInstance.get(`/decks/decks/${deckId}/`);
+      if (updatedDeckResponse.data && updatedDeckResponse.data.flashcards) {
+        const deckFlashcards = updatedDeckResponse.data.flashcards.map((fc: any) => ({
+          front: fc.front || fc.question || 'Definition',
+          back: fc.back || fc.answer || 'Term'
+        }));
+        setFlashcards(deckFlashcards);
+      }
+      
+      setFlashcardResult(`✅ Successfully created ${flashcardCount} flashcards!
 
 📚 Deck: ${deckTitle}
-🎴 Flashcards: ${successCount}${errorCount > 0 ? ` (${errorCount} failed)` : ''}
+🎴 Flashcards: ${flashcardCount}
 
 Click "View Deck" to see your flashcards in the Decks section.`);
-      } else {
-        throw new Error(`Failed to create any flashcards. ${errorCount} errors occurred.`);
-      }
       
     } catch (error: any) {
       console.error('❌ Failed to convert to flashcards:', error);
