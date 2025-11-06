@@ -70,7 +70,7 @@ const Decks = () => {
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [selectedDeckStats, setSelectedDeckStats] = useState<DeckStats | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'progress'>('recent');
+  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'progress' | 'studied'>('recent');
   const [filterBy, setFilterBy] = useState<'all' | 'studied' | 'new'>('all');
 
   // Modal states
@@ -817,6 +817,11 @@ interface NoteItem {
           return a.title.localeCompare(b.title);
         case 'progress':
           return b.progress - a.progress;
+        case 'studied':
+          // Sort by lastStudied date (most recently studied first)
+          const aStudied = a.lastStudied ? new Date(a.lastStudied).getTime() : 0;
+          const bStudied = b.lastStudied ? new Date(b.lastStudied).getTime() : 0;
+          return bStudied - aStudied; // Most recent first
         default:
           return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       }
@@ -1030,15 +1035,28 @@ interface NoteItem {
                 <Clock size={20} className="text-gray-400" />
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress')}
+                  onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress' | 'studied')}
                   className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="recent">Recent</option>
                   <option value="name">Name</option>
                   <option value="progress">Progress</option>
+                  <option value="studied">Studied</option>
                 </select>
               </div>
-              {/* Filter dropdown removed as requested */}
+              {/* Filter */}
+              <div className="flex items-center gap-2">
+                <Target size={20} className="text-gray-400" />
+                <select
+                  value={filterBy}
+                  onChange={(e) => setFilterBy(e.target.value as 'all' | 'studied' | 'new')}
+                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="all">All Decks</option>
+                  <option value="studied">Studied Decks</option>
+                  <option value="new">New Decks</option>
+                </select>
+              </div>
               {/* AI Generate Flashcards button */}
             <button
                 onClick={() => setShowConvertModal(true)}
