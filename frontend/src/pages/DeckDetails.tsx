@@ -355,6 +355,29 @@ const DeckDetails: React.FC = () => {
     setEditingFlashcard({ question: '', answer: '' });
   };
 
+  // Handle delete flashcard
+  const handleDeleteFlashcard = async (flashcardId: string) => {
+    if (!deck) return;
+    
+    try {
+      await axiosInstance.delete(`/decks/flashcards/${flashcardId}/`);
+      
+      // Update deck state - remove deleted flashcard
+      setDeck({
+        ...deck,
+        flashcards: deck.flashcards.filter(card => card.id !== flashcardId),
+        flashcardCount: deck.flashcardCount - 1
+      });
+      
+      // Close modal and reset selected flashcard
+      setShowDeleteModal(false);
+      setSelectedFlashcard(null);
+    } catch (error) {
+      console.error('Error deleting flashcard:', error);
+      alert('Error deleting flashcard. Please try again.');
+    }
+  };
+
   const handleDeleteSubdeck = (subdeckId: string) => {
     // Mock implementation - in real app, this would make an API call
     console.log('Deleting subdeck:', subdeckId);
@@ -1020,8 +1043,7 @@ const DeckDetails: React.FC = () => {
             if (selectedSubdeck) {
               handleDeleteSubdeck(selectedSubdeck.id);
             } else if (selectedFlashcard) {
-              // Handle flashcard deletion
-              console.log('Deleting flashcard:', selectedFlashcard.id);
+              handleDeleteFlashcard(selectedFlashcard.id);
             }
           }}
         />
