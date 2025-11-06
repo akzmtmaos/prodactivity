@@ -1,12 +1,14 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { format, addDays, startOfWeek, isSameDay } from 'date-fns';
 import { ScheduleEvent } from '../../types/schedule';
+import EventDetailsModal from './EventDetailsModal';
 
 interface CalendarProps {
   currentDate: Date;
   events: ScheduleEvent[];
   onDateChange: (date: Date) => void;
   onDeleteEvent: (id: string) => void;
+  onEventClick?: (event: ScheduleEvent) => void;
 }
 
 const Calendar: React.FC<CalendarProps> = ({
@@ -14,7 +16,10 @@ const Calendar: React.FC<CalendarProps> = ({
   events,
   onDateChange,
   onDeleteEvent,
+  onEventClick,
 }) => {
+  const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(startOfWeek(currentDate, { weekStartsOn: 0 }), i);
     return {
@@ -91,14 +96,51 @@ const Calendar: React.FC<CalendarProps> = ({
 
       {/* Days of the week */}
       <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
-        {weekDays.map((day, index) => (
-          <div key={index} className="text-center py-3">
-            <div className="text-sm text-gray-600 dark:text-gray-300">{day.dayName}</div>
-            <div className={`mt-1 font-semibold text-lg ${day.isToday ? 'bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto' : 'text-gray-900 dark:text-white'}`}>
-              {day.dayNumber}
+        {weekDays.map((day, index) => {
+          const dayEvents = getEventsForDate(day.date);
+          const hasEvents = dayEvents.length > 0;
+          
+          return (
+            <div key={index} className="text-center py-3">
+              <div className="text-sm text-gray-600 dark:text-gray-300">{day.dayName}</div>
+              <button
+                onClick={() => {
+                  if (hasEvents && dayEvents.length > 0) {
+                    // Show first event when clicking on date
+                    setSelectedEvent(dayEvents[0]);
+                  }
+                }}
+                className={`mt-1 font-semibold text-lg transition-all ${
+                  day.isToday 
+                    ? 'bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto' 
+                    : hasEvents
+                    ? 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full w-8 h-8 flex items-center justify-center mx-auto cursor-pointer'
+                    : 'text-gray-900 dark:text-white'
+                }`}
+                title={hasEvents ? `${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''} on this day - Click to view` : ''}
+              >
+                {day.dayNumber}
+              </button>
+              {hasEvents && (
+                <div className="mt-1 flex justify-center gap-1">
+                  {dayEvents.slice(0, 3).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-1 h-1 rounded-full ${
+                        day.isToday ? 'bg-white' : 'bg-indigo-500'
+                      }`}
+                    />
+                  ))}
+                  {dayEvents.length > 3 && (
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      +{dayEvents.length - 3}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Calendar grid */}
@@ -111,22 +153,32 @@ const Calendar: React.FC<CalendarProps> = ({
                 return (
                   <div
                     key={eventIndex}
-                    className={`mb-2 p-2 rounded ${getCategoryColor(event.category)} relative ${
+                    onClick={() => {
+                      setSelectedEvent(event);
+                      if (onEventClick) {
+                        onEventClick(event);
+                      }
+                    }}
+                    className={`mb-2 p-2 rounded ${getCategoryColor(event.category)} relative cursor-pointer hover:opacity-80 transition-opacity ${
                       isPast ? 'opacity-60' : ''
                     }`}
                   >
                     <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-1">
-                        <h3 className="font-medium text-sm">{event.title}</h3>
+                      <div className="flex items-center gap-1 flex-1 min-w-0">
+                        <h3 className="font-medium text-sm truncate">{event.title}</h3>
                         {isPast && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400" title="Past event">
+                          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0" title="Past event">
                             📅
                           </span>
                         )}
                       </div>
                       <button
-                        onClick={() => onDeleteEvent(event.id)}
-                        className="text-xs hover:text-red-600 dark:hover:text-red-400"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteEvent(event.id);
+                        }}
+                        className="text-xs hover:text-red-600 dark:hover:text-red-400 flex-shrink-0 ml-1"
+                        title="Delete event"
                       >
                         ×
                       </button>
@@ -135,10 +187,8 @@ const Calendar: React.FC<CalendarProps> = ({
                       {event.startTime} - {event.endTime}
                     </div>
                     {event.description && (
-                      <div className="text-xs mt-1 text-gray-600 dark:text-gray-300">
-                        {event.description.length > 40
-                          ? `${event.description.substring(0, 40)}...`
-                          : event.description}
+                      <div className="text-xs mt-1 text-gray-600 dark:text-gray-300 line-clamp-2">
+                        {event.description}
                       </div>
                     )}
                   </div>
@@ -152,6 +202,14 @@ const Calendar: React.FC<CalendarProps> = ({
           </div>
         ))}
       </div>
+
+      {/* Event Details Modal */}
+      <EventDetailsModal
+        isOpen={selectedEvent !== null}
+        event={selectedEvent}
+        onClose={() => setSelectedEvent(null)}
+        onDelete={onDeleteEvent}
+      />
     </div>
   );
 };

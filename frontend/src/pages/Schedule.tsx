@@ -6,6 +6,7 @@ import Calendar from '../components/schedules/Calendar';
 import UpcomingEvents from '../components/schedules/UpcomingEvents';
 import PastEvents from '../components/schedules/PastEvents';
 import AddEventModal from '../components/schedules/AddEventModal';
+import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import { ScheduleEvent, PastEvent } from '../types/schedule';
 import { supabase } from '../lib/supabase';
 import { scheduleNotificationService } from '../services/scheduleNotificationService';
@@ -22,6 +23,17 @@ const Schedule = () => {
   const [error, setError] = useState<string | null>(null);
   const notificationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasStartedNotificationCheck = useRef(false);
+  
+  // Delete confirmation modal state
+  const [deleteModal, setDeleteModal] = useState<{
+    isOpen: boolean;
+    eventId: string | null;
+    eventTitle: string;
+  }>({
+    isOpen: false,
+    eventId: null,
+    eventTitle: '',
+  });
 
   useEffect(() => {
     // Get user data from localStorage
@@ -224,17 +236,31 @@ const Schedule = () => {
     setShowAddEvent(true);
   };
 
-  const deleteEvent = async (id: string) => {
+  const handleDeleteClick = (id: string) => {
+    const event = events.find(e => e.id === id) || pastEvents.find(e => e.id === id);
+    if (event) {
+      setDeleteModal({
+        isOpen: true,
+        eventId: id,
+        eventTitle: event.title,
+      });
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteModal.eventId) return;
+
     try {
       // Delete from Supabase
       const { error } = await supabase
         .from('events')
         .delete()
-        .eq('id', id);
+        .eq('id', deleteModal.eventId);
 
       if (error) {
         console.error('Error deleting event from Supabase:', error);
         setError('Failed to delete event. Please try again.');
+        setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' });
         return;
       }
 
@@ -242,11 +268,15 @@ const Schedule = () => {
       
       // Reload data to refresh the list
       await loadAllData();
+      setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' });
     } catch (e) {
       console.error('Error deleting event:', e);
       setError('Failed to delete event. Please try again.');
+      setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' });
     }
   };
+
+  const deleteEvent = handleDeleteClick; // Keep for backward compatibility
 
 
   const handleViewPastEvent = (event: PastEvent) => {
@@ -405,6 +435,17 @@ const Schedule = () => {
             }}
             onAddEvent={handleAddEvent}
             recurringEvent={recurringEvent}
+          />
+
+          {/* Delete Confirmation Modal */}
+          <DeleteConfirmationModal
+            isOpen={deleteModal.isOpen}
+            onClose={() => setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' })}
+            onConfirm={confirmDelete}
+            title="Delete Event"
+            message={`Are you sure you want to delete "${deleteModal.eventTitle}"? This action cannot be undone.`}
+            confirmLabel="Delete"
+            cancelLabel="Cancel"
           />
         </div>
       </div>
