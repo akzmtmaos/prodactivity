@@ -19,7 +19,6 @@ const Calendar: React.FC<CalendarProps> = ({
   onEventClick,
 }) => {
   const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(null);
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(startOfWeek(currentDate, { weekStartsOn: 0 }), i);
     return {
