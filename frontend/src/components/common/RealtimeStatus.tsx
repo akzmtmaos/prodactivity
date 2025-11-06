@@ -17,7 +17,6 @@ const RealtimeStatus: React.FC = () => {
     return (
       <div className="flex items-center gap-2 px-3 py-1 bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 rounded-full text-sm">
         <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-        <span>Live</span>
       </div>
     );
   }

@@ -10,7 +10,6 @@ import TaskSummary from '../components/tasks/TaskSummary';
 import { Task } from '../types/task';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
-import RealtimeStatus from '../components/common/RealtimeStatus';
 import { RealtimeProvider, useRealtime } from '../context/RealtimeContext';
 import { supabase } from '../lib/supabase';
 // import { getTimezoneOffset } from '../utils/dateUtils';
@@ -943,44 +942,18 @@ const TasksContent = ({ user }: { user: any }) => {
               </p>
             </div>
             
-            {/* Search and Filters with Add Task button */}
-            <div className="flex items-center gap-4">
-              <RealtimeStatus />
-              <TaskFilters
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                filterCompleted={null}
-                onFilterCompletedChange={() => {}}
-                filterPriority={filterPriority}
-                onFilterPriorityChange={setFilterPriority}
-                filterCategory={filterCategory}
-                onFilterCategoryChange={setFilterCategory}
-                categories={uniqueCategories}
-                sortField={sortField}
-                onSortFieldChange={setSortField}
-                sortDirection={sortDirection}
-                onSortDirectionChange={setSortDirection}
-                onResetFilters={() => {
-                  setSearchTerm('');
-                  setFilterPriority('all');
-                  setFilterCategory('all');
-                  setSortField('dueDate');
-                  setSortDirection('asc');
-                }}
-              />
-              <button
-                className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                onClick={() => {
-                  setEditingTask(undefined);
-                  setIsFormOpen(true);
-                }}
-              >
-                <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-                Add Task
-              </button>
-            </div>
+            <button
+              className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              onClick={() => {
+                setEditingTask(undefined);
+                setIsFormOpen(true);
+              }}
+            >
+              <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Add Task
+            </button>
           </div>
 
           {/* Task summary */}
@@ -992,8 +965,8 @@ const TasksContent = ({ user }: { user: any }) => {
             dueTodayCount={taskStats.due_today}
           />
 
-          {/* Tabs for Tasks and Completed */}
-          <div className="flex items-center border-b border-gray-200 dark:border-gray-700 mb-6">
+          {/* Tabs for Tasks and Completed with Search on the right */}
+          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-6">
             <div className="flex space-x-4">
               <button
                 className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
@@ -1025,6 +998,32 @@ const TasksContent = ({ user }: { user: any }) => {
               >
                 Completed
               </button>
+            </div>
+            
+            {/* Search and Filters on the right */}
+            <div className="flex items-center gap-4">
+              <TaskFilters
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                filterCompleted={null}
+                onFilterCompletedChange={() => {}}
+                filterPriority={filterPriority}
+                onFilterPriorityChange={setFilterPriority}
+                filterCategory={filterCategory}
+                onFilterCategoryChange={setFilterCategory}
+                categories={uniqueCategories}
+                sortField={sortField}
+                onSortFieldChange={setSortField}
+                sortDirection={sortDirection}
+                onSortDirectionChange={setSortDirection}
+                onResetFilters={() => {
+                  setSearchTerm('');
+                  setFilterPriority('all');
+                  setFilterCategory('all');
+                  setSortField('dueDate');
+                  setSortDirection('asc');
+                }}
+              />
             </div>
           </div>
 
