@@ -635,6 +635,15 @@ Create 5-10 flashcards following this EXACT pattern. Respond ONLY with valid JSO
                     result = response.json()
                     response_text = result.get('response', '').strip()
                     
+                    # Check if response is empty
+                    if not response_text:
+                        logger.error("Empty response from AI model")
+                        logger.error(f"Full result: {result}")
+                        return Response(
+                            {'error': 'AI model returned empty response. Please try again with different content.'},
+                            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                        )
+                    
                     # Try to parse the JSON response
                     import json
                     import re
@@ -642,10 +651,20 @@ Create 5-10 flashcards following this EXACT pattern. Respond ONLY with valid JSO
                     # Extract JSON from the response (in case there's extra text)
                     json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
                     if json_match:
-                        flashcards_data = json.loads(json_match.group())
+                        try:
+                            flashcards_data = json.loads(json_match.group())
+                        except json.JSONDecodeError as je:
+                            logger.error(f"Failed to parse extracted JSON: {je}")
+                            logger.error(f"Extracted JSON string: {json_match.group()[:500]}")
+                            raise
                     else:
                         # If no JSON found, try to parse the entire response
-                        flashcards_data = json.loads(response_text)
+                        try:
+                            flashcards_data = json.loads(response_text)
+                        except json.JSONDecodeError as je:
+                            logger.error(f"Failed to parse response as JSON: {je}")
+                            logger.error(f"Response text (first 500 chars): {response_text[:500]}")
+                            raise
                     
                     # Post-process to ensure Definition-Term format
                     processed_flashcards = []
@@ -742,9 +761,17 @@ Create 5-10 flashcards following this EXACT pattern. Respond ONLY with valid JSO
                         
                 except json.JSONDecodeError as e:
                     logger.error(f"Failed to parse AI response as JSON: {e}")
-                    logger.error(f"Raw response: {response_text}")
+                    logger.error(f"Raw response (first 1000 chars): {response_text[:1000] if response_text else '(empty)'}")
+                    logger.error(f"Full result: {result}")
                     return Response(
-                        {'error': 'Failed to parse AI response. Please try again.'},
+                        {'error': f'Failed to parse AI response as JSON. The AI may have returned invalid format. Please try again. Error: {str(e)}'},
+                        status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                    )
+                except Exception as e:
+                    logger.error(f"Unexpected error parsing flashcards: {e}")
+                    logger.error(f"Response text: {response_text[:1000] if response_text else '(empty)'}")
+                    return Response(
+                        {'error': f'Unexpected error while processing AI response: {str(e)}'},
                         status=status.HTTP_500_INTERNAL_SERVER_ERROR
                     )
             else:
