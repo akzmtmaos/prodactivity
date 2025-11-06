@@ -361,9 +361,18 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
     setIsLoading(true);
     setError(null);
     try {
+      // Strip HTML from content to get plain text
+      const plainTextContent = stripHtmlToText(content);
+      
+      if (!plainTextContent.trim()) {
+        throw new Error('No text content found. Please ensure your note has readable content.');
+      }
+      
       const response = await axiosInstance.post('/notes/smart-chunking/', {
-        text: content,
+        text: plainTextContent,
         topic: sourceTitle || 'Untitled'
+      }, {
+        timeout: 120000 // 2 minutes timeout (same as backend)
       });
       
       if (response.data.error) {
@@ -373,7 +382,16 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
       setChunkingAnalysis(response.data);
     } catch (error: any) {
       console.error('Failed to analyze chunking:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to analyze chunking. Please try again.';
+      let errorMessage = 'Failed to analyze chunking. Please try again.';
+      
+      if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+        errorMessage = 'Request timed out. The content might be too long. Please try with shorter content or wait a moment.';
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
       setError(errorMessage);
     } finally {
       setIsLoading(false);
