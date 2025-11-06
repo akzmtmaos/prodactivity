@@ -245,7 +245,8 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
 
   // Smart chunking state
   const [chunkingAnalysis, setChunkingAnalysis] = useState<ChunkingAnalysis | null>(null);
-  const [isCreatingNote, setIsCreatingNote] = useState(false);
+  const [createdNoteIds, setCreatedNoteIds] = useState<Set<number>>(new Set());
+  const [noteCreationStatus, setNoteCreationStatus] = useState<{[key: number]: 'success' | 'error' | 'creating'}>({});
 
   // Notebook summary state
   const [notebookSummary, setNotebookSummary] = useState<string>('');
@@ -380,13 +381,14 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
   };
 
   // Create note from chunk
-  const handleCreateNoteFromChunk = async (chunk: ChunkingSuggestion) => {
+  const handleCreateNoteFromChunk = async (chunk: ChunkingSuggestion, chunkIndex: number) => {
     if (!sourceNotebookId) {
       setError('No notebook selected for creating the note');
       return;
     }
 
-    setIsCreatingNote(true);
+    // Mark this chunk as being created
+    setNoteCreationStatus(prev => ({ ...prev, [chunkIndex]: 'creating' }));
     setError(null);
     
     try {
@@ -403,9 +405,12 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
         ? chunk.key_concepts.join(', ') 
         : (chunk.key_concepts || '');
       
+      // Strip HTML from content preview if it contains HTML
+      const cleanContent = stripHtmlToText(chunk.content_preview) || chunk.content_preview;
+      
       const noteData = {
-        title: chunk.title,
-        content: chunk.content_preview,
+        title: chunk.title || extractTitle(chunk.content_preview),
+        content: cleanContent,
         notebook: sourceNotebookId,
         priority: priorityValue,
         tags: tagsValue,
@@ -415,22 +420,31 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
       const response = await axiosInstance.post('/notes/', noteData);
       
       if (response.data && response.data.id) {
-        // Show success message
+        // Mark as successful
+        setNoteCreationStatus(prev => ({ ...prev, [chunkIndex]: 'success' }));
+        setCreatedNoteIds(prev => new Set([...prev, response.data.id]));
         setError(null);
-        // You could add a success state here or show a toast notification
-        console.log('Note created successfully:', response.data);
         
-        // Optionally close the AI panel or reset chunking analysis
-        // setChunkingAnalysis(null);
+        // Show success message
+        console.log('✅ Note created successfully:', response.data);
       } else {
-        throw new Error('Failed to create note');
+        throw new Error('Failed to create note - no ID returned');
       }
     } catch (error: any) {
-      console.error('Failed to create note from chunk:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to create note. Please try again.';
-      setError(errorMessage);
-    } finally {
-      setIsCreatingNote(false);
+      console.error('❌ Failed to create note from chunk:', error);
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.detail || 
+                          error.message || 
+                          'Failed to create note. Please try again.';
+      
+      // Mark as error
+      setNoteCreationStatus(prev => ({ ...prev, [chunkIndex]: 'error' }));
+      setError(`Failed to create note "${chunk.title}": ${errorMessage}`);
+      
+      // Clear error after 5 seconds
+      setTimeout(() => {
+        setError(null);
+      }, 5000);
     }
   };
 
@@ -549,16 +563,29 @@ Click "View Full Review" to see the complete reviewer with all features.`);
 
   // Convert to Flashcards
   const handleConvertToFlashcards = async () => {
-    if (!content.trim()) return;
+    if (!content.trim()) {
+      setError('No content to convert. Please add content to your note first.');
+      return;
+    }
     
     setIsConvertingToFlashcards(true);
     setFlashcardResult('');
     setFlashcards([]);
+    setError(null);
     
     try {
+      // Strip HTML from content to get plain text
+      const plainTextContent = stripHtmlToText(content);
+      
+      if (!plainTextContent.trim()) {
+        throw new Error('No text content found. Please ensure your note has readable content.');
+      }
+      
       // First, get flashcards from AI
       const response = await axiosInstance.post('/notes/convert-to-flashcards/', {
-        text: content
+        text: plainTextContent
+      }, {
+        timeout: 120000 // 2 minutes timeout
       });
       
       if (response.data.error) {
@@ -567,7 +594,7 @@ Click "View Full Review" to see the complete reviewer with all features.`);
       
       const generatedFlashcards = response.data.flashcards || [];
       if (!generatedFlashcards.length) {
-        throw new Error('No flashcards were generated');
+        throw new Error('No flashcards were generated. The content might be too short or unclear.');
       }
       
       setFlashcards(generatedFlashcards);
@@ -578,31 +605,52 @@ Click "View Full Review" to see the complete reviewer with all features.`);
         title: deckTitle
       });
       
+      if (!deckResponse.data || !deckResponse.data.id) {
+        throw new Error('Failed to create deck for flashcards');
+      }
+      
       const deckId = deckResponse.data.id;
       setCreatedDeckId(deckId);
       
       // Create flashcards in the deck
       const createdFlashcards = [];
+      let successCount = 0;
+      let errorCount = 0;
+      
       for (const flashcard of generatedFlashcards) {
-        const flashcardResponse = await axiosInstance.post('/decks/flashcards/', {
-          deck: deckId,
-          front: flashcard.front,
-          back: flashcard.back
-        });
-        createdFlashcards.push(flashcardResponse.data);
+        try {
+          const flashcardResponse = await axiosInstance.post('/decks/flashcards/', {
+            deck: deckId,
+            front: flashcard.front || flashcard.question || 'Definition',
+            back: flashcard.back || flashcard.answer || 'Term'
+          });
+          createdFlashcards.push(flashcardResponse.data);
+          successCount++;
+        } catch (flashcardError: any) {
+          console.error('Failed to create flashcard:', flashcardError);
+          errorCount++;
+        }
       }
       
-      setFlashcardResult(`✅ Successfully created ${createdFlashcards.length} flashcards!
+      if (successCount > 0) {
+        setFlashcardResult(`✅ Successfully created ${successCount} out of ${generatedFlashcards.length} flashcards!
 
-Deck: ${deckTitle}
-Flashcards: ${createdFlashcards.length}
+📚 Deck: ${deckTitle}
+🎴 Flashcards: ${successCount}${errorCount > 0 ? ` (${errorCount} failed)` : ''}
 
 Click "View Deck" to see your flashcards in the Decks section.`);
+      } else {
+        throw new Error(`Failed to create any flashcards. ${errorCount} errors occurred.`);
+      }
       
     } catch (error: any) {
-      console.error('Failed to convert to flashcards:', error);
-      const errorMessage = error.response?.data?.error || error.message || 'Failed to convert to flashcards. Please try again.';
+      console.error('❌ Failed to convert to flashcards:', error);
+      const errorMessage = error.response?.data?.error || 
+                          error.response?.data?.detail ||
+                          error.message || 
+                          'Failed to convert to flashcards. Please try again.';
       setFlashcardResult(`❌ Error: ${errorMessage}`);
+      setError(errorMessage);
     } finally {
       setIsConvertingToFlashcards(false);
     }
@@ -844,6 +892,8 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                     setFlashcardResult('');
                     setGeneratedReviewerId(null);
                     setCreatedDeckId(null);
+                    setCreatedNoteIds(new Set());
+                    setNoteCreationStatus({});
                   }}
                   className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
                 >
@@ -1067,13 +1117,32 @@ Click "View Deck" to see your flashcards in the Decks section.`);
 
                                   {/* Action Button */}
                                   <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
-                                    <button 
-                                      className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white rounded-lg transition-colors font-medium"
-                                      onClick={() => handleCreateNoteFromChunk(chunk)}
-                                      disabled={isCreatingNote}
-                                    >
-                                      {isCreatingNote ? 'Creating Note...' : 'Create Study Note'}
-                                    </button>
+                                    {noteCreationStatus[index] === 'success' ? (
+                                      <div className="w-full px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg font-medium flex items-center justify-center">
+                                        <span className="mr-2">✓</span>
+                                        Note Created!
+                                      </div>
+                                    ) : noteCreationStatus[index] === 'error' ? (
+                                      <div className="w-full px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg font-medium flex items-center justify-center">
+                                        <span className="mr-2">✗</span>
+                                        Failed - Try Again
+                                      </div>
+                                    ) : (
+                                      <button 
+                                        className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium"
+                                        onClick={() => handleCreateNoteFromChunk(chunk, index)}
+                                        disabled={noteCreationStatus[index] === 'creating'}
+                                      >
+                                        {noteCreationStatus[index] === 'creating' ? (
+                                          <span className="flex items-center justify-center">
+                                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                                            Creating Note...
+                                          </span>
+                                        ) : (
+                                          'Create Study Note'
+                                        )}
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               ))}
