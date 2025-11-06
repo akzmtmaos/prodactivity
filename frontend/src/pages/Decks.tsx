@@ -577,6 +577,27 @@ interface NoteItem {
     }
   };
 
+  const handleResetProgress = async (deckId: string) => {
+    try {
+      const res = await axiosInstance.patch(`/decks/decks/${deckId}/`, {
+        progress: 0
+      });
+
+      if (res.status === 200) {
+        // Update local state
+        setDecks(decks.map(d =>
+          d.id === deckId
+            ? { ...d, progress: 0 }
+            : d
+        ));
+        setToast({ message: 'Progress reset successfully!', type: 'success' });
+      }
+    } catch (error: any) {
+      console.error('Error resetting progress:', error);
+      setToast({ message: 'Failed to reset progress. Please try again.', type: 'error' });
+    }
+  };
+
   const handleArchive = (deckId: string) => {
     const deck = decks.find(d => d.id === deckId) || archivedDecks.find(d => d.id === deckId);
     if (deck) {

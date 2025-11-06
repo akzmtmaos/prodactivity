@@ -135,7 +135,7 @@ const TasksContent = ({ user }: { user: any }) => {
     fetchTasks();
     fetchTaskStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, filterPriority, sortField, sortDirection, currentPage]);
+  }, [searchTerm, filterPriority, filterCategory, sortField, sortDirection, currentPage]);
 
   // Fetch tasks when activeTab changes
   useEffect(() => {
