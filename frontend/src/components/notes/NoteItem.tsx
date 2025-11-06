@@ -150,6 +150,19 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
   };
 
   const handleNoteClick = async () => {
+    // If note is archived, don't allow editing - just show a message
+    if (note.is_archived) {
+      // Still update last_visited timestamp but don't open editor
+      try {
+        await axiosInstance.patch(`/notes/${note.id}/`, {
+          last_visited: new Date().toISOString()
+        });
+      } catch (error) {
+        console.error('Failed to update note visit timestamp:', error);
+      }
+      return; // Don't open editor for archived notes
+    }
+    
     try {
       // Update last_visited timestamp
       const response = await axiosInstance.patch(`/notes/${note.id}/`, {
@@ -214,12 +227,14 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
           </button>
           {showMenu && (
             <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10">
-              <button
-                onClick={(e) => { e.stopPropagation(); handleEditTitle(); }}
-                className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-              >
-                <Edit size={14} className="inline mr-2" /> Edit Title
-              </button>
+              {!note.is_archived && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleEditTitle(); }}
+                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                  <Edit size={14} className="inline mr-2" /> Edit Title
+                </button>
+              )}
               {note.is_archived ? (
                 <button
                   onClick={(e) => { e.stopPropagation(); handleArchive(); }}

@@ -33,6 +33,8 @@ interface Note {
   created_at: string;
   updated_at: string;
   is_deleted: boolean;
+  is_archived?: boolean;
+  archived_at?: string | null;
 }
 
 interface NoteEditorProps {
@@ -67,6 +69,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   onBack,
   isSaving = false,
 }) => {
+  // Check if note is archived - if so, make it read-only
+  const isReadOnly = note?.is_archived || false;
+  
   // State
   const [title, setTitle] = useState(note?.title || '');
   const [content, setContent] = useState(note?.content || '');
@@ -149,6 +154,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
   // Save functionality
   const handleSave = () => {
+    // Don't allow saving if note is archived (read-only)
+    if (isReadOnly) {
+      return;
+    }
+    
     if (autoSaveTimeout.current) {
       clearTimeout(autoSaveTimeout.current);
     }
@@ -208,6 +218,11 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
 
   // Debounced save
   const debouncedSave = useCallback(() => {
+    // Don't auto-save if note is archived (read-only)
+    if (isReadOnly) {
+      return;
+    }
+    
     if (autoSaveTimeout.current) {
       clearTimeout(autoSaveTimeout.current);
     }
@@ -217,7 +232,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         handleSave();
       }
     }, AUTO_SAVE_DELAY);
-  }, [title, priority, hasChanges]);
+  }, [title, priority, hasChanges, isReadOnly]);
 
   // Auto-save effect
   useEffect(() => {
@@ -767,6 +782,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         onImageUpload={handleImageUpload}
         onTogglePageView={setPageView}
         onShowSettings={() => setShowSettingsModal(true)}
+        isReadOnly={isReadOnly}
       />
 
       {/* Main Content */}
@@ -813,11 +829,19 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     .note-editor .code-block-container { background-color: #1e1e1e; border-radius: 8px; margin: 16px 0; overflow: hidden; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; }
                   `}</style>
                   
+                  {isReadOnly && (
+                    <div className="mb-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg">
+                      <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                        <strong>Note is archived.</strong> Unarchive this note to edit it.
+                      </p>
+                    </div>
+                  )}
                   <div
                     ref={contentEditableRef}
-                    contentEditable
-                    className="outline-none focus:outline-none note-editor w-full"
+                    contentEditable={!isReadOnly}
+                    className={`outline-none focus:outline-none note-editor w-full ${isReadOnly ? 'cursor-not-allowed opacity-75' : ''}`}
                     onInput={() => {
+                      if (isReadOnly) return;
                       setHasChanges(true);
                       
                       // Ensure editor always has content

@@ -28,6 +28,7 @@ interface EditorToolbarProps {
   onImageUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onTogglePageView: (checked: boolean) => void;
   onShowSettings: () => void;
+  isReadOnly?: boolean;
 }
 
 const EditorToolbar: React.FC<EditorToolbarProps> = ({
@@ -49,6 +50,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   onImageUpload,
   onTogglePageView,
   onShowSettings,
+  isReadOnly = false,
 }) => {
   return (
     <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-10">
@@ -67,7 +69,8 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
               value={title}
               onChange={(e) => onTitleChange(e.target.value)}
               placeholder="Untitled Note"
-              className="text-xl font-semibold bg-transparent border-none focus:outline-none focus:ring-0 w-full text-gray-900 dark:text-white"
+              disabled={isReadOnly}
+              className={`text-xl font-semibold bg-transparent border-none focus:outline-none focus:ring-0 w-full text-gray-900 dark:text-white ${isReadOnly ? 'cursor-not-allowed opacity-75' : ''}`}
             />
             {/* Save status indicator */}
             <div 
@@ -81,8 +84,9 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
         <div className="flex items-center gap-2 whitespace-nowrap">
           <button
             onClick={onSave}
-            className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0"
-            title="Save"
+            disabled={isReadOnly}
+            className={`p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 flex-shrink-0 ${isReadOnly ? 'cursor-not-allowed opacity-50' : ''}`}
+            title={isReadOnly ? 'Note is archived - cannot save' : 'Save'}
             type="button"
           >
             <Save size={16} />

@@ -818,6 +818,11 @@ const Notes = () => {
   };
 
   const handleEditNote = (note: Note) => {
+    // Don't allow editing archived notes - they should be read-only
+    if (note.is_archived) {
+      return;
+    }
+    
     // Find the latest note by id from both notes and archivedNotes states
     const latestNote = notes.find(n => n.id === note.id) || 
                       archivedNotes.find(n => n.id === note.id) || 
