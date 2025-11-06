@@ -942,30 +942,24 @@ const TasksContent = ({ user }: { user: any }) => {
               </p>
             </div>
             
-            {/* Search and Filters with Add Task button */}
+            {/* Search and Add Task button */}
             <div className="flex items-center gap-4">
-              <TaskFilters
-                searchTerm={searchTerm}
-                onSearchChange={setSearchTerm}
-                filterCompleted={null}
-                onFilterCompletedChange={() => {}}
-                filterPriority={filterPriority}
-                onFilterPriorityChange={setFilterPriority}
-                filterCategory={filterCategory}
-                onFilterCategoryChange={setFilterCategory}
-                categories={uniqueCategories}
-                sortField={sortField}
-                onSortFieldChange={setSortField}
-                sortDirection={sortDirection}
-                onSortDirectionChange={setSortDirection}
-                onResetFilters={() => {
-                  setSearchTerm('');
-                  setFilterPriority('all');
-                  setFilterCategory('all');
-                  setSortField('dueDate');
-                  setSortDirection('asc');
-                }}
-              />
+              {/* Search input */}
+              <div className="relative">
+                <input
+                  type="text"
+                  className="block w-64 rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white pl-10 pr-3 py-2 text-sm"
+                  placeholder="Search tasks..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                  </svg>
+                </div>
+              </div>
+              
               <button
                 className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                 onClick={() => {
@@ -990,8 +984,8 @@ const TasksContent = ({ user }: { user: any }) => {
             dueTodayCount={taskStats.due_today}
           />
 
-          {/* Tabs for Tasks and Completed */}
-          <div className="flex items-center border-b border-gray-200 dark:border-gray-700 mb-6">
+          {/* Tabs for Tasks and Completed with Search on the right */}
+          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-6">
             <div className="flex space-x-4">
               <button
                 className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
@@ -1023,6 +1017,32 @@ const TasksContent = ({ user }: { user: any }) => {
               >
                 Completed
               </button>
+            </div>
+            
+            {/* Search and Filters on the right */}
+            <div className="flex items-center gap-4">
+              <TaskFilters
+                searchTerm={searchTerm}
+                onSearchChange={setSearchTerm}
+                filterCompleted={null}
+                onFilterCompletedChange={() => {}}
+                filterPriority={filterPriority}
+                onFilterPriorityChange={setFilterPriority}
+                filterCategory={filterCategory}
+                onFilterCategoryChange={setFilterCategory}
+                categories={uniqueCategories}
+                sortField={sortField}
+                onSortFieldChange={setSortField}
+                sortDirection={sortDirection}
+                onSortDirectionChange={setSortDirection}
+                onResetFilters={() => {
+                  setSearchTerm('');
+                  setFilterPriority('all');
+                  setFilterCategory('all');
+                  setSortField('dueDate');
+                  setSortDirection('asc');
+                }}
+              />
             </div>
           </div>
 
