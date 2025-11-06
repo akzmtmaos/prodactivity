@@ -818,8 +818,10 @@ const Notes = () => {
   };
 
   const handleEditNote = (note: Note) => {
-    // Find the latest note by id from the notes state
-    const latestNote = notes.find(n => n.id === note.id) || note;
+    // Find the latest note by id from both notes and archivedNotes states
+    const latestNote = notes.find(n => n.id === note.id) || 
+                      archivedNotes.find(n => n.id === note.id) || 
+                      note;
     setEditingNote(null); // Hide inline form
     setNoteEditorNote(latestNote);
     setIsNewNoteEditor(false);
@@ -990,11 +992,23 @@ const Notes = () => {
           notebook: noteEditorNote.notebook
         });
         
-        // Update the note in the local state
-        const updatedNotes = notes.map(note => 
-          note.id === noteEditorNote.id ? response.data : note
-        );
-        setNotes(updatedNotes);
+        // Check if the note is in archived notes or regular notes
+        const isArchivedNote = archivedNotes.some(n => n.id === noteEditorNote.id);
+        
+        if (isArchivedNote) {
+          // Update the note in archived notes
+          const updatedArchivedNotes = archivedNotes.map(note => 
+            note.id === noteEditorNote.id ? response.data : note
+          );
+          setArchivedNotes(updatedArchivedNotes);
+        } else {
+          // Update the note in regular notes
+          const updatedNotes = notes.map(note => 
+            note.id === noteEditorNote.id ? response.data : note
+          );
+          setNotes(updatedNotes);
+        }
+        
         // Notify other parts of the app (e.g., Home quick notes) to refresh
         window.dispatchEvent(new Event('noteUpdated'));
         
@@ -1004,6 +1018,11 @@ const Notes = () => {
         // Always re-fetch notes from backend after update
         if (selectedNotebook) {
           await fetchNotes(selectedNotebook.id);
+        }
+        
+        // If viewing archived notes, also refresh archived notes
+        if (activeTab === 'archived') {
+          await fetchArchivedNotes();
         }
         
         // Only show toast for manual saves, not autosaves
