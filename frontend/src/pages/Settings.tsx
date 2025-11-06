@@ -107,34 +107,25 @@ const Settings: React.FC = () => {
 
     setIsChangingPassword(true);
     try {
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch(`${API_BASE_URL}/api/change-password/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          current_password: passwordFields.current,
-          new_password: passwordFields.new
-        })
+      const res = await axiosInstance.post('/change-password/', {
+        current_password: passwordFields.current,
+        new_password: passwordFields.new
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setPasswordError('');
-        setValidationErrors({});
-        setPasswordFields({ current: '', new: '', confirm: '' });
-        setShowPasswordModal(false);
-        // Show success message
-        setProfileMessage({ type: 'success', text: 'Password changed successfully!' });
-        setTimeout(() => setProfileMessage(null), 3000);
-      } else {
-        setPasswordError(data.detail || 'Failed to change password');
-      }
-    } catch (error) {
-      setPasswordError('Network error. Please try again.');
+      setPasswordError('');
+      setValidationErrors({});
+      setPasswordFields({ current: '', new: '', confirm: '' });
+      setShowPasswordModal(false);
+      // Show success message
+      setProfileMessage({ type: 'success', text: 'Password changed successfully!' });
+      setTimeout(() => setProfileMessage(null), 3000);
+    } catch (error: any) {
+      console.error('Password change error:', error);
+      const errorMessage = error.response?.data?.detail || 
+                          error.response?.data?.message ||
+                          error.message || 
+                          'Network error. Please try again.';
+      setPasswordError(errorMessage);
     } finally {
       setIsChangingPassword(false);
     }
