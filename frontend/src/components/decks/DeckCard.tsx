@@ -181,18 +181,6 @@ const DeckCard: React.FC<DeckCardProps> = ({
                   <BarChart2 size={16} className="mr-3" />
                   View Stats
                 </button>
-                {onManageSubDecks && !isSubDeck && (
-                  <button
-                    onClick={() => {
-                      onManageSubDecks(deck.id);
-                      setShowMenu(false);
-                    }}
-                    className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center transition-colors"
-                  >
-                    <FolderOpen size={16} className="mr-3" />
-                    Manage SubDecks
-                  </button>
-                )}
                 {onArchive && (
                   <button
                     onClick={() => {
