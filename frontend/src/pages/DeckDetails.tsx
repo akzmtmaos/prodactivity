@@ -378,11 +378,31 @@ const DeckDetails: React.FC = () => {
     }
   };
 
-  const handleDeleteSubdeck = (subdeckId: string) => {
-    // Mock implementation - in real app, this would make an API call
-    console.log('Deleting subdeck:', subdeckId);
-    setShowDeleteModal(false);
-    setSelectedSubdeck(null);
+  // Handle delete subdeck
+  const handleDeleteSubdeck = async (subdeckId: string) => {
+    if (!id) return;
+    
+    try {
+      await axiosInstance.delete(`/decks/decks/${subdeckId}/`);
+      
+      // Update subdecks state - remove deleted subdeck
+      setSubdecks(prev => prev.filter(sd => sd.id !== subdeckId));
+      
+      // Also update the main deck state if it has subdecks
+      if (deck) {
+        setDeck({
+          ...deck,
+          subdecks: deck.subdecks.filter(sd => sd.id !== subdeckId)
+        });
+      }
+      
+      // Close modal and reset selected subdeck
+      setShowDeleteModal(false);
+      setSelectedSubdeck(null);
+    } catch (error) {
+      console.error('Error deleting subdeck:', error);
+      alert('Error deleting subdeck. Please try again.');
+    }
   };
 
   const handlePractice = () => {
