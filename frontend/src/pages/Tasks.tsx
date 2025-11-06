@@ -816,7 +816,7 @@ const TasksContent = ({ user }: { user: any }) => {
   };
 
   // Handle sort
-  const handleSort = (field: keyof Task) => {
+  const handleSort = (field: 'dueDate' | 'priority' | 'title') => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
     } else {
