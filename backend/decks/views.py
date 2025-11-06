@@ -45,23 +45,35 @@ class DeckRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         deck = self.get_object()
         print(f"[DEBUG] PATCH /api/decks/decks/{deck.id}/ - data: {request.data}")
         
+        # Prepare update data
+        update_data = request.data.copy()
+        
         # Handle archive status
         is_archived = request.data.get('is_archived', None)
         if is_archived is not None:
-            deck.is_archived = is_archived
-            deck.archived_at = timezone.now() if is_archived else None
-            deck.save()
-            print(f"[DEBUG] Deck {deck.id} updated: is_archived={deck.is_archived}, archived_at={deck.archived_at}")
+            update_data['is_archived'] = is_archived
+            if is_archived:
+                update_data['archived_at'] = timezone.now()
+            else:
+                update_data['archived_at'] = None
+            print(f"[DEBUG] Deck {deck.id} will update: is_archived={is_archived}")
         
         # Handle delete status
         is_deleted = request.data.get('is_deleted', None)
         if is_deleted is not None:
-            deck.is_deleted = is_deleted
-            deck.deleted_at = None if not is_deleted else timezone.now()
-            deck.save()
-            print(f"[DEBUG] Deck {deck.id} updated: is_deleted={deck.is_deleted}, deleted_at={deck.deleted_at}")
+            update_data['is_deleted'] = is_deleted
+            if is_deleted:
+                update_data['deleted_at'] = timezone.now()
+            else:
+                update_data['deleted_at'] = None
+            print(f"[DEBUG] Deck {deck.id} will update: is_deleted={is_deleted}")
         
-        serializer = self.get_serializer(deck)
+        # Use serializer to handle all fields (including title, is_archived, is_deleted)
+        serializer = self.get_serializer(deck, data=update_data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        
+        print(f"[DEBUG] Deck {deck.id} updated successfully: title={deck.title}, is_archived={deck.is_archived}, is_deleted={deck.is_deleted}")
         return Response(serializer.data)
 
 class FlashcardListCreateView(generics.ListCreateAPIView):

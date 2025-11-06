@@ -18,7 +18,7 @@ class DeckSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Deck
-        fields = ['id', 'title', 'user', 'parent', 'created_at', 'updated_at', 'progress', 'subdecks', 'flashcard_count', 'flashcards', 'is_deleted', 'deleted_at']
+        fields = ['id', 'title', 'user', 'parent', 'created_at', 'updated_at', 'progress', 'subdecks', 'flashcard_count', 'flashcards', 'is_deleted', 'deleted_at', 'is_archived', 'archived_at']
         read_only_fields = ['id', 'user', 'created_at', 'updated_at', 'subdecks', 'flashcard_count', 'flashcards']
 
     def get_subdecks(self, obj):

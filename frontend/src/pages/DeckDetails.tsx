@@ -1239,7 +1239,7 @@ const DeckDetails: React.FC = () => {
       )}
 
       {/* Edit Subdeck Modal */}
-      {selectedSubdeck && (
+      {showEditModal && selectedSubdeck && (
         <EditDeckModal
           isOpen={showEditModal}
           deck={{
@@ -1252,9 +1252,10 @@ const DeckDetails: React.FC = () => {
           }}
           onUpdateDeck={async (deckId: string, updates: { title: string }) => {
             try {
-              await axiosInstance.patch(`/decks/decks/${deckId}/`, updates);
+              const response = await axiosInstance.patch(`/decks/decks/${deckId}/`, updates);
+              console.log('Subdeck update response:', response.data);
               
-              // Refresh subdecks
+              // Refresh subdecks from API
               const subdecksRes = await axiosInstance.get(`/decks/decks/?parent=${id}`);
               const data = subdecksRes.data;
               const updatedSubdecks = data.map((sd: any) => ({

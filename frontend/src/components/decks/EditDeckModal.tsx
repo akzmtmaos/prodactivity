@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 
 interface EditDeckModalProps {
@@ -18,6 +18,13 @@ const EditDeckModal: React.FC<EditDeckModalProps> = ({
   onUpdateDeck
 }) => {
   const [title, setTitle] = useState(deck.title);
+
+  // Update title when deck prop changes
+  useEffect(() => {
+    if (isOpen && deck) {
+      setTitle(deck.title);
+    }
+  }, [isOpen, deck]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
