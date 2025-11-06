@@ -31,6 +31,7 @@ import Toast from '../../components/common/Toast';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import GenerateModal from './GenerateModal';
 import InteractiveQuiz from './InteractiveQuiz';
+import EditReviewerModal from './EditReviewerModal';
 
 const REVIEWERS_CACHE_KEY = 'reviewerCachedReviewersV1';
 
@@ -152,6 +153,15 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
 
   // Interactive Quiz state
   const [interactiveQuizData, setInteractiveQuizData] = useState<Reviewer | null>(null);
+
+  // Edit modal state
+  const [editModal, setEditModal] = useState<{
+    isOpen: boolean;
+    reviewer: Reviewer | null;
+  }>({
+    isOpen: false,
+    reviewer: null
+  });
 
   const navigate = useNavigate();
 
@@ -634,6 +644,44 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     console.log(`✅ Quiz ${quizId} score will be refreshed when quiz closes`);
   };
 
+  // Handle edit reviewer/quiz
+  const handleEdit = (reviewer: Reviewer) => {
+    setEditModal({
+      isOpen: true,
+      reviewer: reviewer
+    });
+  };
+
+  // Handle save edit
+  const handleSaveEdit = async (id: number, title: string, content: string) => {
+    try {
+      const response = await axiosInstance.patch(`/reviewers/${id}/`, {
+        title: title,
+        content: content
+      });
+
+      // Update the reviewer in the list
+      setReviewers(prev => prev.map(r => r.id === id ? response.data : r));
+
+      // Update cache
+      try {
+        const cached = localStorage.getItem(REVIEWERS_CACHE_KEY);
+        if (cached) {
+          const parsed = JSON.parse(cached);
+          if (parsed && Array.isArray(parsed.data)) {
+            const updatedData = parsed.data.map((r: Reviewer) => r.id === id ? response.data : r);
+            localStorage.setItem(REVIEWERS_CACHE_KEY, JSON.stringify({ ts: Date.now(), data: updatedData }));
+          }
+        }
+      } catch {}
+
+      setToast({ message: 'Reviewer updated successfully!', type: 'success' });
+    } catch (error: any) {
+      console.error('Failed to update reviewer:', error);
+      throw new Error(error.response?.data?.error || 'Failed to update reviewer');
+    }
+  };
+
   // Debug loading state
   console.log('Loading state:', {
     loading,
@@ -924,6 +972,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                       }
                     }}
                     onGenerateQuiz={generateQuizForReviewer}
+                    onEdit={handleEdit}
                     onClick={() => navigate(`/reviewer/r/${reviewer.id}`)}
                     quizLoadingId={quizLoadingId}
                     showFavorite={true}
@@ -974,6 +1023,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                         openDeleteModal(id, reviewer.title);
                       }
                     }}
+                    onEdit={handleEdit}
                     onClick={() => navigate(`/reviewer/q/${quiz.id}`)}
                     onTakeQuiz={(quiz) => setInteractiveQuizData(quiz)}
                     onFavorite={toggleFavorite}
@@ -1172,6 +1222,14 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           onScoreUpdate={handleScoreUpdate}
         />
       )}
+
+      {/* Edit Reviewer/Quiz Modal */}
+      <EditReviewerModal
+        isOpen={editModal.isOpen}
+        reviewer={editModal.reviewer}
+        onClose={() => setEditModal({ isOpen: false, reviewer: null })}
+        onSave={handleSaveEdit}
+      />
     </div>
   );
 };

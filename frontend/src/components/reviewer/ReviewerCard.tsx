@@ -1,6 +1,6 @@
 import React from 'react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
-import { Star, StarOff, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy } from 'lucide-react';
+import { Star, StarOff, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy, Edit } from 'lucide-react';
 import { truncateHtmlContent } from '../../utils/htmlUtils';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosConfig';
@@ -30,6 +30,7 @@ interface ReviewerCardProps {
   onGenerateQuiz?: (reviewer: Reviewer) => void;
   onClick: () => void;
   onTakeQuiz?: (reviewer: Reviewer) => void;
+  onEdit?: (reviewer: Reviewer) => void;
   quizLoadingId?: number | null;
   showFavorite?: boolean;
   showGenerateQuiz?: boolean;
@@ -43,6 +44,7 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
   onGenerateQuiz,
   onClick,
   onTakeQuiz,
+  onEdit,
   quizLoadingId,
   showFavorite = true,
   showGenerateQuiz = true,
@@ -218,6 +220,19 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
               title={reviewer.is_favorite ? "Remove from favorites" : "Add to favorites"}
             >
               {reviewer.is_favorite ? <Star size={16} className="text-yellow-500 fill-current" /> : <StarOff size={16} />}
+            </button>
+          )}
+          
+          {onEdit && (
+            <button
+              onClick={e => {
+                e.stopPropagation();
+                onEdit(reviewer);
+              }}
+              className="p-2 text-gray-400 hover:text-indigo-500 transition-colors"
+              title="Edit reviewer"
+            >
+              <Edit size={16} />
             </button>
           )}
           
