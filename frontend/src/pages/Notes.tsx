@@ -880,7 +880,17 @@ const Notes = () => {
   const handleDeleteNote = async (noteId: number) => {
     try {
       await axiosInstance.delete(`/notes/${noteId}/`);
-      setNotes(notes.filter(note => note.id !== noteId));
+      
+      // Check if the note is in archived notes or regular notes
+      const isArchivedNote = archivedNotes.some(n => n.id === noteId);
+      
+      if (isArchivedNote) {
+        // Remove from archived notes
+        setArchivedNotes(archivedNotes.filter(note => note.id !== noteId));
+      } else {
+        // Remove from regular notes
+        setNotes(notes.filter(note => note.id !== noteId));
+      }
       
       // Remove the deleted note from selection if it was selected
       setSelectedForBulk(prev => prev.filter(id => id !== noteId));
@@ -895,6 +905,19 @@ const Notes = () => {
         setNotebooks(updatedNotebooks);
         setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count - 1 });
       }
+      
+      // If the deleted note was being viewed in the editor, close it
+      if (noteEditorNote?.id === noteId) {
+        setShowNoteEditor(false);
+        setNoteEditorNote(null);
+        // Navigate back to notes list
+        if (selectedNotebook) {
+          navigate(`/notes/notebooks/${selectedNotebook.id}`);
+        } else {
+          navigate('/notes');
+        }
+      }
+      
       setToast({ message: 'Note moved to Trash.', type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to delete note');
