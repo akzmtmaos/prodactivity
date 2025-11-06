@@ -168,35 +168,25 @@ const Settings: React.FC = () => {
     setIsDeletingAccount(true);
     
     try {
-      const token = localStorage.getItem('accessToken');
-      
       // Verify password and delete account in one call
-      const response = await fetch(`${API_BASE_URL}/api/delete-account/`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          password: deletePassword
-        })
+      const res = await axiosInstance.post('/delete-account/', {
+        password: deletePassword
       });
 
-      if (response.ok) {
-        // Account deleted successfully - clear all data and redirect to login
-        localStorage.removeItem('user');
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('userSettings');
-        localStorage.clear(); // Clear all localStorage
-        window.location.href = '/login';
-      } else {
-        const data = await response.json();
-        setDeleteError(data.detail || 'Incorrect password or failed to delete account');
-      }
-    } catch (error) {
+      // Account deleted successfully - clear all data and redirect to login
+      localStorage.removeItem('user');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('userSettings');
+      localStorage.clear(); // Clear all localStorage
+      window.location.href = '/login';
+    } catch (error: any) {
       console.error('Delete account error:', error);
-      setDeleteError('Network error. Please try again.');
+      const errorMessage = error.response?.data?.detail || 
+                          error.response?.data?.message ||
+                          error.message || 
+                          'Network error. Please try again.';
+      setDeleteError(errorMessage);
     } finally {
       setIsDeletingAccount(false);
     }
