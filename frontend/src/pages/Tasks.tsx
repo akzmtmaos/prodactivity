@@ -265,6 +265,10 @@ const TasksContent = ({ user }: { user: any }) => {
         query = query.eq('priority', filterPriority);
       }
       
+      if (filterCategory !== 'all') {
+        query = query.eq('task_category', filterCategory);
+      }
+      
       if (searchTerm) {
         query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
       }
