@@ -1164,6 +1164,7 @@ interface NoteItem {
                       onViewStats={handleViewStats}
                       onOpen={handleOpenDeck}
                       onArchive={handleArchive}
+                      onResetProgress={handleResetProgress}
                     />
                     {/* Subdecks display - click to open deck and view subdeck */}
                     {deck.subDecks && deck.subDecks.length > 0 && (

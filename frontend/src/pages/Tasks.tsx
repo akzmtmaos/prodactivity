@@ -94,6 +94,7 @@ const TasksContent = ({ user }: { user: any }) => {
   const [sortField, setSortField] = useState<keyof Task>('dueDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterPriority, setFilterPriority] = useState<Task['priority'] | 'all'>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
   // State for delete confirmation modal
@@ -945,9 +946,13 @@ const TasksContent = ({ user }: { user: any }) => {
                 onFilterCompletedChange={() => {}}
                 filterPriority={filterPriority}
                 onFilterPriorityChange={setFilterPriority}
+                filterCategory={filterCategory}
+                onFilterCategoryChange={setFilterCategory}
+                categories={uniqueCategories}
                 onResetFilters={() => {
                   setSearchTerm('');
                   setFilterPriority('all');
+                  setFilterCategory('all');
                 }}
               />
               <button
@@ -1142,7 +1147,7 @@ const TasksContent = ({ user }: { user: any }) => {
                     ? 'Try changing your search or filter criteria.'
                     : 'Get started by creating a new task.'}
                 </p>
-                {!searchTerm && filterPriority === 'all' && (
+                {!searchTerm && filterPriority === 'all' && filterCategory === 'all' && (
                   <div className="mt-6">
                     <button
                       type="button"
