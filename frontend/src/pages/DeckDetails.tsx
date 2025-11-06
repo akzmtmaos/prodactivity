@@ -1237,7 +1237,7 @@ const DeckDetails: React.FC = () => {
               // Refresh subdecks
               const subdecksRes = await axiosInstance.get(`/decks/decks/?parent=${id}`);
               const data = subdecksRes.data;
-              setSubdecks(data.map((sd: any) => ({
+              const updatedSubdecks = data.map((sd: any) => ({
                 id: sd.id.toString(),
                 title: sd.title,
                 flashcards: (sd.flashcards || []).map((fc: any) => ({
@@ -1248,12 +1248,24 @@ const DeckDetails: React.FC = () => {
                   back: fc.back,
                   difficulty: fc.difficulty
                 }))
-              })));
+              }));
+              
+              // Update subdecks state
+              setSubdecks(updatedSubdecks);
+              
+              // Also update the main deck state if it has subdecks
+              if (deck) {
+                setDeck({
+                  ...deck,
+                  subdecks: updatedSubdecks
+                });
+              }
               
               setShowEditModal(false);
               setSelectedSubdeck(null);
             } catch (error) {
               console.error('Error updating subdeck:', error);
+              alert('Error updating subdeck. Please try again.');
             }
           }}
         />
