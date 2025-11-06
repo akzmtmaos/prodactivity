@@ -398,6 +398,88 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
     }
   };
 
+  // Helper function to extract relevant content section from original content
+  const extractChunkContent = (chunk: ChunkingSuggestion, originalContent: string): string => {
+    // Strip HTML from original content
+    const plainTextContent = stripHtmlToText(originalContent);
+    
+    // Try to find the relevant section based on chunk title
+    const chunkTitle = chunk.title || extractTitle(chunk.content_preview);
+    const titleWords = chunkTitle.toLowerCase().split(/\s+/).filter(w => w.length > 3);
+    
+    // Try to find section in original content that matches the chunk title
+    const contentLines = plainTextContent.split('\n');
+    let startIndex = -1;
+    let endIndex = -1;
+    
+    // Find the line that contains the chunk title or key words
+    for (let i = 0; i < contentLines.length; i++) {
+      const line = contentLines[i].toLowerCase();
+      const matchesTitle = titleWords.some(word => line.includes(word));
+      
+      if (matchesTitle && startIndex === -1) {
+        startIndex = i;
+      }
+    }
+    
+    // If we found a start, try to find the end (next major heading or end of content)
+    if (startIndex !== -1) {
+      // Look for next major heading (starts with uppercase, or has "LESSON", "CHAPTER", etc.)
+      for (let i = startIndex + 1; i < contentLines.length; i++) {
+        const line = contentLines[i].trim();
+        if (line.length > 0) {
+          // Check if this is a new section (heading pattern)
+          if (line.match(/^(LESSON|CHAPTER|PART|SECTION|UNIT)\s+\d+/i) ||
+              (line.length < 100 && line.match(/^[A-Z][A-Z\s]+$/))) {
+            endIndex = i;
+            break;
+          }
+        }
+      }
+      
+      // If no end found, use a reasonable chunk size (about 1000 words or 5000 chars)
+      if (endIndex === -1) {
+        const extracted = contentLines.slice(startIndex).join('\n');
+        if (extracted.length > 5000) {
+          // Find a good breaking point around 5000 chars
+          const truncated = extracted.substring(0, 5000);
+          const lastPeriod = truncated.lastIndexOf('.');
+          const lastNewline = truncated.lastIndexOf('\n');
+          endIndex = startIndex + Math.max(lastPeriod, lastNewline);
+        } else {
+          endIndex = contentLines.length;
+        }
+      }
+      
+      // Extract the section
+      const section = contentLines.slice(startIndex, endIndex).join('\n').trim();
+      if (section.length > 100) {
+        return section;
+      }
+    }
+    
+    // Fallback: Use the content preview but expand it with more context
+    // Try to find the preview text in the original content and get surrounding context
+    const previewText = stripHtmlToText(chunk.content_preview);
+    const previewWords = previewText.split(/\s+/).filter(w => w.length > 4).slice(0, 5);
+    
+    if (previewWords.length > 0) {
+      // Find where preview appears in original content
+      const previewPattern = previewWords.join('.*?');
+      const regex = new RegExp(previewPattern, 'i');
+      const match = plainTextContent.match(regex);
+      
+      if (match && match.index !== undefined) {
+        const start = Math.max(0, match.index - 200);
+        const end = Math.min(plainTextContent.length, match.index + match[0].length + 2000);
+        return plainTextContent.substring(start, end).trim();
+      }
+    }
+    
+    // Last fallback: Use content preview (at least it's something)
+    return previewText || chunk.content_preview;
+  };
+
   // Create note from chunk
   const handleCreateNoteFromChunk = async (chunk: ChunkingSuggestion, chunkIndex: number) => {
     if (!sourceNotebookId) {
@@ -423,12 +505,12 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
         ? chunk.key_concepts.join(', ') 
         : (chunk.key_concepts || '');
       
-      // Strip HTML from content preview if it contains HTML
-      const cleanContent = stripHtmlToText(chunk.content_preview) || chunk.content_preview;
+      // Extract full content from original note content based on chunk
+      const fullContent = extractChunkContent(chunk, content);
       
       const noteData = {
         title: chunk.title || extractTitle(chunk.content_preview),
-        content: cleanContent,
+        content: fullContent,
         notebook: sourceNotebookId,
         priority: priorityValue,
         tags: tagsValue,
