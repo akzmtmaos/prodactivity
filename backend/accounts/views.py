@@ -375,21 +375,59 @@ def login_view(request):
 @permission_classes([IsAuthenticated])
 def update_avatar(request):
     user = request.user
+    
+    print(f"📸 Avatar update request received for user: {user.username} (ID: {user.id})")
+    print(f"📦 Request method: {request.method}")
+    print(f"📦 Content-Type: {request.content_type}")
+    print(f"📦 Has FILES: {bool(request.FILES)}")
+    print(f"📦 FILES keys: {list(request.FILES.keys()) if request.FILES else 'None'}")
+    
+    # Ensure profile exists
+    profile, created = Profile.objects.get_or_create(user=user)
+    if created:
+        print(f"✅ Created profile for user: {user.username}")
+    
     if 'avatar' in request.FILES:
-        user.profile.avatar = request.FILES['avatar']
-        user.profile.save()
-        
-        # Return the avatar URL
-        avatar_url = None
-        if user.profile.avatar:
-            request_scheme = request.scheme
-            request_host = request.get_host()
-            avatar_url = f"{request_scheme}://{request_host}{user.profile.avatar.url}"
-        
-        return Response({
-            'message': 'Avatar updated successfully',
-            'avatar': avatar_url
-        })
+        try:
+            avatar_file = request.FILES['avatar']
+            print(f"📸 Avatar file received: {avatar_file.name}, size: {avatar_file.size}, type: {avatar_file.content_type}")
+            
+            profile.avatar = avatar_file
+            profile.save()
+            print(f"✅ Avatar saved successfully for user: {user.username}")
+            
+            # Return the avatar URL
+            avatar_url = None
+            if profile.avatar:
+                request_scheme = request.scheme
+                request_host = request.get_host()
+                avatar_url = f"{request_scheme}://{request_host}{profile.avatar.url}"
+                print(f"📸 Avatar URL: {avatar_url}")
+            
+            # Sync to Supabase
+            try:
+                if check_user_exists_in_supabase(user.id):
+                    update_user_in_supabase(user, profile)
+                    print(f"✅ Synced avatar update to Supabase for user {user.id}")
+                else:
+                    print(f"⚠️ User {user.id} not found in Supabase, skipping sync")
+            except Exception as e:
+                print(f"❌ Failed to sync avatar to Supabase: {e}")
+            
+            return Response({
+                'message': 'Avatar updated successfully',
+                'avatar': avatar_url
+            })
+        except Exception as e:
+            print(f"❌ Error updating avatar: {e}")
+            import traceback
+            print(traceback.format_exc())
+            return Response({
+                'message': f'Failed to update avatar: {str(e)}',
+                'error': str(e)
+            }, status=500)
+    
+    print(f"❌ No avatar file provided in request")
     return Response({'message': 'No avatar file provided'}, status=400)
 
 @api_view(['GET', 'PATCH'])

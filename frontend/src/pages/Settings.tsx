@@ -388,28 +388,60 @@ const Settings: React.FC = () => {
           formData.append('avatar', optimizedFile);
           const token = localStorage.getItem('accessToken');
           
-          const res = await fetch(`${API_BASE_URL}/api/avatar/`, {
+          console.log('📸 Uploading avatar...', {
+            fileName: optimizedFile.name,
+            fileSize: optimizedFile.size,
+            fileType: optimizedFile.type
+          });
+          
+          const res = await fetch(`${API_BASE_URL}/avatar/`, {
             method: 'PATCH',
             headers: {
               'Authorization': `Bearer ${token}`,
+              // Don't set Content-Type header - let browser set it with boundary for FormData
             },
             body: formData,
           });
           
+          console.log('📸 Avatar upload response:', {
+            status: res.status,
+            statusText: res.statusText,
+            contentType: res.headers.get('content-type')
+          });
+          
           if (res.ok) {
-            const data = await res.json();
-            updatedProfile.avatar = data.avatar;
-            
-            // Clear the selected file and preview since it's now saved
-            setSelectedAvatarFile(null);
-            setAvatarPreview('');
+            const contentType = res.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+              const data = await res.json();
+              console.log('✅ Avatar uploaded successfully:', data);
+              updatedProfile.avatar = data.avatar;
+              
+              // Clear the selected file and preview since it's now saved
+              setSelectedAvatarFile(null);
+              setAvatarPreview('');
+            } else {
+              // Response is not JSON, might be HTML error page
+              const text = await res.text();
+              console.error('❌ Avatar upload returned non-JSON response:', text.substring(0, 200));
+              throw new Error('Server returned an invalid response. Please try again.');
+            }
           } else {
-            const errorData = await res.json();
-            throw new Error(errorData.message || 'Failed to update profile picture.');
+            // Try to parse error response
+            const contentType = res.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+              const errorData = await res.json();
+              console.error('❌ Avatar upload error:', errorData);
+              throw new Error(errorData.message || errorData.error || 'Failed to update profile picture.');
+            } else {
+              const text = await res.text();
+              console.error('❌ Avatar upload error (non-JSON):', text.substring(0, 200));
+              throw new Error(`Failed to update profile picture (${res.status} ${res.statusText}).`);
+            }
           }
-        } catch (avatarError) {
-          console.error('Avatar upload error:', avatarError);
-          throw new Error('Failed to upload profile picture. Please try again.');
+        } catch (avatarError: any) {
+          console.error('❌ Avatar upload error:', avatarError);
+          const errorMessage = avatarError.message || 'Failed to upload profile picture. Please try again.';
+          throw new Error(errorMessage);
         }
       }
 
