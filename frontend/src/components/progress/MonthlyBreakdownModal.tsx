@@ -81,15 +81,15 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
       
       while (currentDate <= lastDay) {
         // Use local date formatting to avoid timezone shifts
-        const year = currentDate.getFullYear();
-        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
-        const day = String(currentDate.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
+        const currentYear = currentDate.getFullYear();
+        const currentMonthNum = currentDate.getMonth() + 1; // 1-12
+        const currentDay = currentDate.getDate();
+        const monthStr = String(currentMonthNum).padStart(2, '0');
+        const dayStr = String(currentDay).padStart(2, '0');
+        const dateStr = `${currentYear}-${monthStr}-${dayStr}`;
         
         // Double-check that the date is actually in the selected month
-        const currentMonth = currentDate.getMonth();
-        const currentYear = currentDate.getFullYear();
-        if (currentMonth !== (month - 1) || currentYear !== year) {
+        if (currentMonthNum !== month || currentYear !== year) {
           // Skip if date is not in the selected month (shouldn't happen, but safety check)
           currentDate.setDate(currentDate.getDate() + 1);
           continue;
