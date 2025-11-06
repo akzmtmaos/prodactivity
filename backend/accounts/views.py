@@ -430,18 +430,14 @@ def me(request):
                     user.profile.email_verified = False
                     user.profile.save()
         
-        # Update profile fields if provided
+        # Update profile fields if provided (only if they exist in the model)
         if hasattr(user, 'profile'):
-            if 'displayName' in data:
-                user.profile.display_name = data['displayName']
-            if 'bio' in data:
-                user.profile.bio = data['bio']
-            if 'phone' in data:
-                user.profile.phone = data['phone']
-            if 'dob' in data:
-                user.profile.date_of_birth = data['dob']
-            if 'location' in data:
-                user.profile.location = data['location']
+            # Only update fields that exist in the Profile model
+            # Note: Profile model currently only has: avatar, email_verified, email_verified_at
+            # Additional fields like display_name, bio, phone, date_of_birth, location
+            # would need to be added to the Profile model first
+            # For now, we'll skip these fields to avoid AttributeError
+            pass  # Profile model doesn't have these fields yet
             
             user.profile.save()
         
@@ -493,13 +489,13 @@ def me(request):
         'id': user.id,
         'username': user.username,
         'email': user.email,
-        'displayName': getattr(user.profile, 'display_name', '') if hasattr(user, 'profile') else '',
-        'bio': getattr(user.profile, 'bio', '') if hasattr(user, 'profile') else '',
-        'phone': getattr(user.profile, 'phone', '') if hasattr(user, 'profile') else '',
-        'dob': getattr(user.profile, 'date_of_birth', '') if hasattr(user, 'profile') else '',
-        'location': getattr(user.profile, 'location', '') if hasattr(user, 'profile') else '',
+        'displayName': '',  # Profile model doesn't have this field yet
+        'bio': '',  # Profile model doesn't have this field yet
+        'phone': '',  # Profile model doesn't have this field yet
+        'dob': '',  # Profile model doesn't have this field yet
+        'location': '',  # Profile model doesn't have this field yet
         'avatar': avatar_url,
-        'email_verified': getattr(user.profile, 'email_verified', False) if hasattr(user, 'profile') else False,
+        'email_verified': user.profile.email_verified if hasattr(user, 'profile') else False,
         'date_joined': user.date_joined,
     })
 

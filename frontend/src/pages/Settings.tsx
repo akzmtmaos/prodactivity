@@ -414,50 +414,40 @@ const Settings: React.FC = () => {
       }
 
       // Save profile data to backend
-      const token = localStorage.getItem('accessToken');
       try {
-        const res = await fetch(`${API_BASE_URL}/api/me/`, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            username: profile.username,
-            email: profile.email,
-            displayName: profile.displayName,
-            bio: profile.bio,
-            phone: profile.phone,
-            dob: profile.dob,
-            location: profile.location,
-          }),
+        const res = await axiosInstance.patch('/me/', {
+          username: profile.username,
+          email: profile.email,
+          displayName: profile.displayName,
+          bio: profile.bio,
+          phone: profile.phone,
+          dob: profile.dob,
+          location: profile.location,
         });
         
-        if (res.ok) {
-          const data = await res.json();
-          console.log('✅ Profile updated on backend:', data);
-          
-          // Use the user data returned from backend
-          if (data.user) {
-            updatedProfile = {
-              ...updatedProfile,
-              username: data.user.username,
-              email: data.user.email,
-              displayName: data.user.displayName,
-              bio: data.user.bio,
-              phone: data.user.phone,
-              dob: data.user.dob,
-              location: data.user.location,
-              avatar: data.user.avatar || updatedProfile.avatar,
-            };
-          }
-        } else {
-          const errorData = await res.json();
-          throw new Error(errorData.message || 'Failed to update profile.');
+        console.log('✅ Profile updated on backend:', res.data);
+        
+        // Use the user data returned from backend
+        if (res.data.user) {
+          updatedProfile = {
+            ...updatedProfile,
+            username: res.data.user.username,
+            email: res.data.user.email,
+            displayName: res.data.user.displayName,
+            bio: res.data.user.bio,
+            phone: res.data.user.phone,
+            dob: res.data.user.dob,
+            location: res.data.user.location,
+            avatar: res.data.user.avatar || updatedProfile.avatar,
+          };
         }
-      } catch (profileError) {
+      } catch (profileError: any) {
         console.error('Profile update error:', profileError);
-        throw new Error(profileError instanceof Error ? profileError.message : 'Failed to update profile. Please try again.');
+        const errorMessage = profileError.response?.data?.message || 
+                            profileError.response?.data?.detail ||
+                            profileError.message || 
+                            'Failed to update profile. Please try again.';
+        throw new Error(errorMessage);
       }
 
       // Save profile data to localStorage
