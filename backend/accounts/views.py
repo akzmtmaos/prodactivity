@@ -468,13 +468,13 @@ def me(request):
                 'id': user.id,
                 'username': user.username,
                 'email': user.email,
-                'displayName': getattr(user.profile, 'display_name', '') if hasattr(user, 'profile') else '',
-                'bio': getattr(user.profile, 'bio', '') if hasattr(user, 'profile') else '',
-                'phone': getattr(user.profile, 'phone', '') if hasattr(user, 'profile') else '',
-                'dob': getattr(user.profile, 'date_of_birth', '') if hasattr(user, 'profile') else '',
-                'location': getattr(user.profile, 'location', '') if hasattr(user, 'profile') else '',
+                'displayName': '',  # Profile model doesn't have this field yet
+                'bio': '',  # Profile model doesn't have this field yet
+                'phone': '',  # Profile model doesn't have this field yet
+                'dob': '',  # Profile model doesn't have this field yet
+                'location': '',  # Profile model doesn't have this field yet
                 'avatar': avatar_url,
-                'email_verified': getattr(user.profile, 'email_verified', False) if hasattr(user, 'profile') else False,
+                'email_verified': user.profile.email_verified if hasattr(user, 'profile') else False,
                 'date_joined': user.date_joined,
             }
         })
