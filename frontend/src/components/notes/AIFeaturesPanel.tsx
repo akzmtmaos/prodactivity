@@ -422,7 +422,11 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
       if (response.data && response.data.id) {
         // Mark as successful
         setNoteCreationStatus(prev => ({ ...prev, [chunkIndex]: 'success' }));
-        setCreatedNoteIds(prev => new Set([...prev, response.data.id]));
+        setCreatedNoteIds(prev => {
+          const newSet = new Set(prev);
+          newSet.add(response.data.id);
+          return newSet;
+        });
         setError(null);
         
         // Show success message
