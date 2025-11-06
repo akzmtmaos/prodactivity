@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Edit, Trash2, BarChart2, Play, HelpCircle, MoreVertical, FolderOpen } from 'lucide-react';
+import { BookOpen, Edit, Trash2, BarChart2, Play, HelpCircle, MoreVertical } from 'lucide-react';
 
 interface Deck {
   id: string;
@@ -26,7 +26,6 @@ interface DeckCardProps {
   onViewStats: (deckId: string) => void;
   onOpen: (deckId: string) => void;
   onArchive?: (deckId: string) => void;
-  onManageSubDecks?: (deckId: string) => void;
   isSubDeck?: boolean; // New prop to identify if this is a SubDeck
   onEditSubDeck?: (deck: Deck) => void; // New prop for editing SubDecks
 }
@@ -40,7 +39,6 @@ const DeckCard: React.FC<DeckCardProps> = ({
   onViewStats,
   onOpen,
   onArchive,
-  onManageSubDecks,
   isSubDeck = false,
   onEditSubDeck
 }) => {
