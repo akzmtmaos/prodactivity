@@ -390,12 +390,25 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
     setError(null);
     
     try {
+      // Map priority to string values expected by backend
+      let priorityValue = 'medium';
+      if (chunk.priority === 'high' || chunk.priority === 'urgent') {
+        priorityValue = 'high';
+      } else if (chunk.priority === 'low') {
+        priorityValue = 'low';
+      }
+      
+      // Convert key_concepts array to comma-separated string if it's an array
+      const tagsValue = Array.isArray(chunk.key_concepts) 
+        ? chunk.key_concepts.join(', ') 
+        : (chunk.key_concepts || '');
+      
       const noteData = {
         title: chunk.title,
         content: chunk.content_preview,
         notebook: sourceNotebookId,
-        priority: chunk.priority === 'high' ? 3 : chunk.priority === 'medium' ? 2 : 1,
-        tags: chunk.key_concepts,
+        priority: priorityValue,
+        tags: tagsValue,
         note_type: 'other'
       };
 
