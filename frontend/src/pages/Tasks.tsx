@@ -91,7 +91,7 @@ const TasksContent = ({ user }: { user: any }) => {
   const [editingTask, setEditingTask] = useState<Task | undefined>();
   
   // Sorting and filtering
-  const [sortField, setSortField] = useState<keyof Task>('dueDate');
+  const [sortField, setSortField] = useState<'dueDate' | 'priority' | 'title'>('dueDate');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
   const [filterPriority, setFilterPriority] = useState<Task['priority'] | 'all'>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -274,7 +274,7 @@ const TasksContent = ({ user }: { user: any }) => {
       }
       
       // Apply sorting
-      const orderingField = sortField === 'dueDate' ? 'due_date' : (sortField as string);
+      const orderingField = sortField === 'dueDate' ? 'due_date' : sortField;
       query = query.order(orderingField, { ascending: sortDirection === 'asc' });
       
       const { data, error } = await query;
