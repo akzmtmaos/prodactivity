@@ -16,7 +16,8 @@ import ExportModal from './editor/ExportModal';
 import { createSimpleTable, createCodeBlock, makeTableResizable } from './editor/tableHelpers';
 import { convertTextToHtml, linkifyContent, insertImage, getSelection, restoreSelection, convertMarkdownToHTML } from './editor/editorUtils';
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Use unpkg CDN for PDF.js worker (more reliable than cdnjs)
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.js`;
 
 interface Note {
   id: number;
