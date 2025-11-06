@@ -392,7 +392,7 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
     try {
       // Map priority to string values expected by backend
       let priorityValue = 'medium';
-      if (chunk.priority === 'high' || chunk.priority === 'urgent') {
+      if (chunk.priority === 'high') {
         priorityValue = 'high';
       } else if (chunk.priority === 'low') {
         priorityValue = 'low';
