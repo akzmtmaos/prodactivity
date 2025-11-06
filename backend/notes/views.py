@@ -19,10 +19,14 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.units import inch
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Image as ReportLabImage
 from reportlab.lib.enums import TA_LEFT, TA_CENTER
 from docx import Document
 from docx.shared import Inches
+from bs4 import BeautifulSoup
+import base64
+from PIL import Image as PILImage
+from io import BytesIO
 
 class NotebookListCreateView(generics.ListCreateAPIView):
     serializer_class = NotebookSerializer
@@ -505,6 +509,105 @@ def clean_html_content(html_content):
     
     return content
 
+def extract_images_from_html(html_content):
+    """Extract images from HTML content and return list of image data"""
+    if not html_content:
+        return []
+    
+    images = []
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    for img_tag in soup.find_all('img'):
+        src = img_tag.get('src', '')
+        if not src:
+            continue
+        
+        try:
+            # Handle base64 data URLs
+            if src.startswith('data:image'):
+                # Extract base64 data
+                header, data = src.split(',', 1)
+                image_format = header.split('/')[1].split(';')[0]  # e.g., 'png', 'jpeg'
+                
+                # Decode base64
+                image_data = base64.b64decode(data)
+                
+                # Open image with PIL to validate and get dimensions
+                img = PILImage.open(BytesIO(image_data))
+                
+                images.append({
+                    'data': image_data,
+                    'format': image_format,
+                    'width': img.width,
+                    'height': img.height
+                })
+            # Handle regular URLs (could be extended to download images)
+            elif src.startswith('http://') or src.startswith('https://'):
+                # For now, skip external URLs (could be extended to download)
+                print(f"Skipping external image URL: {src}")
+                continue
+        except Exception as e:
+            print(f"Error processing image: {str(e)}")
+            continue
+    
+    return images
+
+def process_html_content_with_images(html_content):
+    """Process HTML content and extract text and images separately"""
+    if not html_content:
+        return {'text': '', 'images': []}
+    
+    soup = BeautifulSoup(html_content, 'html.parser')
+    
+    # Extract images
+    images = extract_images_from_html(html_content)
+    
+    # Replace img tags with placeholders and extract text
+    text_parts = []
+    img_index = 0
+    
+    def process_element(element):
+        nonlocal img_index
+        if element.name == 'img':
+            # Replace image with placeholder
+            text_parts.append(f'\n[IMAGE_{img_index}]\n')
+            img_index += 1
+        elif hasattr(element, 'children'):
+            # Process children recursively
+            for child in element.children:
+                if isinstance(child, str):
+                    if child.strip():
+                        text_parts.append(child.strip())
+                else:
+                    process_element(child)
+        elif hasattr(element, 'string') and element.string:
+            text = element.string.strip()
+            if text:
+                text_parts.append(text)
+    
+    # Process all elements
+    for element in soup.children:
+        if isinstance(element, str):
+            if element.strip():
+                text_parts.append(element.strip())
+        else:
+            process_element(element)
+    
+    # Get clean text
+    clean_text = '\n'.join(text_parts)
+    # Clean up HTML entities
+    clean_text = clean_text.replace('&nbsp;', ' ')
+    clean_text = clean_text.replace('&amp;', '&')
+    clean_text = clean_text.replace('&lt;', '<')
+    clean_text = clean_text.replace('&gt;', '>')
+    clean_text = clean_text.replace('&quot;', '"')
+    clean_text = clean_text.replace('&#39;', "'")
+    # Normalize whitespace but preserve line breaks
+    clean_text = re.sub(r'[ \t]+', ' ', clean_text)  # Multiple spaces to single space
+    clean_text = re.sub(r'\n\s*\n\s*\n+', '\n\n', clean_text)  # Multiple newlines to double newline
+    
+    return {'text': clean_text, 'images': images}
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def export_notes(request):
@@ -522,8 +625,10 @@ def export_notes(request):
         except Note.DoesNotExist:
             return Response({'error': 'Note not found'}, status=status.HTTP_404_NOT_FOUND)
         
-        # Clean the content
-        clean_content = clean_html_content(note.content)
+        # Process HTML content to extract text and images
+        processed = process_html_content_with_images(note.content)
+        clean_content = processed['text']
+        images = processed['images']
         
         if format_type == 'pdf':
             # Create PDF
@@ -552,13 +657,53 @@ def export_notes(request):
             story.append(Paragraph(note.title, title_style))
             story.append(Spacer(1, 20))
             
-            # Add content (split by lines to handle line breaks)
+            # Process content and images
             content_lines = clean_content.split('\n')
+            image_index = 0
+            
             for line in content_lines:
-                if line.strip():
-                    story.append(Paragraph(line, content_style))
-                else:
+                line = line.strip()
+                if not line:
                     story.append(Spacer(1, 12))
+                elif line.startswith('[IMAGE_') and line.endswith(']'):
+                    # Insert image
+                    if image_index < len(images):
+                        img_data = images[image_index]
+                        try:
+                            # Create temporary file for image
+                            img_buffer = BytesIO(img_data['data'])
+                            img = PILImage.open(img_buffer)
+                            
+                            # Calculate size (max width 5 inches, maintain aspect ratio)
+                            max_width = 5 * inch
+                            # Convert pixels to points (assuming 72 DPI)
+                            img_width_pt = img.width * (72 / 96)  # Convert from 96 DPI to 72 DPI
+                            img_height_pt = img.height * (72 / 96)
+                            
+                            if img_width_pt > max_width:
+                                aspect_ratio = img_height_pt / img_width_pt
+                                width = max_width
+                                height = width * aspect_ratio
+                            else:
+                                width = img_width_pt
+                                height = img_height_pt
+                            
+                            # Save image to temporary buffer
+                            temp_img_buffer = BytesIO()
+                            img.save(temp_img_buffer, format=img_data['format'].upper())
+                            temp_img_buffer.seek(0)
+                            
+                            # Add image to PDF
+                            pdf_image = ReportLabImage(temp_img_buffer, width=width, height=height)
+                            story.append(pdf_image)
+                            story.append(Spacer(1, 12))
+                            image_index += 1
+                        except Exception as e:
+                            print(f"Error adding image to PDF: {str(e)}")
+                            # Skip image if there's an error
+                            image_index += 1
+                else:
+                    story.append(Paragraph(line, content_style))
             
             # Build PDF
             doc.build(story)
@@ -577,13 +722,47 @@ def export_notes(request):
             # Add title
             doc.add_heading(note.title, 0)
             
-            # Add content
+            # Process content and images
             content_lines = clean_content.split('\n')
+            image_index = 0
+            
             for line in content_lines:
-                if line.strip():
-                    doc.add_paragraph(line)
-                else:
+                line = line.strip()
+                if not line:
                     doc.add_paragraph()  # Empty paragraph for spacing
+                elif line.startswith('[IMAGE_') and line.endswith(']'):
+                    # Insert image
+                    if image_index < len(images):
+                        img_data = images[image_index]
+                        try:
+                            # Create temporary file for image
+                            img_buffer = BytesIO(img_data['data'])
+                            
+                            # Add image to document (max width 5 inches)
+                            paragraph = doc.add_paragraph()
+                            run = paragraph.add_run()
+                            
+                            # Calculate size (max width 5 inches, maintain aspect ratio)
+                            max_width = Inches(5)
+                            # Convert pixels to inches (assuming 96 DPI)
+                            img_width_in = img_data['width'] / 96
+                            img_height_in = img_data['height'] / 96
+                            
+                            if img_width_in > 5:
+                                aspect_ratio = img_height_in / img_width_in
+                                width = max_width
+                            else:
+                                width = Inches(img_width_in)
+                            
+                            # Add picture
+                            run.add_picture(img_buffer, width=width)
+                            image_index += 1
+                        except Exception as e:
+                            print(f"Error adding image to DOCX: {str(e)}")
+                            # Skip image if there's an error
+                            image_index += 1
+                else:
+                    doc.add_paragraph(line)
             
             # Save to buffer
             buffer = io.BytesIO()
@@ -601,4 +780,6 @@ def export_notes(request):
             
     except Exception as e:
         print(f"Export error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return Response({'error': f'Export failed: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
