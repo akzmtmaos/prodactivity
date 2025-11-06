@@ -434,12 +434,56 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
     }
   };
 
+  // Helper function to strip HTML and convert to plain text
+  const stripHtmlToText = (html: string): string => {
+    if (!html) return '';
+    
+    // Create a temporary div to parse HTML
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    
+    // Process block elements to add line breaks
+    const blockElements = temp.querySelectorAll('h1, h2, h3, h4, h5, h6, p, div, li, br');
+    blockElements.forEach(el => {
+      if (el.tagName === 'BR') {
+        el.replaceWith('\n');
+      } else {
+        // Add line break after block elements
+        const text = el.textContent || '';
+        if (text.trim()) {
+          el.textContent = text + '\n';
+        }
+      }
+    });
+    
+    // Get text content
+    let text = temp.textContent || temp.innerText || '';
+    
+    // Clean up excessive whitespace but preserve line breaks
+    text = text
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .join('\n');
+    
+    return text;
+  };
+
   // AI Reviewer
   const handleReview = async () => {
     if (!content.trim()) return;
     setIsReviewing(true);
     setReviewResult('');
     try {
+      // Strip HTML from content to get plain text
+      const plainTextContent = stripHtmlToText(content);
+      
+      if (!plainTextContent.trim()) {
+        setReviewResult('❌ Error: No text content found. Please ensure your note has content.');
+        setIsReviewing(false);
+        return;
+      }
+      
       // Compose detailed prompt like Reviewer page
       const detailedPrompt = `Please review the following content and provide your response in the following format:
 
@@ -462,7 +506,7 @@ Main Idea:
 Leave one blank line between each section. Use bullet points for lists.
 
 Content:
-${content}`;
+${plainTextContent}`;
 
       const response = await axiosInstance.post('/reviewers/ai/generate/', {
         text: detailedPrompt,
@@ -470,6 +514,8 @@ ${content}`;
         source_note: sourceNoteId ?? null,
         source_notebook: sourceNotebookId ?? null,
         tags: []
+      }, {
+        timeout: 300000 // 5 minutes timeout for AI generation
       });
       
       const created = response.data;
