@@ -146,6 +146,19 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     isLoading: false
   });
 
+  // Per-reviewer quiz configuration modal
+  const [quizConfigModal, setQuizConfigModal] = useState<{
+    isOpen: boolean;
+    reviewer: Reviewer | null;
+    questionCount: number;
+    isLoading: boolean;
+  }>({
+    isOpen: false,
+    reviewer: null,
+    questionCount: 10,
+    isLoading: false,
+  });
+
   // Pagination state
   const [currentPageReviewer, setCurrentPageReviewer] = useState(1);
   const [currentPageQuiz, setCurrentPageQuiz] = useState(1);
@@ -615,13 +628,14 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
   }, [searchTerm, filterType]);
 
   // Add per-reviewer quiz generation state
-  const generateQuizForReviewer = async (reviewer: Reviewer) => {
+  const generateQuizForReviewer = async (reviewer: Reviewer, questionCount: number = 10): Promise<boolean> => {
     setQuizLoadingId(reviewer.id);
     setError(null);
     try {
       const response = await axiosInstance.post('/reviewers/ai/generate/', {
         text: reviewer.content,
         title: `Quiz: ${reviewer.title}`,
+        question_count: questionCount,
         note_type: reviewer.source_note ? 
           (notes.find(n => n.id === reviewer.source_note)?.note_type) : 
           (reviewer.source_notebook ? 
@@ -635,11 +649,49 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         source_notebook: reviewer.source_notebook ?? null,
         tags: ['quiz']
       });
-            setReviewers(prev => [saveResponse.data, ...prev]);
+      setReviewers(prev => [saveResponse.data, ...prev]);
+      setToast({ message: 'Quiz generated successfully!', type: 'success' });
+      return true;
     } catch (error: any) {
       setError(error.response?.data?.error || 'Failed to generate quiz');
+      setToast({ message: error.response?.data?.error || 'Failed to generate quiz', type: 'error' });
+      return false;
     } finally {
       setQuizLoadingId(null);
+    }
+  };
+
+  const openQuizConfigModal = (reviewer: Reviewer) => {
+    setQuizConfigModal({
+      isOpen: true,
+      reviewer,
+      questionCount: 10,
+      isLoading: false,
+    });
+  };
+
+  const closeQuizConfigModal = () => {
+    setQuizConfigModal({
+      isOpen: false,
+      reviewer: null,
+      questionCount: 10,
+      isLoading: false,
+    });
+  };
+
+  const confirmQuizGeneration = async () => {
+    if (!quizConfigModal.reviewer) return;
+
+    setQuizConfigModal(prev => ({ ...prev, isLoading: true }));
+    const success = await generateQuizForReviewer(
+      quizConfigModal.reviewer,
+      Math.max(1, Math.min(100, quizConfigModal.questionCount))
+    );
+
+    if (success) {
+      closeQuizConfigModal();
+    } else {
+      setQuizConfigModal(prev => ({ ...prev, isLoading: false }));
     }
   };
 
@@ -977,7 +1029,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                         openDeleteModal(id, reviewer.title);
                       }
                     }}
-                    onGenerateQuiz={generateQuizForReviewer}
+                    onGenerateQuiz={openQuizConfigModal}
                     onEdit={handleEdit}
                     onClick={() => navigate(`/reviewer/r/${reviewer.id}`)}
                     quizLoadingId={quizLoadingId}
@@ -1126,6 +1178,81 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         notebooks={notebooks}
         isLoading={generateModal.isLoading}
       />
+
+      {/* Per-Reviewer Quiz Configuration Modal */}
+      {quizConfigModal.isOpen && ReactDOM.createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-md border border-gray-200 dark:border-gray-700">
+            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Generate Quiz</h3>
+              <button
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors text-2xl leading-none"
+                onClick={quizConfigModal.isLoading ? undefined : closeQuizConfigModal}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <p className="text-sm text-gray-600 dark:text-gray-300">
+                  Specify how many quiz items to generate from:
+                </p>
+                <p className="mt-1 text-base font-semibold text-gray-900 dark:text-white line-clamp-2">
+                  {quizConfigModal.reviewer?.title}
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Number of questions
+                </label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={quizConfigModal.questionCount}
+                  onChange={(e) => {
+                    const value = Number(e.target.value);
+                    setQuizConfigModal(prev => ({
+                      ...prev,
+                      questionCount: Number.isFinite(value) ? Math.max(1, Math.min(100, Math.trunc(value))) : 1
+                    }));
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  disabled={quizConfigModal.isLoading}
+                />
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Enter between 1 and 100 questions.
+                </p>
+              </div>
+            </div>
+            <div className="px-6 py-4 bg-gray-50 dark:bg-gray-900/40 rounded-b-xl flex justify-end gap-3">
+              <button
+                className="px-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={quizConfigModal.isLoading ? undefined : closeQuizConfigModal}
+                disabled={quizConfigModal.isLoading}
+              >
+                Cancel
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition flex items-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                onClick={quizConfigModal.isLoading ? undefined : confirmQuizGeneration}
+                disabled={quizConfigModal.isLoading}
+              >
+                {quizConfigModal.isLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Generating...
+                  </>
+                ) : (
+                  'Generate Quiz'
+                )}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Bulk Delete Modal */}
       {bulkDeleteModal.isOpen && ReactDOM.createPortal(

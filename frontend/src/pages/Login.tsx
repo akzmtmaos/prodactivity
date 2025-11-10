@@ -12,7 +12,7 @@ interface LoginProps {
 
 const Login = ({ setIsAuthenticated }: LoginProps) => {
   const [formData, setFormData] = useState({
-    email: '',
+    identifier: '',
     password: ''
   });
   const [showPassword, setShowPassword] = useState(false);
@@ -30,7 +30,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
     const { name, value } = e.target;
     
     // Prevent typing beyond 50 characters for email
-    if (name === 'email' && value.length > 50) {
+    if (name === 'identifier' && value.length > 50) {
       return;
     }
     
@@ -46,10 +46,22 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
     setMessage(null);
 
     try {
+      const trimmedIdentifier = formData.identifier.trim();
+      const payload: Record<string, string> = {
+        identifier: trimmedIdentifier,
+        password: formData.password,
+      };
+
+      if (trimmedIdentifier.includes('@')) {
+        payload.email = trimmedIdentifier;
+      } else if (trimmedIdentifier) {
+        payload.username = trimmedIdentifier;
+      }
+
       const res = await fetch(`${API_BASE_URL}/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(payload),
       });
 
       const data = await res.json();
@@ -243,13 +255,13 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
                   <Mail size={18} />
                 </motion.div>
                 <input
-                  type="email"
-                  name="email"
-                  placeholder="Email address"
-                  value={formData.email}
+                  type="text"
+                  name="identifier"
+                  placeholder="Email or username"
+                  value={formData.identifier}
                   onChange={handleChange}
                   maxLength={50}
-                  autoComplete="email"
+                  autoComplete="username"
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-gray-900 dark:text-white shadow-sm focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
                   required
                 />
@@ -430,7 +442,7 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
       <ResendVerificationModal
         isOpen={showResendVerification}
         onClose={() => setShowResendVerification(false)}
-        email={formData.email}
+        email={formData.identifier.includes('@') ? formData.identifier : ''}
       />
     </div>
   );
