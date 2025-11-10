@@ -16,28 +16,6 @@ import { supabase } from '../lib/supabase';
 
 // API_BASE_URL not needed; tasks use Supabase directly
 
-// Add getAuthHeaders function for JWT authentication
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('accessToken');
-  const headers: Record<string, string> = {};
-  
-  if (token) {
-    headers.Authorization = `Bearer ${token}`;
-    console.log('Auth token found:', token.substring(0, 20) + '...');
-  } else {
-    console.log('No auth token found');
-  }
-  
-  // Add timezone offset for backend date handling
-  // Temporarily disabled to test basic functionality
-  // const timezoneOffset = getTimezoneOffset();
-  // headers['X-Timezone-Offset'] = timezoneOffset.toString();
-
-  // this is a comment
-  
-  return headers;
-};
-
 // Main Tasks component with real-time provider
 const Tasks = () => {
   const [user, setUser] = useState<any | null>(null);

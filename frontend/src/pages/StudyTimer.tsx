@@ -221,7 +221,6 @@ const SessionLogs: React.FC<{ logs: SessionLogEntry[] }> = ({ logs }) => {
 
 const StudyTimer: React.FC = () => {
   const [user, setUser] = useState<any | null>(null);
-  const [greeting, setGreeting] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [tempSettings, setTempSettings] = useState<any>(null);
   const [sessionLogs, setSessionLogs] = useState<SessionLogEntry[]>([]);
@@ -315,11 +314,6 @@ const StudyTimer: React.FC = () => {
     }
 
     // Set greeting based on time of day
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Good morning');
-    else if (hour < 18) setGreeting('Good afternoon');
-    else setGreeting('Good evening');
-
     // Load session logs on mount
     loadSessionLogs();
   }, []);

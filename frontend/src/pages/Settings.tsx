@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { Moon, Sun, Bell, User, Shield, Image as ImageIcon, Lock, LogOut, Trash2, Mail, User as UserIcon, Info, Phone, Calendar, MapPin } from 'lucide-react';
+import { Moon, Sun, Bell, Shield, Lock, Trash2, Mail, User as UserIcon, Info } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import PageLayout from '../components/PageLayout';
 import ActivityLogs from '../components/settings/ActivityLogs';
@@ -24,7 +24,6 @@ const TABS = [
 const Settings: React.FC = () => {
   const { theme, setTheme } = useTheme();
   const [user, setUser] = useState<any | null>(null);
-  const [greeting, setGreeting] = useState('');
   const [settings, setSettings] = useState<UserSettings>({
     theme: theme,
     notifications: true,
@@ -53,7 +52,6 @@ const Settings: React.FC = () => {
   const [deletePassword, setDeletePassword] = useState('');
   const [passwordFields, setPasswordFields] = useState({ current: '', new: '', confirm: '' });
   const [passwordError, setPasswordError] = useState('');
-  const [newPasswordError, setNewPasswordError] = useState('');
   const [deleteError, setDeleteError] = useState('');
   const [profileMessage, setProfileMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [isProfileSaving, setIsProfileSaving] = useState(false);
@@ -107,7 +105,7 @@ const Settings: React.FC = () => {
 
     setIsChangingPassword(true);
     try {
-      const res = await axiosInstance.post('/change-password/', {
+      await axiosInstance.post('/change-password/', {
         current_password: passwordFields.current,
         new_password: passwordFields.new
       });
@@ -169,7 +167,7 @@ const Settings: React.FC = () => {
     
     try {
       // Verify password and delete account in one call
-      const res = await axiosInstance.post('/delete-account/', {
+      await axiosInstance.post('/delete-account/', {
         password: deletePassword
       });
 
@@ -226,11 +224,6 @@ const Settings: React.FC = () => {
     }
 
     // Set greeting based on time of day
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Good morning');
-    else if (hour < 18) setGreeting('Good afternoon');
-    else setGreeting('Good evening');
-
     // Load saved settings
     const savedSettings = localStorage.getItem('userSettings');
     if (savedSettings) {
