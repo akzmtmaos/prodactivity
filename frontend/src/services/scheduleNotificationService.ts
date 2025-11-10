@@ -35,7 +35,6 @@ class ScheduleNotificationService {
 
     try {
       const now = new Date();
-      const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000);
       const oneDayFromNow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
 
       // Fetch upcoming events within the next 24 hours

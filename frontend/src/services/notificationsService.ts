@@ -3,7 +3,6 @@ import { Database } from '../lib/supabase';
 
 type Notification = Database['public']['Tables']['notifications']['Row'];
 type NotificationInsert = Database['public']['Tables']['notifications']['Insert'];
-type NotificationUpdate = Database['public']['Tables']['notifications']['Update'];
 
 export interface NotificationWithType {
   id: string;

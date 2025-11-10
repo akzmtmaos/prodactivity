@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { API_BASE_URL } from '../config/api';
@@ -10,17 +10,7 @@ const VerifyEmail: React.FC = () => {
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying');
   const [message, setMessage] = useState<string>('Verifying your email...');
 
-  useEffect(() => {
-    if (!token) {
-      setStatus('error');
-      setMessage('Missing verification token.');
-      return;
-    }
-
-    verifyEmail();
-  }, [token]);
-
-  const verifyEmail = async () => {
+  const verifyEmail = useCallback(async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/verify-email/`, {
         method: 'POST',
@@ -46,7 +36,17 @@ const VerifyEmail: React.FC = () => {
       setStatus('error');
       setMessage('Network error. Please check your connection and try again.');
     }
-  };
+  }, [token, navigate]);
+
+  useEffect(() => {
+    if (!token) {
+      setStatus('error');
+      setMessage('Missing verification token.');
+      return;
+    }
+
+    verifyEmail();
+  }, [token, verifyEmail]);
 
   const getStatusIcon = () => {
     switch (status) {

@@ -28,7 +28,6 @@ const Trash = () => {
   const { tab } = useParams<{ tab?: TabType }>();
   const navigate = useNavigate();
   const [user, setUser] = useState<any | null>(null);
-  const [greeting, setGreeting] = useState('');
   const [notes, setNotes] = useState<TrashItem[]>([]);
   const [decks, setDecks] = useState<TrashItem[]>([]);
   const [notebooks, setNotebooks] = useState<TrashItem[]>([]);
@@ -59,16 +58,6 @@ const Trash = () => {
     }
   }, [tab]);
 
-  // Helper to map tab to TrashItem type
-  const tabToType = (tab: TabType): 'note' | 'deck' | 'notebook' | 'reviewer' => {
-    if (tab === 'notes') return 'note';
-    if (tab === 'decks') return 'deck';
-    if (tab === 'notebooks') return 'notebook';
-    if (tab === 'reviewer') return 'reviewer';
-    // For 'all', fallback to 'note' (should not be used directly)
-    return 'note';
-  };
-
   useEffect(() => {
     // Get user data from localStorage
     const userData = localStorage.getItem('user');
@@ -87,12 +76,6 @@ const Trash = () => {
     } else {
       setUser({ username: 'User' });
     }
-
-    // Set greeting based on time of day
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Good morning');
-    else if (hour < 18) setGreeting('Good afternoon');
-    else setGreeting('Good evening');
   }, []);
 
   const fetchTrash = async () => {

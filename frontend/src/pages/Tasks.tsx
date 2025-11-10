@@ -315,7 +315,7 @@ const TasksContent = ({ user }: { user: any }) => {
     } finally {
       setLoading(false);
     }
-  }, [navigate, activeTab, filterPriority, searchTerm, sortField, sortDirection, currentPage, pageSize]);
+  }, [navigate, activeTab, filterPriority, filterCategory, searchTerm, sortField, sortDirection, currentPage, pageSize]);
 
   // Real-time refresh callbacks
   const handleTasksRefresh = useCallback(() => {
