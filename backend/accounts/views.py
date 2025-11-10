@@ -26,7 +26,13 @@ from core.email_utils import (
     delete_verification_token,
     is_email_configured
 )
-from .supabase_sync import update_user_in_supabase, check_user_exists_in_supabase, get_user_from_supabase_by_email, get_all_supabase_profiles
+from .supabase_sync import (
+    update_user_in_supabase,
+    check_user_exists_in_supabase,
+    get_user_from_supabase_by_email,
+    get_user_from_supabase_by_username,
+    get_all_supabase_profiles
+)
 
 def validate_username(username):
     """Validate username format and length"""
@@ -153,20 +159,46 @@ class LoginThrottle(AnonRateThrottle):
 @api_view(['POST'])
 @throttle_classes([LoginThrottle])
 def login_view(request):
-    email = request.data.get('email')
+    identifier = request.data.get('identifier') or request.data.get('email') or request.data.get('username')
     password = request.data.get('password')
 
-    print(f"Login attempt - Email: {email}")
+    print(f"Login attempt - Identifier: {identifier}")
     print(f"Request data: {request.data}")
 
-    if email is None or password is None:
-        return Response({'message': 'Email and password required.'}, status=400)
+    if identifier is None or password is None:
+        return Response({'message': 'Email or username and password required.'}, status=400)
+
+    identifier = identifier.strip()
+    email = None
+    username_identifier = None
+    prefetched_supabase_user = None
+    user_from_username = None
+
+    email_pattern = r'^[^@\s]+@[^@\s]+\.[^@\s]+$'
+    if re.match(email_pattern, identifier.lower()):
+        email = identifier.lower()
+    else:
+        username_identifier = identifier.lower()
+        user_from_username = User.objects.filter(username__iexact=username_identifier).first()
+        if user_from_username and user_from_username.email:
+            email = user_from_username.email.lower()
+        else:
+            supabase_lookup = get_user_from_supabase_by_username(username_identifier)
+            if supabase_lookup:
+                prefetched_supabase_user = supabase_lookup
+                supabase_email = supabase_lookup.get('email')
+                if supabase_email:
+                    email = supabase_email.lower()
+
+    if not email:
+        print("❌ Could not resolve email from identifier.")
+        return Response({'message': 'Invalid credentials'}, status=401)
 
     try:
         # Check Supabase FIRST to get the correct username
         email_lower = email.lower().strip()
         print(f"🔍 Checking Supabase for correct username...")
-        supabase_user = get_user_from_supabase_by_email(email_lower)
+        supabase_user = prefetched_supabase_user or get_user_from_supabase_by_email(email_lower)
         supabase_username = None
         if supabase_user:
             supabase_username = supabase_user.get('username')
@@ -178,7 +210,7 @@ def login_view(request):
             print(f"⚠️ No user found in Supabase for email: {email_lower}")
         
         # Try to find user with Supabase username first (if available)
-        user = None
+        user = user_from_username
         if supabase_username:
             user = User.objects.filter(username__iexact=supabase_username).first()
             if user:

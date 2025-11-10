@@ -249,6 +249,41 @@ def get_user_from_supabase_by_email(email):
         print(traceback.format_exc())
         return None
 
+def get_user_from_supabase_by_username(username):
+    """
+    Get user data from Supabase by username
+    
+    Args:
+        username: User username
+    
+    Returns:
+        dict: User data from Supabase, or None if not found
+    """
+    try:
+        username_lower = username.lower().strip()
+        username_encoded = requests.utils.quote(username_lower, safe='')
+
+        response = requests.get(
+            f"{SUPABASE_URL}/rest/v1/profiles?username=eq.{username_encoded}",
+            headers=get_supabase_headers(),
+            timeout=10
+        )
+
+        if response.status_code == 200:
+            data = response.json()
+            if len(data) > 0:
+                return data[0]
+        else:
+            print(f"❌ Failed to get user from Supabase by username: {response.status_code}")
+            print(f"❌ Response text: {response.text}")
+            return None
+
+    except Exception as e:
+        print(f"❌ Error getting user from Supabase by username: {e}")
+        import traceback
+        print(traceback.format_exc())
+        return None
+
 def get_all_supabase_profiles(limit: int = 1000):
     """
     Fetch all profiles from Supabase REST API.
