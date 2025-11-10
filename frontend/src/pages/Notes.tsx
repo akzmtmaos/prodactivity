@@ -32,6 +32,17 @@ const generateNotebookColor = (notebookId: number): string => {
   return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
 };
 
+const RETRYABLE_NOTES_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
+
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const isRetryableNoteError = (error: any) => {
+  if (!error) return false;
+  if (error?.code === 'ECONNABORTED') return true;
+  if (!error?.response) return true;
+  return RETRYABLE_NOTES_STATUS_CODES.has(error.response.status);
+};
+
 const NOTEBOOKS_CACHE_KEY = 'cachedNotebooksV1';
 
 // Helper function to update notebook cache
@@ -99,6 +110,7 @@ const Notes = () => {
   const [notes, setNotes] = useState<Note[]>([]);
   const [archivedNotes, setArchivedNotes] = useState<Note[]>([]);
   const [selectedNotebook, setSelectedNotebook] = useState<Notebook | null>(null);
+  const notesFetchRequestIdRef = useRef(0);
   
   // State for form inputs
   const [newNotebookName, setNewNotebookName] = useState('');
@@ -395,44 +407,82 @@ const Notes = () => {
     setFavoriteNotebooks(favorites);
   }, [notebooks]);
 
-  // Fetch notes for selected notebook
-  const fetchNotes = async (notebookId: number) => {
-    // Always fetch to ensure we have the latest data
+  // Fetch notes for selected notebook with retry/backoff and stale-response protection
+  const fetchNotes = async (
+    notebookId: number,
+    options: { silent?: boolean } = {}
+  ): Promise<Note[] | null> => {
+    const { silent = false } = options;
+    const requestId = ++notesFetchRequestIdRef.current;
 
-    try {
-      console.log(`📥 Fetching notes for notebook ID: ${notebookId}`);
-      const response = await axiosInstance.get(`/notes/?notebook=${notebookId}`);
-      // Handle paginated response
-      const notesData = response.data.results || response.data;
-      
-      console.log(`📝 Received ${notesData.length} notes for notebook ${notebookId}:`);
-      notesData.forEach((note: any) => {
-        console.log(`  - Note ID: ${note.id}, Title: "${note.title}", Notebook: ${note.notebook}, Notebook Name: "${note.notebook_name}"`);
-      });
-      
-      // Check for mismatched notes
-      const mismatches = notesData.filter((note: any) => note.notebook !== notebookId);
-      if (mismatches.length > 0) {
-        console.error(`❌ MISMATCH DETECTED! ${mismatches.length} notes don't belong to notebook ${notebookId}:`);
-        mismatches.forEach((note: any) => {
-          console.error(`  ⚠️ Note "${note.title}" (ID: ${note.id}) belongs to notebook ${note.notebook}, not ${notebookId}`);
+    const execute = async (attempt: number): Promise<Note[] | null> => {
+      try {
+        console.log(`📥 Fetching notes for notebook ID: ${notebookId} (attempt ${attempt + 1})`);
+        const response = await axiosInstance.get(`/notes/?notebook=${notebookId}`);
+        // Handle paginated response
+        const notesData = response.data.results || response.data;
+        
+        console.log(`📝 Received ${notesData.length} notes for notebook ${notebookId}:`);
+        notesData.forEach((note: any) => {
+          console.log(`  - Note ID: ${note.id}, Title: "${note.title}", Notebook: ${note.notebook}, Notebook Name: "${note.notebook_name}"`);
         });
+        
+        // Check for mismatched notes
+        const mismatches = notesData.filter((note: any) => note.notebook !== notebookId);
+        if (mismatches.length > 0) {
+          console.error(`❌ MISMATCH DETECTED! ${mismatches.length} notes don't belong to notebook ${notebookId}:`);
+          mismatches.forEach((note: any) => {
+            console.error(`  ⚠️ Note "${note.title}" (ID: ${note.id}) belongs to notebook ${note.notebook}, not ${notebookId}`);
+          });
+        }
+        
+        // Get saved colors from localStorage
+        const savedColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
+        
+        // Ensure each note has the notebook_color field
+        const notesWithColors = (notesData || []).map((note: any) => ({
+          ...note,
+          notebook_color: note.notebook_color || savedColors[note.notebook] || generateNotebookColor(note.notebook)
+        }));
+        
+        if (requestId !== notesFetchRequestIdRef.current) {
+          console.warn(`⚠️ Stale notes response detected for notebook ${notebookId}, discarding (request ${requestId})`);
+          return null;
+        }
+
+        console.log(`✅ Setting ${notesWithColors.length} notes to state for notebook ${notebookId}`);
+        setNotes(notesWithColors);
+        setNotebooks(prev => prev.map(nb => 
+          nb.id === notebookId ? { ...nb, notes_count: notesWithColors.length } : nb
+        ));
+        setSelectedNotebook(prev => 
+          prev && prev.id === notebookId ? { ...prev, notes_count: notesWithColors.length } : prev
+        );
+
+        return notesWithColors;
+      } catch (error: any) {
+        if (requestId !== notesFetchRequestIdRef.current) {
+          console.warn(`⚠️ Stale notes error detected for notebook ${notebookId}, ignoring (request ${requestId})`);
+          return null;
+        }
+
+        if (isRetryableNoteError(error) && attempt < 2) {
+          const backoffDelay = Math.min(4000, 700 * Math.pow(2, attempt));
+          console.warn(`🔄 Retry ${attempt + 2} for notebook ${notebookId} after ${backoffDelay}ms due to network error.`, error);
+          await sleep(backoffDelay);
+          return execute(attempt + 1);
+        }
+
+        if (!silent) {
+          handleError(error, 'Failed to fetch notes');
+        } else {
+          console.error('Failed to fetch notes (silent):', error);
+        }
+        return null;
       }
-      
-      // Get saved colors from localStorage
-      const savedColors = JSON.parse(localStorage.getItem('notebookColors') || '{}');
-      
-      // Ensure each note has the notebook_color field
-      const notesWithColors = (notesData || []).map((note: any) => ({
-        ...note,
-        notebook_color: note.notebook_color || savedColors[note.notebook] || generateNotebookColor(note.notebook)
-      }));
-      
-      console.log(`✅ Setting ${notesWithColors.length} notes to state for notebook ${notebookId}`);
-      setNotes(notesWithColors);
-    } catch (error) {
-      handleError(error, 'Failed to fetch notes');
-    }
+    };
+
+    return execute(0);
   };
 
   // Fetch archived notes
@@ -800,17 +850,22 @@ const Notes = () => {
         priority: 'medium',
         notebook: selectedNotebook.id
       });
-      setNotes([response.data, ...notes]);
+
+      const refreshedNotes = await fetchNotes(selectedNotebook.id, { silent: true });
+      if (!refreshedNotes) {
+        setNotes([response.data, ...notes]);
+        setNotebooks(prev => prev.map(nb => 
+          nb.id === selectedNotebook.id 
+            ? { ...nb, notes_count: nb.notes_count + 1 }
+            : nb
+        ));
+        setSelectedNotebook(prev => 
+          prev ? { ...prev, notes_count: prev.notes_count + 1 } : prev
+        );
+      }
+
       setIsNewNoteEditor(false);
       setNewNote({ title: '', content: '' });
-      // Update notebook notes count
-      const updatedNotebooks = notebooks.map(nb => 
-        nb.id === selectedNotebook.id 
-          ? { ...nb, notes_count: nb.notes_count + 1 }
-          : nb
-      );
-      setNotebooks(updatedNotebooks);
-      setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count + 1 });
       setToast({ message: 'Note created successfully!', type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to create note');
@@ -894,24 +949,32 @@ const Notes = () => {
       if (isArchivedNote) {
         // Remove from archived notes
         setArchivedNotes(archivedNotes.filter(note => note.id !== noteId));
+        await fetchArchivedNotes();
       } else {
-        // Remove from regular notes
-        setNotes(notes.filter(note => note.id !== noteId));
+        let refreshedNotes: Note[] | null = null;
+        if (selectedNotebook) {
+          refreshedNotes = await fetchNotes(selectedNotebook.id, { silent: true });
+        }
+
+        if (!refreshedNotes) {
+          // Remove from regular notes locally if refresh failed
+          setNotes(notes.filter(note => note.id !== noteId));
+          
+          if (selectedNotebook) {
+            setNotebooks(prev => prev.map(nb => 
+              nb.id === selectedNotebook.id 
+                ? { ...nb, notes_count: Math.max(0, nb.notes_count - 1) }
+                : nb
+            ));
+            setSelectedNotebook(prev => 
+              prev ? { ...prev, notes_count: Math.max(0, prev.notes_count - 1) } : prev
+            );
+          }
+        }
       }
       
       // Remove the deleted note from selection if it was selected
       setSelectedForBulk(prev => prev.filter(id => id !== noteId));
-      
-      // Update notebook notes count
-      if (selectedNotebook) {
-        const updatedNotebooks = notebooks.map(nb => 
-          nb.id === selectedNotebook.id 
-            ? { ...nb, notes_count: nb.notes_count - 1 }
-            : nb
-        );
-        setNotebooks(updatedNotebooks);
-        setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count - 1 });
-      }
       
       // If the deleted note was being viewed in the editor, close it
       if (noteEditorNote?.id === noteId) {
@@ -954,11 +1017,26 @@ const Notes = () => {
           note_type: 'other',
           notebook: selectedNotebook.id
         });
-        setNotes([response.data, ...notes]);
+        
+        const refreshedNotes = await fetchNotes(selectedNotebook.id, { silent: true });
+        if (!refreshedNotes) {
+          setNotes([response.data, ...notes]);
+          setNotebooks(prev => prev.map(nb => 
+            nb.id === selectedNotebook.id 
+              ? { ...nb, notes_count: nb.notes_count + 1 }
+              : nb
+          ));
+          setSelectedNotebook(prev => 
+            prev ? { ...prev, notes_count: prev.notes_count + 1 } : prev
+          );
+        }
+
         // Notify other parts of the app (e.g., Home quick notes) to refresh
         window.dispatchEvent(new Event('noteUpdated'));
         // Switch to edit mode after first save to prevent duplicates
-        setNoteEditorNote(response.data);
+        const latestNote =
+          refreshedNotes?.find(note => note.id === response.data.id) || response.data;
+        setNoteEditorNote(latestNote);
         setIsNewNoteEditor(false);
         
         // Only update URL if not closing after save (for autosave)
@@ -973,14 +1051,6 @@ const Notes = () => {
           }
         }
         
-        // Update notebook notes count
-        const updatedNotebooks = notebooks.map(nb => 
-          nb.id === selectedNotebook.id 
-            ? { ...nb, notes_count: nb.notes_count + 1 }
-            : nb
-        );
-        setNotebooks(updatedNotebooks);
-        setSelectedNotebook({ ...selectedNotebook, notes_count: selectedNotebook.notes_count + 1 });
         setToast({ message: 'Note created successfully!', type: 'success' });
         if (closeAfterSave) setShowNoteEditor(false);
       } catch (error) {

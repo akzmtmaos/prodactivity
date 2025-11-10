@@ -7,7 +7,7 @@ const axiosInstance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  timeout: 5000,
+  timeout: 15000,
 });
 
 // Flag to prevent multiple refresh requests
@@ -16,6 +16,8 @@ let failedQueue: Array<{
   resolve: (value?: any) => void;
   reject: (reason?: any) => void;
 }> = [];
+
+const RETRYABLE_STATUS_CODES = new Set([408, 425, 429, 500, 502, 503, 504]);
 
 const processQueue = (error: any, token: string | null = null) => {
   failedQueue.forEach(({ resolve, reject }) => {
@@ -29,6 +31,27 @@ const processQueue = (error: any, token: string | null = null) => {
   failedQueue = [];
 };
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+const normalizeUrlPath = (url?: string) => {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    try {
+      const parsed = new URL(url);
+      return parsed.pathname || '';
+    } catch {
+      return '';
+    }
+  }
+  return url.startsWith('/') ? url : `/${url}`;
+};
+
+const isRetryableError = (error: any) => {
+  if (error?.code === 'ECONNABORTED') return true;
+  if (!error?.response) return true;
+  return RETRYABLE_STATUS_CODES.has(error.response.status);
+};
+
 // Request interceptor to add auth token
 axiosInstance.interceptors.request.use(
   (config) => {
@@ -36,6 +59,19 @@ axiosInstance.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+
+    // Automatically extend timeouts for heavier endpoints (e.g., notes CRUD) if not explicitly set
+    if (config.timeout === undefined || config.timeout === null) {
+      const method = (config.method || 'get').toLowerCase();
+      const path = normalizeUrlPath(config.url);
+      const isNotesEndpoint = path.startsWith('/notes');
+
+      if (isNotesEndpoint) {
+        const isMutation = ['post', 'put', 'patch', 'delete'].includes(method);
+        config.timeout = isMutation ? 20000 : 15000;
+      }
+    }
+
     return config;
   },
   (error) => {
@@ -77,6 +113,31 @@ axiosInstance.interceptors.response.use(
         }
       } catch (_) {
         // ignore and proceed to normal handler
+      }
+    }
+
+    const method = (originalRequest?.method || 'get').toLowerCase();
+
+    if (originalRequest && isRetryableError(error)) {
+      const defaultMaxRetries = method === 'get' ? 2 : 0;
+      const maxRetries = typeof originalRequest._maxRetries === 'number'
+        ? originalRequest._maxRetries
+        : defaultMaxRetries;
+
+      originalRequest._retryCount = originalRequest._retryCount || 0;
+
+      if (originalRequest._retryCount < maxRetries) {
+        originalRequest._retryCount += 1;
+        const backoffDelay = Math.min(4000, 500 * (originalRequest._retryCount ** 2));
+        await delay(backoffDelay);
+
+        const currentTimeout = typeof originalRequest.timeout === 'number'
+          ? originalRequest.timeout
+          : axiosInstance.defaults.timeout;
+        const extendedTimeout = Math.max(currentTimeout || 0, 10000 + 5000 * originalRequest._retryCount);
+        originalRequest.timeout = extendedTimeout;
+
+        return axiosInstance(originalRequest);
       }
     }
 
