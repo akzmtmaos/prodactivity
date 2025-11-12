@@ -27,7 +27,12 @@ class Notebook(models.Model):
     
     @property
     def notes_count(self):
-        return self.notes.filter(is_deleted=False, is_archived=False).count()
+        # If notebook is archived, count all non-deleted notes (including archived ones)
+        # If notebook is not archived, count only non-archived, non-deleted notes
+        if self.is_archived:
+            return self.notes.filter(is_deleted=False).count()
+        else:
+            return self.notes.filter(is_deleted=False, is_archived=False).count()
 
 class Note(models.Model):
     NOTE_TYPE_CHOICES = [

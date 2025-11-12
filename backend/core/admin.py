@@ -3,7 +3,7 @@ from django.contrib import admin
 from django.contrib.auth.models import User
 from notes.models import Note, Notebook
 from decks.models import Deck, Flashcard, QuizSession
-from tasks.models import Task
+from tasks.models import Task, Subtask, ProductivityLog
 from schedule.models import Event
 from reviewer.models import Reviewer
 from progress.models import ProductivityScaleHistory
@@ -713,12 +713,12 @@ class MyAdminSite(admin.AdminSite):
         
         return parent_response
 
-@admin.register(AIConfiguration)
 class AIConfigurationAdmin(admin.ModelAdmin):
-    list_display = ('title', 'config_type', 'is_active', 'updated_at')
+    list_display = ('title', 'config_type', 'is_active', 'created_at', 'updated_at')
     list_filter = ('config_type', 'is_active', 'created_at', 'updated_at')
-    search_fields = ('title', 'description', 'prompt_template')
+    search_fields = ('title', 'description', 'prompt_template', 'config_type')
     readonly_fields = ('created_at', 'updated_at')
+    ordering = ('config_type',)
     
     fieldsets = (
         ('Basic Information', {
@@ -740,27 +740,128 @@ class AIConfigurationAdmin(admin.ModelAdmin):
             return self.readonly_fields + ('config_type',)
         return self.readonly_fields
 
-# Instantiate and configure the custom admin site (replaces default admin site)
-admin_site = MyAdminSite()
-# Register all main models for admin management
-admin_site.register(User)
-admin_site.register(TermsAndConditions)
-admin_site.register(Notification)
-admin_site.register(AIConfiguration)
-admin_site.register(Notebook)
-admin_site.register(Note)
-admin_site.register(Deck)
-admin_site.register(Flashcard)
-admin_site.register(Task)
-admin_site.register(Event)
-admin_site.register(Reviewer)
-admin_site.register(ProductivityScaleHistory)
+# Admin configurations for all models
+class UserAdmin(admin.ModelAdmin):
+    list_display = ('username', 'email', 'first_name', 'last_name', 'is_staff', 'is_active', 'date_joined', 'last_login')
+    list_filter = ('is_staff', 'is_active', 'is_superuser', 'date_joined', 'last_login')
+    search_fields = ('username', 'email', 'first_name', 'last_name')
+    ordering = ('-date_joined',)
+    date_hierarchy = 'date_joined'
 
-# Register QuizSession with custom admin configuration
+class TermsAndConditionsAdmin(admin.ModelAdmin):
+    list_display = ('__str__', 'last_updated')
+    list_filter = ('last_updated',)
+    search_fields = ('content',)
+    date_hierarchy = 'last_updated'
+
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'notification_type', 'is_read', 'created_at')
+    list_filter = ('notification_type', 'is_read', 'created_at', 'user')
+    search_fields = ('title', 'message', 'user__username', 'user__email')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+class NotebookAdmin(admin.ModelAdmin):
+    list_display = ('name', 'user', 'is_archived', 'is_favorite', 'is_deleted', 'created_at', 'updated_at')
+    list_filter = ('is_archived', 'is_favorite', 'is_deleted', 'created_at', 'updated_at', 'user')
+    search_fields = ('name', 'user__username', 'user__email', 'description')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+class NoteAdmin(admin.ModelAdmin):
+    list_display = ('title', 'notebook', 'user', 'note_type', 'priority', 'is_archived', 'is_deleted', 'created_at')
+    list_filter = ('notebook', 'user', 'note_type', 'priority', 'is_urgent', 'is_archived', 'is_deleted', 'created_at', 'updated_at')
+    search_fields = ('title', 'content', 'user__username', 'user__email', 'notebook__name', 'tags')
+    date_hierarchy = 'created_at'
+    ordering = ('-updated_at',)
+
+class DeckAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'parent', 'is_archived', 'created_at', 'updated_at')
+    list_filter = ('user', 'is_archived', 'created_at', 'updated_at', 'parent')
+    search_fields = ('title', 'description', 'user__username', 'user__email')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+class FlashcardAdmin(admin.ModelAdmin):
+    list_display = ('front', 'deck', 'user', 'created_at', 'updated_at')
+    list_filter = ('deck', 'user', 'created_at', 'updated_at')
+    search_fields = ('front', 'back', 'user__username', 'user__email', 'deck__title')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+
+class TaskAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'due_date', 'priority', 'category', 'completed', 'is_deleted', 'created_at')
+    list_filter = ('priority', 'completed', 'category', 'is_deleted', 'due_date', 'created_at', 'user')
+    search_fields = ('title', 'description', 'user__username', 'user__email', 'category')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+    raw_id_fields = ('user',)  # Use raw_id for better performance with foreign keys
+
+class SubtaskAdmin(admin.ModelAdmin):
+    list_display = ('title', 'task', 'completed', 'created_at', 'updated_at')
+    list_filter = ('completed', 'created_at', 'updated_at', 'task')
+    search_fields = ('title', 'task__title', 'task__user__username', 'task__user__email')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+    raw_id_fields = ('task',)  # Use raw_id for better performance with foreign keys
+
+class EventAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'start_time', 'end_time', 'created_at', 'updated_at')
+    list_filter = ('user', 'start_time', 'end_time', 'created_at', 'updated_at')
+    search_fields = ('title', 'description', 'user__username', 'user__email')
+    date_hierarchy = 'start_time'
+    ordering = ('-start_time',)
+    raw_id_fields = ('user',)  # Use raw_id for better performance with foreign keys
+
+class ReviewerAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'source_note', 'source_notebook', 'is_favorite', 'is_deleted', 'best_score', 'created_at', 'updated_at')
+    list_filter = ('user', 'is_favorite', 'is_deleted', 'source_note', 'source_notebook', 'created_at', 'updated_at')
+    search_fields = ('title', 'content', 'user__username', 'user__email', 'tags')
+    date_hierarchy = 'created_at'
+    ordering = ('-created_at',)
+    raw_id_fields = ('source_note', 'source_notebook')  # Use raw_id for better performance with foreign keys
+
+class ProductivityLogAdmin(admin.ModelAdmin):
+    list_display = ('user', 'period_type', 'period_start', 'period_end', 'status', 'completion_rate', 'total_tasks', 'completed_tasks', 'logged_at')
+    list_filter = ('period_type', 'status', 'period_start', 'logged_at', 'user')
+    search_fields = ('user__username', 'user__email', 'status')
+    date_hierarchy = 'period_start'
+    ordering = ('-period_start', '-logged_at')
+    raw_id_fields = ('user',)  # Use raw_id for better performance with foreign keys
+
+class ProductivityScaleHistoryAdmin(admin.ModelAdmin):
+    list_display = ('user', 'period_type', 'period_start', 'period_end', 'status', 'completion_rate', 'total_tasks', 'completed_tasks', 'created_at', 'updated_at')
+    list_filter = ('period_type', 'status', 'period_start', 'created_at', 'updated_at', 'user')
+    search_fields = ('user__username', 'user__email', 'status')
+    date_hierarchy = 'period_start'
+    ordering = ('-period_start', '-created_at')
+    raw_id_fields = ('user',)  # Use raw_id for better performance with foreign keys
+
 class QuizSessionAdmin(admin.ModelAdmin):
     list_display = ('user', 'deck', 'score', 'completed_at', 'created_at')
-    list_filter = ('user', 'deck', 'completed_at')
-    search_fields = ('user__username', 'deck__title')
+    list_filter = ('user', 'deck', 'completed_at', 'created_at')
+    search_fields = ('user__username', 'user__email', 'deck__title')
+    date_hierarchy = 'completed_at'
+    ordering = ('-completed_at',)
+    raw_id_fields = ('user', 'deck')  # Use raw_id for better performance with foreign keys
 
+# Instantiate and configure the custom admin site (replaces default admin site)
+admin_site = MyAdminSite()
+
+# Register all main models for admin management with their admin classes
+admin_site.register(User, UserAdmin)
+admin_site.register(TermsAndConditions, TermsAndConditionsAdmin)
+admin_site.register(Notification, NotificationAdmin)
+admin_site.register(AIConfiguration, AIConfigurationAdmin)
+admin_site.register(Notebook, NotebookAdmin)
+admin_site.register(Note, NoteAdmin)
+admin_site.register(Deck, DeckAdmin)
+admin_site.register(Flashcard, FlashcardAdmin)
+admin_site.register(Task, TaskAdmin)
+admin_site.register(Subtask, SubtaskAdmin)
+admin_site.register(ProductivityLog, ProductivityLogAdmin)
+admin_site.register(Event, EventAdmin)
+admin_site.register(Reviewer, ReviewerAdmin)
+admin_site.register(ProductivityScaleHistory, ProductivityScaleHistoryAdmin)
 admin_site.register(QuizSession, QuizSessionAdmin)
 # You can register more models as needed 

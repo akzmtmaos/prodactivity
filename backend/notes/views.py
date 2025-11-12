@@ -68,7 +68,14 @@ class NotebookRetrieveUpdateDestroyView(generics.RetrieveUpdateDestroyAPIView):
         if is_archived is not None:
             notebook.is_archived = is_archived
             notebook.archived_at = timezone.now() if is_archived else None
+            # Also archive/unarchive all notes in the notebook
+            notebook.notes.update(
+                is_archived=is_archived, 
+                archived_at=timezone.now() if is_archived else None
+            )
             notebook.save()
+            # Refresh the notebook instance to get updated notes_count
+            notebook.refresh_from_db()
         
         if is_deleted is not None:
             notebook.is_deleted = is_deleted
@@ -86,8 +93,8 @@ class NoteListCreateView(generics.ListCreateAPIView):
     
     def get_queryset(self):
         # Filter by archive status
-        is_archived = self.request.query_params.get('archived', 'false').lower() == 'true'
-        queryset = Note.objects.filter(user=self.request.user, is_deleted=False, is_archived=is_archived)
+        is_archived_param = self.request.query_params.get('archived', None)
+        queryset = Note.objects.filter(user=self.request.user, is_deleted=False)
         
         # Filter by notebook if provided (unless global search is requested)
         notebook_id = self.request.query_params.get('notebook', None)
@@ -95,6 +102,27 @@ class NoteListCreateView(generics.ListCreateAPIView):
         
         if notebook_id is not None and not global_search:
             queryset = queryset.filter(notebook_id=notebook_id)
+            # If notebook is specified, check if it's archived
+            # If notebook is archived, show archived notes; otherwise show non-archived notes
+            try:
+                notebook = Notebook.objects.get(id=notebook_id, user=self.request.user)
+                if notebook.is_archived:
+                    # Notebook is archived, so show archived notes
+                    queryset = queryset.filter(is_archived=True)
+                else:
+                    # Notebook is not archived, so show non-archived notes
+                    queryset = queryset.filter(is_archived=False)
+            except Notebook.DoesNotExist:
+                # Notebook doesn't exist, return empty queryset
+                queryset = queryset.none()
+        else:
+            # No notebook specified, use the archived parameter or default to non-archived
+            if is_archived_param is not None:
+                is_archived = is_archived_param.lower() == 'true'
+                queryset = queryset.filter(is_archived=is_archived)
+            else:
+                # Default to non-archived notes when no notebook is specified
+                queryset = queryset.filter(is_archived=False)
         
         # Search functionality
         search = self.request.query_params.get('search', None)
