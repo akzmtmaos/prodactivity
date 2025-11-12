@@ -4,7 +4,7 @@ import { Mail, Lock, LogIn, Eye, EyeOff } from 'lucide-react';
 // @ts-ignore
 import { motion, AnimatePresence } from 'framer-motion';
 import ResendVerificationModal from '../components/common/ResendVerificationModal';
-import { API_BASE_URL } from '../config/api';
+import { API_BASE_URL, getApiBaseUrl } from '../config/api';
 
 interface LoginProps {
   setIsAuthenticated: (value: boolean | ((prevState: boolean) => boolean)) => void;
@@ -58,13 +58,23 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
         payload.username = trimmedIdentifier;
       }
 
-      const res = await fetch(`${API_BASE_URL}/login/`, {
+      // Use getter function to get fresh API URL
+      const apiUrl = getApiBaseUrl();
+      console.log('🔐 Login attempt - API_BASE_URL (constant):', API_BASE_URL);
+      console.log('🔐 Login attempt - API_BASE_URL (getter):', apiUrl);
+      console.log('🔐 Login payload:', { ...payload, password: '***' });
+      
+      const res = await fetch(`${apiUrl}/login/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
 
+      console.log('🔐 Login response status:', res.status);
+      console.log('🔐 Login response headers:', Object.fromEntries(res.headers.entries()));
+      
       const data = await res.json();
+      console.log('🔐 Login response data:', data);
 
       if (data.access && data.refresh) {
         localStorage.setItem('accessToken', data.access);
@@ -91,8 +101,13 @@ const Login = ({ setIsAuthenticated }: LoginProps) => {
         });
       }
     } catch (err) {
+      console.error('🔐 Login error:', err);
+      console.error('🔐 Error details:', {
+        message: err instanceof Error ? err.message : String(err),
+        stack: err instanceof Error ? err.stack : undefined
+      });
       setMessage({
-        text: 'Login failed. Check your connection or server.',
+        text: err instanceof Error ? `Login failed: ${err.message}` : 'Login failed. Check your connection or server.',
         type: 'error',
       });
     } finally {

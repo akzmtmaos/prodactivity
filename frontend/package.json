@@ -63,6 +63,5 @@
     "postcss-normalize": "^9.0.0",
     "postcss-preset-env": "^9.6.0",
     "tailwindcss": "^4.1.11"
-  },
-  "proxy": "http://localhost:8000"
+  }
 }

@@ -1,9 +1,10 @@
 import axios from 'axios';
-import { API_BASE_URL } from '../config/api';
+import { getApiBaseUrl } from '../config/api';
 
-// Create axios instance
+// Create axios instance with dynamic baseURL
+// We'll update the baseURL in the request interceptor to ensure it's always current
 const axiosInstance = axios.create({
-  baseURL: API_BASE_URL,
+  baseURL: getApiBaseUrl(), // Use getter function for initial value
   headers: {
     'Content-Type': 'application/json',
   },
@@ -52,12 +53,21 @@ const isRetryableError = (error: any) => {
   return RETRYABLE_STATUS_CODES.has(error.response.status);
 };
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and ensure correct baseURL
 axiosInstance.interceptors.request.use(
   (config) => {
+    // Update baseURL dynamically to ensure it's always correct
+    const currentApiUrl = getApiBaseUrl();
+    if (config.baseURL !== currentApiUrl) {
+      config.baseURL = currentApiUrl;
+    }
+    
     const token = localStorage.getItem('accessToken');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+      console.log('🔑 Adding auth token to request:', config.url, 'Token exists:', !!token);
+    } else {
+      console.warn('⚠️ No access token found in localStorage for request:', config.url);
     }
 
     // Automatically extend timeouts for heavier endpoints (e.g., notes CRUD) if not explicitly set
@@ -91,8 +101,10 @@ axiosInstance.interceptors.response.use(
     if (!error.response && !originalRequest._networkRetry) {
       try {
         originalRequest._networkRetry = true;
+        const currentApiUrl = getApiBaseUrl();
         const alternates = [
-          // same host but without /api override (if baseURL already has /api, originalRequest.url stays path-only)
+          // Use current API URL first, then fallbacks
+          currentApiUrl,
           (typeof window !== 'undefined' ? `${window.location.protocol}//${window.location.hostname}:8000/api` : null),
           'http://127.0.0.1:8000/api',
           'http://localhost:8000/api'
@@ -169,7 +181,8 @@ axiosInstance.interceptors.response.use(
       }
 
       try {
-        const response = await axios.post(`${API_BASE_URL}/token/refresh/`, {
+        const currentApiUrl = getApiBaseUrl();
+        const response = await axios.post(`${currentApiUrl}/token/refresh/`, {
           refresh: refreshToken,
         });
 
