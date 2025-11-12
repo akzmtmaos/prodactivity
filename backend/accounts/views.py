@@ -255,53 +255,77 @@ def login_view(request):
             if supabase_user:
                 print(f"⚠️ User found in Supabase but NOT in Django database!")
                 print(f"Supabase user data: {supabase_user}")
-                print(f"🔄 Attempting automatic account recovery...")
+                supabase_user_id = supabase_user.get('id')
+                print(f"📦 Supabase user ID: {supabase_user_id}")
                 
-                # Automatically attempt to recover the account
-                try:
-                    supabase_username = supabase_user.get('username')
-                    if not supabase_username:
-                        supabase_username = email.split('@')[0]
-                    
-                    # Make sure username is unique
-                    base_username = supabase_username.lower()
-                    counter = 1
-                    while User.objects.filter(username=base_username).exists():
-                        base_username = f"{supabase_username.lower()}{counter}"
-                        counter += 1
-                    
-                    # Create Django user with the provided password
-                    django_user = User.objects.create_user(
-                        username=base_username,
-                        email=email_lower,
-                        password=password
-                    )
-                    print(f"✅ Created Django user: {django_user.username} (ID: {django_user.id})")
-                    
-                    # Sync email_verified status from Supabase
-                    if supabase_user.get('email_verified'):
-                        django_user.is_active = True
-                        django_user.save()
-                        print(f"✅ User activated based on Supabase email_verified status")
-                    
-                    # Create or update profile
-                    profile, created = Profile.objects.get_or_create(user=django_user)
-                    if supabase_user.get('email_verified'):
-                        profile.email_verified = True
-                        profile.save()
-                    print(f"✅ Profile {'created' if created else 'updated'}")
-                    
-                    # Now try to authenticate with the newly created user
-                    user = django_user
-                    print(f"✅ Account automatically recovered! Proceeding with login...")
-                except Exception as e:
-                    print(f"❌ Error during automatic recovery: {e}")
-                    import traceback
-                    print(traceback.format_exc())
+                # FIRST: Check if a Django user with this ID exists (maybe was just not found by email/username)
+                if supabase_user_id:
+                    existing_user_by_id = User.objects.filter(id=supabase_user_id).first()
+                    if existing_user_by_id:
+                        print(f"✅ Found existing Django user with ID {supabase_user_id}: {existing_user_by_id.username}")
+                        # Update password if provided
+                        if password:
+                            existing_user_by_id.set_password(password)
+                            existing_user_by_id.save()
+                            print(f"✅ Updated password for existing user")
+                        user = existing_user_by_id
+                        print(f"✅ Using existing Django user! Proceeding with login...")
+                    else:
+                        print(f"🔄 No Django user found with ID {supabase_user_id}, attempting to create new user...")
+                        # Automatically attempt to recover the account
+                        try:
+                            supabase_username = supabase_user.get('username')
+                            if not supabase_username:
+                                supabase_username = email.split('@')[0]
+                            
+                            # Make sure username is unique
+                            base_username = supabase_username.lower()
+                            counter = 1
+                            while User.objects.filter(username=base_username).exists():
+                                base_username = f"{supabase_username.lower()}{counter}"
+                                counter += 1
+                            
+                            # Create Django user with the provided password
+                            django_user = User.objects.create_user(
+                                username=base_username,
+                                email=email_lower,
+                                password=password
+                            )
+                            print(f"✅ Created Django user: {django_user.username} (ID: {django_user.id})")
+                            print(f"⚠️ WARNING: New user ID ({django_user.id}) doesn't match Supabase ID ({supabase_user_id})")
+                            print(f"⚠️ Data in Supabase is linked to user ID {supabase_user_id}, but new user has ID {django_user.id}")
+                            print(f"⚠️ You may need to update Supabase data to use the new user ID, or restore the original Django user")
+                            
+                            # Sync email_verified status from Supabase
+                            if supabase_user.get('email_verified'):
+                                django_user.is_active = True
+                                django_user.save()
+                                print(f"✅ User activated based on Supabase email_verified status")
+                            
+                            # Create or update profile
+                            profile, created = Profile.objects.get_or_create(user=django_user)
+                            if supabase_user.get('email_verified'):
+                                profile.email_verified = True
+                                profile.save()
+                            print(f"✅ Profile {'created' if created else 'updated'}")
+                            
+                            # Now try to authenticate with the newly created user
+                            user = django_user
+                            print(f"✅ Account automatically recovered! Proceeding with login...")
+                        except Exception as e:
+                            print(f"❌ Error during automatic recovery: {e}")
+                            import traceback
+                            print(traceback.format_exc())
+                            return Response({
+                                'message': 'Account exists in Supabase but not in Django. Please use the recover-account endpoint or contact support.',
+                                'error_code': 'USER_IN_SUPABASE_NOT_DJANGO',
+                                'recovery_endpoint': '/api/recover-account/'
+                            }, status=401)
+                else:
+                    print(f"❌ Supabase user has no ID field!")
                     return Response({
-                        'message': 'Account exists in Supabase but not in Django. Please use the recover-account endpoint or contact support.',
-                        'error_code': 'USER_IN_SUPABASE_NOT_DJANGO',
-                        'recovery_endpoint': '/api/recover-account/'
+                        'message': 'Account exists in Supabase but has invalid data. Please contact support.',
+                        'error_code': 'INVALID_SUPABASE_USER'
                     }, status=401)
             
             if not user:
