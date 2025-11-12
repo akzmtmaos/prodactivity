@@ -19,9 +19,14 @@ import NotesTabs from '../components/notes/NotesTabs';
 import NotebookAIInsights from '../components/notes/NotebookAIInsights';
 
 // Import libraries for file generation
-import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
+import { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun, Media } from 'docx';
 import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set up PDF.js worker - use local file from public folder (most reliable)
+// The worker file should be in public/pdf.worker.min.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.js`;
 
 // Generate organized colors with better visual progression (same as ColorPickerModal)
 const generateNotebookColor = (notebookId: number): string => {
@@ -251,6 +256,59 @@ const Notes = () => {
       // Fallback: strip tags via regex
       return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     }
+  };
+
+  // Helper to extract images from HTML content
+  const extractImagesFromHTML = (html: string): Array<{ data: string; format: string; index: number }> => {
+    if (!html) return [];
+    const images: Array<{ data: string; format: string; index: number }> = [];
+    const imgRegex = /<img[^>]+src="(data:image\/([^;]+);base64,[^"]+)"[^>]*>/gi;
+    let match;
+    let index = 0;
+    
+    while ((match = imgRegex.exec(html)) !== null) {
+      const dataUrl = match[1];
+      const format = match[2] || 'png';
+      images.push({ data: dataUrl, format, index: index++ });
+    }
+    
+    return images;
+  };
+
+  // Helper to process HTML content and extract text with image placeholders
+  const processHTMLContent = (html: string): { text: string; images: Array<{ data: string; format: string; index: number }> } => {
+    if (!html) return { text: '', images: [] };
+    
+    const images = extractImagesFromHTML(html);
+    
+    // Create a temporary div to extract text
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    
+    // Replace img tags with placeholders
+    const imgTags = div.querySelectorAll('img');
+    imgTags.forEach((img, idx) => {
+      const placeholder = document.createTextNode(`\n[IMAGE_${idx}]\n`);
+      img.parentNode?.replaceChild(placeholder, img);
+    });
+    
+    // Get text content
+    let text = div.textContent || div.innerText || '';
+    
+    // Clean up HTML entities
+    text = text.replace(/&nbsp;/g, ' ')
+               .replace(/&amp;/g, '&')
+               .replace(/&lt;/g, '<')
+               .replace(/&gt;/g, '>')
+               .replace(/&quot;/g, '"')
+               .replace(/&#39;/g, "'");
+    
+    // Normalize whitespace
+    text = text.replace(/[ \t]+/g, ' ')
+               .replace(/\n\s*\n\s*\n+/g, '\n\n')
+               .trim();
+    
+    return { text, images };
   };
 
   const getPreview = (html: string, maxLen = 160): string => {
@@ -740,15 +798,24 @@ const Notes = () => {
   // Archive/Unarchive notebook
   const handleArchiveNotebook = async (notebookId: number, archive: boolean) => {
     try {
-      await axiosInstance.patch(`/notes/notebooks/${notebookId}/`, {
+      const response = await axiosInstance.patch(`/notes/notebooks/${notebookId}/`, {
         is_archived: archive
       });
+      
+      // Get the updated notebook data from the response
+      const updatedNotebook = response.data;
       
       if (archive) {
         // Move from active notebooks to archived notebooks
         const notebookToArchive = notebooks.find(nb => nb.id === notebookId);
         if (notebookToArchive) {
-          const archivedNotebook = { ...notebookToArchive, is_archived: true, archived_at: new Date().toISOString() };
+          // Use the updated notebook data from backend (includes correct notes_count)
+          const archivedNotebook = { 
+            ...notebookToArchive, 
+            ...updatedNotebook,
+            is_archived: true, 
+            archived_at: new Date().toISOString() 
+          };
           setArchivedNotebooks([...archivedNotebooks, archivedNotebook]);
           setNotebooks(notebooks.filter(nb => nb.id !== notebookId));
           
@@ -758,11 +825,20 @@ const Notes = () => {
             setNotes([]);
           }
         }
+        
+        // Refresh archived notebooks to get updated notes_count
+        await fetchArchivedNotebooks();
       } else {
         // Move from archived notebooks back to active notebooks
         const notebookToUnarchive = archivedNotebooks.find(nb => nb.id === notebookId);
         if (notebookToUnarchive) {
-          const activeNotebook = { ...notebookToUnarchive, is_archived: false, archived_at: null };
+          // Use the updated notebook data from backend
+          const activeNotebook = { 
+            ...notebookToUnarchive, 
+            ...updatedNotebook,
+            is_archived: false, 
+            archived_at: null 
+          };
           setNotebooks([...notebooks, activeNotebook]);
           setArchivedNotebooks(archivedNotebooks.filter(nb => nb.id !== notebookId));
         }
@@ -1637,179 +1713,62 @@ const Notes = () => {
     setIsExporting(true);
     try {
       const items = (exportNotesList && exportNotesList.length > 0) ? exportNotesList : notes;
-      // Build children with sanitized content to avoid docx packing errors
-      const children: any[] = [];
-      children.push(
-        new Paragraph({ text: selectedNotebook.name, heading: HeadingLevel.TITLE }),
-        new Paragraph({ text: `Exported on ${new Date().toLocaleDateString()}`, heading: HeadingLevel.HEADING_2 }),
-        new Paragraph({ text: selectedNotebook.description || '' }),
-        new Paragraph({ text: '' })
-      );
-
-      const chunkLine = (line: string, size = 800): string[] => {
-        const parts: string[] = [];
-        let i = 0;
-        while (i < line.length) {
-          parts.push(line.slice(i, i + size));
-          i += size;
-        }
-        return parts.length ? parts : [''];
-      };
-
-      items.forEach((note) => {
-        const title = (note.title || '').toString();
-        const rawContent = (note.content || '').toString();
-        const plainContent = getPlainText ? getPlainText(rawContent) : rawContent.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
-
-        // Heuristic formatting: inject breaks after sentences and before list-like items
-        const normalized = plainContent
-          .replace(/([.!?])\s+(?=[A-Z\[])/g, '$1\n\n')
-          .replace(/\s*-\s+/g, '\n- ')
-          .replace(/(Q\d+\.|Correct Answer:)/g, '\n\n$1')
-          .replace(/\n{3,}/g, '\n\n')
-          .trim();
-
-        let paragraphs = normalized.split(/\n\n+/).filter(Boolean);
-
-        // Remove duplicated first line if it repeats the title
-        if (paragraphs.length > 0) {
-          const first = paragraphs[0].replace(/\s+/g, ' ').trim().toLowerCase();
-          const t = (title || '').replace(/\s+/g, ' ').trim().toLowerCase();
-          if (t && (first === t || first.startsWith(t))) {
-            paragraphs = paragraphs.slice(1);
-          }
-        }
-
-        // Title
-        children.push(new Paragraph({ text: title || 'Untitled', heading: HeadingLevel.HEADING_3 }));
-
-        if (paragraphs.length === 0) {
-          children.push(new Paragraph({ text: 'No content' }));
-        } else {
-          paragraphs.slice(0, 300).forEach((para) => {
-            // Markdown-style headings to DOCX headings
-            if (/^###\s+/.test(para)) {
-              const text = para.replace(/^###\s+/, '').trim();
-              children.push(new Paragraph({ text, heading: HeadingLevel.HEADING_3 }));
-              return;
-            }
-            if (/^##\s+/.test(para)) {
-              const text = para.replace(/^##\s+/, '').trim();
-              children.push(new Paragraph({ text, heading: HeadingLevel.HEADING_2 }));
-              return;
-            }
-            if (/^#\s+/.test(para)) {
-              const text = para.replace(/^#\s+/, '').trim();
-              children.push(new Paragraph({ text, heading: HeadingLevel.HEADING_1 }));
-              return;
-            }
-
-            // Bullet list
-            if (/^([-*•])\s+/.test(para)) {
-              const cleaned = para.replace(/^([-*•])\s+/, '').trim();
-              const lines = chunkLine(cleaned);
-              if (lines.length === 0) {
-                children.push(new Paragraph({ text: '', bullet: { level: 0 } }));
-              } else {
-                lines.forEach((chunk) => children.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun({ text: chunk })] })));
-              }
-              return;
-            }
-
-            // Ordered list (simple single-level 1., 2.)
-            if (/^\d+[\.)]\s+/.test(para)) {
-              const cleaned = para.replace(/^\d+[\.)]\s+/, '').trim();
-              const lines = chunkLine(cleaned);
-              if (lines.length === 0) {
-                children.push(new Paragraph({ text: '', numbering: { reference: 'ordered-list', level: 0 } }));
-              } else {
-                lines.forEach((chunk) => children.push(new Paragraph({ numbering: { reference: 'ordered-list', level: 0 }, children: [new TextRun({ text: chunk })] })));
-              }
-              return;
-            }
-
-            // Default paragraph
-            chunkLine(para).forEach((chunk) => children.push(new Paragraph({ children: [new TextRun({ text: chunk })] })));
-          });
-        }
-
-        // Spacer between notes
-        children.push(new Paragraph({ text: '' }));
-      });
-
-      const doc = new Document({
-        numbering: {
-          config: [
-            {
-              reference: 'ordered-list',
-              levels: [
-                {
-                  level: 0,
-                  format: 'decimal',
-                  text: '%1.',
-                  alignment: 'left',
-                },
-              ],
-            },
-          ],
-        },
-        styles: {
-          default: {
-            document: {
-              run: {
-                font: 'Arial',
-                size: 24,
-              },
-              paragraph: {
-                spacing: { after: 200, line: 276, lineRule: 'auto' },
-              },
-            },
-          },
-          paragraphStyles: [
-            {
-              id: 'Heading1',
-              name: 'Heading 1',
-              basedOn: 'Heading1',
-              next: 'Normal',
-              quickFormat: true,
-              run: { font: 'Arial', size: 36, bold: true },
-              paragraph: { spacing: { after: 200 } },
-            },
-            {
-              id: 'Heading2',
-              name: 'Heading 2',
-              basedOn: 'Heading2',
-              next: 'Normal',
-              quickFormat: true,
-              run: { font: 'Arial', size: 30, bold: true },
-              paragraph: { spacing: { after: 200 } },
-            },
-            {
-              id: 'Heading3',
-              name: 'Heading 3',
-              basedOn: 'Heading3',
-              next: 'Normal',
-              quickFormat: true,
-              run: { font: 'Arial', size: 26, bold: true },
-              paragraph: { spacing: { after: 160 } },
-            },
-          ],
-        },
-        sections: [{ properties: {}, children }],
-      });
-
-      const blob = await Packer.toBlob(doc);
-      const url = URL.createObjectURL(blob);
       
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `${selectedNotebook.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes_export.docx`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Use backend API for each note to properly handle images
+      // Export each note individually and combine them
+      const exportedFiles: Blob[] = [];
+      
+      for (const note of items) {
+        try {
+          const response = await axiosInstance.post(`/notes/export/`, {
+            note_id: note.id,
+            format: 'doc'
+          }, {
+            responseType: 'blob'
+          });
+          exportedFiles.push(response.data);
+        } catch (error) {
+          console.error(`Failed to export note ${note.id}:`, error);
+          // Continue with other notes
+        }
+      }
+      
+      if (exportedFiles.length === 0) {
+        throw new Error('No notes could be exported');
+      }
+      
+      // Download all exported files
+      const timestamp = new Date().toISOString().split('T')[0];
+      exportedFiles.forEach((blob, index) => {
+        const note = items[index];
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const titleSlug = (note?.title || `note_${index + 1}`).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        link.download = `${titleSlug}_${timestamp}.docx`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
+        
+        // Small delay between downloads to avoid browser blocking
+        if (index < exportedFiles.length - 1) {
+          setTimeout(() => {}, 100);
+        }
+      });
+      
+      if (exportedFiles.length < items.length) {
+        setToast({ 
+          message: `Exported ${exportedFiles.length} of ${items.length} notes to DOCX. Some notes failed to export.`, 
+          type: 'success' 
+        });
+      } else {
+        setToast({ 
+          message: `Exported ${exportedFiles.length} note${exportedFiles.length > 1 ? 's' : ''} to DOCX successfully! ${exportedFiles.length > 1 ? 'Multiple files downloaded.' : ''}`, 
+          type: 'success' 
+        });
+      }
 
-      setToast({ message: `Exported ${items.length} notes to DOCX successfully!`, type: 'success' });
     } catch (error) {
       console.error('DOCX export failed:', error);
       setToast({ message: 'Failed to export notes to DOCX', type: 'error' });
@@ -1826,75 +1785,60 @@ const Notes = () => {
     setIsExporting(true);
     try {
       const items = (exportNotesList && exportNotesList.length > 0) ? exportNotesList : notes;
-      const pdf = new jsPDF();
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      let yPosition = 20;
-      const lineHeight = 7;
-      const margin = 20;
-
-      // Add title
-      pdf.setFontSize(20);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text(selectedNotebook.name, margin, yPosition);
-      yPosition += 15;
-
-      // Add export date
-      pdf.setFontSize(12);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Exported on ${new Date().toLocaleDateString()}`, margin, yPosition);
-      yPosition += 10;
-
-      // Add description if exists
-      if (selectedNotebook.description) {
-        pdf.setFontSize(10);
-        pdf.text(selectedNotebook.description, margin, yPosition);
-        yPosition += 10;
-      }
-
-      yPosition += 10;
-
-      // Add notes
-      items.forEach((note, index) => {
-        // Check if we need a new page
-        if (yPosition > pageHeight - 30) {
-          pdf.addPage();
-          yPosition = 20;
+      
+      // Use backend API for each note to properly handle images
+      const exportedFiles: Blob[] = [];
+      
+      for (const note of items) {
+        try {
+          const response = await axiosInstance.post(`/notes/export/`, {
+            note_id: note.id,
+            format: 'pdf'
+          }, {
+            responseType: 'blob'
+          });
+          exportedFiles.push(response.data);
+        } catch (error) {
+          console.error(`Failed to export note ${note.id}:`, error);
+          // Continue with other notes
         }
-
-        // Note title
-        pdf.setFontSize(14);
-        pdf.setFont('helvetica', 'bold');
-        const noteTitle = `${index + 1}. ${note.title}`;
-        pdf.text(noteTitle, margin, yPosition);
-        yPosition += lineHeight;
-
-        // Note content
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        const content = note.content || 'No content';
-        const splitContent = pdf.splitTextToSize(content, pageWidth - 2 * margin);
+      }
+      
+      if (exportedFiles.length === 0) {
+        throw new Error('No notes could be exported');
+      }
+      
+      // Download all exported files
+      const timestamp = new Date().toISOString().split('T')[0];
+      exportedFiles.forEach((blob, index) => {
+        const note = items[index];
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        const titleSlug = (note?.title || `note_${index + 1}`).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        link.download = `${titleSlug}_${timestamp}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(url);
         
-        splitContent.forEach((line: string) => {
-          if (yPosition > pageHeight - 20) {
-            pdf.addPage();
-            yPosition = 20;
-          }
-          pdf.text(line, margin, yPosition);
-          yPosition += lineHeight;
-        });
-
-        // Note metadata
-        yPosition += 5;
-        pdf.setFontSize(8);
-        pdf.text(`Type: ${note.note_type} | Priority: ${note.priority} | Created: ${new Date(note.created_at).toLocaleDateString()}`, margin, yPosition);
-        yPosition += lineHeight + 5;
+        // Small delay between downloads to avoid browser blocking
+        if (index < exportedFiles.length - 1) {
+          setTimeout(() => {}, 100);
+        }
       });
-
-      // Save the PDF
-      pdf.save(`${selectedNotebook.name.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_notes_export.pdf`);
-
-      setToast({ message: `Exported ${items.length} notes to PDF successfully!`, type: 'success' });
+      
+      if (exportedFiles.length < items.length) {
+        setToast({ 
+          message: `Exported ${exportedFiles.length} of ${items.length} notes to PDF. Some notes failed to export.`, 
+          type: 'success' 
+        });
+      } else {
+        setToast({ 
+          message: `Exported ${exportedFiles.length} note${exportedFiles.length > 1 ? 's' : ''} to PDF successfully! ${exportedFiles.length > 1 ? 'Multiple files downloaded.' : ''}`, 
+          type: 'success' 
+        });
+      }
     } catch (error) {
       console.error('PDF export failed:', error);
       setToast({ message: 'Failed to export notes to PDF', type: 'error' });
@@ -2140,14 +2084,75 @@ const Notes = () => {
           try {
             const fileName = file.name.replace('.pdf', '');
             
-            // Create a note with file information
+            // Extract text content from PDF
+            const arrayBuffer = await file.arrayBuffer();
+            const typedarray = new Uint8Array(arrayBuffer);
+            
+            // Try to load PDF with error handling for worker issues
+            let pdf;
+            try {
+              pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+            } catch (workerError: any) {
+              // If local worker fails, try CDN as fallback
+              console.warn('Local PDF worker failed, trying CDN fallback:', workerError);
+              pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@5.4.149/build/pdf.worker.min.mjs`;
+              try {
+                // Retry with CDN
+                pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+              } catch (fallbackError: any) {
+                // If both fail, throw a user-friendly error
+                throw new Error(`Failed to load PDF worker. Please ensure pdf.worker.min.js is in the public folder. Error: ${fallbackError.message}`);
+              }
+            }
+            
+            let extractedText = '';
+            
+            // Extract text from all pages
+            for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+              const page = await pdf.getPage(pageNum);
+              const content = await page.getTextContent();
+              const pageText = content.items
+                .map((item: any) => item.str)
+                .join(' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+              
+              if (pageText) {
+                extractedText += pageText + '\n\n';
+              }
+            }
+            
+            // Format the content
+            let content = `# ${fileName}\n\n`;
+            
+            if (extractedText.trim()) {
+              // Clean up the extracted text
+              let processedContent = extractedText
+                // Split by sentences
+                .replace(/([.!?])\s+([A-Z])/g, '$1\n\n$2')
+                // Split by question patterns
+                .replace(/(Q\d+\.)/g, '\n\n$1')
+                // Split by answer patterns
+                .replace(/([A-D]\))/g, '\n$1')
+                // Split by "Correct Answer:" patterns
+                .replace(/(Correct Answer:)/g, '\n\n$1')
+                // Clean up multiple newlines
+                .replace(/\n{3,}/g, '\n\n')
+                .trim();
+              
+              content += processedContent;
+            } else {
+              content += `*No text content could be extracted from this PDF. The file might be scanned or contain only images.*`;
+            }
+            
+            // Create note with extracted content
             await axiosInstance.post('/notes/', {
               title: fileName,
-              content: `📄 **PDF File Imported**\n\n**File:** ${file.name}\n**Size:** ${(file.size / 1024).toFixed(2)} KB\n**Type:** Portable Document Format\n\n*Note: The actual PDF content cannot be directly parsed in the browser. For full content extraction, please use a desktop application or convert to plain text first.*`,
+              content: content,
               note_type: 'other',
               priority: 'medium',
               is_urgent: false,
-              tags: 'imported,pdf,file',
+              tags: 'imported,pdf,parsed',
               notebook: selectedNotebook.id
             });
 
@@ -2156,6 +2161,22 @@ const Notes = () => {
             console.error(`PDF import failed for ${file.name}:`, error);
             errorCount++;
             errors.push(file.name);
+            
+            // If extraction failed, create a note with error message
+            try {
+              const fileName = file.name.replace('.pdf', '');
+              await axiosInstance.post('/notes/', {
+                title: fileName,
+                content: `📄 **PDF File Imported (Extraction Failed)**\n\n**File:** ${file.name}\n**Size:** ${(file.size / 1024).toFixed(2)} KB\n**Type:** Portable Document Format\n\n*Error: Could not extract text content from this PDF. The file might be corrupted, password-protected, or contain only images.*\n\n**Error details:** ${error instanceof Error ? error.message : 'Unknown error'}`,
+                note_type: 'other',
+                priority: 'medium',
+                is_urgent: false,
+                tags: 'imported,pdf,error',
+                notebook: selectedNotebook.id
+              });
+            } catch (fallbackError) {
+              console.error('Failed to create fallback note:', fallbackError);
+            }
           }
         }
 
@@ -2165,7 +2186,7 @@ const Notes = () => {
         // Show summary toast
         if (successCount > 0 && errorCount === 0) {
           setToast({ 
-            message: `Successfully imported ${successCount} PDF file${successCount > 1 ? 's' : ''}!`, 
+            message: `Successfully imported ${successCount} PDF file${successCount > 1 ? 's' : ''} with content extraction!`, 
             type: 'success' 
           });
         } else if (successCount > 0 && errorCount > 0) {
