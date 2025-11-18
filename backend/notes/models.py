@@ -19,7 +19,6 @@ class Notebook(models.Model):
     
     class Meta:
         verbose_name_plural = "Notebooks"
-        unique_together = ['name', 'user']  # Prevent duplicate notebook names per user
         ordering = ['name']
     
     def __str__(self):
