@@ -23,6 +23,7 @@ import { Document, Packer, Paragraph, TextRun, HeadingLevel, ImageRun, Media } f
 import jsPDF from 'jspdf';
 import mammoth from 'mammoth';
 import * as pdfjsLib from 'pdfjs-dist';
+import JSZip from 'jszip';
 
 // Set up PDF.js worker - use local file from public folder (most reliable)
 // The worker file should be in public/pdf.worker.min.js
@@ -106,7 +107,6 @@ const Notes = () => {
   // Debug URL params
   // console.log('🔗 URL Params from useParams:', { notebookId, noteIdFromUrl });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   
   // State for notebooks and notes
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
@@ -400,7 +400,6 @@ const Notes = () => {
         } catch {}
       } else {
         setNotebooks([]);
-        setError('No notebooks found');
       }
     } catch (error: any) {
       // Surface precise diagnostics
@@ -414,7 +413,7 @@ const Notes = () => {
         window.location.href = '/login';
         return;
       }
-      setError(`Failed to fetch notebooks${status ? ` (HTTP ${status})` : ''}. Please try again.`);
+      setToast({ message: `Failed to fetch notebooks${status ? ` (HTTP ${status})` : ''}. Please try again.`, type: 'error' });
     }
   };
 
@@ -666,7 +665,6 @@ const Notes = () => {
       // Remove optimistic notebook on error
       setNotebooks(prev => prev.filter(nb => nb.id !== tempId));
       handleError(error, 'Failed to create notebook');
-      setToast({ message: 'Failed to create notebook', type: 'error' });
     }
   };
 
@@ -1067,7 +1065,6 @@ const Notes = () => {
       setToast({ message: 'Note moved to Trash.', type: 'success' });
     } catch (error) {
       handleError(error, 'Failed to delete note');
-      setToast({ message: 'Failed to delete note.', type: 'error' });
     }
   };
 
@@ -1713,12 +1710,14 @@ const Notes = () => {
     setIsExporting(true);
     try {
       const items = (exportNotesList && exportNotesList.length > 0) ? exportNotesList : notes;
+      // Check if this is a notebook export (all notes) vs selected notes export
+      const isNotebookExport = (exportNotesList.length === 0 || exportNotesList.length === notes.length) && notes.length > 0;
       
       // Use backend API for each note to properly handle images
-      // Export each note individually and combine them
-      const exportedFiles: Blob[] = [];
+      const exportedFiles: Array<{ blob: Blob; note: Note; index: number }> = [];
       
-      for (const note of items) {
+      for (let i = 0; i < items.length; i++) {
+        const note = items[i];
         try {
           const response = await axiosInstance.post(`/notes/export/`, {
             note_id: note.id,
@@ -1726,7 +1725,7 @@ const Notes = () => {
           }, {
             responseType: 'blob'
           });
-          exportedFiles.push(response.data);
+          exportedFiles.push({ blob: response.data, note, index: i });
         } catch (error) {
           console.error(`Failed to export note ${note.id}:`, error);
           // Continue with other notes
@@ -1737,36 +1736,60 @@ const Notes = () => {
         throw new Error('No notes could be exported');
       }
       
-      // Download all exported files
       const timestamp = new Date().toISOString().split('T')[0];
-      exportedFiles.forEach((blob, index) => {
-        const note = items[index];
-        const url = window.URL.createObjectURL(blob);
+      
+      // If exporting all notes (notebook export), create a ZIP file
+      // Only create ZIP if there's more than 1 note, otherwise just download the single file
+      if (isNotebookExport && exportedFiles.length > 1) {
+        const zip = new JSZip();
+        const notebookName = selectedNotebook.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        
+        // Add each note to the ZIP
+        exportedFiles.forEach(({ blob, note }) => {
+          const titleSlug = (note.title || `note_${note.id}`).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          zip.file(`${titleSlug}_${timestamp}.docx`, blob);
+        });
+        
+        // Generate ZIP file
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = window.URL.createObjectURL(zipBlob);
         const link = document.createElement('a');
         link.href = url;
-        const titleSlug = (note?.title || `note_${index + 1}`).replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        link.download = `${titleSlug}_${timestamp}.docx`;
+        link.download = `${notebookName}_notes_${timestamp}.zip`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
         
-        // Small delay between downloads to avoid browser blocking
-        if (index < exportedFiles.length - 1) {
-          setTimeout(() => {}, 100);
-        }
-      });
-      
-      if (exportedFiles.length < items.length) {
         setToast({ 
-          message: `Exported ${exportedFiles.length} of ${items.length} notes to DOCX. Some notes failed to export.`, 
+          message: `Exported ${exportedFiles.length} notes to ZIP file successfully!`, 
           type: 'success' 
         });
       } else {
-        setToast({ 
-          message: `Exported ${exportedFiles.length} note${exportedFiles.length > 1 ? 's' : ''} to DOCX successfully! ${exportedFiles.length > 1 ? 'Multiple files downloaded.' : ''}`, 
-          type: 'success' 
+        // Export individual files for selected notes or single note
+        exportedFiles.forEach(({ blob, note }) => {
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          const titleSlug = (note.title || `note_${note.id}`).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          link.download = `${titleSlug}_${timestamp}.docx`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
         });
+        
+        if (exportedFiles.length < items.length) {
+          setToast({ 
+            message: `Exported ${exportedFiles.length} of ${items.length} notes to DOCX. Some notes failed to export.`, 
+            type: 'success' 
+          });
+        } else {
+          setToast({ 
+            message: `Exported ${exportedFiles.length} note${exportedFiles.length > 1 ? 's' : ''} to DOCX successfully!`, 
+            type: 'success' 
+          });
+        }
       }
 
     } catch (error) {
@@ -1785,11 +1808,14 @@ const Notes = () => {
     setIsExporting(true);
     try {
       const items = (exportNotesList && exportNotesList.length > 0) ? exportNotesList : notes;
+      // Check if this is a notebook export (all notes) vs selected notes export
+      const isNotebookExport = (exportNotesList.length === 0 || exportNotesList.length === notes.length) && notes.length > 0;
       
       // Use backend API for each note to properly handle images
-      const exportedFiles: Blob[] = [];
+      const exportedFiles: Array<{ blob: Blob; note: Note; index: number }> = [];
       
-      for (const note of items) {
+      for (let i = 0; i < items.length; i++) {
+        const note = items[i];
         try {
           const response = await axiosInstance.post(`/notes/export/`, {
             note_id: note.id,
@@ -1797,7 +1823,7 @@ const Notes = () => {
           }, {
             responseType: 'blob'
           });
-          exportedFiles.push(response.data);
+          exportedFiles.push({ blob: response.data, note, index: i });
         } catch (error) {
           console.error(`Failed to export note ${note.id}:`, error);
           // Continue with other notes
@@ -1808,36 +1834,60 @@ const Notes = () => {
         throw new Error('No notes could be exported');
       }
       
-      // Download all exported files
       const timestamp = new Date().toISOString().split('T')[0];
-      exportedFiles.forEach((blob, index) => {
-        const note = items[index];
-        const url = window.URL.createObjectURL(blob);
+      
+      // If exporting all notes (notebook export), create a ZIP file
+      // Only create ZIP if there's more than 1 note, otherwise just download the single file
+      if (isNotebookExport && exportedFiles.length > 1) {
+        const zip = new JSZip();
+        const notebookName = selectedNotebook.name.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+        
+        // Add each note to the ZIP
+        exportedFiles.forEach(({ blob, note }) => {
+          const titleSlug = (note.title || `note_${note.id}`).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          zip.file(`${titleSlug}_${timestamp}.pdf`, blob);
+        });
+        
+        // Generate ZIP file
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = window.URL.createObjectURL(zipBlob);
         const link = document.createElement('a');
         link.href = url;
-        const titleSlug = (note?.title || `note_${index + 1}`).replace(/[^a-z0-9]/gi, '_').toLowerCase();
-        link.download = `${titleSlug}_${timestamp}.pdf`;
+        link.download = `${notebookName}_notes_${timestamp}.zip`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
         
-        // Small delay between downloads to avoid browser blocking
-        if (index < exportedFiles.length - 1) {
-          setTimeout(() => {}, 100);
-        }
-      });
-      
-      if (exportedFiles.length < items.length) {
         setToast({ 
-          message: `Exported ${exportedFiles.length} of ${items.length} notes to PDF. Some notes failed to export.`, 
+          message: `Exported ${exportedFiles.length} notes to ZIP file successfully!`, 
           type: 'success' 
         });
       } else {
-        setToast({ 
-          message: `Exported ${exportedFiles.length} note${exportedFiles.length > 1 ? 's' : ''} to PDF successfully! ${exportedFiles.length > 1 ? 'Multiple files downloaded.' : ''}`, 
-          type: 'success' 
+        // Export individual files for selected notes or single note
+        exportedFiles.forEach(({ blob, note }) => {
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          const titleSlug = (note.title || `note_${note.id}`).replace(/[^a-z0-9]/gi, '_').toLowerCase();
+          link.download = `${titleSlug}_${timestamp}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          window.URL.revokeObjectURL(url);
         });
+        
+        if (exportedFiles.length < items.length) {
+          setToast({ 
+            message: `Exported ${exportedFiles.length} of ${items.length} notes to PDF. Some notes failed to export.`, 
+            type: 'success' 
+          });
+        } else {
+          setToast({ 
+            message: `Exported ${exportedFiles.length} note${exportedFiles.length > 1 ? 's' : ''} to PDF successfully!`, 
+            type: 'success' 
+          });
+        }
       }
     } catch (error) {
       console.error('PDF export failed:', error);
@@ -2293,8 +2343,10 @@ const Notes = () => {
       localStorage.removeItem('refreshToken'); // Also remove refresh token
       localStorage.removeItem('user');
       window.location.href = '/login';
+      return; // Don't show toast for auth errors
     }
-    setError(message);
+    // Show error as toast notification instead of inline error
+    setToast({ message, type: 'error' });
   };
 
   // Add useEffect to handle tab changes
@@ -2588,19 +2640,6 @@ const Notes = () => {
             activeNotebookTab={activeNotebookTab}
             setActiveNotebookTab={setActiveNotebookTab as (tab: 'notebooks' | 'favorites' | 'archived') => void}
           />
-          {/* Error display */}
-          {error && (
-            <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
-              {error}
-              <button 
-                onClick={() => setError(null)}
-                className="ml-4 text-red-900 hover:text-red-700"
-              >
-                ×
-              </button>
-            </div>
-          )}
-          
           {/* Main Content */}
           <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-8rem)] flex flex-col">
             {/* Header with back button when viewing notes */}
@@ -3176,7 +3215,7 @@ const Notes = () => {
                   setShowExportFormatModal(true);
                 }}
               >
-                Export all ({notes.length})
+                Export Notebook ({notes.length})
               </button>
               <button
                 disabled={selectedNotesForExport.length === 0}

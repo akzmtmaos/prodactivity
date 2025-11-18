@@ -1060,7 +1060,7 @@ const Home = () => {
           <div className="mb-6">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-                Quick Notes History
+                Recent Note Activities
               </h2>
               <div className="flex items-center space-x-4">
                 <button 

@@ -155,7 +155,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   };
 
   // Save functionality
-  const handleSave = () => {
+  const handleSave = useCallback(() => {
     // Don't allow saving if note is archived (read-only)
     if (isReadOnly) {
       return;
@@ -216,7 +216,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }
     
     window.dispatchEvent(new Event('noteUpdated'));
-  };
+  }, [isReadOnly, title, priority, onSave]);
 
   // Debounced save
   const debouncedSave = useCallback(() => {
@@ -286,14 +286,29 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   }, [isInitialized]);
 
-  // Cleanup
+  // Global keyboard shortcut for Ctrl+S / Cmd+S
   useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Handle Ctrl+S / Cmd+S to save note
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault(); // Prevent browser's "Save As" dialog
+        if (!isReadOnly && hasChanges) {
+          handleSave();
+        }
+      }
+    };
+
+    // Add event listener to document
+    document.addEventListener('keydown', handleKeyDown);
+
+    // Cleanup
     return () => {
+      document.removeEventListener('keydown', handleKeyDown);
       if (autoSaveTimeout.current) {
         clearTimeout(autoSaveTimeout.current);
       }
     };
-  }, []);
+  }, [isReadOnly, hasChanges, handleSave]);
 
   // Table insertion
   const insertTable = (rows: number = 3, cols: number = 3) => {
@@ -656,7 +671,27 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
             
             const cleanedText = text.replace(/\n{2,}/g, '\n');
             const htmlContent = convertTextToHtml(cleanedText);
-            setContent(htmlContent);
+            
+            // Get current content and append imported content
+            const currentContent = contentEditableRef.current?.innerHTML || content || '';
+            const separator = '<hr style="margin: 24px 0; border: none; border-top: 2px solid #e5e7eb; dark:border-gray-600;" class="dark:border-gray-600" />';
+            const fileName = file.name.replace('.pdf', '');
+            const importHeader = `<h3 style="margin-top: 24px; margin-bottom: 12px; color: #6366f1; font-weight: 600;" class="text-indigo-600 dark:text-indigo-400">📄 Imported from: ${fileName}</h3>`;
+            const newContent = currentContent 
+              ? `${currentContent}${separator}${importHeader}${htmlContent}`
+              : `${importHeader}${htmlContent}`;
+            
+            // Update both state and contentEditable
+            setContent(newContent);
+            if (contentEditableRef.current) {
+              contentEditableRef.current.innerHTML = newContent;
+              // Scroll to bottom to show imported content
+              setTimeout(() => {
+                if (contentEditableRef.current) {
+                  contentEditableRef.current.scrollTop = contentEditableRef.current.scrollHeight;
+                }
+              }, 100);
+            }
             setHasChanges(true);
             resolve(true);
           } catch (error) {
@@ -694,7 +729,28 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
         throw new Error('No text could be extracted from the document.');
       }
       
-      setContent(response.data.text);
+      // Get current content and append imported content
+      const currentContent = contentEditableRef.current?.innerHTML || content || '';
+      const separator = '<hr style="margin: 24px 0; border: none; border-top: 2px solid #e5e7eb; dark:border-gray-600;" class="dark:border-gray-600" />';
+      const fileName = file.name.replace('.docx', '').replace('.doc', '');
+      const importHeader = `<h3 style="margin-top: 24px; margin-bottom: 12px; color: #6366f1; font-weight: 600;" class="text-indigo-600 dark:text-indigo-400">📄 Imported from: ${fileName}</h3>`;
+      // Convert text to HTML if it's plain text, otherwise use as-is if already HTML
+      const importedContent = response.data.text.includes('<') ? response.data.text : convertTextToHtml(response.data.text);
+      const newContent = currentContent 
+        ? `${currentContent}${separator}${importHeader}${importedContent}`
+        : `${importHeader}${importedContent}`;
+      
+      // Update both state and contentEditable
+      setContent(newContent);
+      if (contentEditableRef.current) {
+        contentEditableRef.current.innerHTML = newContent;
+        // Scroll to bottom to show imported content
+        setTimeout(() => {
+          if (contentEditableRef.current) {
+            contentEditableRef.current.scrollTop = contentEditableRef.current.scrollHeight;
+          }
+        }, 100);
+      }
       setHasChanges(true);
     } catch (error: any) {
       throw new Error(error.response?.data?.error || 'Failed to process document. Please try again.');
@@ -899,6 +955,15 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                       setTimeout(() => updateFormattingState(), 10);
                     }}
                     onKeyDown={(e) => {
+                      // Handle Ctrl+S / Cmd+S to save note
+                      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                        e.preventDefault(); // Prevent browser's "Save As" dialog
+                        if (!isReadOnly && hasChanges) {
+                          handleSave();
+                        }
+                        return;
+                      }
+                      
                       // Handle Enter key in headings to exit to normal paragraph
                       if (e.key === 'Enter') {
                         const selection = window.getSelection();

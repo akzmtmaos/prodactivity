@@ -207,20 +207,53 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
 
         {/* Content area */}
         <div className="overflow-y-auto flex-1 px-8 py-6 bg-gray-50 dark:bg-gray-800/50">
-          <div className="prose prose-lg dark:prose-invert max-w-none 
+          <style>{`
+            .dark .prose,
+            .dark .prose * {
+              color: white !important;
+            }
+            .dark .prose h1,
+            .dark .prose h2,
+            .dark .prose h3,
+            .dark .prose h4,
+            .dark .prose h5,
+            .dark .prose h6 {
+              color: white !important;
+            }
+            .dark .prose p,
+            .dark .prose li,
+            .dark .prose span,
+            .dark .prose div {
+              color: white !important;
+            }
+            .dark .prose code {
+              color: #818cf8 !important;
+            }
+            .dark .prose a {
+              color: #818cf8 !important;
+            }
+            .dark .prose strong {
+              color: white !important;
+            }
+          `}</style>
+          <div className="prose prose-lg dark:prose-invert max-w-none text-gray-700 dark:text-white
             prose-headings:text-gray-900 dark:prose-headings:text-white prose-headings:font-bold prose-headings:tracking-tight
             prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-4 prose-h3:text-indigo-900 dark:prose-h3:text-indigo-300 prose-h3:border-b prose-h3:border-gray-200 dark:prose-h3:border-gray-700 prose-h3:pb-2
-            prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:leading-relaxed prose-p:mb-4 prose-p:text-base
+            prose-p:text-gray-700 dark:prose-p:text-white prose-p:leading-relaxed prose-p:mb-4 prose-p:text-base
             prose-ul:my-4 prose-ul:space-y-2
-            prose-li:text-gray-700 dark:prose-li:text-gray-300 prose-li:leading-relaxed
+            prose-li:text-gray-700 dark:prose-li:text-white prose-li:leading-relaxed
             prose-strong:text-gray-900 dark:prose-strong:text-white prose-strong:font-bold prose-strong:text-indigo-700 dark:prose-strong:text-indigo-400
             prose-code:text-indigo-600 dark:prose-code:text-indigo-400 prose-code:bg-indigo-50 dark:prose-code:bg-gray-800 prose-code:px-2 prose-code:py-1 prose-code:rounded prose-code:font-mono prose-code:text-sm prose-code:font-semibold
             prose-pre:bg-gray-900 dark:prose-pre:bg-gray-950 prose-pre:text-gray-100 prose-pre:rounded-lg prose-pre:shadow-lg
             prose-blockquote:border-l-4 prose-blockquote:border-indigo-400 dark:prose-blockquote:border-indigo-600 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:bg-indigo-50 dark:prose-blockquote:bg-indigo-950/20 prose-blockquote:py-2 prose-blockquote:rounded-r
-            prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline prose-a:font-medium">
+            prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline prose-a:font-medium
+            [&_*]:text-gray-700 dark:[&_*]:text-white
+            [&_p]:text-gray-700 dark:[&_p]:text-white
+            [&_li]:text-gray-700 dark:[&_li]:text-white
+            [&_span]:text-gray-700 dark:[&_span]:text-white">
             {isQuiz ? (
               <div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-                <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-gray-800 dark:text-gray-200">
+                <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-gray-800 dark:text-white">
                   {preprocessQuizContent(reviewer.content)}
                 </div>
               </div>
