@@ -7,6 +7,7 @@ import UpcomingEvents from '../components/schedules/UpcomingEvents';
 import PastEvents from '../components/schedules/PastEvents';
 import AddEventModal from '../components/schedules/AddEventModal';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
+import Toast from '../components/common/Toast';
 import { ScheduleEvent, PastEvent } from '../types/schedule';
 import { supabase } from '../lib/supabase';
 import { scheduleNotificationService } from '../services/scheduleNotificationService';
@@ -21,6 +22,7 @@ const Schedule = () => {
   const [recurringEvent, setRecurringEvent] = useState<PastEvent | null>(null);
   const [activeTab, setActiveTab] = useState('calendar');
   const [error, setError] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const notificationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasStartedNotificationCheck = useRef(false);
   
@@ -121,7 +123,7 @@ const Schedule = () => {
 
       if (eventsError) {
         console.error('Error fetching events from Supabase:', eventsError);
-        setError('Failed to load events from database.');
+        setToast({ message: 'Failed to load events from database.', type: 'error' });
         setEvents([]);
         setPastEvents([]);
         return;
@@ -167,10 +169,9 @@ const Schedule = () => {
 
       setEvents(upcoming);
       setPastEvents(past);
-      setError(null);
     } catch (e) {
       console.error('Error loading data:', e);
-      setError('Failed to load data. Please try again.');
+      setToast({ message: 'Failed to load data. Please try again.', type: 'error' });
       setEvents([]);
       setPastEvents([]);
     }
@@ -180,7 +181,7 @@ const Schedule = () => {
     try {
       const userData = localStorage.getItem('user');
       if (!userData) {
-        setError('User not authenticated');
+        setToast({ message: 'User not authenticated', type: 'error' });
         return;
       }
 
@@ -213,11 +214,14 @@ const Schedule = () => {
 
       if (error) {
         console.error('Error adding event to Supabase:', error);
-        setError('Failed to add event. Please try again.');
+        setToast({ message: 'Failed to add event. Please try again.', type: 'error' });
         return;
       }
 
       console.log('✅ Event added to Supabase:', data);
+      
+      // Show success notification
+      setToast({ message: 'Event created successfully!', type: 'success' });
       
       // Reload data to refresh the list
       await loadAllData();
@@ -226,7 +230,7 @@ const Schedule = () => {
       await scheduleNotificationService.checkUpcomingEvents();
     } catch (e) {
       console.error('Error adding event:', e);
-      setError('Failed to add event. Please try again.');
+      setToast({ message: 'Failed to add event. Please try again.', type: 'error' });
     }
   };
 
@@ -259,19 +263,22 @@ const Schedule = () => {
 
       if (error) {
         console.error('Error deleting event from Supabase:', error);
-        setError('Failed to delete event. Please try again.');
+        setToast({ message: 'Failed to delete event. Please try again.', type: 'error' });
         setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' });
         return;
       }
 
       console.log('✅ Event deleted from Supabase');
       
+      // Show success notification
+      setToast({ message: 'Event deleted successfully!', type: 'success' });
+      
       // Reload data to refresh the list
       await loadAllData();
       setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' });
     } catch (e) {
       console.error('Error deleting event:', e);
-      setError('Failed to delete event. Please try again.');
+      setToast({ message: 'Failed to delete event. Please try again.', type: 'error' });
       setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' });
     }
   };
@@ -348,22 +355,6 @@ const Schedule = () => {
               </button>
             </div>
           </div>
-
-          {/* Error message */}
-          {error && (
-            <div className="bg-red-100 border border-red-400 text-red-700 dark:bg-red-900 dark:text-red-200 dark:border-red-700 px-4 py-3 rounded relative mt-4 mx-4" role="alert">
-              <span className="block sm:inline">{error}</span>
-              <button
-                className="absolute top-0 bottom-0 right-0 px-4 py-3"
-                onClick={() => setError(null)}
-              >
-                <svg className="fill-current h-6 w-6 text-red-500" role="button" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                  <title>Close</title>
-                  <path d="M14.348 14.849a1.2 1.2 0 0 1-1.697 0L10 11.819l-2.651 3.029a1.2 1.2 0 1 1-1.697-1.697l2.758-3.15-2.759-3.152a1.2 1.2 0 1 1 1.697-1.697L10 8.183l2.651-3.031a1.2 1.2 0 1 1 1.697 1.697l-2.758 3.152 2.758 3.15a1.2 1.2 0 0 1 0 1.698z"/>
-                </svg>
-              </button>
-            </div>
-          )}
 
           {/* Tabs styled like Settings */}
           <div>
@@ -447,6 +438,15 @@ const Schedule = () => {
             confirmLabel="Delete"
             cancelLabel="Cancel"
           />
+
+          {/* Toast Notification */}
+          {toast && (
+            <Toast
+              message={toast.message}
+              type={toast.type}
+              onClose={() => setToast(null)}
+            />
+          )}
         </div>
       </div>
     </PageLayout>

@@ -95,6 +95,58 @@ const stripHtmlToText = (html: string): string => {
   return text;
 };
 
+// Helper function to validate if content is meaningful
+const validateContent = (content: string): { isValid: boolean; error?: string } => {
+  if (!content || !content.trim()) {
+    return { isValid: false, error: 'Content is empty. Please provide content before generating a reviewer.' };
+  }
+
+  // Remove all whitespace for analysis
+  const trimmedContent = content.trim();
+  
+  // Check if content is too short (less than 10 characters)
+  if (trimmedContent.length < 10) {
+    return { isValid: false, error: 'Content is too short.' };
+  }
+
+  // Count meaningful words (at least 2 letters)
+  const words = trimmedContent.split(/\s+/).filter(word => {
+    // Remove special characters and check if remaining has at least 2 letters
+    const lettersOnly = word.replace(/[^a-zA-Z]/g, '');
+    return lettersOnly.length >= 2;
+  });
+
+  // Check if we have enough meaningful words (at least 3 words)
+  if (words.length < 3) {
+    return { isValid: false, error: 'Content does not contain enough meaningful text. Please provide substantial content before generating a reviewer.' };
+  }
+
+  // Check for nonsense patterns (mostly brackets, numbers, special chars)
+  // Count non-alphanumeric characters (excluding spaces)
+  const nonAlphaNumeric = (trimmedContent.match(/[^a-zA-Z0-9\s]/g) || []).length;
+  const totalChars = trimmedContent.replace(/\s/g, '').length;
+  
+  // If more than 70% of characters are non-alphanumeric, it's likely nonsense
+  if (totalChars > 0 && (nonAlphaNumeric / totalChars) > 0.7) {
+    return { isValid: false, error: 'Content appears to be invalid or contain mostly special characters. Please provide meaningful text content before generating a reviewer.' };
+  }
+
+  // Check for patterns like [][123]1[2]]2[4] - excessive brackets and numbers
+  const bracketPattern = /[\[\]\(\)\{\}]{3,}/g;
+  const excessiveBrackets = (trimmedContent.match(bracketPattern) || []).length;
+  if (excessiveBrackets > 2) {
+    return { isValid: false, error: 'Content contains too many brackets or special characters. Please provide meaningful text content before generating a reviewer.' };
+  }
+
+  // Check if content is mostly numbers
+  const numbers = (trimmedContent.match(/\d/g) || []).length;
+  if (totalChars > 0 && (numbers / totalChars) > 0.6) {
+    return { isValid: false, error: 'Content appears to be mostly numbers. Please provide meaningful text content before generating a reviewer.' };
+  }
+
+  return { isValid: true };
+};
+
 const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeTab, setActiveTab }) => {
   // Debug props
   console.log('ReviewerPanel props:', { notes, notebooks, activeTab });
@@ -290,6 +342,16 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       if (!sourceContent) {
         setToast({ message: 'No content found in selected source', type: 'error' });
         setError('No content found in selected source');
+        setGenerating(false);
+        return;
+      }
+
+      // Validate content before generating
+      const validation = validateContent(sourceContent);
+      if (!validation.isValid) {
+        setToast({ message: validation.error || 'Invalid content', type: 'error' });
+        setError(validation.error || 'Invalid content');
+        setGenerating(false);
         return;
       }
 
@@ -486,6 +548,22 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           noteType = sourceNotebook.notebook_type;
         }
       }
+
+      // Validate content before generating
+      if (!textContent || !textContent.trim()) {
+        setToast({ message: 'No content found in selected source', type: 'error' });
+        setError('No content found in selected source');
+        setGenerateModal(prev => ({ ...prev, isLoading: false }));
+        return;
+      }
+
+      const validation = validateContent(textContent);
+      if (!validation.isValid) {
+        setToast({ message: validation.error || 'Invalid content', type: 'error' });
+        setError(validation.error || 'Invalid content');
+        setGenerateModal(prev => ({ ...prev, isLoading: false }));
+        return;
+      }
       
       const response = await axiosInstance.post('/reviewers/ai/generate/', {
         text: textContent,
@@ -538,6 +616,22 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           sourceContent = notebookNotes.map(n => `${n.title}\n${stripHtmlToText(n.content)}`).join('\n\n---\n\n');
           noteType = sourceNotebook.notebook_type;
         }
+      }
+
+      // Validate content before generating
+      if (!sourceContent || !sourceContent.trim()) {
+        setToast({ message: 'No content found in selected source', type: 'error' });
+        setError('No content found in selected source');
+        setGenerateModal(prev => ({ ...prev, isLoading: false }));
+        return;
+      }
+
+      const validation = validateContent(sourceContent);
+      if (!validation.isValid) {
+        setToast({ message: validation.error || 'Invalid content', type: 'error' });
+        setError(validation.error || 'Invalid content');
+        setGenerateModal(prev => ({ ...prev, isLoading: false }));
+        return;
       }
 
       const response = await axiosInstance.post('/reviewers/ai/generate/', {
@@ -632,6 +726,22 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     setQuizLoadingId(reviewer.id);
     setError(null);
     try {
+      // Validate reviewer content before generating quiz
+      if (!reviewer.content || !reviewer.content.trim()) {
+        setError('Reviewer content is empty. Cannot generate quiz from empty reviewer.');
+        setToast({ message: 'Reviewer content is empty. Cannot generate quiz from empty reviewer.', type: 'error' });
+        setQuizLoadingId(null);
+        return false;
+      }
+
+      const validation = validateContent(reviewer.content);
+      if (!validation.isValid) {
+        setError(validation.error || 'Invalid reviewer content');
+        setToast({ message: validation.error || 'Invalid reviewer content', type: 'error' });
+        setQuizLoadingId(null);
+        return false;
+      }
+
       const response = await axiosInstance.post('/reviewers/ai/generate/', {
         text: reviewer.content,
         title: `Quiz: ${reviewer.title}`,
@@ -868,19 +978,6 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       <div className="overflow-auto max-h-[70vh] scrollbar-thin scrollbar-thumb-indigo-400 scrollbar-track-gray-200 dark:scrollbar-thumb-indigo-600 dark:scrollbar-track-gray-800 px-1">
         {activeTab === 'reviewer' ? (
           <>
-            {/* Error Display */}
-            {error && (
-              <div className="p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg">
-                {error}
-                <button 
-                  onClick={() => setError(null)}
-                  className="ml-4 text-red-900 hover:text-red-700"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-
             {/* Create Form */}
             {showCreateForm && ReactDOM.createPortal(
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

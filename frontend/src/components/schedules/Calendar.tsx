@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { format, addDays, startOfWeek, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths } from 'date-fns';
 import { ScheduleEvent } from '../../types/schedule';
 import EventDetailsModal from './EventDetailsModal';
+import DateEventsModal from './DateEventsModal';
 
 type CalendarView = 'weekly' | 'monthly';
 
@@ -21,6 +22,7 @@ const Calendar: React.FC<CalendarProps> = ({
   onEventClick,
 }) => {
   const [selectedEvent, setSelectedEvent] = useState<ScheduleEvent | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<CalendarView>(() => {
     const saved = localStorage.getItem('calendarView');
     return (saved === 'weekly' || saved === 'monthly') ? saved : 'weekly';
@@ -34,11 +36,13 @@ const Calendar: React.FC<CalendarProps> = ({
   // Weekly view days
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(startOfWeek(currentDate, { weekStartsOn: 0 }), i);
+    const dayOfWeek = getDay(date); // 0 = Sunday, 6 = Saturday
     return {
       date,
       dayName: format(date, 'EEE'),
       dayNumber: format(date, 'd'),
-      isToday: isSameDay(date, new Date())
+      isToday: isSameDay(date, new Date()),
+      isWeekend: dayOfWeek === 0 || dayOfWeek === 6 // Sunday or Saturday
     };
   });
 
@@ -97,22 +101,37 @@ const Calendar: React.FC<CalendarProps> = ({
           const hasEvents = dayEvents.length > 0;
           
           return (
-            <div key={index} className="text-center py-3">
-              <div className="text-sm text-gray-600 dark:text-gray-300">{day.dayName}</div>
+            <div 
+              key={index} 
+              className={`text-center py-3 ${
+                day.isWeekend 
+                  ? 'bg-blue-50 dark:bg-blue-900/10 border-l border-r border-blue-200 dark:border-blue-800' 
+                  : ''
+              }`}
+            >
+              <div className={`text-sm font-medium ${
+                day.isWeekend 
+                  ? 'text-blue-700 dark:text-blue-300' 
+                  : 'text-gray-600 dark:text-gray-300'
+              }`}>
+                {day.dayName}
+              </div>
               <button
                 onClick={() => {
-                  if (hasEvents && dayEvents.length > 0) {
-                    setSelectedEvent(dayEvents[0]);
-                  }
+                  setSelectedDate(day.date);
                 }}
                 className={`mt-1 font-semibold text-lg transition-all ${
                   day.isToday 
                     ? 'bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto' 
                     : hasEvents
-                    ? 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full w-8 h-8 flex items-center justify-center mx-auto cursor-pointer'
-                    : 'text-gray-900 dark:text-white'
+                    ? day.isWeekend
+                      ? 'text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full w-8 h-8 flex items-center justify-center mx-auto cursor-pointer'
+                      : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full w-8 h-8 flex items-center justify-center mx-auto cursor-pointer'
+                    : day.isWeekend
+                    ? 'text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full w-8 h-8 flex items-center justify-center mx-auto cursor-pointer'
+                    : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full w-8 h-8 flex items-center justify-center mx-auto cursor-pointer'
                 }`}
-                title={hasEvents ? `${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''} on this day - Click to view` : ''}
+                title={hasEvents ? `${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''} on this day - Click to view` : 'Click to view events for this date'}
               >
                 {day.dayNumber}
               </button>
@@ -141,7 +160,14 @@ const Calendar: React.FC<CalendarProps> = ({
       {/* Calendar grid */}
       <div className="grid grid-cols-7 min-h-[500px]">
         {weekDays.map((day, dayIndex) => (
-          <div key={dayIndex} className="border-r border-b border-gray-200 dark:border-gray-700 p-2 h-full overflow-y-auto">
+          <div 
+            key={dayIndex} 
+            className={`border-r border-b border-gray-200 dark:border-gray-700 p-2 h-full overflow-y-auto ${
+              day.isWeekend 
+                ? 'bg-blue-50 dark:bg-blue-900/10 border-l border-blue-200 dark:border-blue-800' 
+                : ''
+            }`}
+          >
             {getEventsForDate(day.date).length > 0 ? (
               getEventsForDate(day.date).map((event, eventIndex) => {
                 const isPast = isEventPast(event);
@@ -207,11 +233,21 @@ const Calendar: React.FC<CalendarProps> = ({
       <>
         {/* Days of the week header */}
         <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
-          {weekDayNames.map((dayName, index) => (
-            <div key={index} className="text-center py-2 text-sm font-medium text-gray-600 dark:text-gray-300">
-              {dayName}
-            </div>
-          ))}
+          {weekDayNames.map((dayName, index) => {
+            const isWeekend = index === 0 || index === 6; // Sunday (0) or Saturday (6)
+            return (
+              <div 
+                key={index} 
+                className={`text-center py-2 text-sm font-medium ${
+                  isWeekend 
+                    ? 'bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300 border-l border-r border-blue-200 dark:border-blue-800' 
+                    : 'text-gray-600 dark:text-gray-300'
+                }`}
+              >
+                {dayName}
+              </div>
+            );
+          })}
         </div>
 
         {/* Calendar grid */}
@@ -227,31 +263,39 @@ const Calendar: React.FC<CalendarProps> = ({
             const hasEvents = dayEvents.length > 0;
             const isToday = isSameDay(day, new Date());
             const isCurrentMonth = day.getMonth() === currentDate.getMonth();
+            const dayOfWeek = getDay(day); // 0 = Sunday, 6 = Saturday
+            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
             return (
               <div 
                 key={day.toISOString()} 
                 className={`border-r border-b border-gray-200 dark:border-gray-700 p-2 min-h-[100px] overflow-y-auto ${
-                  !isCurrentMonth ? 'bg-gray-50 dark:bg-gray-900/30' : ''
+                  !isCurrentMonth 
+                    ? 'bg-gray-50 dark:bg-gray-900/30' 
+                    : isWeekend 
+                    ? 'bg-blue-50 dark:bg-blue-900/10 border-l border-blue-200 dark:border-blue-800' 
+                    : ''
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
                   <button
                     onClick={() => {
-                      if (hasEvents && dayEvents.length > 0) {
-                        setSelectedEvent(dayEvents[0]);
-                      }
+                      setSelectedDate(day);
                     }}
                     className={`text-sm font-semibold transition-all ${
                       isToday
                         ? 'bg-indigo-600 text-white rounded-full w-7 h-7 flex items-center justify-center'
                         : hasEvents
-                        ? 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
+                        ? isWeekend
+                          ? 'text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
+                          : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
                         : isCurrentMonth
-                        ? 'text-gray-900 dark:text-white'
-                        : 'text-gray-400 dark:text-gray-500'
+                        ? isWeekend
+                          ? 'text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
+                          : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
+                        : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
                     }`}
-                    title={hasEvents ? `${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''} on this day - Click to view` : ''}
+                    title={hasEvents ? `${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''} on this day - Click to view` : 'Click to view events for this date'}
                   >
                     {format(day, 'd')}
                   </button>
@@ -378,6 +422,19 @@ const Calendar: React.FC<CalendarProps> = ({
         isOpen={selectedEvent !== null}
         event={selectedEvent}
         onClose={() => setSelectedEvent(null)}
+        onDelete={onDeleteEvent}
+      />
+
+      {/* Date Events Modal - Shows all events for a selected date */}
+      <DateEventsModal
+        isOpen={selectedDate !== null}
+        date={selectedDate}
+        events={selectedDate ? getEventsForDate(selectedDate) : []}
+        onClose={() => setSelectedDate(null)}
+        onEventClick={(event) => {
+          setSelectedDate(null);
+          setSelectedEvent(event);
+        }}
         onDelete={onDeleteEvent}
       />
     </div>

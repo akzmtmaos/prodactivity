@@ -249,7 +249,7 @@ const DeckCard: React.FC<DeckCardProps> = ({
             className="flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
           >
             <Play size={16} className="mr-2" />
-            Practice
+            Study
           </button>
           <button
             onClick={(e) => {

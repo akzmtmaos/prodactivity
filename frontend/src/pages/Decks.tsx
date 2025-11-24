@@ -70,7 +70,7 @@ const Decks = () => {
   const [selectedDeck, setSelectedDeck] = useState<Deck | null>(null);
   const [selectedDeckStats, setSelectedDeckStats] = useState<DeckStats | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'progress' | 'studied'>('recent');
+  const [sortBy, setSortBy] = useState<'recent' | 'name' | 'progress'>('recent');
   const [filterBy, setFilterBy] = useState<'all' | 'studied' | 'new'>('all');
 
   // Modal states
@@ -504,13 +504,15 @@ interface NoteItem {
       
       if (archive) {
         // Move from active decks to archived decks
+        // Add at the top (most recent first) by prepending instead of appending
         const deckToArchive = { ...deck, is_archived: true, archived_at: new Date().toISOString() };
-        setArchivedDecks(prev => [...prev, deckToArchive]);
+        setArchivedDecks(prev => [deckToArchive, ...prev]);
         setDecks(prev => prev.filter(d => d.id !== deck.id));
       } else {
         // Move from archived decks back to active decks
+        // Add at the top (most recent first) by prepending instead of appending
         const deckToUnarchive = { ...deck, is_archived: false, archived_at: undefined };
-        setDecks(prev => [...prev, deckToUnarchive]);
+        setDecks(prev => [deckToUnarchive, ...prev]);
         setArchivedDecks(prev => prev.filter(d => d.id !== deck.id));
       }
       
@@ -838,11 +840,6 @@ interface NoteItem {
           return a.title.localeCompare(b.title);
         case 'progress':
           return b.progress - a.progress;
-        case 'studied':
-          // Sort by lastStudied date (most recently studied first)
-          const aStudied = a.lastStudied ? new Date(a.lastStudied).getTime() : 0;
-          const bStudied = b.lastStudied ? new Date(b.lastStudied).getTime() : 0;
-          return bStudied - aStudied; // Most recent first
         default:
           return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
       }
@@ -1056,13 +1053,12 @@ interface NoteItem {
                 <Clock size={20} className="text-gray-400" />
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress' | 'studied')}
+                  onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress')}
                   className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 >
                   <option value="recent">Recent</option>
                   <option value="name">Name</option>
                   <option value="progress">Progress</option>
-                  <option value="studied">Studied</option>
                 </select>
               </div>
               {/* Filter */}

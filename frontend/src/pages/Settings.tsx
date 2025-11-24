@@ -17,7 +17,6 @@ const TABS = [
   { key: 'profile', label: 'Profile' },
   { key: 'general', label: 'General' },
   { key: 'logs', label: 'Logs' }, // Add logs tab
-  { key: 'other', label: 'Another Category' },
   { key: 'logout', label: 'Log Out' },
 ];
 
@@ -1022,15 +1021,7 @@ const Settings: React.FC = () => {
                 <ActivityLogs />
               )}
 
-              {activeTab === 'other' && (
-                <div className="space-y-6">
-                  <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6 max-w-xl mx-auto text-center">
-                    <Shield size={32} className="mx-auto mb-4 text-indigo-500 dark:text-indigo-400" />
-                    <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Another Category</h2>
-                    <p className="text-gray-600 dark:text-gray-400">This is a placeholder for future settings or features.</p>
-                  </div>
-                </div>
-              )}
+              
             </div>
           </div>
         </div>

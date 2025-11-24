@@ -99,13 +99,7 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
                 <List size={12} />
                 Breakdown
               </button>
-              <button 
-                onClick={refreshProductivity}
-                className="text-xs bg-indigo-500/90 text-white px-2 py-1.5 rounded-xl hover:bg-indigo-600 dark:hover:bg-indigo-500 transition-all duration-200 shadow-sm"
-                title="Refresh productivity data"
-              >
-                🔄
-              </button>
+              
             </div>
           </div>
           <div className="flex items-center justify-between w-full mb-3">
