@@ -290,7 +290,9 @@ const LandingPage = () => {
         Skip to main content
       </a>
 
-      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-white to-indigo-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 relative overflow-hidden flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-indigo-100 via-white to-indigo-200 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 relative flex flex-col">
+        {/* Background Container with overflow control */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none z-0">
         {/* Enhanced Background Elements */}
         {/* Radial Gradient Vignette with Animation */}
         <motion.div 
@@ -455,6 +457,7 @@ const LandingPage = () => {
             }}
           />
         </motion.div>
+        </div>
 
         {/* Navigation */}
         <nav className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800" role="navigation" aria-label="Main navigation">
@@ -483,6 +486,8 @@ const LandingPage = () => {
         </div>
       </nav>
 
+        {/* Content Wrapper - Takes up available space to push footer down */}
+        <div className="flex-1 flex flex-col min-h-0">
       {/* Hero Section */}
         <section id="main-content" className="pt-48 pb-32 px-4 sm:px-6 lg:px-8 min-h-[85vh] flex items-center" aria-labelledby="hero-heading" style={{ position: 'relative', zIndex: 1 }}>
           <div className="max-w-7xl mx-auto w-full">
@@ -998,9 +1003,10 @@ const LandingPage = () => {
           </div>
         </div>
       </section>
+        </div>
 
       {/* Footer */}
-        <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-gray-200/50 dark:border-gray-800/50 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm mt-auto" role="contentinfo" style={{ position: 'relative', zIndex: 1 }}>
+        <footer className="py-12 px-4 sm:px-6 lg:px-8 border-t border-gray-200/50 dark:border-gray-800/50 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm mt-auto flex-shrink-0" role="contentinfo" style={{ position: 'relative', zIndex: 1 }}>
           <div className="max-w-7xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             <div>
