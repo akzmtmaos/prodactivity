@@ -3,3 +3,5 @@ djangorestframework-simplejwt
 reportlab
 python-docx
 
+
+reason why does the dev and tester clash within their group
