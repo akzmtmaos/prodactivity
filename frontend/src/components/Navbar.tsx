@@ -4,7 +4,7 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { 
   Menu, X, Home, BarChart2, FileText, BookOpen, 
   CheckSquare, Calendar, Clock, Trash2, Bell, 
-  Settings, ChevronLeft, ChevronRight, Brain, Layers
+  Settings, ChevronLeft, ChevronRight, Brain, Layers, MessageCircle
 } from "lucide-react";
 import { useNavbar } from "../context/NavbarContext";
 import NotificationBadge from "./notifications/NotificationBadge";
@@ -109,6 +109,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
 
   // Secondary navigation items (less frequently used)
   const secondaryNavItems = [
+    { path: "/chat", name: "Messages", icon: <MessageCircle size={20} /> },
     { path: "/reviewer/r", name: "Reviewer", icon: <Brain size={20} /> },
     { path: "/schedule", name: "Schedule", icon: <Calendar size={20} /> },
     { path: "/study-timer", name: "Study Timer", icon: <Clock size={20} /> },

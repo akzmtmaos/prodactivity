@@ -1,9 +1,10 @@
 // frontend/src/components/NotebookList.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette, Star, Search } from 'lucide-react';
+import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette, Star, Search, Share2 } from 'lucide-react';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
 import CreateNotebookModal from './CreateNotebookModal';
 import EditNotebookModal from './EditNotebookModal';
+import ShareModal from '../collaboration/ShareModal';
 
 interface Notebook {
   id: number;
@@ -75,6 +76,8 @@ const NotebookList: React.FC<NotebookListProps> = ({
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [selectedNotebooksForDelete, setSelectedNotebooksForDelete] = useState<number[]>([]);
   const [showLocalSearch, setShowLocalSearch] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [notebookToShare, setNotebookToShare] = useState<Notebook | null>(null);
   const localSearchRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -277,6 +280,19 @@ const NotebookList: React.FC<NotebookListProps> = ({
                     >
                       <Palette size={14} />
                     </button>
+                    {!notebook.is_archived && (
+                      <button
+                        onClick={e => {
+                          e.stopPropagation();
+                          setNotebookToShare(notebook);
+                          setShowShareModal(true);
+                        }}
+                        className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition-colors"
+                        title="Share notebook"
+                      >
+                        <Share2 size={14} />
+                      </button>
+                    )}
                     {onToggleFavorite && !notebook.is_archived && (
                       <button
                         onClick={e => {
@@ -476,6 +492,20 @@ const NotebookList: React.FC<NotebookListProps> = ({
             </div>
           </div>
         </div>
+      )}
+      
+      {/* Share Modal */}
+      {notebookToShare && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => {
+            setShowShareModal(false);
+            setNotebookToShare(null);
+          }}
+          itemType="notebook"
+          itemId={notebookToShare.id}
+          itemTitle={notebookToShare.name}
+        />
       )}
     </div>
   );

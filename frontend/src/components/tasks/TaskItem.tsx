@@ -3,6 +3,9 @@ import axios from 'axios';
 import { Task, Subtask } from '../../types/task';
 import AddSubtaskModal from './AddSubtaskModal';
 import TaskActivityModal from './TaskActivityModal';
+import ShareModal from '../collaboration/ShareModal';
+import AssignTaskModal from '../collaboration/AssignTaskModal';
+import { Share2, UserCheck } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface TaskItemProps {
@@ -65,6 +68,8 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
   const [isSubtasksOpen, setIsSubtasksOpen] = useState(false);
   const [isAddSubtaskOpen, setIsAddSubtaskOpen] = useState(false);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>(task.subtasks || []);
 
   const totalSubtasks = useMemo(() => localSubtasks.length, [localSubtasks]);
@@ -619,6 +624,23 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
         taskTitle={task.title}
         onActivityLogged={handleActivityLogged}
         onTaskCompleted={onTaskCompleted}
+      />
+      
+      {/* Share Modal */}
+      <ShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        itemType="task"
+        itemId={task.id}
+        itemTitle={task.title}
+      />
+      
+      {/* Assign Task Modal */}
+      <AssignTaskModal
+        isOpen={isAssignModalOpen}
+        onClose={() => setIsAssignModalOpen(false)}
+        taskId={task.id}
+        taskTitle={task.title}
       />
     </>
   );

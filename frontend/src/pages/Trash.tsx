@@ -10,16 +10,18 @@ import { useRef } from 'react';
 import Pagination from '../components/common/Pagination';
 import axiosInstance from '../utils/axiosConfig';
 import { API_BASE_URL } from '../config/api';
+import { supabase } from '../lib/supabase';
 
 // Define TrashItem type here for use in state
 export type TrashItem = {
   id: string;
-  type: 'note' | 'deck' | 'notebook' | 'reviewer';
+  type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz';
   title: string;
   deletedAt: string;
+  tags?: string[]; // Optional tags for filtering quizzes from reviewers
 };
 
-const TABS = ['all', 'notes', 'decks', 'notebooks', 'reviewer'] as const;
+const TABS = ['all', 'notes', 'decks', 'flashcards', 'notebooks', 'reviewer', 'quiz', 'tasks'] as const;
 type TabType = typeof TABS[number];
 
 const ITEMS_PER_PAGE = 10;
@@ -32,15 +34,17 @@ const Trash = () => {
   const [decks, setDecks] = useState<TrashItem[]>([]);
   const [notebooks, setNotebooks] = useState<TrashItem[]>([]);
   const [reviewers, setReviewers] = useState<TrashItem[]>([]);
+  const [tasks, setTasks] = useState<TrashItem[]>([]);
+  const [flashcards, setFlashcards] = useState<TrashItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>(tab && TABS.includes(tab) ? tab : 'all');
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
-  const [restoreTarget, setRestoreTarget] = useState<{ id: string; type: 'note' | 'deck' | 'notebook' | 'reviewer'; title: string } | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<{ id: string; type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz'; title: string } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'note' | 'deck' | 'notebook' | 'reviewer'; title: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz'; title: string } | null>(null);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showDeleteSelectedModal, setShowDeleteSelectedModal] = useState(false);
   const [showRestoreSelectedModal, setShowRestoreSelectedModal] = useState(false);
@@ -138,8 +142,85 @@ const Trash = () => {
           type: 'reviewer',
           title: reviewer.title,
           deletedAt: reviewer.deleted_at || reviewer.updated_at || '',
+          tags: reviewer.tags || [], // Store tags to filter quizzes
         }))
       );
+
+      // Fetch deleted flashcards from Supabase
+      try {
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          const parsedUser = JSON.parse(userData);
+          const userId = typeof parsedUser.id === 'number' ? parsedUser.id : parseInt(parsedUser.id, 10);
+
+          if (!Number.isNaN(userId)) {
+            const { data: flashcardsData, error: flashcardsError } = await supabase
+              .from('flashcards')
+              .select('*')
+              .eq('user_id', userId)
+              .eq('is_deleted', true);
+
+            if (flashcardsError) {
+              console.error('Failed to fetch deleted flashcards from Supabase:', flashcardsError);
+              setFlashcards([]);
+            } else {
+              setFlashcards(
+                (flashcardsData || []).map((flashcard: any) => ({
+                  id: flashcard.id.toString(),
+                  type: 'flashcard' as const,
+                  title: flashcard.front ? `${flashcard.front.substring(0, 50)}${flashcard.front.length > 50 ? '...' : ''}` : 'Untitled Flashcard',
+                  deletedAt: flashcard.deleted_at || flashcard.updated_at || '',
+                }))
+              );
+            }
+          } else {
+            setFlashcards([]);
+          }
+        } else {
+          setFlashcards([]);
+        }
+      } catch (error) {
+        console.error('Unexpected error while fetching deleted flashcards from Supabase:', error);
+        setFlashcards([]);
+      }
+
+      // Fetch deleted tasks from Supabase
+      try {
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          const parsedUser = JSON.parse(userData);
+          const userId = typeof parsedUser.id === 'number' ? parsedUser.id : parseInt(parsedUser.id, 10);
+
+          if (!Number.isNaN(userId)) {
+            const { data: tasksData, error: tasksError } = await supabase
+              .from('tasks')
+              .select('*')
+              .eq('user_id', userId)
+              .eq('is_deleted', true);
+
+            if (tasksError) {
+              console.error('Failed to fetch deleted tasks from Supabase:', tasksError);
+              setTasks([]);
+            } else {
+              setTasks(
+                (tasksData || []).map((task: any) => ({
+                  id: task.id.toString(),
+                  type: 'task' as const,
+                  title: task.title,
+                  deletedAt: task.deleted_at || task.updated_at || '',
+                }))
+              );
+            }
+          } else {
+            setTasks([]);
+          }
+        } else {
+          setTasks([]);
+        }
+      } catch (error) {
+        console.error('Unexpected error while fetching deleted tasks from Supabase:', error);
+        setTasks([]);
+      }
     } catch (error) {
       console.error('Failed to fetch trash data:', error);
     } finally {
@@ -154,14 +235,14 @@ const Trash = () => {
   useEffect(() => {
     setCurrentPage(1);
     // Don't clear selection when tab changes - keep items selected across tabs
-  }, [activeTab, notes, decks, notebooks, reviewers]);
+  }, [activeTab, notes, decks, notebooks, reviewers, tasks, flashcards]);
 
   const handleTabClick = (tab: TabType) => {
     setActiveTab(tab);
     navigate(`/trash/${tab}`);
   };
 
-  const handleRestore = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer') => {
+  const handleRestore = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz') => {
     setRestoreTarget({ id, type, title: (filteredItems.find(i => i.id === id)?.title) || '' });
     setShowRestoreModal(true);
   };
@@ -174,8 +255,35 @@ const Trash = () => {
     if (type === 'deck') endpoint = `/decks/decks/${id}/`;
     if (type === 'notebook') endpoint = `/notes/notebooks/${id}/`;
     if (type === 'reviewer') endpoint = `/reviewers/${id}/`;
+    if (type === 'quiz') endpoint = `/reviewers/${id}/`; // Quiz is a reviewer with quiz tag
     try {
-      await axiosInstance.patch(endpoint, { is_deleted: false, deleted_at: null });
+      if (type === 'task') {
+        const numericId = parseInt(id, 10);
+        if (!Number.isNaN(numericId)) {
+          const { error } = await supabase
+            .from('tasks')
+            .update({ is_deleted: false, deleted_at: null })
+            .eq('id', numericId);
+
+          if (error) {
+            throw error;
+          }
+        }
+      } else if (type === 'flashcard') {
+        const numericId = parseInt(id, 10);
+        if (!Number.isNaN(numericId)) {
+          const { error } = await supabase
+            .from('flashcards')
+            .update({ is_deleted: false, deleted_at: null })
+            .eq('id', numericId);
+
+          if (error) {
+            throw error;
+          }
+        }
+      } else {
+        await axiosInstance.patch(endpoint, { is_deleted: false, deleted_at: null });
+      }
       fetchTrash();
       setToast({ message: 'Item restored successfully!', type: 'success' });
     } catch (error) {
@@ -187,7 +295,7 @@ const Trash = () => {
     }
   };
 
-  const handleDelete = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer') => {
+  const handleDelete = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz') => {
     setDeleteTarget({ id, type, title: (filteredItems.find(i => i.id === id)?.title) || '' });
     setShowDeleteModal(true);
   };
@@ -200,8 +308,35 @@ const Trash = () => {
     if (type === 'deck') endpoint = `/decks/decks/${id}/`;
     if (type === 'notebook') endpoint = `/notes/notebooks/${id}/`;
     if (type === 'reviewer') endpoint = `/reviewers/${id}/`;
+    if (type === 'quiz') endpoint = `/reviewers/${id}/`; // Quiz is a reviewer with quiz tag
     try {
-      await axiosInstance.delete(endpoint);
+      if (type === 'task') {
+        const numericId = parseInt(id, 10);
+        if (!Number.isNaN(numericId)) {
+          const { error } = await supabase
+            .from('tasks')
+            .delete()
+            .eq('id', numericId);
+
+          if (error) {
+            throw error;
+          }
+        }
+      } else if (type === 'flashcard') {
+        const numericId = parseInt(id, 10);
+        if (!Number.isNaN(numericId)) {
+          const { error } = await supabase
+            .from('flashcards')
+            .delete()
+            .eq('id', numericId);
+
+          if (error) {
+            throw error;
+          }
+        }
+      } else {
+        await axiosInstance.delete(endpoint);
+      }
       fetchTrash();
       setToast({ message: 'Item permanently deleted.', type: 'success' });
     } catch (error) {
@@ -217,14 +352,28 @@ const Trash = () => {
     setShowDeleteAllModal(false);
     for (const item of filteredItems) {
       let endpoint = '';
-      if (item.type === 'note') endpoint = `/notes/${item.id}/`;
-      if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
-      if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
-      if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
       try {
-        await axiosInstance.delete(endpoint);
+        if (item.type === 'task') {
+          const numericId = parseInt(item.id, 10);
+          if (!Number.isNaN(numericId)) {
+            await supabase.from('tasks').delete().eq('id', numericId);
+          }
+        } else if (item.type === 'flashcard') {
+          const numericId = parseInt(item.id, 10);
+          if (!Number.isNaN(numericId)) {
+            await supabase.from('flashcards').delete().eq('id', numericId);
+          }
+        } else {
+          if (item.type === 'note') endpoint = `/notes/${item.id}/`;
+          if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
+          if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
+          if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
+          if (item.type === 'quiz') endpoint = `/reviewers/${item.id}/`; // Quiz is a reviewer with quiz tag
+          await axiosInstance.delete(endpoint);
+        }
       } catch (error) {
         // Continue deleting others even if one fails
+        console.error('Failed to delete item during delete-all operation:', error);
       }
     }
     setToast({ message: 'All items permanently deleted.', type: 'success' });
@@ -256,14 +405,34 @@ const Trash = () => {
     
     for (const item of itemsToRestore) {
       let endpoint = '';
-      if (item.type === 'note') endpoint = `/notes/${item.id}/`;
-      if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
-      if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
-      if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
       try {
-        await axiosInstance.patch(endpoint, { is_deleted: false, deleted_at: null });
+        if (item.type === 'task') {
+          const numericId = parseInt(item.id, 10);
+          if (!Number.isNaN(numericId)) {
+            await supabase
+              .from('tasks')
+              .update({ is_deleted: false, deleted_at: null })
+              .eq('id', numericId);
+          }
+        } else if (item.type === 'flashcard') {
+          const numericId = parseInt(item.id, 10);
+          if (!Number.isNaN(numericId)) {
+            await supabase
+              .from('flashcards')
+              .update({ is_deleted: false, deleted_at: null })
+              .eq('id', numericId);
+          }
+        } else {
+          if (item.type === 'note') endpoint = `/notes/${item.id}/`;
+          if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
+          if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
+          if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
+          if (item.type === 'quiz') endpoint = `/reviewers/${item.id}/`; // Quiz is a reviewer with quiz tag
+          await axiosInstance.patch(endpoint, { is_deleted: false, deleted_at: null });
+        }
       } catch (error) {
         // Continue restoring others even if one fails
+        console.error('Failed to restore item during restore-selected operation:', error);
       }
     }
     setToast({ message: `${selectedItems.size} items restored successfully!`, type: 'success' });
@@ -277,14 +446,28 @@ const Trash = () => {
     
     for (const item of itemsToDelete) {
       let endpoint = '';
-      if (item.type === 'note') endpoint = `/notes/${item.id}/`;
-      if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
-      if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
-      if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
       try {
-        await axiosInstance.delete(endpoint);
+        if (item.type === 'task') {
+          const numericId = parseInt(item.id, 10);
+          if (!Number.isNaN(numericId)) {
+            await supabase.from('tasks').delete().eq('id', numericId);
+          }
+        } else if (item.type === 'flashcard') {
+          const numericId = parseInt(item.id, 10);
+          if (!Number.isNaN(numericId)) {
+            await supabase.from('flashcards').delete().eq('id', numericId);
+          }
+        } else {
+          if (item.type === 'note') endpoint = `/notes/${item.id}/`;
+          if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
+          if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
+          if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
+          if (item.type === 'quiz') endpoint = `/reviewers/${item.id}/`; // Quiz is a reviewer with quiz tag
+          await axiosInstance.delete(endpoint);
+        }
       } catch (error) {
         // Continue deleting others even if one fails
+        console.error('Failed to delete item during delete-selected operation:', error);
       }
     }
     setToast({ message: `${selectedItems.size} item(s) permanently deleted.`, type: 'success' });
@@ -292,19 +475,38 @@ const Trash = () => {
     fetchTrash();
   };
 
+  // Filter quizzes from reviewers (reviewers with 'quiz' tag)
+  const quizzes = reviewers
+    .filter((reviewer: any) => reviewer.tags && Array.isArray(reviewer.tags) && reviewer.tags.includes('quiz'))
+    .map((reviewer: any) => ({
+      ...reviewer,
+      type: 'quiz' as const,
+    }));
+
+  // Filter out quizzes from reviewers list (show only non-quiz reviewers)
+  const nonQuizReviewers = reviewers.filter(
+    (reviewer: any) => !reviewer.tags || !Array.isArray(reviewer.tags) || !reviewer.tags.includes('quiz')
+  );
+
   let filteredItems: TrashItem[] = [];
   if (activeTab === 'all') {
-    filteredItems = [...notes, ...decks, ...notebooks, ...reviewers]
+    filteredItems = [...notes, ...decks, ...flashcards, ...notebooks, ...nonQuizReviewers, ...quizzes, ...tasks]
       .filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()))
       .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
   } else if (activeTab === 'notes') {
     filteredItems = notes.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   } else if (activeTab === 'decks') {
     filteredItems = decks.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  } else if (activeTab === 'flashcards') {
+    filteredItems = flashcards.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   } else if (activeTab === 'notebooks') {
     filteredItems = notebooks.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   } else if (activeTab === 'reviewer') {
-    filteredItems = reviewers.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
+    filteredItems = nonQuizReviewers.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  } else if (activeTab === 'quiz') {
+    filteredItems = quizzes.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  } else if (activeTab === 'tasks') {
+    filteredItems = tasks.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
   }
 
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
@@ -443,6 +645,16 @@ const Trash = () => {
               Decks
             </button>
             <button
+              onClick={() => handleTabClick('flashcards')}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'flashcards'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+            >
+              Flashcards
+            </button>
+            <button
               onClick={() => handleTabClick('reviewer')}
               className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                 activeTab === 'reviewer'
@@ -451,6 +663,26 @@ const Trash = () => {
               }`}
             >
               Reviewer
+            </button>
+            <button
+              onClick={() => handleTabClick('quiz')}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'quiz'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+            >
+              Quiz
+            </button>
+            <button
+              onClick={() => handleTabClick('tasks')}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'tasks'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+            >
+              Tasks
             </button>
           </div>
           <div className="mt-4">

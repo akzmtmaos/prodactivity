@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import PageLayout from '../components/PageLayout';
 import axiosInstance from '../utils/axiosConfig';
-import { Flame, Trophy, FileText, Layers, BookOpen, CheckSquare, Brain, HelpCircle, Calendar, Clock, BarChart3, Settings, Notebook, Star, Target, Zap, Lock, CheckCircle, Award } from 'lucide-react';
+import { Flame, Trophy, FileText, Layers, BookOpen, CheckSquare, Brain, HelpCircle, Calendar, Clock, BarChart3, Settings, Notebook, Star, Target, Zap, Lock, CheckCircle, Award, Download } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { generateUserReport } from '../utils/reportGenerator';
+import Toast from '../components/common/Toast';
 
 interface Achievement {
   id: string;
@@ -35,6 +37,8 @@ const Profile: React.FC = () => {
   });
   const [userLevel, setUserLevel] = useState({ currentLevel: 1, currentXP: 0, xpToNextLevel: 100 });
   const [averageProductivity, setAverageProductivity] = useState(0);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
 
   useEffect(() => {
     // Function to load user data
@@ -121,7 +125,8 @@ const Profile: React.FC = () => {
           decksData,
           flashcardsData,
           reviewerData,
-          streakProductivityData
+          streakProductivityData,
+          eventsData
         ] = await Promise.all([
           // Tasks
           supabase.from('tasks').select('id, completed, time_spent_minutes, is_deleted').eq('user_id', userId).eq('is_deleted', false),
@@ -138,7 +143,9 @@ const Profile: React.FC = () => {
           // Reviewers (includes both reviewers and quizzes - quizzes have 'quiz' tag)
           supabase.from('reviewers').select('id, tags').eq('user_id', userId).eq('is_deleted', false),
           // Productivity logs for longest streak
-          supabase.from('productivity_logs').select('period_start, completion_rate, total_tasks, completed_tasks').eq('user_id', userId).eq('period_type', 'daily').order('period_start', { ascending: true })
+          supabase.from('productivity_logs').select('period_start, completion_rate, total_tasks, completed_tasks').eq('user_id', userId).eq('period_type', 'daily').order('period_start', { ascending: true }),
+          // Events (Schedule)
+          supabase.from('events').select('id').eq('user_id', userId)
         ]);
 
         // DEBUG: Log all query results
@@ -151,6 +158,7 @@ const Profile: React.FC = () => {
         console.log('  Flashcards:', { data: flashcardsData.data, error: flashcardsData.error, count: flashcardsData.data?.length });
         console.log('  Reviewers:', { data: reviewerData.data, error: reviewerData.error, count: reviewerData.data?.length });
         console.log('  Productivity:', { data: streakProductivityData.data, error: streakProductivityData.error, count: streakProductivityData.data?.length });
+        console.log('  Events:', { data: eventsData.data, error: eventsData.error, count: eventsData.data?.length });
 
         // Calculate totals
         const totalTasks = tasksData.data?.filter(t => t.completed).length || 0;
@@ -159,6 +167,7 @@ const Profile: React.FC = () => {
         const totalNotebooks = notebooksData.data?.length || 0;
         const totalDecks = decksData.data?.length || 0;
         const totalFlashcards = flashcardsData.data?.length || 0;
+        const totalSchedule = eventsData.data?.length || 0;
         
         // Separate quizzes from reviewers (quizzes have 'quiz' tag)
         const allReviewers = reviewerData.data || [];
@@ -215,6 +224,7 @@ const Profile: React.FC = () => {
           totalFlashcards,
           totalQuiz,
           totalReviewer,
+          totalSchedule,
           totalStudyHours,
           longestStreak
         });
@@ -232,7 +242,7 @@ const Profile: React.FC = () => {
           totalTasks,
           totalReviewer,
           totalQuiz,
-          totalSchedule: 0, // Schedule feature not implemented yet
+          totalSchedule,
           totalStudyHours,
         });
         
@@ -496,6 +506,105 @@ const Profile: React.FC = () => {
     }
   };
 
+  // Generate Report Handler
+  const handleGenerateReport = async () => {
+    setIsGeneratingReport(true);
+    try {
+      // Fetch recent activities for the report
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        setToast({ message: 'User data not found. Please log in again.', type: 'error' });
+        return;
+      }
+
+      const parsedUser = JSON.parse(userData);
+      const userId = parsedUser.id;
+
+      // Fetch recent activities (last 30 days)
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const startDateStr = thirtyDaysAgo.toISOString();
+
+      const [xpLogsData, tasksData] = await Promise.all([
+        supabase
+          .from('xp_logs')
+          .select('description, created_at, xp_amount')
+          .eq('user_id', userId)
+          .gte('created_at', startDateStr)
+          .order('created_at', { ascending: false })
+          .limit(50),
+        supabase
+          .from('tasks')
+          .select('title, completed, created_at, updated_at')
+          .eq('user_id', userId)
+          .eq('is_deleted', false)
+          .gte('created_at', startDateStr)
+          .order('created_at', { ascending: false })
+          .limit(30)
+      ]);
+
+      const recentActivities: Array<{ description: string; timestamp: string; type: string }> = [];
+
+      // Add XP earning activities
+      if (xpLogsData.data) {
+        xpLogsData.data.forEach((log: any) => {
+          recentActivities.push({
+            description: `${log.description || 'Earned XP'} (+${log.xp_amount || 0} XP)`,
+            timestamp: log.created_at,
+            type: 'xp_earned'
+          });
+        });
+      }
+
+      // Add task activities
+      if (tasksData.data) {
+        tasksData.data.forEach((task: any) => {
+          if (task.completed) {
+            recentActivities.push({
+              description: `Completed task: ${task.title}`,
+              timestamp: task.updated_at,
+              type: 'task_completed'
+            });
+          } else {
+            recentActivities.push({
+              description: `Created task: ${task.title}`,
+              timestamp: task.created_at,
+              type: 'task_created'
+            });
+          }
+        });
+      }
+
+      // Sort activities by timestamp (most recent first)
+      recentActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+      // Generate the report
+      await generateUserReport({
+        user: {
+          username: user?.username,
+          displayName: user?.displayName,
+          email: user?.email,
+          date_joined: user?.date_joined || user?.created_at || user?.joinedAt
+        },
+        stats,
+        userLevel,
+        achievements: achievements.map(ach => ({
+          title: ach.title,
+          description: ach.description,
+          rarity: ach.rarity
+        })),
+        recentActivities: recentActivities.slice(0, 30) // Limit to 30 most recent
+      });
+
+      setToast({ message: 'Report generated successfully!', type: 'success' });
+    } catch (error) {
+      console.error('Error generating report:', error);
+      setToast({ message: 'Failed to generate report. Please try again.', type: 'error' });
+    } finally {
+      setIsGeneratingReport(false);
+    }
+  };
+
   // Profile only shows unlocked achievements (no locked section)
 
   return (
@@ -519,15 +628,28 @@ const Profile: React.FC = () => {
               </div>
             </div>
             
-            {/* Settings Button */}
-            <button
-              onClick={() => navigate('/settings')}
-              className="p-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 flex items-center gap-2 text-gray-700 dark:text-gray-300"
-              title="Edit Profile"
-            >
-              <Settings size={20} />
-              <span className="text-sm font-medium">Edit Profile</span>
-            </button>
+            {/* Action Buttons */}
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleGenerateReport}
+                disabled={isGeneratingReport}
+                className="p-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors duration-200 flex items-center gap-2"
+                title="Generate PDF Report"
+              >
+                <Download size={20} />
+                <span className="text-sm font-medium">
+                  {isGeneratingReport ? 'Generating...' : 'Generate Report'}
+                </span>
+              </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="p-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors duration-200 flex items-center gap-2 text-gray-700 dark:text-gray-300"
+                title="Edit Profile"
+              >
+                <Settings size={20} />
+                <span className="text-sm font-medium">Edit Profile</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -674,6 +796,15 @@ const Profile: React.FC = () => {
           )}
         </div>
       </div>
+      
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
     </PageLayout>
   );

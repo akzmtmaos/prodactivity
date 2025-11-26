@@ -27,6 +27,7 @@ import QuizSessionPage from './pages/QuizSessionPage';
 import StudySessionPage from './pages/StudySessionPage';
 import TimerWidget from './components/studytimer/TimerWidget';
 import Profile from './pages/Profile';
+import Chat from './pages/Chat';
 import Toast from './components/common/Toast';
 import { useScheduleNotifications } from './hooks/useScheduleNotifications';
 // Import axios configuration to set up interceptors
@@ -198,6 +199,14 @@ function App() {
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
                   <Profile />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/chat"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Chat />
                 </PrivateRoute>
               }
             />

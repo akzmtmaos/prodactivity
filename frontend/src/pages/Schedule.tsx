@@ -8,6 +8,7 @@ import PastEvents from '../components/schedules/PastEvents';
 import AddEventModal from '../components/schedules/AddEventModal';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
+import Pagination from '../components/common/Pagination';
 import { ScheduleEvent, PastEvent } from '../types/schedule';
 import { supabase } from '../lib/supabase';
 import { scheduleNotificationService } from '../services/scheduleNotificationService';
@@ -25,6 +26,10 @@ const Schedule = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const notificationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasStartedNotificationCheck = useRef(false);
+  
+  // Pagination state for Past Events
+  const [pastEventsCurrentPage, setPastEventsCurrentPage] = useState(1);
+  const [pastEventsPerPage] = useState(8); // 8 items per page for compact display
   
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
@@ -92,6 +97,11 @@ const Schedule = () => {
   useEffect(() => {
     checkAndMovePastEvents();
   }, [events]);
+
+  // Reset pagination when past events change or tab switches
+  useEffect(() => {
+    setPastEventsCurrentPage(1);
+  }, [pastEvents, activeTab]);
 
   const loadAllData = async () => {
     try {
@@ -395,7 +405,7 @@ const Schedule = () => {
               {activeTab === 'calendar' && (
                 <Calendar
                   currentDate={currentDate}
-                  events={events}
+                  events={[...events, ...pastEvents]}
                   onDateChange={setCurrentDate}
                   onDeleteEvent={deleteEvent}
                 />
@@ -407,12 +417,25 @@ const Schedule = () => {
                 />
               )}
               {activeTab === 'past' && (
-                <PastEvents
-                  pastEvents={pastEvents}
-                  onViewEvent={handleViewPastEvent}
-                  onMarkCompleted={handleMarkPastEventCompleted}
-                  onRecurEvent={handleRecurEvent}
-                />
+                <>
+                  <PastEvents
+                    pastEvents={pastEvents}
+                    onViewEvent={handleViewPastEvent}
+                    onMarkCompleted={handleMarkPastEventCompleted}
+                    onRecurEvent={handleRecurEvent}
+                    currentPage={pastEventsCurrentPage}
+                    itemsPerPage={pastEventsPerPage}
+                  />
+                  {pastEvents.length > pastEventsPerPage && (
+                    <div className="mt-6">
+                      <Pagination
+                        currentPage={pastEventsCurrentPage}
+                        totalPages={Math.ceil(pastEvents.length / pastEventsPerPage)}
+                        onPageChange={setPastEventsCurrentPage}
+                      />
+                    </div>
+                  )}
+                </>
               )}
             </div>
           </div>

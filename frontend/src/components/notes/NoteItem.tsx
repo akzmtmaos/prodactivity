@@ -1,7 +1,8 @@
 // frontend/src/components/NoteItem.tsx
 import React from 'react';
-import { Edit, Trash2, MoreVertical, Archive, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Edit, Trash2, MoreVertical, Archive, RotateCcw, AlertTriangle, Share2 } from 'lucide-react';
 import EditTitleModal from './EditTitleModal';
+import ShareModal from '../collaboration/ShareModal';
 import axiosInstance from '../../utils/axiosConfig';
 import axios from 'axios';
 
@@ -38,6 +39,7 @@ interface NoteItemProps {
 const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete, onArchive, onToggleImportant: _onToggleImportant, deletingNoteId }) => {
   const [showMenu, setShowMenu] = React.useState(false);
   const [showEditModal, setShowEditModal] = React.useState(false);
+  const [showShareModal, setShowShareModal] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
 
   // Helper function to format dates
@@ -228,12 +230,20 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
           {showMenu && (
             <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10">
               {!note.is_archived && (
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleEditTitle(); }}
-                  className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
-                >
-                  <Edit size={14} className="inline mr-2" /> Edit Title
-                </button>
+                <>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); handleEditTitle(); }}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Edit size={14} className="inline mr-2" /> Edit Title
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setShowMenu(false); setShowShareModal(true); }}
+                    className="block w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                  >
+                    <Share2 size={14} className="inline mr-2" /> Share
+                  </button>
+                </>
               )}
               {note.is_archived ? (
                 <button
@@ -265,6 +275,13 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
         currentTitle={note.title}
         onClose={() => setShowEditModal(false)}
         onSave={handleSaveTitle}
+      />
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        itemType="note"
+        itemId={note.id}
+        itemTitle={note.title}
       />
     </>
   );

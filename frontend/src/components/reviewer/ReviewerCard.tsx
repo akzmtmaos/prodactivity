@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
 import { Star, StarOff, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy, Edit } from 'lucide-react';
 import { truncateHtmlContent } from '../../utils/htmlUtils';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosConfig';
+import ShareModal from '../collaboration/ShareModal';
 
 interface Reviewer {
   id: number;
@@ -51,6 +52,8 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
   showTakeQuiz = false,
 }) => {
   const navigate = useNavigate();
+  const [showShareModal, setShowShareModal] = useState(false);
+  const isQuiz = reviewer.tags && Array.isArray(reviewer.tags) && reviewer.tags.includes('quiz');
 
   const handleSourceClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -223,6 +226,17 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
             </button>
           )}
           
+          <button
+            onClick={e => {
+              e.stopPropagation();
+              setShowShareModal(true);
+            }}
+            className="p-2 text-gray-400 hover:text-indigo-500 transition-colors"
+            title="Share reviewer/quiz"
+          >
+            <Share2 size={16} />
+          </button>
+          
           {onEdit && (
             <button
               onClick={e => {
@@ -290,6 +304,14 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
           )}
         </div>
       </div>
+      
+      <ShareModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        itemType="reviewer"
+        itemId={reviewer.id}
+        itemTitle={reviewer.title}
+      />
     </div>
   );
 };

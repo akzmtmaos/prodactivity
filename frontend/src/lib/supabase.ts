@@ -352,6 +352,180 @@ export type Database = {
           updated_at?: string
         }
       }
+      chat_rooms: {
+        Row: {
+          id: string
+          name: string | null
+          room_type: 'direct' | 'group'
+          created_by: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name?: string | null
+          room_type: 'direct' | 'group'
+          created_by: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string | null
+          room_type?: 'direct' | 'group'
+          created_by?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      room_participants: {
+        Row: {
+          id: string
+          room_id: string
+          user_id: string
+          joined_at: string
+          last_read_at: string | null
+        }
+        Insert: {
+          id?: string
+          room_id: string
+          user_id: string
+          joined_at?: string
+          last_read_at?: string | null
+        }
+        Update: {
+          id?: string
+          room_id?: string
+          user_id?: string
+          joined_at?: string
+          last_read_at?: string | null
+        }
+      }
+      messages: {
+        Row: {
+          id: string
+          room_id: string
+          sender_id: string
+          content: string
+          created_at: string
+          updated_at: string
+          is_edited: boolean
+          is_deleted: boolean
+        }
+        Insert: {
+          id?: string
+          room_id: string
+          sender_id: string
+          content: string
+          created_at?: string
+          updated_at?: string
+          is_edited?: boolean
+          is_deleted?: boolean
+        }
+        Update: {
+          id?: string
+          room_id?: string
+          sender_id?: string
+          content?: string
+          created_at?: string
+          updated_at?: string
+          is_edited?: boolean
+          is_deleted?: boolean
+        }
+      }
+      task_assignments: {
+        Row: {
+          id: string
+          task_id: number
+          assigned_by: string
+          assigned_to: string
+          assigned_at: string
+          status: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'declined'
+          completed_at: string | null
+          notes: string | null
+        }
+        Insert: {
+          id?: string
+          task_id: number
+          assigned_by: string
+          assigned_to: string
+          assigned_at?: string
+          status?: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'declined'
+          completed_at?: string | null
+          notes?: string | null
+        }
+        Update: {
+          id?: string
+          task_id?: number
+          assigned_by?: string
+          assigned_to?: string
+          assigned_at?: string
+          status?: 'pending' | 'accepted' | 'in_progress' | 'completed' | 'declined'
+          completed_at?: string | null
+          notes?: string | null
+        }
+      }
+      shared_items: {
+        Row: {
+          id: string
+          item_type: 'notebook' | 'note' | 'reviewer' | 'task'
+          item_id: number
+          shared_by: string
+          shared_with: string
+          permission_level: 'view' | 'edit' | 'comment'
+          shared_at: string
+          accepted_at: string | null
+          is_accepted: boolean
+        }
+        Insert: {
+          id?: string
+          item_type: 'notebook' | 'note' | 'reviewer' | 'task'
+          item_id: number
+          shared_by: string
+          shared_with: string
+          permission_level?: 'view' | 'edit' | 'comment'
+          shared_at?: string
+          accepted_at?: string | null
+          is_accepted?: boolean
+        }
+        Update: {
+          id?: string
+          item_type?: 'notebook' | 'note' | 'reviewer' | 'task'
+          item_id?: number
+          shared_by?: string
+          shared_with?: string
+          permission_level?: 'view' | 'edit' | 'comment'
+          shared_at?: string
+          accepted_at?: string | null
+          is_accepted?: boolean
+        }
+      }
+      task_collaborators: {
+        Row: {
+          id: string
+          task_id: number
+          collaborator_id: string
+          role: 'owner' | 'editor' | 'contributor' | 'viewer'
+          joined_at: string
+          contribution_count: number
+        }
+        Insert: {
+          id?: string
+          task_id: number
+          collaborator_id: string
+          role?: 'owner' | 'editor' | 'contributor' | 'viewer'
+          joined_at?: string
+          contribution_count?: number
+        }
+        Update: {
+          id?: string
+          task_id?: number
+          collaborator_id?: string
+          role?: 'owner' | 'editor' | 'contributor' | 'viewer'
+          joined_at?: string
+          contribution_count?: number
+        }
+      }
     }
     Views: {
       [_ in never]: never

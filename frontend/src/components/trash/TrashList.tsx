@@ -4,8 +4,8 @@ import { RotateCcw, Trash2 } from 'lucide-react';
 
 interface TrashListProps {
   items: TrashItem[];
-  onRestore: (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer') => void;
-  onDelete: (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer') => void;
+  onRestore: (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz') => void;
+  onDelete: (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz') => void;
   selectedItems: Set<string>;
   onToggleSelection: (id: string) => void;
   onSelectAll: () => void;
