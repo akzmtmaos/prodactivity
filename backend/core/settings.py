@@ -138,7 +138,7 @@ SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=24),    # extended access token lifetime
     'REFRESH_TOKEN_LIFETIME': timedelta(days=30),    # extended refresh token lifetime  
     'ROTATE_REFRESH_TOKENS': True,
-    'BLACKLIST_AFTER_ROTATION': True,
+    'BLACKLIST_AFTER_ROTATION': False,  # Disabled - requires token_blacklist app to be installed
 }
 
 MIDDLEWARE = [
