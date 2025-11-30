@@ -174,8 +174,22 @@ const Profile: React.FC = () => {
         const totalQuiz = allReviewers.filter((r: any) => r.tags && Array.isArray(r.tags) && r.tags.includes('quiz')).length;
         const totalReviewer = allReviewers.filter((r: any) => !r.tags || !Array.isArray(r.tags) || !r.tags.includes('quiz')).length;
         
-        // Calculate total study time in MINUTES (to match Progress page calculation)
-        const totalStudyTimeMinutes = tasksData.data?.reduce((sum, task) => sum + (task.time_spent_minutes || 0), 0) || 0;
+        // Calculate total study time from study timer sessions (in minutes)
+        const { data: studySessions, error: studyError } = await supabase
+          .from('study_timer_sessions')
+          .select('duration')
+          .eq('user_id', userId.toString())
+          .eq('session_type', 'Study');
+        
+        let totalStudyTimeMinutes = 0;
+        if (!studyError && studySessions) {
+          // Duration is in seconds, convert to minutes
+          const totalSeconds = studySessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
+          totalStudyTimeMinutes = Math.round(totalSeconds / 60); // Convert to minutes
+        } else if (studyError) {
+          console.warn('Error fetching study timer sessions, using 0:', studyError);
+        }
+        
         const totalStudyHours = Math.round(totalStudyTimeMinutes / 60);
 
         // Calculate longest streak from productivity logs

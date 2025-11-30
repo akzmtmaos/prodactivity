@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { Play, Pause, RotateCcw, Settings, Clock, Target, TrendingUp } from 'lucide-react';
+import { Play, Pause, RotateCcw, Clock, Target, TrendingUp } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
-import PomodoroModeToggle from '../components/studytimer/PomodoroModeToggle';
 import { useTimer } from '../context/TimerContext';
 import axiosInstance from '../utils/axiosConfig';
+import { supabase } from '../lib/supabase';
 
 // SessionLogs component
 interface SessionLogEntry {
@@ -68,7 +68,7 @@ const SessionLogs: React.FC<{ logs: SessionLogEntry[] }> = ({ logs }) => {
               <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
                 {studySessions.length}
               </h3>
-              <p className="text-gray-600 dark:text-gray-400">Study Sessions</p>
+              <p className="text-gray-600 dark:text-gray-400">Total Sessions</p>
             </div>
           </div>
         </div>
@@ -221,8 +221,6 @@ const SessionLogs: React.FC<{ logs: SessionLogEntry[] }> = ({ logs }) => {
 
 const StudyTimer: React.FC = () => {
   const [user, setUser] = useState<any | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [tempSettings, setTempSettings] = useState<any>(null);
   const [sessionLogs, setSessionLogs] = useState<SessionLogEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'timer' | 'sessions'>('timer');
   const [showClearConfirm, setShowClearConfirm] = useState(false);
@@ -233,25 +231,45 @@ const StudyTimer: React.FC = () => {
     startTimer, 
     pauseTimer, 
     resetTimer, 
-    updateSettings,
-    pomodoroMode,
-    setPomodoroMode
+    refreshSessionsCount,
+    stopwatchMode,
+    setStopwatchMode
   } = useTimer();
 
-  // Pomodoro preset values
-  const pomodoroPreset = {
-    studyDuration: 25 * 60,
-    breakDuration: 5 * 60,
-    longBreakDuration: 15 * 60,
-    sessionsUntilLongBreak: 4,
-  };
 
-  // Load session logs function (fetches from backend API)
+  // Load session logs function (fetches from backend API, Supabase, or localStorage)
   const loadSessionLogs = async () => {
     try {
+      const userData = localStorage.getItem('user');
+      if (!userData) {
+        // Fallback to localStorage only
+        const logs = localStorage.getItem('studyTimerLogs');
+        if (logs) {
+          try {
+            const parsedLogs = JSON.parse(logs).map((log: any) => ({
+              ...log,
+              start: new Date(log.start),
+              end: new Date(log.end)
+            }));
+            setSessionLogs(parsedLogs);
+          } catch (e) {
+            console.error('Error parsing session logs:', e);
+          }
+        }
+        return;
+      }
+      
+      const user = JSON.parse(userData);
+      const userId = user.id;
+      
+      if (!userId) {
+        console.warn('No user ID found, cannot fetch sessions');
+        return;
+      }
+      
+      // Try to fetch from backend API first
       const token = localStorage.getItem('accessToken');
       if (token) {
-        // Try to fetch from backend API
         try {
           const response = await axiosInstance.get('/tasks/study-timer-sessions/');
           const backendLogs = response.data || [];
@@ -268,13 +286,54 @@ const StudyTimer: React.FC = () => {
           
           // Also update localStorage for backward compatibility
           localStorage.setItem('studyTimerLogs', JSON.stringify(formattedLogs));
+          
+          // Refresh the sessions count in timer context to keep counter in sync
+          console.log('🔄 Refreshing sessions count after loading from backend...');
+          if (refreshSessionsCount) {
+            await refreshSessionsCount();
+          }
           return;
         } catch (apiError) {
-          console.warn('Failed to fetch from backend, using localStorage:', apiError);
+          console.warn('Failed to fetch from backend, trying Supabase:', apiError);
         }
       }
       
-      // Fallback to localStorage
+      // Try Supabase as fallback
+      try {
+        const { data: supabaseLogs, error: supabaseError } = await supabase
+          .from('study_timer_sessions')
+          .select('*')
+          .eq('user_id', userId.toString())
+          .order('start_time', { ascending: false });
+        
+        if (!supabaseError && supabaseLogs) {
+          // Convert Supabase format to frontend format
+          const formattedLogs = supabaseLogs.map((log: any) => ({
+            type: log.session_type,
+            start: new Date(log.start_time),
+            end: new Date(log.end_time),
+            duration: log.duration
+          }));
+          
+          setSessionLogs(formattedLogs);
+          
+          // Also update localStorage for backward compatibility
+          localStorage.setItem('studyTimerLogs', JSON.stringify(formattedLogs));
+          
+          // Refresh the sessions count in timer context to keep counter in sync
+          console.log('🔄 Refreshing sessions count after loading from Supabase...');
+          if (refreshSessionsCount) {
+            await refreshSessionsCount();
+          }
+          return;
+        } else {
+          console.warn('Failed to fetch from Supabase:', supabaseError);
+        }
+      } catch (supabaseErr) {
+        console.warn('Error fetching from Supabase:', supabaseErr);
+      }
+      
+      // Final fallback to localStorage
       const logs = localStorage.getItem('studyTimerLogs');
       if (logs) {
         try {
@@ -284,6 +343,17 @@ const StudyTimer: React.FC = () => {
             end: new Date(log.end)
           }));
           setSessionLogs(parsedLogs);
+          
+          // Count Study sessions from localStorage and update counter
+          const studyCount = parsedLogs.filter((log: any) => log.type === 'Study').length;
+          if (studyCount > 0 && refreshSessionsCount) {
+            // Update the counter based on localStorage data
+            console.log('📊 Updating counter from localStorage sessions:', studyCount);
+            // We'll refresh from backend/Supabase, but localStorage gives us a quick count
+            setTimeout(() => {
+              refreshSessionsCount();
+            }, 500);
+          }
         } catch (e) {
           console.error('Error parsing session logs:', e);
         }
@@ -316,17 +386,26 @@ const StudyTimer: React.FC = () => {
     // Set greeting based on time of day
     // Load session logs on mount
     loadSessionLogs();
+    
+    // Also refresh the sessions count to ensure counter is synced (with delay to ensure backend is ready)
+    if (refreshSessionsCount) {
+      // Delay slightly to ensure backend is ready
+      setTimeout(() => {
+        refreshSessionsCount();
+      }, 500);
+    }
   }, []);
 
-  // Refresh session logs when timer state changes (new sessions completed)
+  // Refresh session logs when timer state changes (break state change)
   useEffect(() => {
     loadSessionLogs();
-  }, [timerState.sessionsCompleted, timerState.isBreak]);
-
-  // Initialize tempSettings when component mounts
-  useEffect(() => {
-    setTempSettings(timerState.settings);
-  }, [timerState.settings]);
+    // Also refresh the sessions count to keep counter in sync (with delay to ensure data is saved)
+    if (refreshSessionsCount) {
+      setTimeout(() => {
+        refreshSessionsCount();
+      }, 1500);
+    }
+  }, [timerState.isBreak]); // Refresh when break state changes (indicating a session completed)
 
   const toggleTimer = () => {
     if (timerState.isActive) {
@@ -342,26 +421,6 @@ const StudyTimer: React.FC = () => {
     return `${minutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
-  const openSettings = () => {
-    setTempSettings(timerState.settings);
-    setShowSettings(true);
-  };
-
-  const handleSettingsChange = () => {
-    if (tempSettings) {
-      updateSettings(tempSettings);
-      setShowSettings(false);
-    }
-  };
-
-  const handlePomodoroToggle = (enabled: boolean) => {
-    setPomodoroMode(enabled);
-    if (enabled) {
-      // Pomodoro ON: Set to classic Pomodoro preset
-      updateSettings(pomodoroPreset);
-    }
-    // Pomodoro OFF: Keep current settings, just change behavior
-  };
 
   const clearSessionLogs = async () => {
     try {
@@ -385,8 +444,12 @@ const StudyTimer: React.FC = () => {
       
       // Also clear localStorage
       localStorage.removeItem('studyTimerLogs');
+      localStorage.removeItem('studyTimerSessionsCompleted');
       setSessionLogs([]);
       setShowClearConfirm(false);
+      
+      // Refresh the sessions count in timer context (will be 0 after clearing)
+      await refreshSessionsCount();
     } catch (error) {
       console.error('Error clearing session logs:', error);
     }
@@ -467,10 +530,10 @@ const StudyTimer: React.FC = () => {
                       </div>
                       <div className="ml-4">
                         <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                          {formatTime(timerState.timeLeft)}
+                          {stopwatchMode ? formatTime(timerState.elapsedTime || 0) : formatTime(timerState.timeLeft)}
                         </h3>
                         <p className="text-gray-600 dark:text-gray-400">
-                          {timerState.isBreak ? 'Break Time' : 'Study Time'}
+                          {stopwatchMode ? 'Stopwatch' : (timerState.isBreak ? 'Break Time' : 'Study Time')}
                         </p>
                       </div>
                     </div>
@@ -505,11 +568,35 @@ const StudyTimer: React.FC = () => {
                   </div>
                 </div>
 
+                {/* Timer Mode Toggle */}
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700 mb-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Timer Mode</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        {stopwatchMode ? 'Stopwatch: Counts up from 0:00' : 'Timer: Counts down from set duration'}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setStopwatchMode(!stopwatchMode)}
+                      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                        stopwatchMode ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'
+                      }`}
+                    >
+                      <span
+                        className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                          stopwatchMode ? 'translate-x-6' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
                 {/* Timer Display */}
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-md border border-gray-200 dark:border-gray-700 mb-8">
                   <div className="text-center">
                     <div className="text-8xl font-bold text-gray-900 dark:text-white mb-8">
-                      {formatTime(timerState.timeLeft)}
+                      {stopwatchMode ? formatTime(timerState.elapsedTime || 0) : formatTime(timerState.timeLeft)}
                     </div>
                     <div className="flex justify-center space-x-4">
                       <button
@@ -535,124 +622,17 @@ const StudyTimer: React.FC = () => {
                         <RotateCcw size={20} className="mr-2" />
                         Reset
                       </button>
-                      <button
-                        onClick={openSettings}
-                        className="px-6 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium flex items-center transition-colors"
-                      >
-                        <Settings size={20} className="mr-2" />
-                        Settings
-                      </button>
                     </div>
                   </div>
                 </div>
 
-                {/* Settings Modal */}
-                {showSettings && tempSettings && (
-                  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4">
-                      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-                        <h2 className="text-xl font-semibold text-gray-900 dark:text-white">Timer Settings</h2>
-                      </div>
-                      
-                      <div className="p-6">
-                        {/* Pomodoro Mode Toggle inside settings */}
-                        <div className="mb-6">
-                          <PomodoroModeToggle enabled={pomodoroMode} onToggle={handlePomodoroToggle} />
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                            <strong>Pomodoro ON:</strong> Timer automatically switches between study and break sessions.
-                            <br />
-                            <strong>Pomodoro OFF:</strong> Timer stops when it reaches 00:00 (no auto-switching).
-                            {pomodoroMode && <><br />Classic Pomodoro: 25 min study, 5 min break, 15 min long break, 4 sessions per long break.</>}
-                          </p>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                              Study Duration (minutes)
-                            </label>
-                            <input
-                              type="number"
-                              value={pomodoroMode ? tempSettings.studyDuration / 60 : tempSettings.studyDuration / 60}
-                              onChange={(e) => setTempSettings({
-                                ...tempSettings,
-                                studyDuration: parseInt(e.target.value) * 60
-                              })}
-                              className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                              Break Duration (minutes)
-                            </label>
-                            <input
-                              type="number"
-                              value={tempSettings.breakDuration / 60}
-                              onChange={(e) => setTempSettings({
-                                ...tempSettings,
-                                breakDuration: parseInt(e.target.value) * 60
-                              })}
-                              className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                              Long Break Duration (minutes)
-                            </label>
-                            <input
-                              type="number"
-                              value={tempSettings.longBreakDuration / 60}
-                              onChange={(e) => setTempSettings({
-                                ...tempSettings,
-                                longBreakDuration: parseInt(e.target.value) * 60
-                              })}
-                              className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                            />
-                          </div>
-                          
-                          <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                              Sessions Until Long Break
-                            </label>
-                            <input
-                              type="number"
-                              value={tempSettings.sessionsUntilLongBreak}
-                              onChange={(e) => setTempSettings({
-                                ...tempSettings,
-                                sessionsUntilLongBreak: parseInt(e.target.value)
-                              })}
-                              className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="mt-6 flex justify-end space-x-3">
-                          <button
-                            onClick={() => setShowSettings(false)}
-                            className="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                          >
-                            Cancel
-                          </button>
-                          <button
-                            onClick={handleSettingsChange}
-                            className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                          >
-                            Save Changes
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
               </>
             )}
             {activeTab === 'sessions' && (
               <>
                 <div className="flex justify-between items-center mb-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Study Sessions</h2>
+                    <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Total Sessions</h2>
                     <p className="text-gray-600 dark:text-gray-400 mt-1">Track your study progress and productivity</p>
                   </div>
                   <div className="flex space-x-3">

@@ -777,20 +777,64 @@ const Home = () => {
     }
   };
 
-  // Compute dynamic stats
-  const studyHours = events
-    .filter(e => e.category === 'study')
-    .reduce((sum, e) => {
-      // If startTime and endTime are available, sum durations in hours
-      if (e.startTime && e.endTime) {
-        const [sh, sm] = e.startTime.split(':').map(Number);
-        const [eh, em] = e.endTime.split(':').map(Number);
-        let diff = (eh + em / 60) - (sh + sm / 60);
-        if (diff < 0) diff = 0; // Prevent negative
-        return sum + diff;
+  // Study hours from study timer sessions
+  const [studyHours, setStudyHours] = useState(0);
+  
+  // Fetch study hours from study timer sessions
+  useEffect(() => {
+    const fetchStudyHours = async () => {
+      try {
+        const userData = localStorage.getItem('user');
+        if (!userData) {
+          setStudyHours(0);
+          return;
+        }
+        
+        const user = JSON.parse(userData);
+        const userId = user.id;
+        
+        if (!userId) {
+          setStudyHours(0);
+          return;
+        }
+        
+        // Fetch study timer sessions from Supabase
+        const { data: sessions, error } = await supabase
+          .from('study_timer_sessions')
+          .select('duration, session_type')
+          .eq('user_id', userId.toString())
+          .eq('session_type', 'Study');
+        
+        if (error) {
+          console.error('Error fetching study hours:', error);
+          // Fallback to backend API
+          try {
+            const response = await axiosInstance.get('/tasks/study-timer-sessions/');
+            const backendSessions = response.data || [];
+            const studySessions = backendSessions.filter((s: any) => s.session_type === 'Study');
+            const totalSeconds = studySessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
+            setStudyHours(totalSeconds / 3600); // Convert seconds to hours
+          } catch (apiError) {
+            console.error('Error fetching study hours from backend:', apiError);
+            setStudyHours(0);
+          }
+        } else {
+          // Calculate total study hours from sessions (duration is in seconds)
+          const totalSeconds = (sessions || []).reduce((sum, s) => sum + (s.duration || 0), 0);
+          setStudyHours(totalSeconds / 3600); // Convert seconds to hours
+        }
+      } catch (e) {
+        console.error('Error calculating study hours:', e);
+        setStudyHours(0);
       }
-      return sum;
-    }, 0);
+    };
+    
+    fetchStudyHours();
+    
+    // Refresh study hours periodically
+    const interval = setInterval(fetchStudyHours, 60000); // Every minute
+    return () => clearInterval(interval);
+  }, []);
 
   const [completedTasksCount, setCompletedTasksCount] = useState<number>(0);
   const upcomingEventsCount = events.length;

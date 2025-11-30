@@ -3,7 +3,7 @@ import { useTimer } from '../../context/TimerContext';
 import FloatingTimer from './FloatingTimer';
 
 const TimerWidget: React.FC = () => {
-  const { timerState, startTimer, pauseTimer, resetTimer, stopTimer, isTimerRunning } = useTimer();
+  const { timerState, startTimer, pauseTimer, resetTimer, stopTimer, isTimerRunning, stopwatchMode } = useTimer();
 
   const handleToggle = () => {
     if (timerState.isActive) {
@@ -14,7 +14,8 @@ const TimerWidget: React.FC = () => {
   };
 
   // Only show the floating timer if there's an active timer or if we're in a session
-  if (!isTimerRunning) {
+  // In stopwatch mode, show if timer is active (even if just started)
+  if (!isTimerRunning && !(stopwatchMode && timerState.isActive)) {
     return null;
   }
 
@@ -23,7 +24,9 @@ const TimerWidget: React.FC = () => {
       isActive={timerState.isActive}
       isBreak={timerState.isBreak}
       timeLeft={timerState.timeLeft}
+      elapsedTime={timerState.elapsedTime || 0}
       sessionsCompleted={timerState.sessionsCompleted}
+      stopwatchMode={stopwatchMode}
       onToggle={handleToggle}
       onReset={resetTimer}
       onStop={stopTimer}

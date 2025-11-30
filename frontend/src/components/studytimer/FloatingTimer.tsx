@@ -5,7 +5,9 @@ interface FloatingTimerProps {
   isActive: boolean;
   isBreak: boolean;
   timeLeft: number;
+  elapsedTime?: number; // For stopwatch mode
   sessionsCompleted: number;
+  stopwatchMode?: boolean; // Whether in stopwatch mode
   onToggle: () => void;
   onReset: () => void;
   onStop: () => void;
@@ -15,7 +17,9 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
   isActive,
   isBreak,
   timeLeft,
+  elapsedTime = 0,
   sessionsCompleted,
+  stopwatchMode = false,
   onToggle,
   onReset,
   onStop
@@ -90,7 +94,8 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
     }
   }, [isDragging, dragOffset]);
 
-  if (!isActive && timeLeft === 0) return null;
+  // Don't show if not active and timer is at 0 (unless in stopwatch mode)
+  if (!isActive && !stopwatchMode && timeLeft === 0) return null;
 
   return (
     <div
@@ -112,9 +117,9 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
         >
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Clock size={16} className={`${isBreak ? 'text-green-500' : 'text-blue-500'}`} />
+              <Clock size={16} className={`${stopwatchMode ? 'text-purple-500' : (isBreak ? 'text-green-500' : 'text-blue-500')}`} />
               <span className="text-sm font-mono font-bold text-gray-900 dark:text-white">
-                {formatTime(timeLeft)}
+                {stopwatchMode ? formatTime(elapsedTime) : formatTime(timeLeft)}
               </span>
             </div>
             <div className="flex items-center space-x-1">
@@ -145,9 +150,9 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
             onMouseDown={handleMouseDown}
           >
             <div className="flex items-center space-x-2">
-              <Clock size={20} className={`${isBreak ? 'text-green-500' : 'text-blue-500'}`} />
+              <Clock size={20} className={`${stopwatchMode ? 'text-purple-500' : (isBreak ? 'text-green-500' : 'text-blue-500')}`} />
               <span className="font-semibold text-gray-900 dark:text-white">
-                {isBreak ? 'Break Time' : 'Study Time'}
+                {stopwatchMode ? 'Stopwatch' : (isBreak ? 'Break Time' : 'Study Time')}
               </span>
             </div>
             <div className="flex items-center space-x-1">
@@ -171,7 +176,7 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
           {/* Timer Display */}
           <div className="px-4 py-4 text-center">
             <div className="text-4xl font-mono font-bold text-gray-900 dark:text-white mb-2">
-              {formatTime(timeLeft)}
+              {stopwatchMode ? formatTime(elapsedTime) : formatTime(timeLeft)}
             </div>
             <div className="text-sm text-gray-600 dark:text-gray-400 mb-4">
               Session {sessionsCompleted + 1}

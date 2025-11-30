@@ -2098,7 +2098,7 @@ async function fetchUserStats() {
     // Get total tasks completed
     const { data: tasksData, error: tasksError } = await supabase
       .from('tasks')
-      .select('id, completed, time_spent_minutes')
+      .select('id, completed')
       .eq('user_id', userId)
       .eq('is_deleted', false);
     
@@ -2108,7 +2108,22 @@ async function fetchUserStats() {
     }
     
     const totalTasksCompleted = tasksData?.filter(task => task.completed).length || 0;
-    const totalStudyTime = tasksData?.reduce((sum, task) => sum + (task.time_spent_minutes || 0), 0) || 0;
+    
+    // Get total study time from study timer sessions (in minutes)
+    const { data: studySessions, error: studyError } = await supabase
+      .from('study_timer_sessions')
+      .select('duration')
+      .eq('user_id', userId.toString())
+      .eq('session_type', 'Study');
+    
+    let totalStudyTime = 0;
+    if (!studyError && studySessions) {
+      // Duration is in seconds, convert to minutes
+      const totalSeconds = studySessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+      totalStudyTime = Math.round(totalSeconds / 60); // Convert to minutes
+    } else if (studyError) {
+      console.warn('Error fetching study timer sessions, using 0:', studyError);
+    }
     
     // Get average productivity from productivity logs
     const { data: productivityData, error: productivityError } = await supabase

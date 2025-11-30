@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { Moon, Sun, Bell, Shield, Lock, Trash2, Mail, User as UserIcon, Info } from 'lucide-react';
+import { Moon, Sun, Bell, Shield, Lock, Trash2, Mail, User as UserIcon, Info, Clock } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import PageLayout from '../components/PageLayout';
 import ActivityLogs from '../components/settings/ActivityLogs';
 import axiosInstance from '../utils/axiosConfig';
 import { API_BASE_URL } from '../config/api';
+import { useTimer } from '../context/TimerContext';
+import PomodoroModeToggle from '../components/studytimer/PomodoroModeToggle';
 
 interface UserSettings {
   theme: 'light' | 'dark' | 'system';
@@ -19,6 +21,137 @@ const TABS = [
   { key: 'logs', label: 'Logs' }, // Add logs tab
   { key: 'logout', label: 'Log Out' },
 ];
+
+// Study Timer Settings Component
+const StudyTimerSettings: React.FC = () => {
+  const { 
+    timerState, 
+    updateSettings,
+    pomodoroMode,
+    setPomodoroMode
+  } = useTimer();
+  
+  const [tempSettings, setTempSettings] = useState(timerState.settings);
+  
+  // Pomodoro preset values
+  const pomodoroPreset = {
+    studyDuration: 25 * 60,
+    breakDuration: 5 * 60,
+    longBreakDuration: 15 * 60,
+    sessionsUntilLongBreak: 4,
+  };
+  
+  // Update tempSettings when timerState.settings changes
+  useEffect(() => {
+    setTempSettings(timerState.settings);
+  }, [timerState.settings]);
+  
+  const handlePomodoroToggle = (enabled: boolean) => {
+    setPomodoroMode(enabled);
+    if (enabled) {
+      // Pomodoro ON: Set to classic Pomodoro preset
+      updateSettings(pomodoroPreset);
+      setTempSettings(pomodoroPreset);
+    }
+    // Pomodoro OFF: Keep current settings, just change behavior
+  };
+  
+  const handleSave = () => {
+    updateSettings(tempSettings);
+  };
+  
+  return (
+    <div className="space-y-6">
+      {/* Pomodoro Mode Toggle */}
+      <div>
+        <PomodoroModeToggle enabled={pomodoroMode} onToggle={handlePomodoroToggle} />
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+          <strong>Pomodoro ON:</strong> Timer automatically switches between study and break sessions.
+          <br />
+          <strong>Pomodoro OFF:</strong> Timer stops when it reaches 00:00 (no auto-switching).
+          {pomodoroMode && <><br />Classic Pomodoro: 25 min study, 5 min break, 15 min long break, 4 sessions per long break.</>}
+        </p>
+      </div>
+      
+      {/* Timer Duration Settings */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Study Duration (minutes)
+          </label>
+          <input
+            type="number"
+            value={tempSettings.studyDuration / 60}
+            onChange={(e) => setTempSettings({
+              ...tempSettings,
+              studyDuration: parseInt(e.target.value) * 60
+            })}
+            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
+            min="1"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Break Duration (minutes)
+          </label>
+          <input
+            type="number"
+            value={tempSettings.breakDuration / 60}
+            onChange={(e) => setTempSettings({
+              ...tempSettings,
+              breakDuration: parseInt(e.target.value) * 60
+            })}
+            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
+            min="1"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Long Break Duration (minutes)
+          </label>
+          <input
+            type="number"
+            value={tempSettings.longBreakDuration / 60}
+            onChange={(e) => setTempSettings({
+              ...tempSettings,
+              longBreakDuration: parseInt(e.target.value) * 60
+            })}
+            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
+            min="1"
+          />
+        </div>
+        
+        <div>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+            Sessions Until Long Break
+          </label>
+          <input
+            type="number"
+            value={tempSettings.sessionsUntilLongBreak}
+            onChange={(e) => setTempSettings({
+              ...tempSettings,
+              sessionsUntilLongBreak: parseInt(e.target.value)
+            })}
+            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
+            min="1"
+          />
+        </div>
+      </div>
+      
+      {/* Save Button */}
+      <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
+        <button
+          onClick={handleSave}
+          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+        >
+          Save Timer Settings
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const Settings: React.FC = () => {
   const { theme, setTheme } = useTheme();
@@ -1012,6 +1145,21 @@ const Settings: React.FC = () => {
                           </button>
                         </div>
                       </div>
+                    </div>
+                  </div>
+                  
+                  {/* Study Timer Settings Section */}
+                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl shadow-md border border-blue-100 dark:border-blue-700">
+                    <div className="p-6">
+                      <div className="flex items-center mb-4">
+                        <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                          <Clock size={24} className="text-blue-600 dark:text-blue-400" />
+                        </div>
+                        <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
+                          Study Timer Settings
+                        </h2>
+                      </div>
+                      <StudyTimerSettings />
                     </div>
                   </div>
                 </div>
