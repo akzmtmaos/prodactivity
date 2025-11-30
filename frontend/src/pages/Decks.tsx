@@ -87,6 +87,7 @@ const Decks = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [activeTab, setActiveTab] = useState<'decks' | 'archived'>('decks');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [currentArchivedPage, setCurrentArchivedPage] = useState<number>(1);
   const PAGE_SIZE = 12;
 
   // Notes -> Flashcards conversion modal state
@@ -845,18 +846,55 @@ interface NoteItem {
       }
     });
 
+  // Filter and sort archived decks
+  const filteredArchivedDecks = archivedDecks
+    .filter(deck => {
+      const matchesSearch = deck.title.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      if (!matchesSearch) return false;
+      
+      switch (filterBy) {
+        case 'studied':
+          return deck.progress > 0;
+        case 'new':
+          return deck.progress === 0;
+        default:
+          return true;
+      }
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.title.localeCompare(b.title);
+        case 'progress':
+          return b.progress - a.progress;
+        default:
+          return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
+      }
+    });
+
   const totalPages = Math.max(1, Math.ceil(filteredDecks.length / PAGE_SIZE));
+  const totalArchivedPages = Math.max(1, Math.ceil(filteredArchivedDecks.length / PAGE_SIZE));
+  
   useEffect(() => {
     // Reset to first page when filters/search change
     setCurrentPage(1);
+    setCurrentArchivedPage(1);
   }, [searchTerm, sortBy, filterBy]);
+  
   useEffect(() => {
     // Clamp current page if total pages shrinks
     if (currentPage > totalPages) setCurrentPage(totalPages);
-  }, [totalPages]);
+    if (currentArchivedPage > totalArchivedPages) setCurrentArchivedPage(totalArchivedPages);
+  }, [totalPages, totalArchivedPages]);
+  
   const startIndex = (currentPage - 1) * PAGE_SIZE;
   const endIndex = startIndex + PAGE_SIZE;
   const pagedDecks = filteredDecks.slice(startIndex, endIndex);
+  
+  const startArchivedIndex = (currentArchivedPage - 1) * PAGE_SIZE;
+  const endArchivedIndex = startArchivedIndex + PAGE_SIZE;
+  const pagedArchivedDecks = filteredArchivedDecks.slice(startArchivedIndex, endArchivedIndex);
 
   // Calculate summary stats
   const totalDecks = decks.length;
@@ -1035,45 +1073,8 @@ interface NoteItem {
                 Ready to learn something new today?
               </p>
             </div>
-            {/* Controls and Add Deck button */}
+            {/* Add Deck and Convert buttons */}
             <div className="flex flex-col sm:flex-row items-stretch gap-2 md:gap-4 w-full md:w-auto">
-              {/* Search */}
-              <div className="relative w-full sm:w-56">
-                <Search size={20} className="absolute left-3 top-3 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search decks..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-              </div>
-              {/* Sort */}
-              <div className="flex items-center gap-2">
-                <Clock size={20} className="text-gray-400" />
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress')}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="recent">Recent</option>
-                  <option value="name">Name</option>
-                  <option value="progress">Progress</option>
-                </select>
-              </div>
-              {/* Filter */}
-              <div className="flex items-center gap-2">
-                <Target size={20} className="text-gray-400" />
-                <select
-                  value={filterBy}
-                  onChange={(e) => setFilterBy(e.target.value as 'all' | 'studied' | 'new')}
-                  className="px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="all">All Decks</option>
-                  <option value="studied">Studied Decks</option>
-                  <option value="new">New Decks</option>
-                </select>
-              </div>
               {/* AI Generate Flashcards button */}
             <button
                 onClick={() => setShowConvertModal(true)}
@@ -1130,7 +1131,7 @@ interface NoteItem {
           </div>
           {/* Tab Bar styled like Settings */}
           <div>
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2">
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2 gap-4 flex-wrap">
               <div className="flex space-x-4">
                 <button
                   onClick={() => setActiveTab('decks')}
@@ -1153,14 +1154,61 @@ interface NoteItem {
                   Archived
                 </button>
               </div>
-              {/* Pagination next to tabs on the right */}
-              {activeTab === 'decks' && (
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={Math.ceil(filteredDecks.length / PAGE_SIZE)}
-                  onPageChange={setCurrentPage}
-                />
-              )}
+              {/* Search and Filters next to tabs */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Search */}
+                <div className="relative w-full sm:w-56">
+                  <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder={`Search ${activeTab === 'decks' ? 'decks' : 'archived'}...`}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+                {/* Sort */}
+                <div className="flex items-center gap-1">
+                  <Clock size={18} className="text-gray-400" />
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress')}
+                    className="px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="recent">Recent</option>
+                    <option value="name">Name</option>
+                    <option value="progress">Progress</option>
+                  </select>
+                </div>
+                {/* Filter */}
+                <div className="flex items-center gap-1">
+                  <Target size={18} className="text-gray-400" />
+                  <select
+                    value={filterBy}
+                    onChange={(e) => setFilterBy(e.target.value as 'all' | 'studied' | 'new')}
+                    className="px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="all">All Decks</option>
+                    <option value="studied">Studied Decks</option>
+                    <option value="new">New Decks</option>
+                  </select>
+                </div>
+                {/* Pagination next to filters */}
+                {activeTab === 'decks' && (
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={Math.ceil(filteredDecks.length / PAGE_SIZE)}
+                    onPageChange={setCurrentPage}
+                  />
+                )}
+                {activeTab === 'archived' && (
+                  <Pagination
+                    currentPage={currentArchivedPage}
+                    totalPages={Math.ceil(filteredArchivedDecks.length / PAGE_SIZE)}
+                    onPageChange={setCurrentArchivedPage}
+                  />
+                )}
+              </div>
             </div>
             {/* Removed the <hr> below the tabs for consistency */}
           </div>
@@ -1485,10 +1533,10 @@ interface NoteItem {
           )}
           {activeTab === 'archived' && (
             <div className="space-y-6 pb-6">
-              {archivedDecks.length > 0 ? (
+              {filteredArchivedDecks.length > 0 ? (
                 <div className="max-h-[80vh] overflow-y-auto pr-1">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {archivedDecks.map((deck) => (
+                    {pagedArchivedDecks.map((deck) => (
                       <div key={deck.id} className="relative">
                         <DeckCard
                           deck={deck}
@@ -1535,8 +1583,17 @@ interface NoteItem {
                   </div>
                 </div>
               ) : (
-                <div className="p-8 bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 min-h-[300px] flex items-center justify-center">
-                  <span className="text-gray-500 dark:text-gray-400 text-lg">No archived decks yet.</span>
+                <div className="text-center py-12">
+                  <BookOpen size={48} className="mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
+                    {archivedDecks.length === 0 ? 'No archived decks yet' : 'No archived decks found'}
+                  </h3>
+                  <p className="text-gray-600 dark:text-gray-400">
+                    {archivedDecks.length === 0
+                      ? 'Archived decks will appear here when you archive them.'
+                      : 'Try adjusting your search or filter criteria.'
+                    }
+                  </p>
                 </div>
               )}
             </div>

@@ -207,10 +207,14 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
             </button>
             <button
               onClick={onReset}
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium flex items-center transition-colors"
+              className={`px-4 py-2 rounded-lg font-medium flex items-center transition-colors ${
+                stopwatchMode && (elapsedTime || 0) > 0
+                  ? 'bg-green-600 hover:bg-green-700 text-white'
+                  : 'bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
+              }`}
             >
               <RotateCcw size={16} className="mr-2" />
-              Reset
+              {stopwatchMode && (elapsedTime || 0) > 0 ? 'Save & Reset' : 'Reset'}
             </button>
           </div>
         </div>

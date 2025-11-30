@@ -300,34 +300,42 @@ const StudyTimer: React.FC = () => {
       
       // Try Supabase as fallback
       try {
-        const { data: supabaseLogs, error: supabaseError } = await supabase
-          .from('study_timer_sessions')
-          .select('*')
-          .eq('user_id', userId.toString())
-          .order('start_time', { ascending: false });
+        // Get Supabase auth user ID (UUID) - this is what Supabase expects
+        const { data: { user: supabaseAuthUser } } = await supabase.auth.getUser();
+        const supabaseUserId = supabaseAuthUser?.id;
         
-        if (!supabaseError && supabaseLogs) {
-          // Convert Supabase format to frontend format
-          const formattedLogs = supabaseLogs.map((log: any) => ({
-            type: log.session_type,
-            start: new Date(log.start_time),
-            end: new Date(log.end_time),
-            duration: log.duration
-          }));
+        if (supabaseUserId) {
+          const { data: supabaseLogs, error: supabaseError } = await supabase
+            .from('study_timer_sessions')
+            .select('*')
+            .eq('user_id', supabaseUserId) // Use Supabase auth UUID
+            .order('start_time', { ascending: false });
           
-          setSessionLogs(formattedLogs);
-          
-          // Also update localStorage for backward compatibility
-          localStorage.setItem('studyTimerLogs', JSON.stringify(formattedLogs));
-          
-          // Refresh the sessions count in timer context to keep counter in sync
-          console.log('🔄 Refreshing sessions count after loading from Supabase...');
-          if (refreshSessionsCount) {
-            await refreshSessionsCount();
+          if (!supabaseError && supabaseLogs) {
+            // Convert Supabase format to frontend format
+            const formattedLogs = supabaseLogs.map((log: any) => ({
+              type: log.session_type,
+              start: new Date(log.start_time),
+              end: new Date(log.end_time),
+              duration: log.duration
+            }));
+            
+            setSessionLogs(formattedLogs);
+            
+            // Also update localStorage for backward compatibility
+            localStorage.setItem('studyTimerLogs', JSON.stringify(formattedLogs));
+            
+            // Refresh the sessions count in timer context to keep counter in sync
+            console.log('🔄 Refreshing sessions count after loading from Supabase...');
+            if (refreshSessionsCount) {
+              await refreshSessionsCount();
+            }
+            return;
+          } else {
+            console.warn('Failed to fetch from Supabase:', supabaseError);
           }
-          return;
         } else {
-          console.warn('Failed to fetch from Supabase:', supabaseError);
+          console.warn('⚠️ No Supabase auth user found, cannot fetch from Supabase');
         }
       } catch (supabaseErr) {
         console.warn('Error fetching from Supabase:', supabaseErr);
@@ -406,6 +414,24 @@ const StudyTimer: React.FC = () => {
       }, 1500);
     }
   }, [timerState.isBreak]); // Refresh when break state changes (indicating a session completed)
+
+  // Listen for session saved events to auto-refresh session logs
+  useEffect(() => {
+    const handleSessionSaved = () => {
+      // Small delay to ensure backend has processed the save
+      setTimeout(() => {
+        loadSessionLogs();
+        if (refreshSessionsCount) {
+          refreshSessionsCount();
+        }
+      }, 500);
+    };
+
+    window.addEventListener('studyTimerSessionSaved', handleSessionSaved);
+    return () => {
+      window.removeEventListener('studyTimerSessionSaved', handleSessionSaved);
+    };
+  }, [refreshSessionsCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const toggleTimer = () => {
     if (timerState.isActive) {
@@ -617,10 +643,14 @@ const StudyTimer: React.FC = () => {
                       </button>
                       <button
                         onClick={resetTimer}
-                        className="px-6 py-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium flex items-center transition-colors"
+                        className={`px-6 py-3 rounded-lg font-medium flex items-center transition-colors ${
+                          stopwatchMode && timerState.elapsedTime > 0
+                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            : 'bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300'
+                        }`}
                       >
                         <RotateCcw size={20} className="mr-2" />
-                        Reset
+                        {stopwatchMode && timerState.elapsedTime > 0 ? 'Save & Reset' : 'Reset'}
                       </button>
                     </div>
                   </div>

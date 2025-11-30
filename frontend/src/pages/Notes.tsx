@@ -116,6 +116,7 @@ const Notes = () => {
   const [archivedNotes, setArchivedNotes] = useState<Note[]>([]);
   const [selectedNotebook, setSelectedNotebook] = useState<Notebook | null>(null);
   const notesFetchRequestIdRef = useRef(0);
+  const bulkDeleteModalRef = useRef<{ open: () => void } | null>(null);
   
   // State for form inputs
   const [newNotebookName, setNewNotebookName] = useState('');
@@ -1345,6 +1346,130 @@ const Notes = () => {
       }
       // Apply sort order
       return notebookSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+  // Filter and sort favorite notebooks
+  const filteredFavoriteNotebooks = favoriteNotebooks
+    .filter(notebook => {
+      const term = notebookSearchTerm.toLowerCase().trim();
+
+      // Text search by name should always work regardless of date/name filter selection
+      if (term && !notebook.name.toLowerCase().includes(term)) {
+        return false;
+      }
+
+      // Optional date range filter when By date is active
+      if (notebookFilterType === 'date' && (notebookDateStart || notebookDateEnd)) {
+        const created = new Date(notebook.created_at).getTime();
+        const updated = new Date(notebook.updated_at).getTime();
+        const start = notebookDateStart ? new Date(notebookDateStart).getTime() : -Infinity;
+        const end = notebookDateEnd ? new Date(notebookDateEnd).getTime() + 24*60*60*1000 - 1 : Infinity;
+        // Include if either created or updated falls in range
+        return (created >= start && created <= end) || (updated >= start && updated <= end);
+      }
+
+      // If no date range or not using date filter, we've already validated text term above
+      return true;
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      // Sort based on notebookFilterType
+      if (notebookFilterType === 'name') {
+        comparison = a.name.localeCompare(b.name);
+      } else if (notebookFilterType === 'date') {
+        // Sort by date
+        comparison = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      } else {
+        // Default sort by name
+        comparison = a.name.localeCompare(b.name);
+      }
+      // Apply sort order
+      return notebookSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+  // Filter and sort archived notebooks
+  const filteredArchivedNotebooks = archivedNotebooks
+    .filter(notebook => {
+      const term = notebookSearchTerm.toLowerCase().trim();
+
+      // Text search by name should always work regardless of date/name filter selection
+      if (term && !notebook.name.toLowerCase().includes(term)) {
+        return false;
+      }
+
+      // Optional date range filter when By date is active
+      if (notebookFilterType === 'date' && (notebookDateStart || notebookDateEnd)) {
+        const created = new Date(notebook.created_at).getTime();
+        const updated = new Date(notebook.updated_at).getTime();
+        const start = notebookDateStart ? new Date(notebookDateStart).getTime() : -Infinity;
+        const end = notebookDateEnd ? new Date(notebookDateEnd).getTime() + 24*60*60*1000 - 1 : Infinity;
+        // Include if either created or updated falls in range
+        return (created >= start && created <= end) || (updated >= start && updated <= end);
+      }
+
+      // If no date range or not using date filter, we've already validated text term above
+      return true;
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      // Sort based on notebookFilterType
+      if (notebookFilterType === 'name') {
+        comparison = a.name.localeCompare(b.name);
+      } else if (notebookFilterType === 'date') {
+        // Sort by date
+        comparison = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      } else {
+        // Default sort by name
+        comparison = a.name.localeCompare(b.name);
+      }
+      // Apply sort order
+      return notebookSortOrder === 'asc' ? comparison : -comparison;
+    });
+
+  // Filter and sort archived notes
+  const filteredArchivedNotes = archivedNotes
+    .filter(note => {
+      // Search term filter for archived notes
+      const term = (searchTerm || '').toLowerCase();
+      // Date range takes precedence when filtering by date
+      if (filterType === 'date' && (noteDateStart || noteDateEnd)) {
+        const created = new Date(note.created_at).getTime();
+        const updated = new Date(note.updated_at).getTime();
+        const start = noteDateStart ? new Date(noteDateStart).getTime() : -Infinity;
+        const end = noteDateEnd ? new Date(noteDateEnd).getTime() + 24*60*60*1000 - 1 : Infinity; // inclusive end of day
+        // Include if either created or updated falls in range
+        return (created >= start && created <= end) || (updated >= start && updated <= end);
+      }
+
+      if (!term) return true; // If no search term, show all notes
+      
+      // Apply search filter based on filterType
+      if (filterType === 'title') return note.title.toLowerCase().includes(term);
+      if (filterType === 'content') return note.content.toLowerCase().includes(term);
+      if (filterType === 'date') {
+        const createdDate = new Date(note.created_at).toLocaleDateString().toLowerCase();
+        const updatedDate = new Date(note.updated_at).toLocaleDateString().toLowerCase();
+        return createdDate.includes(term) || updatedDate.includes(term);
+      }
+      // Default to title search
+      return note.title.toLowerCase().includes(term);
+    })
+    .sort((a, b) => {
+      let comparison = 0;
+      // Sort based on filterType
+      if (filterType === 'title') {
+        comparison = a.title.localeCompare(b.title);
+      } else if (filterType === 'content') {
+        comparison = a.content.localeCompare(b.content);
+      } else if (filterType === 'date') {
+        // Sort by date
+        comparison = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      } else {
+        // Default sort by most recent update
+        comparison = new Date(a.updated_at).getTime() - new Date(b.updated_at).getTime();
+      }
+      // Apply sort order
+      return sortOrder === 'asc' ? comparison : -comparison;
     });
 
   // Add handler to update note title
@@ -2606,30 +2731,8 @@ const Notes = () => {
             currentView={currentView}
             selectedNotebook={selectedNotebook}
             notesCount={notes.length}
-            searchTerm={searchTerm}
-            setSearchTerm={setSearchTerm}
-            filterType={filterType}
-            setFilterType={setFilterType}
-            notebookSearchTerm={notebookSearchTerm}
-            setNotebookSearchTerm={setNotebookSearchTerm}
-            notebookFilterType={notebookFilterType}
-            setNotebookFilterType={setNotebookFilterType}
-            sortOrder={sortOrder}
-            setSortOrder={setSortOrder}
-            notebookSortOrder={notebookSortOrder}
-            setNotebookSortOrder={setNotebookSortOrder}
-            noteDateStart={noteDateStart}
-            noteDateEnd={noteDateEnd}
-            setNoteDateStart={setNoteDateStart}
-            setNoteDateEnd={setNoteDateEnd}
-            notebookDateStart={notebookDateStart}
-            notebookDateEnd={notebookDateEnd}
-            setNotebookDateStart={setNotebookDateStart}
-            setNotebookDateEnd={setNotebookDateEnd}
             onBackToNotebooks={handleBackToNotebooks}
             onGlobalSearch={() => setShowGlobalSearch(true)}
-            onAIInsights={() => setShowAIInsights(true)}
-            isSearching={isGlobalSearching}
           />
           
           {/* Tabs styled like Settings - Show for both notebooks and notes */}
@@ -2639,98 +2742,66 @@ const Notes = () => {
             setActiveTab={setActiveTab as (tab: 'notes' | 'logs' | 'archived') => void}
             activeNotebookTab={activeNotebookTab}
             setActiveNotebookTab={setActiveNotebookTab as (tab: 'notebooks' | 'favorites' | 'archived') => void}
+            notebookSearchTerm={notebookSearchTerm}
+            setNotebookSearchTerm={setNotebookSearchTerm}
+            notebookFilterType={notebookFilterType}
+            setNotebookFilterType={setNotebookFilterType}
+            notebookSortOrder={notebookSortOrder}
+            setNotebookSortOrder={setNotebookSortOrder}
+            notebookDateStart={notebookDateStart}
+            notebookDateEnd={notebookDateEnd}
+            setNotebookDateStart={setNotebookDateStart}
+            setNotebookDateEnd={setNotebookDateEnd}
+            searchTerm={searchTerm}
+            setSearchTerm={setSearchTerm}
+            filterType={filterType}
+            setFilterType={setFilterType}
+            sortOrder={sortOrder}
+            setSortOrder={setSortOrder}
+            noteDateStart={noteDateStart}
+            noteDateEnd={noteDateEnd}
+            setNoteDateStart={setNoteDateStart}
+            setNoteDateEnd={setNoteDateEnd}
+            onGlobalSearch={() => setShowGlobalSearch(true)}
+            onAIInsights={() => setShowAIInsights(true)}
+            onCreateNotebook={() => setShowCreateNotebookModal(true)}
+            onBulkDeleteNotebooks={() => bulkDeleteModalRef.current?.open()}
+            selectedNotebook={selectedNotebook}
+            notebooksCount={
+              currentView === 'notebooks' 
+                ? (activeNotebookTab === 'notebooks' ? filteredNotebooks.length : activeNotebookTab === 'favorites' ? filteredFavoriteNotebooks.length : filteredArchivedNotebooks.length)
+                : 0
+            }
+            onBulkDeleteNotes={() => {
+              setSelectedNotesForDelete([]);
+              setShowNotesBulkDeleteModal(true);
+            }}
+            onImportNotes={handleImportNotes}
+            onExportNotes={handleExportNotes}
+            onAddNote={handleStartAddingNote}
+            isImporting={isImporting}
+            isExporting={isExporting}
+            notesCount={notes.length}
           />
           {/* Main Content */}
           <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-8rem)] flex flex-col">
             {/* Header with back button when viewing notes */}
             {currentView === 'notes' && selectedNotebook && activeTab === 'notes' && (
               <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <button
-                      onClick={handleBackToNotebooks}
-                      className="p-2 mr-3 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      <ChevronLeft size={20} />
-                    </button>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-                        {selectedNotebook.name}
-                      </h2>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {notes.length} notes
-                      </span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {/* Local notes search */}
-                    <div className="relative">
-                      <button
-                        onClick={() => {
-                          setShowNotesLocalSearch(v => !v);
-                          setTimeout(() => notesLocalSearchRef.current?.focus(), 50);
-                        }}
-                        className="p-2 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                        title="Search notes"
-                      >
-                        <Search size={18} />
-                      </button>
-                      {showNotesLocalSearch && (
-                        <div className="absolute right-0 top-10 w-64 sm:w-72 md:w-80 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow p-2 flex items-center gap-2 z-20">
-                          <input
-                            ref={notesLocalSearchRef}
-                            value={notesLocalSearchTerm}
-                            onChange={(e) => setNotesLocalSearchTerm(e.target.value)}
-                            placeholder="Search notes..."
-                            className="flex-1 bg-transparent outline-none text-sm text-gray-800 dark:text-gray-100 placeholder-gray-400"
-                          />
-                          {notesLocalSearchTerm && (
-                            <button
-                              onClick={() => setNotesLocalSearchTerm('')}
-                              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 rounded"
-                              title="Clear"
-                            >
-                              ×
-                            </button>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Bulk delete notes (icon-only) */}
-                    <button
-                      onClick={() => {
-                        setSelectedNotesForDelete([]);
-                        setShowNotesBulkDeleteModal(true);
-                      }}
-                      className="p-2 text-red-600 hover:text-white hover:bg-red-600 rounded-lg transition-colors"
-                      title="Delete multiple notes"
-                    >
-                      <Trash2 size={18} />
-                    </button>
-                    <button
-                      onClick={handleImportNotes}
-                      disabled={isImporting}
-                      className="p-2 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={isImporting ? 'Importing notes...' : 'Import notes'}
-                    >
-                      <Upload size={18} />
-                    </button>
-                    <button
-                      onClick={handleExportNotes}
-                      disabled={isExporting || notes.length === 0}
-                      className="p-2 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      title={isExporting ? 'Exporting notes...' : 'Export notes'}
-                    >
-                      <Download size={18} />
-                    </button>
-                    <button
-                      onClick={handleStartAddingNote}
-                      className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
-                    >
-                      <Plus size={16} />
-                      <span className="font-medium">Add Note</span>
-                    </button>
+                <div className="flex items-center">
+                  <button
+                    onClick={handleBackToNotebooks}
+                    className="p-2 mr-3 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  >
+                    <ChevronLeft size={20} />
+                  </button>
+                  <div>
+                    <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
+                      {selectedNotebook.name}
+                    </h2>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {notes.length} notes
+                    </span>
                   </div>
                 </div>
               </div>
@@ -2752,7 +2823,7 @@ const Notes = () => {
                         {selectedNotebook.name} - Archived
                       </h2>
                       <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {archivedNotes.length} archived notes
+                        {filteredArchivedNotes.length} archived notes
                       </span>
                     </div>
                   </div>
@@ -2775,15 +2846,9 @@ const Notes = () => {
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
                               No notebooks yet
                             </h3>
-                            <p className="text-gray-500 dark:text-gray-400 mb-4">
+                            <p className="text-gray-500 dark:text-gray-400">
                               Create your first notebook to get started
                             </p>
-                            <button
-                              onClick={() => setShowCreateNotebookModal(true)}
-                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-                            >
-                              Create Notebook
-                            </button>
                           </div>
                         </div>
                       ) : (
@@ -2804,6 +2869,8 @@ const Notes = () => {
                           onColorChange={handleOpenColorPicker}
                           onToggleFavorite={handleToggleFavorite}
                           onBulkDelete={handleBulkDeleteNotebooks}
+                          showBulkDeleteButton={false}
+                          onOpenBulkDeleteModal={bulkDeleteModalRef}
                           notebookSearchTerm={notebookSearchTerm}
                           onNotebookSearchTermChange={setNotebookSearchTerm}
                           totalCount={notebooks.length}
@@ -2814,23 +2881,26 @@ const Notes = () => {
                   )}
                   {activeNotebookTab === 'favorites' && (
                     <>
-                      {favoriteNotebooks.length === 0 ? (
+                      {filteredFavoriteNotebooks.length === 0 ? (
                         <div className="flex items-center justify-center h-full">
                           <div className="text-center">
                             <div className="flex justify-center text-yellow-400 dark:text-yellow-500 mb-4">
                               <Star size={48} />
                             </div>
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                              No favorite notebooks
+                              {favoriteNotebooks.length === 0 ? 'No favorite notebooks' : 'No favorite notebooks found'}
                             </h3>
                             <p className="text-gray-500 dark:text-gray-400 mb-4">
-                              Click the star icon on any notebook to add it to favorites
+                              {favoriteNotebooks.length === 0
+                                ? 'Click the star icon on any notebook to add it to favorites'
+                                : 'Try adjusting your search or filter criteria.'
+                              }
                             </p>
                           </div>
                         </div>
                       ) : (
                         <NotebookList
-                          notebooks={favoriteNotebooks}
+                          notebooks={filteredFavoriteNotebooks}
                           selectedNotebook={selectedNotebook}
                           editingNotebook={editingNotebook}
                           newNotebookName={newNotebookName}
@@ -2846,6 +2916,8 @@ const Notes = () => {
                           onColorChange={handleOpenColorPicker}
                           onToggleFavorite={handleToggleFavorite}
                           onBulkDelete={handleBulkDeleteNotebooks}
+                          showBulkDeleteButton={false}
+                          onOpenBulkDeleteModal={bulkDeleteModalRef}
                           notebookSearchTerm={notebookSearchTerm}
                           onNotebookSearchTermChange={setNotebookSearchTerm}
                           totalCount={favoriteNotebooks.length}
@@ -2856,23 +2928,26 @@ const Notes = () => {
                   )}
                   {activeNotebookTab === 'archived' && (
                     <>
-                      {archivedNotebooks.length === 0 ? (
+                      {filteredArchivedNotebooks.length === 0 ? (
                         <div className="flex items-center justify-center h-full">
                           <div className="text-center">
                             <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
                               <Archive size={48} />
                             </div>
                             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                              No archived notebooks
+                              {archivedNotebooks.length === 0 ? 'No archived notebooks' : 'No archived notebooks found'}
                             </h3>
                             <p className="text-gray-500 dark:text-gray-400 mb-4">
-                              Archived notebooks will appear here
+                              {archivedNotebooks.length === 0
+                                ? 'Archived notebooks will appear here'
+                                : 'Try adjusting your search or filter criteria.'
+                              }
                             </p>
                           </div>
                         </div>
                       ) : (
                         <NotebookList
-                          notebooks={archivedNotebooks}
+                          notebooks={filteredArchivedNotebooks}
                           selectedNotebook={selectedNotebook}
                           editingNotebook={editingNotebook}
                           newNotebookName={newNotebookName}
@@ -2888,6 +2963,8 @@ const Notes = () => {
                           onColorChange={handleOpenColorPicker}
                           onToggleFavorite={handleToggleFavorite}
                           onBulkDelete={handleBulkDeleteNotebooks}
+                          showBulkDeleteButton={false}
+                          onOpenBulkDeleteModal={bulkDeleteModalRef}
                           notebookSearchTerm={notebookSearchTerm}
                           onNotebookSearchTermChange={setNotebookSearchTerm}
                           totalCount={archivedNotebooks.length}
@@ -2929,24 +3006,27 @@ const Notes = () => {
               )}
               {currentView === 'notes' && activeTab === 'archived' && (
                 <>
-                  {archivedNotes.length === 0 ? (
+                  {filteredArchivedNotes.length === 0 ? (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">
                         <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
                           <Archive size={48} />
                         </div>
                         <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                          No archived notes
+                          {archivedNotes.length === 0 ? 'No archived notes' : 'No archived notes found'}
                         </h3>
                         <p className="text-gray-500 dark:text-gray-400 mb-4">
-                          Archived notes will appear here
+                          {archivedNotes.length === 0
+                            ? 'Archived notes will appear here'
+                            : 'Try adjusting your search or filter criteria.'
+                          }
                         </p>
                       </div>
                     </div>
                   ) : (
                     <NotesList
                       selectedNotebook={selectedNotebook}
-                      notes={archivedNotes}
+                      notes={filteredArchivedNotes}
                       isAddingNote={false}
                       editingNote={null}
                       noteTitle={newNote.title}

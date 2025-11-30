@@ -218,27 +218,36 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
       
       // Try Supabase as fallback
       try {
-        const { data: supabaseSessions, error } = await supabase
-          .from('study_timer_sessions')
-          .select('session_type')
-          .eq('user_id', userId.toString())
-          .eq('session_type', 'Study');
+        // Get Supabase auth user ID (UUID) - this is what Supabase expects
+        const { data: { user: supabaseAuthUser } } = await supabase.auth.getUser();
+        const supabaseUserId = supabaseAuthUser?.id;
         
-        if (!error) {
-          // Even if sessions array is empty, we should update the counter
-          studySessionsCount = Array.isArray(supabaseSessions) ? supabaseSessions.length : 0;
-          console.log('📊 Refreshed sessions count from Supabase:', studySessionsCount);
-          setTimerState(prev => ({
+        if (supabaseUserId) {
+          const { data: supabaseSessions, error } = await supabase
+            .from('study_timer_sessions')
+            .select('session_type')
+            .eq('user_id', supabaseUserId) // Use Supabase auth UUID
+            .eq('session_type', 'Study');
+          
+          if (!error) {
+            // Even if sessions array is empty, we should update the counter
+            studySessionsCount = Array.isArray(supabaseSessions) ? supabaseSessions.length : 0;
+            console.log('📊 Refreshed sessions count from Supabase:', studySessionsCount);
+            setTimerState(prev => ({
             ...prev,
             sessionsCompleted: studySessionsCount
           }));
+          localStorage.setItem('studyTimerSessionsCompleted', studySessionsCount.toString());
+          } else {
+            console.warn('⚠️ Supabase query error:', error);
+            // Don't reset to 0 on error - keep current count
+          }
         } else {
-          console.warn('Error fetching sessions from Supabase:', error);
-          // Don't reset to 0 on error - keep current count
+          console.warn('⚠️ No Supabase auth user found, cannot refresh from Supabase');
         }
       } catch (supabaseErr) {
         console.warn('Failed to load sessions from Supabase:', supabaseErr);
-        setTimerState(prev => ({ ...prev, sessionsCompleted: 0 }));
+        // Don't reset to 0 on error - keep current count
       }
     } catch (error) {
       console.error('Error refreshing sessions count:', error);
@@ -376,17 +385,33 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         ? (prevState.sessionsCompleted + 1 >= prevState.settings.sessionsUntilLongBreak ? 'Long Break' : 'Break')
         : 'Study';
       
+      // Check for duplicates before saving
+      const sessionStartISO = sessionStart.toISOString();
+      const endISO = end.toISOString();
+      
+      // Check localStorage for duplicates first
+      const existingLogs = JSON.parse(localStorage.getItem('studyTimerLogs') || '[]');
+      const isDuplicateInLocalStorage = existingLogs.some((log: any) => {
+        const logStart = new Date(log.start).toISOString();
+        return logStart === sessionStartISO && log.type === sessionType;
+      });
+      
+      if (isDuplicateInLocalStorage) {
+        console.warn('⚠️ Duplicate session detected in localStorage, skipping save');
+        return; // Don't save duplicate
+      }
+      
       // Store session log in localStorage (for backward compatibility)
-      const logs = JSON.parse(localStorage.getItem('studyTimerLogs') || '[]');
-      logs.push({
+      existingLogs.push({
         type: sessionType,
         start: sessionStart,
         end,
         duration,
       });
-      localStorage.setItem('studyTimerLogs', JSON.stringify(logs));
+      localStorage.setItem('studyTimerLogs', JSON.stringify(existingLogs));
       
       // Save to backend API first (primary method)
+      // Django backend will automatically sync to Supabase via signals, so we don't need to manually save to Supabase
       const saveSessionToBackend = async () => {
         try {
           const token = localStorage.getItem('accessToken');
@@ -410,68 +435,90 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
             return;
           }
 
-          // Save to backend API (Django)
+          // Check for duplicate in backend before saving
+          try {
+            const existingSessions = await axiosInstance.get('/tasks/study-timer-sessions/');
+            const sessions = existingSessions.data || [];
+            const isDuplicateInBackend = sessions.some((s: any) => {
+              const existingStart = new Date(s.start_time).toISOString();
+              return existingStart === sessionStartISO && s.session_type === sessionType;
+            });
+            
+            if (isDuplicateInBackend) {
+              console.warn('⚠️ Duplicate session detected in backend, skipping save');
+              return; // Don't save duplicate
+            }
+          } catch (checkError) {
+            console.warn('⚠️ Failed to check for duplicates in backend, proceeding with save:', checkError);
+          }
+
+          // Save to backend API (Django) - this will automatically sync to Supabase via Django signals
           try {
             const response = await axiosInstance.post('/tasks/study-timer-sessions/', {
               session_type: sessionType,
-              start_time: sessionStart.toISOString(),
-              end_time: end.toISOString(),
+              start_time: sessionStartISO,
+              end_time: endISO,
               duration: duration,
             });
             console.log('✅ Session saved to backend API:', response.data);
+            // Note: Django signal will automatically sync this to Supabase, so no manual Supabase save needed
             
-            // Also try to save to Supabase if backend syncs it
-            // But don't fail if Supabase save fails - backend is the source of truth
-            try {
-              // Get user ID as string for Supabase (convert from number if needed)
-              const supabaseUserId = userId.toString();
-              
-              const { data: supabaseData, error: supabaseError } = await supabase
-                .from('study_timer_sessions')
-                .insert([{
-                  user_id: supabaseUserId,
-                  session_type: sessionType,
-                  start_time: sessionStart.toISOString(),
-                  end_time: end.toISOString(),
-                  duration: duration,
-                }])
-                .select();
-              
-              if (supabaseError) {
-                console.warn('⚠️ Failed to save session to Supabase (non-critical):', supabaseError);
-              } else {
-                console.log('✅ Session also saved to Supabase:', supabaseData);
-              }
-            } catch (supabaseErr) {
-              console.warn('⚠️ Supabase save error (non-critical):', supabaseErr);
-            }
-          } catch (backendError) {
+            // Dispatch event to refresh session logs in StudyTimer page
+            window.dispatchEvent(new CustomEvent('studyTimerSessionSaved'));
+          } catch (backendError: any) {
             console.error('❌ Failed to save session to backend API:', backendError);
-            // Try Supabase as fallback
+            
+            // Only try Supabase as fallback if backend save fails
+            // Check if it's a duplicate error (409 or similar)
+            if (backendError.response?.status === 409 || backendError.response?.status === 400) {
+              console.warn('⚠️ Session might be a duplicate (backend returned conflict), skipping Supabase fallback');
+              return;
+            }
+            
+            // Try Supabase as fallback only if backend completely fails
             try {
-              const userData = localStorage.getItem('user');
-              if (userData) {
-                const user = JSON.parse(userData);
-                const supabaseUserId = user.id?.toString();
+              // Get Supabase auth user ID (UUID) - this is what Supabase expects
+              const { data: { user: supabaseAuthUser } } = await supabase.auth.getUser();
+              const supabaseUserId = supabaseAuthUser?.id;
+              
+              if (supabaseUserId) {
+                // Check for duplicate in Supabase before saving
+                const { data: existingSupabaseSessions } = await supabase
+                  .from('study_timer_sessions')
+                  .select('start_time, session_type')
+                  .eq('user_id', supabaseUserId)
+                  .eq('session_type', sessionType);
                 
-                if (supabaseUserId) {
-                  const { data, error } = await supabase
-                    .from('study_timer_sessions')
-                    .insert([{
-                      user_id: supabaseUserId,
-                      session_type: sessionType,
-                      start_time: sessionStart.toISOString(),
-                      end_time: end.toISOString(),
-                      duration: duration,
-                    }])
-                    .select();
-                  
-                  if (error) {
-                    console.error('❌ Failed to save session to Supabase (fallback):', error);
-                  } else {
-                    console.log('✅ Session saved to Supabase (fallback):', data);
-                  }
+                const isDuplicateInSupabase = existingSupabaseSessions?.some((s: any) => {
+                  const existingStart = new Date(s.start_time).toISOString();
+                  return existingStart === sessionStartISO;
+                });
+                
+                if (isDuplicateInSupabase) {
+                  console.warn('⚠️ Duplicate session detected in Supabase, skipping save');
+                  return;
                 }
+                
+                const { data, error } = await supabase
+                  .from('study_timer_sessions')
+                  .insert([{
+                    user_id: supabaseUserId, // Use Supabase auth UUID
+                    session_type: sessionType,
+                    start_time: sessionStartISO,
+                    end_time: endISO,
+                    duration: duration,
+                  }])
+                  .select();
+                
+                if (error) {
+                  console.error('❌ Failed to save session to Supabase (fallback):', error);
+                } else {
+                  console.log('✅ Session saved to Supabase (fallback):', data);
+                  // Dispatch event to refresh session logs in StudyTimer page
+                  window.dispatchEvent(new CustomEvent('studyTimerSessionSaved'));
+                }
+              } else {
+                console.warn('⚠️ No Supabase auth user found, cannot save to Supabase');
               }
             } catch (supabaseFallbackErr) {
               console.error('❌ Failed to save session to Supabase (fallback):', supabaseFallbackErr);
@@ -517,20 +564,28 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
             
             // Try Supabase
             try {
-              const { data: supabaseSessions, error } = await supabase
-                .from('study_timer_sessions')
-                .select('session_type')
-                .eq('user_id', userId.toString())
-                .eq('session_type', 'Study');
+              // Get Supabase auth user ID (UUID) - this is what Supabase expects
+              const { data: { user: supabaseAuthUser } } = await supabase.auth.getUser();
+              const supabaseUserId = supabaseAuthUser?.id;
               
-              if (!error && supabaseSessions) {
-                const studyCount = supabaseSessions.length;
-                // Always update the counter, even if it's 0
-                setTimerState(prev => ({
-                  ...prev,
-                  sessionsCompleted: studyCount
-                }));
-                console.log('📊 Counter updated after session save (Supabase):', studyCount);
+              if (supabaseUserId) {
+                const { data: supabaseSessions, error } = await supabase
+                  .from('study_timer_sessions')
+                  .select('session_type')
+                  .eq('user_id', supabaseUserId) // Use Supabase auth UUID
+                  .eq('session_type', 'Study');
+                
+                if (!error && supabaseSessions) {
+                  const studyCount = supabaseSessions.length;
+                  // Always update the counter, even if it's 0
+                  setTimerState(prev => ({
+                    ...prev,
+                    sessionsCompleted: studyCount
+                  }));
+                  console.log('📊 Counter updated after session save (Supabase):', studyCount);
+                }
+              } else {
+                console.warn('⚠️ No Supabase auth user found, cannot refresh from Supabase');
               }
             } catch (e) {
               console.warn('Failed to refresh from Supabase:', e);
@@ -641,17 +696,32 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
     const sessionType = 'Study';
     
     try {
+      const sessionStartISO = sessionStart.toISOString();
+      const endISO = new Date().toISOString();
+      
+      // Check for duplicates before saving
+      const existingLogs = JSON.parse(localStorage.getItem('studyTimerLogs') || '[]');
+      const isDuplicateInLocalStorage = existingLogs.some((log: any) => {
+        const logStart = new Date(log.start).toISOString();
+        return logStart === sessionStartISO && log.type === sessionType;
+      });
+      
+      if (isDuplicateInLocalStorage) {
+        console.warn('⚠️ Duplicate stopwatch session detected in localStorage, skipping save');
+        return; // Don't save duplicate
+      }
+      
       // Store session log in localStorage (for backward compatibility)
-      const logs = JSON.parse(localStorage.getItem('studyTimerLogs') || '[]');
-      logs.push({
+      existingLogs.push({
         type: sessionType,
         start: sessionStart,
-        end,
+        end: new Date(),
         duration: elapsedSeconds,
       });
-      localStorage.setItem('studyTimerLogs', JSON.stringify(logs));
+      localStorage.setItem('studyTimerLogs', JSON.stringify(existingLogs));
       
       // Save to backend API first (primary method)
+      // Django backend will automatically sync to Supabase via signals, so we don't need to manually save to Supabase
       const token = localStorage.getItem('accessToken');
       if (token) {
         try {
@@ -661,41 +731,91 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
             const userId = user.id;
             
             if (userId) {
+              // Check for duplicate in backend before saving
+              try {
+                const existingSessions = await axiosInstance.get('/tasks/study-timer-sessions/');
+                const sessions = existingSessions.data || [];
+                const isDuplicateInBackend = sessions.some((s: any) => {
+                  const existingStart = new Date(s.start_time).toISOString();
+                  return existingStart === sessionStartISO && s.session_type === sessionType;
+                });
+                
+                if (isDuplicateInBackend) {
+                  console.warn('⚠️ Duplicate stopwatch session detected in backend, skipping save');
+                  return; // Don't save duplicate
+                }
+              } catch (checkError) {
+                console.warn('⚠️ Failed to check for duplicates in backend, proceeding with save:', checkError);
+              }
+              
               const response = await axiosInstance.post('/tasks/study-timer-sessions/', {
                 session_type: sessionType,
-                start_time: sessionStart.toISOString(),
-                end_time: end.toISOString(),
+                start_time: sessionStartISO,
+                end_time: endISO,
                 duration: elapsedSeconds,
               });
               console.log('✅ Stopwatch session saved to backend API:', response.data);
-              
-              // Also try to save to Supabase
-              try {
-                const { error: supabaseError } = await supabase
-                  .from('study_timer_sessions')
-                  .insert([{
-                    user_id: userId.toString(),
-                    session_type: sessionType,
-                    start_time: sessionStart.toISOString(),
-                    end_time: end.toISOString(),
-                    duration: elapsedSeconds,
-                  }]);
-                
-                if (supabaseError) {
-                  console.warn('⚠️ Failed to save stopwatch session to Supabase (non-critical):', supabaseError);
-                } else {
-                  console.log('✅ Stopwatch session also saved to Supabase');
-                }
-              } catch (supabaseErr) {
-                console.warn('⚠️ Supabase save error (non-critical):', supabaseErr);
-              }
+              // Note: Django signal will automatically sync this to Supabase, so no manual Supabase save needed
               
               // Refresh sessions count
               refreshSessionsCount();
+              
+              // Dispatch event to refresh session logs in StudyTimer page
+              window.dispatchEvent(new CustomEvent('studyTimerSessionSaved'));
             }
           }
-        } catch (backendError) {
+        } catch (backendError: any) {
           console.error('❌ Failed to save stopwatch session to backend API:', backendError);
+          
+          // Only try Supabase as fallback if backend save fails and it's not a duplicate error
+          if (backendError.response?.status !== 409 && backendError.response?.status !== 400) {
+            try {
+              // Get Supabase auth user ID (UUID) - this is what Supabase expects
+              const { data: { user: supabaseAuthUser } } = await supabase.auth.getUser();
+              const supabaseUserId = supabaseAuthUser?.id;
+              
+              if (supabaseUserId) {
+                // Check for duplicate in Supabase before saving
+                const { data: existingSupabaseSessions } = await supabase
+                  .from('study_timer_sessions')
+                  .select('start_time, session_type')
+                  .eq('user_id', supabaseUserId)
+                  .eq('session_type', sessionType);
+                
+                const isDuplicateInSupabase = existingSupabaseSessions?.some((s: any) => {
+                  const existingStart = new Date(s.start_time).toISOString();
+                  return existingStart === sessionStartISO;
+                });
+                
+                if (!isDuplicateInSupabase) {
+                  const { error: supabaseError } = await supabase
+                    .from('study_timer_sessions')
+                    .insert([{
+                      user_id: supabaseUserId, // Use Supabase auth UUID
+                      session_type: sessionType,
+                      start_time: sessionStartISO,
+                      end_time: endISO,
+                      duration: elapsedSeconds,
+                    }]);
+                  
+                  if (supabaseError) {
+                    console.warn('⚠️ Failed to save stopwatch session to Supabase (fallback):', supabaseError);
+                  } else {
+                    console.log('✅ Stopwatch session saved to Supabase (fallback)');
+                    refreshSessionsCount();
+                    // Dispatch event to refresh session logs in StudyTimer page
+                    window.dispatchEvent(new CustomEvent('studyTimerSessionSaved'));
+                  }
+                } else {
+                  console.warn('⚠️ Duplicate stopwatch session detected in Supabase, skipping save');
+                }
+              } else {
+                console.warn('⚠️ No Supabase auth user found, skipping Supabase save');
+              }
+            } catch (supabaseErr) {
+              console.warn('⚠️ Supabase save error (fallback):', supabaseErr);
+            }
+          }
         }
       }
     } catch (error) {
@@ -705,22 +825,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
 
   const pauseTimer = () => {
     setTimerState(prev => {
-      // If in stopwatch mode and there's elapsed time, save the session
-      if (stopwatchMode && prev.sessionStart && prev.elapsedTime > 0) {
-        // Save stopwatch session asynchronously
-        saveStopwatchSession(prev.elapsedTime, prev.sessionStart);
-        
-        // Increment sessions completed
-        const newSessionsCompleted = prev.sessionsCompleted + 1;
-        
-        return {
-          ...prev,
-          isActive: false,
-          sessionsCompleted: newSessionsCompleted,
-          // Keep elapsedTime so user can see how long they studied
-        };
-      }
-      
+      // In stopwatch mode, just pause - don't save the session
+      // User will save it using the Reset button
       return {
         ...prev,
         isActive: false
@@ -731,15 +837,25 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
   const resetTimer = () => {
     // Reset guard when resetting timer
     isCompletingRef.current = false;
-    setTimerState(prev => ({
-      ...prev,
-      isActive: false,
-      isBreak: false,
-      timeLeft: prev.settings.studyDuration,
-      elapsedTime: 0, // Reset stopwatch elapsed time
-      // Keep sessionsCompleted as is - don't reset it
-      sessionStart: null
-    }));
+    
+    setTimerState(prev => {
+      // In stopwatch mode, save the session before resetting (if there's elapsed time)
+      if (stopwatchMode && prev.sessionStart && prev.elapsedTime > 0) {
+        // Save stopwatch session asynchronously before resetting
+        saveStopwatchSession(prev.elapsedTime, prev.sessionStart);
+      }
+      
+      return {
+        ...prev,
+        isActive: false,
+        isBreak: false,
+        timeLeft: stopwatchMode ? 0 : prev.settings.studyDuration,
+        elapsedTime: 0, // Reset stopwatch elapsed time
+        // Keep sessionsCompleted as is - don't reset it
+        sessionStart: null
+      };
+    });
+    
     // Clear only the timer state from localStorage on reset (keep sessions completed)
     localStorage.removeItem('studyTimerState');
   };
