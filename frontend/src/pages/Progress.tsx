@@ -10,6 +10,7 @@ import { format, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths } fr
 // import { getTodayDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
 import { API_BASE_URL } from '../config/api';
+import axiosInstance from '../utils/axiosConfig';
 
 const TABS = ['Daily', 'Weekly', 'Monthly'];
 
@@ -2110,19 +2111,47 @@ async function fetchUserStats() {
     const totalTasksCompleted = tasksData?.filter(task => task.completed).length || 0;
     
     // Get total study time from study timer sessions (in minutes)
-    const { data: studySessions, error: studyError } = await supabase
-      .from('study_timer_sessions')
-      .select('duration')
-      .eq('user_id', userId.toString())
-      .eq('session_type', 'Study');
+    // Get Supabase auth user ID (UUID) - this is what Supabase expects
+    const { data: { user: supabaseAuthUser } } = await supabase.auth.getUser();
+    const supabaseUserId = supabaseAuthUser?.id;
     
     let totalStudyTime = 0;
-    if (!studyError && studySessions) {
-      // Duration is in seconds, convert to minutes
-      const totalSeconds = studySessions.reduce((sum, s) => sum + (s.duration || 0), 0);
-      totalStudyTime = Math.round(totalSeconds / 60); // Convert to minutes
-    } else if (studyError) {
-      console.warn('Error fetching study timer sessions, using 0:', studyError);
+    if (supabaseUserId) {
+      const { data: studySessions, error: studyError } = await supabase
+        .from('study_timer_sessions')
+        .select('duration')
+        .eq('user_id', supabaseUserId) // Use Supabase auth UUID
+        .eq('session_type', 'Study');
+      
+      if (!studyError && studySessions) {
+        // Duration is in seconds, convert to minutes
+        const totalSeconds = studySessions.reduce((sum, s) => sum + (s.duration || 0), 0);
+        totalStudyTime = Math.round(totalSeconds / 60); // Convert to minutes
+      } else if (studyError) {
+        console.warn('Error fetching study timer sessions, using 0:', studyError);
+        // Fallback to backend API if Supabase fails
+        try {
+          const response = await axiosInstance.get('/tasks/study-timer-sessions/');
+          const backendSessions = response.data || [];
+          const studySessions = backendSessions.filter((s: any) => s.session_type === 'Study');
+          const totalSeconds = studySessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
+          totalStudyTime = Math.round(totalSeconds / 60); // Convert to minutes
+        } catch (apiError) {
+          console.error('Error fetching study timer sessions from backend:', apiError);
+        }
+      }
+    } else {
+      console.warn('No Supabase auth user found, trying backend API fallback');
+      // Fallback to backend API
+      try {
+        const response = await axiosInstance.get('/tasks/study-timer-sessions/');
+        const backendSessions = response.data || [];
+        const studySessions = backendSessions.filter((s: any) => s.session_type === 'Study');
+        const totalSeconds = studySessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
+        totalStudyTime = Math.round(totalSeconds / 60); // Convert to minutes
+      } catch (apiError) {
+        console.error('Error fetching study timer sessions from backend:', apiError);
+      }
     }
     
     // Get average productivity from productivity logs

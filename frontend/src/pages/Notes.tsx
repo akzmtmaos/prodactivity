@@ -2788,22 +2788,22 @@ const Notes = () => {
             {/* Header with back button when viewing notes */}
             {currentView === 'notes' && selectedNotebook && activeTab === 'notes' && (
               <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center">
-                  <button
-                    onClick={handleBackToNotebooks}
-                    className="p-2 mr-3 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                  >
-                    <ChevronLeft size={20} />
-                  </button>
-                  <div>
-                    <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-                      {selectedNotebook.name}
-                    </h2>
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-                      {notes.length} notes
-                    </span>
+                  <div className="flex items-center">
+                    <button
+                      onClick={handleBackToNotebooks}
+                      className="p-2 mr-3 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                    >
+                      <ChevronLeft size={20} />
+                    </button>
+                    <div>
+                      <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
+                        {selectedNotebook.name}
+                      </h2>
+                      <span className="text-sm text-gray-500 dark:text-gray-400">
+                        {notes.length} notes
+                      </span>
+                    </div>
                   </div>
-                </div>
               </div>
             )}
 

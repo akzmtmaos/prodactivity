@@ -1194,13 +1194,13 @@ interface NoteItem {
                   </select>
                 </div>
                 {/* Pagination next to filters */}
-                {activeTab === 'decks' && (
-                  <Pagination
-                    currentPage={currentPage}
-                    totalPages={Math.ceil(filteredDecks.length / PAGE_SIZE)}
-                    onPageChange={setCurrentPage}
-                  />
-                )}
+              {activeTab === 'decks' && (
+                <Pagination
+                  currentPage={currentPage}
+                  totalPages={Math.ceil(filteredDecks.length / PAGE_SIZE)}
+                  onPageChange={setCurrentPage}
+                />
+              )}
                 {activeTab === 'archived' && (
                   <Pagination
                     currentPage={currentArchivedPage}

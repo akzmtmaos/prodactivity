@@ -108,11 +108,12 @@ const TasksContent = ({ user }: { user: any }) => {
   }, [searchTerm, filterPriority, sortField, sortDirection]);
 
   // Fetch tasks and stats whenever filters/search change (Supabase-only)
+  // Note: currentPage is NOT in dependencies - we do client-side pagination for instant page changes
   useEffect(() => {
     fetchTasks();
     fetchTaskStats();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, filterPriority, filterCategory, sortField, sortDirection, currentPage]);
+  }, [searchTerm, filterPriority, filterCategory, sortField, sortDirection]);
 
   // Fetch tasks when activeTab changes
   useEffect(() => {
@@ -217,44 +218,52 @@ const TasksContent = ({ user }: { user: any }) => {
       
       console.log('Fetching tasks from Supabase for user:', userId);
       
-      // Build Supabase query
-      let query = supabase
-        .from('tasks')
-        .select('*')
-        .eq('user_id', userId)
-        .eq('is_deleted', false);
+      // Helper function to build base query with filters
+      const buildBaseQuery = () => {
+        let baseQuery = supabase
+          .from('tasks')
+          .select('*')
+          .eq('user_id', userId)
+          .eq('is_deleted', false);
+        
+        // Handle tab-based filtering
+        if (activeTab === 'tasks') {
+          // Show only incomplete tasks
+          baseQuery = baseQuery.eq('completed', false);
+        } else if (activeTab === 'completed') {
+          // Show only completed tasks
+          baseQuery = baseQuery.eq('completed', true);
+        } else if (activeTab === 'categories') {
+          // Show only incomplete tasks for categories tab
+          baseQuery = baseQuery.eq('completed', false);
+        }
+        
+        if (filterPriority !== 'all') {
+          baseQuery = baseQuery.eq('priority', filterPriority);
+        }
+        
+        if (filterCategory !== 'all') {
+          baseQuery = baseQuery.eq('task_category', filterCategory);
+        }
+        
+        if (searchTerm) {
+          baseQuery = baseQuery.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
+        }
+        
+        // Apply sorting
+        const orderingField = sortField === 'dueDate' ? 'due_date' : sortField;
+        baseQuery = baseQuery.order(orderingField, { ascending: sortDirection === 'asc' });
+        
+        return baseQuery;
+      };
       
-      // Handle tab-based filtering
-      if (activeTab === 'tasks') {
-        // Show only incomplete tasks
-        query = query.eq('completed', false);
-      } else if (activeTab === 'completed') {
-        // Show only completed tasks
-        query = query.eq('completed', true);
-      } else if (activeTab === 'categories') {
-        // Show only incomplete tasks for categories tab
-        query = query.eq('completed', false);
-      }
+      // Load ALL tasks matching filters (client-side pagination for instant page changes)
+      // Skip pagination for categories tab - it handles its own display
+      const shouldPaginate = activeTab !== 'categories';
       
-      // Note: Tab-based filtering is handled above, no additional completion filtering needed
-      
-      if (filterPriority !== 'all') {
-        query = query.eq('priority', filterPriority);
-      }
-      
-      if (filterCategory !== 'all') {
-        query = query.eq('task_category', filterCategory);
-      }
-      
-      if (searchTerm) {
-        query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
-      }
-      
-      // Apply sorting
-      const orderingField = sortField === 'dueDate' ? 'due_date' : sortField;
-      query = query.order(orderingField, { ascending: sortDirection === 'asc' });
-      
-      const { data, error } = await query;
+      // Fetch all tasks matching the filters (no server-side pagination)
+      const dataQuery = buildBaseQuery();
+      const { data, error } = await dataQuery;
       
       if (error) {
         console.error('Supabase error:', error);
@@ -262,7 +271,7 @@ const TasksContent = ({ user }: { user: any }) => {
         return;
       }
       
-      console.log('Supabase tasks response:', data);
+      console.log('Supabase tasks response (all):', data);
       
       // Map due_date to dueDate for each task to match frontend expectations
       const mappedTasks = (data || []).map((task: any) => ({
@@ -273,27 +282,36 @@ const TasksContent = ({ user }: { user: any }) => {
       console.log('Mapped tasks:', mappedTasks);
       setTasks(mappedTasks);
       
-      // Set pagination info
-      const newTotalCount = mappedTasks.length;
-      const newTotalPages = Math.ceil(newTotalCount / pageSize);
-      
-      setTotalCount(newTotalCount);
-      setTotalPages(newTotalPages);
-      
-      console.log('Tasks info:', {
-        totalCount: newTotalCount,
-        totalPages: newTotalPages,
-        currentPage,
-        pageSize,
-        resultsCount: mappedTasks.length
-      });
+      // Set pagination info (client-side pagination will slice the array)
+      if (shouldPaginate) {
+        const newTotalCount = mappedTasks.length;
+        const newTotalPages = Math.ceil(newTotalCount / pageSize);
+        
+        setTotalCount(newTotalCount);
+        setTotalPages(newTotalPages);
+        
+        console.log('Tasks info:', {
+          totalCount: newTotalCount,
+          totalPages: newTotalPages,
+          currentPage,
+          pageSize,
+          resultsCount: mappedTasks.length
+        });
+      } else {
+        // Categories tab - set pagination info but not used
+        const newTotalCount = mappedTasks.length;
+        const newTotalPages = Math.ceil(newTotalCount / pageSize);
+        
+        setTotalCount(newTotalCount);
+        setTotalPages(newTotalPages);
+      }
     } catch (err: any) {
       console.error('Error fetching tasks from Supabase:', err);
         setError('Failed to load tasks. Please try again later.');
     } finally {
       setLoading(false);
     }
-  }, [navigate, activeTab, filterPriority, filterCategory, searchTerm, sortField, sortDirection, currentPage, pageSize]);
+  }, [navigate, activeTab, filterPriority, filterCategory, searchTerm, sortField, sortDirection, pageSize]);
 
   // Real-time refresh callbacks
   const handleTasksRefresh = useCallback(() => {
@@ -885,7 +903,21 @@ const TasksContent = ({ user }: { user: any }) => {
   // Also keep existingCategories for TaskForm compatibility
   const existingCategories = uniqueCategories;
   
-  const displayedTasks = activeTab === 'categories' ? [] : tasks; // Categories tab will handle its own display
+  // Client-side pagination logic (instant page changes, no loading)
+  // Only paginate for tasks and completed tabs, not categories
+  const shouldPaginate = activeTab !== 'categories';
+  
+  let displayedTasks: Task[] = [];
+  if (activeTab === 'categories') {
+    displayedTasks = []; // Categories tab will handle its own display
+  } else if (shouldPaginate) {
+    // Client-side pagination: slice the tasks array
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    displayedTasks = tasks.slice(startIndex, endIndex);
+  } else {
+    displayedTasks = tasks;
+  }
 
 
   return (

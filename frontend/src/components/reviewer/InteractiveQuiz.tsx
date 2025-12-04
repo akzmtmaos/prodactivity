@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import { X, CheckCircle, XCircle, RotateCcw, Trophy, Clock, Target } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, RotateCcw } from 'lucide-react';
 import axiosInstance from '../../utils/axiosConfig';
 
 interface Question {
@@ -127,6 +127,55 @@ const InteractiveQuiz: React.FC<InteractiveQuizProps> = ({ quiz, onClose, onScor
     setQuestions(parsed);
   }, [quiz.content]);
 
+  // Hide navbar and ensure full screen coverage when quiz is active
+  useEffect(() => {
+    // Add class to body and html to hide navbar
+    document.body.classList.add('quiz-active');
+    document.documentElement.classList.add('quiz-active');
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+    document.documentElement.style.overflow = 'hidden';
+    
+    // Hide navbar elements directly - use more specific selectors
+    const hideNavbar = () => {
+      // Desktop sidebar navbar
+      const desktopNav = document.querySelector('aside.fixed.inset-y-0');
+      // Mobile top navbar
+      const mobileTopNav = document.querySelector('div.md\\:hidden.fixed.top-0');
+      // Mobile bottom navbar  
+      const mobileBottomNav = document.querySelector('div.md\\:hidden.fixed.bottom-0');
+      // Timer widget
+      const timerWidget = document.querySelector('[class*="TimerWidget"]');
+      
+      if (desktopNav) (desktopNav as HTMLElement).style.display = 'none';
+      if (mobileTopNav) (mobileTopNav as HTMLElement).style.display = 'none';
+      if (mobileBottomNav) (mobileBottomNav as HTMLElement).style.display = 'none';
+      if (timerWidget) (timerWidget as HTMLElement).style.display = 'none';
+    };
+    
+    // Small delay to ensure DOM is ready
+    setTimeout(hideNavbar, 10);
+    
+    return () => {
+      // Cleanup: remove classes and restore
+      document.body.classList.remove('quiz-active');
+      document.documentElement.classList.remove('quiz-active');
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
+      
+      // Show navbar elements again
+      const desktopNav = document.querySelector('aside.fixed.inset-y-0');
+      const mobileTopNav = document.querySelector('div.md\\:hidden.fixed.top-0');
+      const mobileBottomNav = document.querySelector('div.md\\:hidden.fixed.bottom-0');
+      const timerWidget = document.querySelector('[class*="TimerWidget"]');
+      
+      if (desktopNav) (desktopNav as HTMLElement).style.display = '';
+      if (mobileTopNav) (mobileTopNav as HTMLElement).style.display = '';
+      if (mobileBottomNav) (mobileBottomNav as HTMLElement).style.display = '';
+      if (timerWidget) (timerWidget as HTMLElement).style.display = '';
+    };
+  }, []);
+
   const currentQuestion = questions[currentQuestionIndex];
   const totalQuestions = questions.length;
   const answeredCount = Object.keys(userAnswers).length;
@@ -222,21 +271,19 @@ const InteractiveQuiz: React.FC<InteractiveQuizProps> = ({ quiz, onClose, onScor
 
   if (questions.length === 0) {
     return ReactDOM.createPortal(
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-3xl p-8">
-          <div className="text-center">
-            <XCircle size={48} className="mx-auto text-red-500 mb-4" />
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Invalid Quiz Format</h2>
-            <p className="text-gray-600 dark:text-gray-400 mb-6">
-              Unable to parse quiz questions. Please ensure the quiz is properly formatted.
-            </p>
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              Close
-            </button>
-          </div>
+      <div className="fixed top-0 left-0 right-0 bottom-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto flex flex-col items-center justify-center z-[9999]" style={{ margin: 0, padding: 0, top: 0, left: 0, right: 0, bottom: 0 }}>
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-md">
+          <XCircle size={48} className="mx-auto text-red-500 mb-4" />
+          <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Invalid Quiz Format</h2>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            Unable to parse quiz questions. Please ensure the quiz is properly formatted.
+          </p>
+          <button
+            onClick={onClose}
+            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+          >
+            Close
+          </button>
         </div>
       </div>,
       document.body
@@ -245,161 +292,119 @@ const InteractiveQuiz: React.FC<InteractiveQuizProps> = ({ quiz, onClose, onScor
 
   if (showResults) {
     const score = calculateScore();
-    const timeTaken = getTimeTaken();
+    const incorrectAnswers = score.total - score.correct;
 
     return ReactDOM.createPortal(
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-        <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+      <div className="fixed top-0 left-0 right-0 bottom-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto z-[9999]" style={{ margin: 0, padding: 0, top: 0, left: 0, right: 0, bottom: 0 }}>
+        <div className="py-8 px-4 flex flex-col items-center justify-start min-h-screen">
           {/* Header */}
-          <div className="flex items-center justify-between px-8 py-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-            <div className="flex items-center gap-3">
-              <Trophy size={28} />
-              <div>
-                <h2 className="text-2xl font-bold">Quiz Results</h2>
-                <p className="text-indigo-100 text-sm">{quiz.title}</p>
-              </div>
-            </div>
+          <div className="flex items-center justify-between mb-8 w-full max-w-4xl">
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-              aria-label="Close"
+              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
             >
-              <X size={24} />
+              <ArrowLeft size={20} className="mr-2" />
+              Back
             </button>
           </div>
 
-          {/* Score Summary */}
-          <div className="px-8 py-6 bg-gradient-to-b from-gray-50 to-white dark:from-gray-800 dark:to-gray-900 border-b border-gray-200 dark:border-gray-700">
-            <div className="grid grid-cols-3 gap-6">
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Target size={20} className="text-indigo-600 dark:text-indigo-400" />
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Score</span>
-                </div>
-                <div className="text-4xl font-bold text-indigo-600 dark:text-indigo-400">
-                  {score.percentage}%
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  {score.correct} / {score.total} correct
-                </div>
+          {/* Results Card */}
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-4xl">
+            <div className="mb-6">
+              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
+                <CheckCircle size={32} className="text-green-600 dark:text-green-400" />
               </div>
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Clock size={20} className="text-purple-600 dark:text-purple-400" />
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Time</span>
-                </div>
-                <div className="text-4xl font-bold text-purple-600 dark:text-purple-400">
-                  {timeTaken}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Total time taken
-                </div>
-              </div>
-              <div className="text-center">
-                <div className="flex items-center justify-center gap-2 mb-2">
-                  <Trophy size={20} className="text-yellow-600 dark:text-yellow-400" />
-                  <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Grade</span>
-                </div>
-                <div className="text-4xl font-bold text-yellow-600 dark:text-yellow-400">
-                  {score.percentage >= 90 ? 'A' : score.percentage >= 80 ? 'B' : score.percentage >= 70 ? 'C' : score.percentage >= 60 ? 'D' : 'F'}
-                </div>
-                <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                  Performance
-                </div>
-              </div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                Quiz Complete!
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Your results for "{quiz.title}"
+              </p>
             </div>
-          </div>
 
-          {/* Detailed Results */}
-          <div className="flex-1 overflow-auto px-8 py-6 space-y-6">
-            {questions.map((question, index) => {
-              const userAnswer = userAnswers[question.number];
-              const isCorrect = userAnswer === question.correctAnswer;
-              const wasAnswered = userAnswer !== undefined;
+            {/* Score Display */}
+            <div className="mb-8">
+              <div className="text-6xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">
+                {score.percentage}%
+              </div>
+              <p className="text-gray-600 dark:text-gray-400">
+                {score.correct} out of {score.total} correct
+              </p>
+            </div>
 
-              return (
-                <div
-                  key={question.number}
-                  className={`rounded-xl border-2 p-6 transition-all ${
-                    isCorrect
-                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
-                      : wasAnswered
-                      ? 'border-red-500 bg-red-50 dark:bg-red-900/20'
-                      : 'border-gray-300 bg-gray-50 dark:bg-gray-800/50'
-                  }`}
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="flex-shrink-0">
-                      {isCorrect ? (
-                        <CheckCircle size={24} className="text-green-600 dark:text-green-400" />
-                      ) : wasAnswered ? (
-                        <XCircle size={24} className="text-red-600 dark:text-red-400" />
-                      ) : (
-                        <div className="w-6 h-6 rounded-full border-2 border-gray-400" />
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900 dark:text-white mb-4">
-                        {question.number}. {question.question}
-                      </h3>
-                      <div className="space-y-2">
-                        {Object.entries(question.options).map(([letter, text]) => {
-                          const isUserAnswer = userAnswer === letter;
-                          const isCorrectAnswer = question.correctAnswer === letter;
-
-                          return (
-                            <div
-                              key={letter}
-                              className={`p-3 rounded-lg border-2 ${
-                                isCorrectAnswer
-                                  ? 'border-green-500 bg-green-100 dark:bg-green-900/30'
-                                  : isUserAnswer
-                                  ? 'border-red-500 bg-red-100 dark:bg-red-900/30'
-                                  : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800'
-                              }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <span className="font-semibold text-gray-700 dark:text-gray-300">
-                                  {letter})
-                                </span>
-                                <span className="text-gray-700 dark:text-gray-300">{text}</span>
-                                {isCorrectAnswer && (
-                                  <span className="ml-auto px-2 py-1 text-xs font-semibold text-green-700 bg-green-200 dark:text-green-200 dark:bg-green-800 rounded">
-                                    Correct
-                                  </span>
-                                )}
-                                {isUserAnswer && !isCorrectAnswer && (
-                                  <span className="ml-auto px-2 py-1 text-xs font-semibold text-red-700 bg-red-200 dark:text-red-200 dark:bg-red-800 rounded">
-                                    Your answer
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+            {/* Detailed Breakdown */}
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
+                Quiz Breakdown
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                {/* Total Questions */}
+                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
+                    {score.total}
+                  </div>
+                  <div className="text-sm text-gray-600 dark:text-gray-400">
+                    Total Questions
                   </div>
                 </div>
-              );
-            })}
-          </div>
+                
+                {/* Correct Answers */}
+                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-green-600 dark:text-green-400 mb-1">
+                    {score.correct}
+                  </div>
+                  <div className="text-sm text-green-700 dark:text-green-300">
+                    Correct Answers
+                  </div>
+                </div>
+                
+                {/* Incorrect Answers */}
+                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
+                  <div className="text-2xl font-bold text-red-600 dark:text-red-400 mb-1">
+                    {incorrectAnswers}
+                  </div>
+                  <div className="text-sm text-red-700 dark:text-red-300">
+                    Incorrect Answers
+                  </div>
+                </div>
+              </div>
 
-          {/* Footer */}
-          <div className="px-8 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex gap-3 justify-between">
-            <button
-              onClick={handleRestart}
-              className="flex items-center gap-2 px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            >
-              <RotateCcw size={18} />
-              Retake Quiz
-            </button>
-            <button
-              onClick={onClose}
-              className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-            >
-              Close
-            </button>
+              {/* Performance Level */}
+              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                <div className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  Performance Level
+                </div>
+                <div className={`text-lg font-bold ${
+                  score.percentage >= 90 ? 'text-green-600 dark:text-green-400' :
+                  score.percentage >= 80 ? 'text-blue-600 dark:text-blue-400' :
+                  score.percentage >= 70 ? 'text-yellow-600 dark:text-yellow-400' :
+                  score.percentage >= 60 ? 'text-orange-600 dark:text-orange-400' :
+                  'text-red-600 dark:text-red-400'
+                }`}>
+                  {score.percentage >= 90 ? 'Excellent!' :
+                   score.percentage >= 80 ? 'Very Good!' :
+                   score.percentage >= 70 ? 'Good!' :
+                   score.percentage >= 60 ? 'Fair' :
+                   'Needs Improvement'}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={handleRestart}
+                className="flex items-center gap-2 px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <RotateCcw size={18} />
+                Retake Quiz
+              </button>
+              <button
+                onClick={onClose}
+                className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       </div>,
@@ -407,82 +412,81 @@ const InteractiveQuiz: React.FC<InteractiveQuizProps> = ({ quiz, onClose, onScor
     );
   }
 
+  const progress = ((currentQuestionIndex + 1) / totalQuestions) * 100;
+
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+    <div className="fixed top-0 left-0 right-0 bottom-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto z-[9999]" style={{ margin: 0, padding: 0, top: 0, left: 0, right: 0, bottom: 0 }}>
+      <div className="py-8 px-4 flex flex-col items-center justify-start min-h-screen">
         {/* Header */}
-        <div className="flex items-center justify-between px-8 py-6 bg-gradient-to-r from-indigo-600 to-purple-600 text-white">
-          <div>
-            <h2 className="text-2xl font-bold">{quiz.title}</h2>
-            <p className="text-indigo-100 text-sm mt-1">
+        <div className="flex items-center justify-between mb-8 w-full max-w-4xl">
+          <button
+            onClick={onClose}
+            className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
+          >
+            <ArrowLeft size={20} className="mr-2" />
+            Back
+          </button>
+          <div className="text-right">
+            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+              {quiz.title} - Quiz
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400">
               Question {currentQuestionIndex + 1} of {totalQuestions}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-white/20 rounded-lg transition-colors"
-            aria-label="Close"
-          >
-            <X size={24} />
-          </button>
         </div>
 
         {/* Progress Bar */}
-        <div className="h-2 bg-gray-200 dark:bg-gray-700">
-          <div
-            className="h-full bg-gradient-to-r from-indigo-600 to-purple-600 transition-all duration-300"
-            style={{ width: `${((currentQuestionIndex + 1) / totalQuestions) * 100}%` }}
-          />
+        <div className="mb-8 w-full max-w-4xl">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              Progress
+            </span>
+            <span className="text-sm text-gray-600 dark:text-gray-400">
+              {Math.round(progress)}%
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+            <div
+              className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${progress}%` }}
+            ></div>
+          </div>
         </div>
 
-        {/* Question Content */}
-        <div className="flex-1 overflow-auto px-8 py-8">
-          <div className="mb-6">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+        {/* Question Card */}
+        <div className="mb-8 w-full max-w-4xl">
+          <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-6 shadow text-center">
+            <div className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
               Question {currentQuestion.number}
-            </h3>
-            <p className="text-lg text-gray-700 dark:text-gray-300">{currentQuestion.question}</p>
-          </div>
-
-          <div className="space-y-3">
-            {Object.entries(currentQuestion.options).map(([letter, text]) => {
-              const isSelected = userAnswers[currentQuestion.number] === letter;
-              
-              return (
-                <button
-                  key={letter}
-                  onClick={() => handleAnswerSelect(letter as 'A' | 'B' | 'C' | 'D')}
-                  className={`w-full p-4 text-left rounded-xl border-2 transition-all ${
-                    isSelected
-                      ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 dark:border-indigo-500'
-                      : 'border-gray-300 dark:border-gray-600 hover:border-indigo-400 dark:hover:border-indigo-500 hover:bg-gray-50 dark:hover:bg-gray-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <div
-                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                        isSelected
-                          ? 'border-indigo-600 bg-indigo-600'
-                          : 'border-gray-400 dark:border-gray-500'
-                      }`}
-                    >
-                      {isSelected && <div className="w-3 h-3 rounded-full bg-white" />}
-                    </div>
-                    <div className="flex-1">
-                      <span className="font-semibold text-gray-900 dark:text-white mr-2">
-                        {letter})
-                      </span>
-                      <span className="text-gray-700 dark:text-gray-300">{text}</span>
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+            </div>
+            <div className="text-lg font-semibold text-gray-900 dark:text-white mb-6">
+              {currentQuestion.question}
+            </div>
+            <div className="space-y-3">
+              {Object.entries(currentQuestion.options).map(([letter, text]) => {
+                const isSelected = userAnswers[currentQuestion.number] === letter;
+                
+                return (
+                  <button
+                    key={letter}
+                    onClick={() => handleAnswerSelect(letter as 'A' | 'B' | 'C' | 'D')}
+                    className={`w-full px-4 py-3 rounded-lg border text-base font-medium transition-colors focus:outline-none
+                      ${isSelected
+                        ? 'bg-indigo-100 border-indigo-400 text-indigo-800 dark:bg-indigo-900/20 dark:text-indigo-400 dark:border-indigo-400'
+                        : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white hover:bg-indigo-50 dark:hover:bg-indigo-900/20'}
+                    `}
+                  >
+                    {letter}) {text}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="px-8 py-4 bg-gray-50 dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700">
+        {/* Navigation Footer */}
+        <div className="w-full max-w-4xl">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-600 dark:text-gray-400">
               Answered: {answeredCount} / {totalQuestions}

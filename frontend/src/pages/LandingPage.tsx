@@ -2,6 +2,8 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { reviewsService, Review, NewReview } from "../lib/reviewsService";
 import Toast from "../components/common/Toast";
+import { useTheme } from "../context/ThemeContext";
+import { Sun, Moon } from "lucide-react";
 // @ts-ignore
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -120,6 +122,7 @@ const AnimatedLetter = () => {
 
 const LandingPage = () => {
   const navigate = useNavigate();
+  const { theme, setTheme } = useTheme();
   
   // Review state
   const [userReviews, setUserReviews] = useState<Review[]>([]);
@@ -199,7 +202,17 @@ const LandingPage = () => {
     try {
       setLoading(true);
       const reviews = await reviewsService.getReviews();
-      setUserReviews(reviews);
+      
+      // Filter out suspicious reviews and sanitize content
+      const safeReviews = reviews
+        .filter(review => !isSuspiciousReview(review))
+        .map(review => ({
+          ...review,
+          content: sanitizeReviewContent(review.content)
+        }))
+        .filter(review => review.content.length > 0); // Remove empty reviews after sanitization
+      
+      setUserReviews(safeReviews);
     } catch (error) {
       console.error('Error loading reviews:', error);
       setUserReviews([]);
@@ -259,6 +272,57 @@ const LandingPage = () => {
     }
   };
 
+  // Sanitize and filter reviews - remove HTML/JS code and suspicious content
+  const sanitizeReviewContent = (content: string): string => {
+    if (!content) return '';
+    
+    // Remove script tags and all HTML tags
+    let cleaned = content
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<[^>]+>/g, ''); // Remove all HTML tags
+    
+    // Remove suspicious patterns
+    cleaned = cleaned
+      .replace(/security-test-btn/gi, '')
+      .replace(/SECURITY_TEST/gi, '')
+      .replace(/onclick\s*=/gi, '')
+      .replace(/on\w+\s*=\s*["'][^"']*["']/gi, '')
+      .replace(/javascript:/gi, '')
+      .replace(/document\./gi, '')
+      .replace(/window\./gi, '');
+    
+    // Decode HTML entities
+    const temp = document.createElement('div');
+    temp.innerHTML = cleaned;
+    cleaned = temp.textContent || temp.innerText || cleaned;
+    
+    return cleaned.trim();
+  };
+
+  // Filter out reviews with suspicious content
+  const isSuspiciousReview = (review: Review): boolean => {
+    const content = review.content.toLowerCase();
+    
+    // Patterns that indicate malicious or test code
+    const suspiciousPatterns = [
+      'security-test-btn',
+      'security_test',
+      'run security detection test',
+      '<script',
+      'javascript:',
+      'onclick=',
+      'test button',
+      '<!doctype html>',
+      'document.',
+      'window.',
+      'fetch("/api/',
+      'alert(',
+      'siem/logs'
+    ];
+    
+    return suspiciousPatterns.some(pattern => content.includes(pattern));
+  };
+
   const renderStars = (rating: number, size: 'sm' | 'md' | 'lg' = 'md') => {
     const sizeClasses = {
       sm: 'w-3 h-3',
@@ -278,6 +342,46 @@ const LandingPage = () => {
       </svg>
     ));
   };
+
+  // Toggle theme handler - cycles through light, dark, and system
+  const toggleTheme = () => {
+    const currentTheme = theme || 'system';
+    let newTheme: 'light' | 'dark' | 'system';
+    
+    if (currentTheme === 'light') {
+      newTheme = 'dark';
+    } else if (currentTheme === 'dark') {
+      newTheme = 'light';
+    } else {
+      // If system, default to light
+      newTheme = 'light';
+    }
+    
+    setTheme(newTheme);
+  };
+
+  // Get effective theme for display (convert system to light/dark)
+  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>(
+    theme === 'system' 
+      ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+      : (theme as 'light' | 'dark')
+  );
+
+  // Update effective theme when theme or system preference changes
+  useEffect(() => {
+    if (theme === 'system') {
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const updateTheme = () => {
+        setEffectiveTheme(mediaQuery.matches ? 'dark' : 'light');
+      };
+      
+      updateTheme();
+      mediaQuery.addEventListener('change', updateTheme);
+      return () => mediaQuery.removeEventListener('change', updateTheme);
+    } else {
+      setEffectiveTheme(theme as 'light' | 'dark');
+    }
+  }, [theme]);
 
   return (
     <>
@@ -467,6 +571,19 @@ const LandingPage = () => {
           ProdActivity
         </div>
               <div className="flex items-center space-x-3">
+          {/* Theme Toggle */}
+          <button
+            onClick={toggleTheme}
+            className="p-2 rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 min-h-[44px] min-w-[44px] flex items-center justify-center"
+            aria-label={`Switch to ${effectiveTheme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch to ${effectiveTheme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {effectiveTheme === 'dark' ? (
+              <Sun size={20} className="text-yellow-500" />
+            ) : (
+              <Moon size={20} className="text-indigo-600 dark:text-indigo-400" />
+            )}
+          </button>
           <button
             onClick={() => navigate('/login')}
                   className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-lg min-h-[44px]"
@@ -900,8 +1017,8 @@ const LandingPage = () => {
                               </div>
                             </div>
                             
-                            {/* Review Content */}
-                            <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                            {/* Review Content - Already sanitized in loadReviews */}
+                            <p className="text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
                               {review.content}
                             </p>
                           </div>

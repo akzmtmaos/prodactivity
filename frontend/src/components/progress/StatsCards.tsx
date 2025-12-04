@@ -171,7 +171,14 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
           </div>
           <div className="ml-4">
             <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {Math.floor(stats.totalStudyTime / 60)}h {stats.totalStudyTime % 60}m
+              {stats.totalStudyTime >= 60 
+                ? (() => {
+                    const hours = Math.floor(stats.totalStudyTime / 60);
+                    const minutes = stats.totalStudyTime % 60;
+                    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+                  })()
+                : `${stats.totalStudyTime}m`
+              }
             </h3>
             <p className="text-gray-600 dark:text-gray-400">Study Time</p>
           </div>

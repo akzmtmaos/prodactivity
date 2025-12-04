@@ -139,3 +139,27 @@ html {
     transform: translateX(20px);
   }
 }
+
+/* Hide navbar when quiz is active */
+body.quiz-active aside,
+body.quiz-active nav,
+html.quiz-active body > div > nav,
+html.quiz-active body aside[class*="fixed"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Ensure quiz covers full screen without gaps */
+html.quiz-active,
+html.quiz-active body {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+html.quiz-active body #root > div {
+  margin: 0 !important;
+  padding: 0 !important;
+}

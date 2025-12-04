@@ -116,7 +116,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
 
   return (
     <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow p-5 h-full flex flex-col">
-      <div className="mb-6">
+      <div className="mb-4">
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
           <Book className="inline-block mr-2" size={20} />
           Notebooks
@@ -124,7 +124,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
       </div>
       
       {/* Notebooks list */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 20rem)', alignContent: 'start' }}>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto flex-1" style={{ alignContent: 'start' }}>
         {notebooks.length === 0 && (
           <div className="col-span-full">
             <div className="flex items-center justify-center h-40 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg">

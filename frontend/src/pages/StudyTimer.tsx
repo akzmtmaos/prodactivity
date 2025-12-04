@@ -333,7 +333,7 @@ const StudyTimer: React.FC = () => {
             return;
           } else {
             console.warn('Failed to fetch from Supabase:', supabaseError);
-          }
+        }
         } else {
           console.warn('⚠️ No Supabase auth user found, cannot fetch from Supabase');
         }

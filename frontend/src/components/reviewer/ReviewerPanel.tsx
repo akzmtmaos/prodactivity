@@ -16,9 +16,7 @@ import {
   Search,
   Filter,
   Download,
-  Share2,
-  ChevronLeft,
-  ChevronRight
+  Share2
 } from 'lucide-react';
 import HelpButton from '../HelpButton';
 import axiosInstance from '../../utils/axiosConfig';
@@ -1193,57 +1191,133 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         )}
       </div>
 
-      {/* Pagination Controls - Outside Scrollable Area */}
-      {activeTab === 'reviewer' && totalPagesReviewer > 1 && (
-        <div className="flex items-center justify-between mt-4 px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-b-lg">
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Showing {startIndexReviewer + 1}-{Math.min(endIndexReviewer, filteredReviewers.length)} of {filteredReviewers.length} reviewers
+      {/* Pagination Controls - Outside Scrollable Area - Only show when not loading */}
+      {!loading && activeTab === 'reviewer' && totalPagesReviewer > 1 && (
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              Showing {startIndexReviewer + 1} to {Math.min(endIndexReviewer, filteredReviewers.length)} of {filteredReviewers.length} results
           </div>
-          <div className="flex items-center gap-2">
+            <div className="flex items-center space-x-2">
             <button
               onClick={() => setCurrentPageReviewer(prev => Math.max(1, prev - 1))}
               disabled={currentPageReviewer === 1}
-              className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className={`px-3 py-1 text-sm font-medium rounded-md ${
+                  currentPageReviewer === 1
+                    ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
-              <ChevronLeft size={20} />
+                Previous
             </button>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Page {currentPageReviewer} of {totalPagesReviewer}
-            </span>
+              
+              {/* Page numbers */}
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPagesReviewer) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPagesReviewer <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPageReviewer <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPageReviewer >= totalPagesReviewer - 2) {
+                    pageNum = totalPagesReviewer - 4 + i;
+                  } else {
+                    pageNum = currentPageReviewer - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPageReviewer(pageNum)}
+                      className={`px-3 py-1 text-sm font-medium rounded-md ${
+                        currentPageReviewer === pageNum
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
             <button
               onClick={() => setCurrentPageReviewer(prev => Math.min(totalPagesReviewer, prev + 1))}
               disabled={currentPageReviewer === totalPagesReviewer}
-              className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className={`px-3 py-1 text-sm font-medium rounded-md ${
+                  currentPageReviewer === totalPagesReviewer
+                    ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
-              <ChevronRight size={20} />
+                Next
             </button>
+            </div>
           </div>
         </div>
       )}
       
-      {activeTab === 'quiz' && totalPagesQuiz > 1 && (
-        <div className="flex items-center justify-between mt-4 px-4 py-3 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 rounded-b-lg">
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Showing {startIndexQuiz + 1}-{Math.min(endIndexQuiz, filteredQuizzes.length)} of {filteredQuizzes.length} quizzes
+      {!loading && activeTab === 'quiz' && totalPagesQuiz > 1 && (
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-gray-700 dark:text-gray-300">
+              Showing {startIndexQuiz + 1} to {Math.min(endIndexQuiz, filteredQuizzes.length)} of {filteredQuizzes.length} results
           </div>
-          <div className="flex items-center gap-2">
+            <div className="flex items-center space-x-2">
             <button
               onClick={() => setCurrentPageQuiz(prev => Math.max(1, prev - 1))}
               disabled={currentPageQuiz === 1}
-              className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className={`px-3 py-1 text-sm font-medium rounded-md ${
+                  currentPageQuiz === 1
+                    ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
-              <ChevronLeft size={20} />
+                Previous
             </button>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Page {currentPageQuiz} of {totalPagesQuiz}
-            </span>
+              
+              {/* Page numbers */}
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPagesQuiz) }, (_, i) => {
+                  let pageNum: number;
+                  if (totalPagesQuiz <= 5) {
+                    pageNum = i + 1;
+                  } else if (currentPageQuiz <= 3) {
+                    pageNum = i + 1;
+                  } else if (currentPageQuiz >= totalPagesQuiz - 2) {
+                    pageNum = totalPagesQuiz - 4 + i;
+                  } else {
+                    pageNum = currentPageQuiz - 2 + i;
+                  }
+                  
+                  return (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPageQuiz(pageNum)}
+                      className={`px-3 py-1 text-sm font-medium rounded-md ${
+                        currentPageQuiz === pageNum
+                          ? 'bg-indigo-600 text-white'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  );
+                })}
+              </div>
+              
             <button
               onClick={() => setCurrentPageQuiz(prev => Math.min(totalPagesQuiz, prev + 1))}
               disabled={currentPageQuiz === totalPagesQuiz}
-              className="p-2 rounded-lg border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                className={`px-3 py-1 text-sm font-medium rounded-md ${
+                  currentPageQuiz === totalPagesQuiz
+                    ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
             >
-              <ChevronRight size={20} />
+                Next
             </button>
+            </div>
           </div>
         </div>
       )}

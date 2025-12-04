@@ -777,62 +777,99 @@ const Home = () => {
     }
   };
 
-  // Study hours from study timer sessions
-  const [studyHours, setStudyHours] = useState(0);
+  // Today's study time from study timer sessions
+  const [todaysStudyTime, setTodaysStudyTime] = useState(0);
   
-  // Fetch study hours from study timer sessions
+  // Fetch today's study time from study timer sessions
   useEffect(() => {
-    const fetchStudyHours = async () => {
+    const fetchTodaysStudyTime = async () => {
       try {
         const userData = localStorage.getItem('user');
         if (!userData) {
-          setStudyHours(0);
+          setTodaysStudyTime(0);
           return;
         }
         
-        const user = JSON.parse(userData);
-        const userId = user.id;
+        // Get Supabase auth user ID (UUID) - this is what Supabase expects
+        const { data: { user: supabaseAuthUser } } = await supabase.auth.getUser();
+        const supabaseUserId = supabaseAuthUser?.id;
         
-        if (!userId) {
-          setStudyHours(0);
-          return;
-        }
-        
-        // Fetch study timer sessions from Supabase
-        const { data: sessions, error } = await supabase
-          .from('study_timer_sessions')
-          .select('duration, session_type')
-          .eq('user_id', userId.toString())
-          .eq('session_type', 'Study');
-        
-        if (error) {
-          console.error('Error fetching study hours:', error);
+        if (!supabaseUserId) {
           // Fallback to backend API
           try {
             const response = await axiosInstance.get('/tasks/study-timer-sessions/');
             const backendSessions = response.data || [];
-            const studySessions = backendSessions.filter((s: any) => s.session_type === 'Study');
-            const totalSeconds = studySessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
-            setStudyHours(totalSeconds / 3600); // Convert seconds to hours
+            // Filter for today's Study sessions
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const todayEnd = new Date(today);
+            todayEnd.setHours(23, 59, 59, 999);
+            
+            const todaySessions = backendSessions.filter((s: any) => {
+              if (s.session_type !== 'Study') return false;
+              const startTime = new Date(s.start_time);
+              return startTime >= today && startTime <= todayEnd;
+            });
+            
+            const totalSeconds = todaySessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
+            const minutes = Math.round(totalSeconds / 60); // Convert to minutes and round
+            setTodaysStudyTime(minutes);
           } catch (apiError) {
-            console.error('Error fetching study hours from backend:', apiError);
-            setStudyHours(0);
+            console.error('Error fetching today\'s study time from backend:', apiError);
+            setTodaysStudyTime(0);
+          }
+          return;
+        }
+        
+        // Get today's start and end timestamps
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayEnd = new Date(today);
+        todayEnd.setHours(23, 59, 59, 999);
+        
+        // Fetch today's study timer sessions from Supabase
+        const { data: sessions, error } = await supabase
+          .from('study_timer_sessions')
+          .select('duration, session_type, start_time')
+          .eq('user_id', supabaseUserId)
+          .eq('session_type', 'Study')
+          .gte('start_time', today.toISOString())
+          .lte('start_time', todayEnd.toISOString());
+        
+        if (error) {
+          console.error('Error fetching today\'s study time:', error);
+          // Fallback to backend API
+          try {
+            const response = await axiosInstance.get('/tasks/study-timer-sessions/');
+            const backendSessions = response.data || [];
+            const todaySessions = backendSessions.filter((s: any) => {
+              if (s.session_type !== 'Study') return false;
+              const startTime = new Date(s.start_time);
+              return startTime >= today && startTime <= todayEnd;
+            });
+            const totalSeconds = todaySessions.reduce((sum: number, s: any) => sum + (s.duration || 0), 0);
+            const minutes = Math.round(totalSeconds / 60); // Convert to minutes and round
+            setTodaysStudyTime(minutes);
+          } catch (apiError) {
+            console.error('Error fetching today\'s study time from backend:', apiError);
+            setTodaysStudyTime(0);
           }
         } else {
-          // Calculate total study hours from sessions (duration is in seconds)
+          // Calculate today's study time from sessions (duration is in seconds)
           const totalSeconds = (sessions || []).reduce((sum, s) => sum + (s.duration || 0), 0);
-          setStudyHours(totalSeconds / 3600); // Convert seconds to hours
+          const minutes = Math.round(totalSeconds / 60); // Convert to minutes and round
+          setTodaysStudyTime(minutes);
         }
       } catch (e) {
-        console.error('Error calculating study hours:', e);
-        setStudyHours(0);
+        console.error('Error calculating today\'s study time:', e);
+        setTodaysStudyTime(0);
       }
     };
     
-    fetchStudyHours();
+    fetchTodaysStudyTime();
     
-    // Refresh study hours periodically
-    const interval = setInterval(fetchStudyHours, 60000); // Every minute
+    // Refresh today's study time periodically
+    const interval = setInterval(fetchTodaysStudyTime, 60000); // Every minute
     return () => clearInterval(interval);
   }, []);
 
@@ -1044,8 +1081,17 @@ const Home = () => {
                     <Clock size={16} className="sm:w-5 sm:h-5 text-indigo-600 dark:text-indigo-400" />
                   </div>
                   <div className="ml-3 sm:ml-5">
-                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Study Hours</p>
-                    <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">{studyHours.toFixed(1)}</p>
+                    <p className="text-xs sm:text-sm font-medium text-gray-500 dark:text-gray-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">Today's Study Time</p>
+                    <p className="mt-1 text-xl sm:text-2xl lg:text-3xl font-semibold text-gray-900 dark:text-white">
+                      {todaysStudyTime >= 60 
+                        ? (() => {
+                            const hours = Math.floor(todaysStudyTime / 60);
+                            const minutes = todaysStudyTime % 60;
+                            return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+                          })()
+                        : `${todaysStudyTime}m`
+                      }
+                    </p>
                   </div>
                 </div>
               </div>
@@ -1145,23 +1191,23 @@ const Home = () => {
                       className="flex-shrink-0 w-1/4 px-1"
                     >
                       <div 
-                        className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-white/20 dark:border-gray-700/30 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group"
+                        className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-white/20 dark:border-gray-700/30 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group overflow-hidden"
                         onClick={() => handleOpenNote(note.id)}
                       >
-                        <div className="p-2 flex-1 flex flex-col items-center justify-center text-center">
-                          <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/50 transition-colors">
+                        <div className="p-2 flex-1 flex flex-col items-center justify-center text-center overflow-hidden w-full">
+                          <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/50 transition-colors flex-shrink-0">
                             <BookOpen size={14} className="text-indigo-600 dark:text-indigo-400" />
                           </div>
-                          <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 px-1">
+                          <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 px-1 w-full break-words overflow-hidden">
                             {note.title || 'Untitled Note'}
                           </h3>
                           {note.notebook_name && (
-                            <span className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 px-1">
+                            <span className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 px-1 w-full truncate">
                               {note.notebook_name}
                             </span>
                           )}
                           {(note.last_visited || note.updated_at) && (
-                            <span className="mt-1 text-[8px] text-gray-400 dark:text-gray-500 line-clamp-1 px-1">
+                            <span className="mt-1 text-[8px] text-gray-400 dark:text-gray-500 line-clamp-1 px-1 w-full truncate">
                               {format(new Date(note.last_visited || note.updated_at), 'MMM d')}
                             </span>
                           )}
@@ -1191,23 +1237,23 @@ const Home = () => {
                   recentNotes.slice(0, 8).map((note) => (
                     <div 
                       key={note.id} 
-                      className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-white/20 dark:border-gray-700/30 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group"
+                      className="bg-white/90 dark:bg-gray-800/90 backdrop-blur-md border border-white/20 dark:border-gray-700/30 rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group overflow-hidden"
                       onClick={() => handleOpenNote(note.id)}
                     >
-                      <div className="p-2 flex-1 flex flex-col items-center justify-center text-center">
-                        <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/50 transition-colors">
+                      <div className="p-2 flex-1 flex flex-col items-center justify-center text-center overflow-hidden w-full">
+                        <div className="mb-1 p-1.5 bg-indigo-100 dark:bg-indigo-900/30 rounded-full group-hover:bg-indigo-200 dark:group-hover:bg-indigo-800/50 transition-colors flex-shrink-0">
                           <BookOpen size={14} className="text-indigo-600 dark:text-indigo-400" />
                         </div>
-                        <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 px-1">
+                        <h3 className="text-xs font-medium text-gray-900 dark:text-white line-clamp-2 px-1 w-full break-words overflow-hidden">
                           {note.title || 'Untitled Note'}
                         </h3>
                         {note.notebook_name && (
-                          <span className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 px-1">
+                          <span className="mt-0.5 text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1 px-1 w-full truncate">
                             {note.notebook_name}
                           </span>
                         )}
                         {(note.last_visited || note.updated_at) && (
-                          <span className="mt-1 text-[8px] text-gray-400 dark:text-gray-500 line-clamp-1 px-1">
+                          <span className="mt-1 text-[8px] text-gray-400 dark:text-gray-500 line-clamp-1 px-1 w-full truncate">
                             {format(new Date(note.last_visited || note.updated_at), 'MMM d')}
                           </span>
                         )}

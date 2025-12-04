@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
 import { MessageCircle, Search, Users, Send, MoreVertical } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Toast from '../components/common/Toast';
+import { getApiBaseUrl } from '../config/api';
 
 interface User {
   id: string;
@@ -37,6 +38,34 @@ interface Message {
   sender?: User;
 }
 
+// Avatar component that handles image loading and fallback
+const MessageAvatar: React.FC<{ avatar: string | null | undefined; username?: string }> = ({ avatar, username }) => {
+  const [imageError, setImageError] = useState(false);
+  const shouldShowDefault = !avatar || imageError;
+  
+  // Ensure both image and default avatar use identical structure for perfect alignment
+  return (
+    <div className="flex-shrink-0">
+      <div className="w-8 h-8 rounded-full overflow-hidden">
+        {shouldShowDefault ? (
+          <div className="w-full h-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+            <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm leading-none">
+              {username?.charAt(0).toUpperCase() || 'U'}
+            </span>
+          </div>
+        ) : (
+          <img
+            src={avatar}
+            alt={username || ''}
+            className="w-full h-full object-cover"
+            onError={() => setImageError(true)}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
 const Chat = () => {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -52,6 +81,30 @@ const Chat = () => {
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  // Utility function to construct proper avatar URL
+  const getAvatarUrl = useCallback((avatar: string | null | undefined): string | null => {
+    if (!avatar) return null;
+    
+    // If it's already a full URL (starts with http:// or https://), return as is
+    if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+      return avatar;
+    }
+    
+    // If it's a relative path starting with /, construct full URL
+    if (avatar.startsWith('/')) {
+      const apiBaseUrl = getApiBaseUrl();
+      // Remove /api from the base URL to get backend base URL
+      const backendBaseUrl = apiBaseUrl.replace('/api', '');
+      return `${backendBaseUrl}${avatar}`;
+    }
+    
+    // If it's just a filename, construct URL with /media/avatars/ prefix
+    const apiBaseUrl = getApiBaseUrl();
+    const backendBaseUrl = apiBaseUrl.replace('/api', '');
+    return `${backendBaseUrl}/media/avatars/${avatar}`;
+  }, []);
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
@@ -82,8 +135,13 @@ const Chat = () => {
 
   useEffect(() => {
     if (selectedRoom?.id) {
-      // Load messages in background without clearing existing UI
+      // Clear messages when switching rooms to avoid showing old messages
+      setMessages([]);
+      
+      // Load messages in background
       fetchMessages(selectedRoom.id);
+      
+      // Set up real-time subscription
       const unsubscribe = subscribeToMessages(selectedRoom.id);
       markAsRead(selectedRoom.id);
       
@@ -92,7 +150,15 @@ const Chat = () => {
         if (unsubscribe) {
           unsubscribe();
         }
+        // Also clean up the channel reference
+        if (subscriptionRef.current) {
+          supabase.removeChannel(subscriptionRef.current);
+          subscriptionRef.current = null;
+        }
       };
+    } else {
+      // Clear messages when no room is selected
+      setMessages([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoom]);
@@ -154,11 +220,17 @@ const Chat = () => {
           .select('id, username, email, avatar')
           .in('id', participantIds);
 
+        // Process avatars to ensure proper URLs
+        const processedUsers = (participantUsers || []).map((u: any) => ({
+          ...u,
+          avatar: getAvatarUrl(u.avatar)
+        }));
+
         // For direct messages, set name to other user's name
         let roomName = room.name;
-        if (room.room_type === 'direct' && participantUsers) {
+        if (room.room_type === 'direct' && processedUsers) {
           const currentUserId = String(user.id);
-          const otherUser = participantUsers.find((u: User) => String(u.id) !== currentUserId);
+          const otherUser = processedUsers.find((u: User) => String(u.id) !== currentUserId);
           if (otherUser) {
             roomName = otherUser.username;
           }
@@ -181,7 +253,7 @@ const Chat = () => {
             created_at: lastMessage.created_at,
             sender_id: lastMessage.sender_id
           } : undefined,
-          participants: participantUsers || [],
+          participants: processedUsers || [],
           unread_count: unreadMessages?.length || 0
         };
       });
@@ -225,10 +297,11 @@ const Chat = () => {
         return;
       }
 
-      // Ensure all user IDs are strings
+      // Ensure all user IDs are strings and process avatar URLs
       const normalizedUsers = (users || []).map(u => ({
         ...u,
-        id: String(u.id)
+        id: String(u.id),
+        avatar: getAvatarUrl(u.avatar)
       }));
       
       console.log('Fetched users:', normalizedUsers.length);
@@ -254,60 +327,159 @@ const Chat = () => {
       }
 
       // Get sender details for each message
-      const senderIds = Array.from(new Set(messagesData?.map((m: any) => m.sender_id) || []));
-      const { data: senders } = await supabase
-        .from('profiles')
-        .select('id, username, email, avatar')
-        .in('id', senderIds);
+      const senderIds = Array.from(new Set(messagesData?.map((m: any) => String(m.sender_id)) || []));
+      
+      if (senderIds.length > 0) {
+        const { data: senders, error: sendersError } = await supabase
+          .from('profiles')
+          .select('id, username, email, avatar')
+          .in('id', senderIds);
 
-      const messagesWithSenders = (messagesData || []).map((msg: any) => ({
-        ...msg,
-        sender: senders?.find((s: User) => s.id === msg.sender_id)
-      }));
+        if (sendersError) {
+          console.error('Error fetching senders:', sendersError);
+        }
 
-      setMessages(messagesWithSenders);
+        // Process avatars to ensure proper URLs and normalize IDs to strings
+        const processedSenders = (senders || []).map((s: any) => {
+          const avatarUrl = getAvatarUrl(s.avatar);
+          return {
+            ...s,
+            id: String(s.id),
+            avatar: avatarUrl
+          };
+        });
+
+        // Also get participant data from selectedRoom as fallback
+        const participantMap = new Map<string, User>();
+        if (selectedRoom?.participants) {
+          selectedRoom.participants.forEach(p => {
+            participantMap.set(String(p.id), {
+              ...p,
+              avatar: getAvatarUrl(p.avatar)
+            });
+          });
+        }
+
+        const messagesWithSenders = (messagesData || []).map((msg: any) => {
+          const senderId = String(msg.sender_id);
+          let sender = processedSenders?.find((s: User) => String(s.id) === senderId);
+          
+          // If sender not found in profiles, try to use participant data as fallback
+          if (!sender) {
+            const participant = participantMap.get(senderId);
+            if (participant) {
+              sender = participant;
+            }
+          }
+          
+          return {
+            ...msg,
+            sender_id: senderId,
+            sender: sender || undefined
+          };
+        });
+
+        setMessages(messagesWithSenders);
+      } else {
+        setMessages(messagesData || []);
+      }
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
   };
 
   const subscribeToMessages = (roomId: string) => {
+    // Clean up existing subscription if any
+    if (subscriptionRef.current) {
+      supabase.removeChannel(subscriptionRef.current);
+    }
+
     const channel = supabase
-      .channel(`messages:${roomId}`)
+      .channel(`messages:${roomId}-${Date.now()}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'messages',
         filter: `room_id=eq.${roomId}`
-      }, (payload) => {
-        // Fetch sender details for new message
+      }, async (payload) => {
+        console.log('📨 Real-time message received:', payload.new);
         const newMsg = payload.new as Message;
+        const currentUserId = String(user?.id);
         
         // Check if message already exists (to avoid duplicates from optimistic updates)
         setMessages(prev => {
-          const exists = prev.some(msg => msg.id === newMsg.id);
-          if (exists) return prev;
+          const exists = prev.some(msg => msg.id === newMsg.id || (msg.id.startsWith('temp-') && String(msg.sender_id) === String(newMsg.sender_id) && msg.content === newMsg.content));
+          if (exists) {
+            console.log('📨 Message already exists, skipping duplicate');
+            return prev;
+          }
           
-          // Fetch sender details and add message
-          supabase
-            .from('profiles')
-            .select('id, username, email, avatar')
-            .eq('id', newMsg.sender_id)
-            .single()
-            .then(({ data: sender }) => {
+          // If this is from the current user and we have an optimistic message, replace it
+          if (String(newMsg.sender_id) === currentUserId) {
+            const optimisticIndex = prev.findIndex(msg => msg.id.startsWith('temp-') && String(msg.sender_id) === currentUserId && msg.content === newMsg.content);
+            if (optimisticIndex >= 0) {
+              // Replace optimistic message with real one
+              supabase
+                .from('profiles')
+                .select('id, username, email, avatar')
+                .eq('id', newMsg.sender_id)
+                .single()
+                .then(({ data: sender }) => {
+                  const messageWithSender: Message = {
+                    ...newMsg,
+                    sender: sender ? {
+                      ...sender,
+                      avatar: getAvatarUrl(sender.avatar)
+                    } : undefined
+                  };
+                  setMessages(prevMsgs => {
+                    const newMsgs = [...prevMsgs];
+                    newMsgs[optimisticIndex] = messageWithSender;
+                    return newMsgs;
+                  });
+                });
+              return prev;
+            }
+          }
+          
+          // Fetch sender details and add message immediately
+          (async () => {
+            try {
+              const { data: sender } = await supabase
+                .from('profiles')
+                .select('id, username, email, avatar')
+                .eq('id', newMsg.sender_id)
+                .single();
+              
               const messageWithSender: Message = {
                 ...newMsg,
-                sender: sender || undefined
+                sender: sender ? {
+                  ...sender,
+                  avatar: getAvatarUrl(sender.avatar)
+                } : undefined
               };
+              
               setMessages(prevMsgs => {
-                // Double check it doesn't exist
+                // Final check to avoid duplicates
                 if (prevMsgs.some(msg => msg.id === messageWithSender.id)) {
                   return prevMsgs;
                 }
+                console.log('📨 Adding new message to UI:', messageWithSender.id);
                 return [...prevMsgs, messageWithSender];
               });
+              
               markAsRead(roomId);
-            });
+            } catch (err: any) {
+              console.error('Error fetching sender details:', err);
+              // Still add message without sender details
+              setMessages(prevMsgs => {
+                if (prevMsgs.some(msg => msg.id === newMsg.id)) {
+                  return prevMsgs;
+                }
+                return [...prevMsgs, newMsg];
+              });
+            }
+          })();
           
           return prev;
         });
@@ -324,10 +496,19 @@ const Chat = () => {
           )
         );
       })
-      .subscribe();
+      .subscribe((status) => {
+        console.log('📡 Subscription status:', status);
+        if (status === 'SUBSCRIBED') {
+          console.log('✅ Real-time subscription active for room:', roomId);
+        }
+      });
+
+    subscriptionRef.current = channel;
 
     return () => {
+      console.log('🧹 Cleaning up subscription for room:', roomId);
       supabase.removeChannel(channel);
+      subscriptionRef.current = null;
     };
   };
 
@@ -453,12 +634,23 @@ const Chat = () => {
     try {
       const room = await createOrGetDirectRoom(otherUser.id);
       if (room) {
+        // Fetch full participant details including processed avatar
+        const { data: participantUsers } = await supabase
+          .from('profiles')
+          .select('id, username, email, avatar')
+          .eq('id', otherUser.id);
+        
+        const processedUser = participantUsers?.[0] ? {
+          ...participantUsers[0],
+          avatar: getAvatarUrl(participantUsers[0].avatar)
+        } : otherUser;
+
         const chatRoom: ChatRoom = {
           id: room.id,
-          name: otherUser.username,
+          name: processedUser.username,
           room_type: 'direct',
           created_at: room.created_at,
-          participants: [otherUser]
+          participants: [processedUser]
         };
         setSelectedRoom(chatRoom);
         setActiveView('chats');
@@ -491,7 +683,7 @@ const Chat = () => {
         id: currentUserId,
         username: user.username || 'You',
         email: user.email || '',
-        avatar: user.avatar || null
+        avatar: getAvatarUrl(user.avatar)
       }
     };
     
@@ -519,6 +711,7 @@ const Chat = () => {
       }
 
       // Replace optimistic message with real one - content stays visible
+      // Note: Real-time subscription will also catch this and handle it
       if (data) {
         const realMessage: Message = {
           ...data,
@@ -666,7 +859,11 @@ const Chat = () => {
                                 <img
                                   src={otherParticipant.avatar}
                                   alt={displayName}
-                                  className="w-12 h-12 rounded-full"
+                                  className="w-12 h-12 rounded-full object-cover"
+                                  onError={(e) => {
+                                    // Hide image if it fails to load, will show default avatar
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
                                 />
                               ) : (
                                 <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
@@ -731,7 +928,11 @@ const Chat = () => {
                           <img
                             src={otherUser.avatar}
                             alt={otherUser.username}
-                            className="w-12 h-12 rounded-full"
+                            className="w-12 h-12 rounded-full object-cover"
+                            onError={(e) => {
+                              // Hide image if it fails to load, will show default avatar
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
                           />
                         ) : (
                           <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
@@ -763,23 +964,33 @@ const Chat = () => {
                 {/* Chat Header */}
                 <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800">
                   <div className="flex items-center gap-3">
-                    {selectedRoom.room_type === 'direct' && selectedRoom.participants?.[0]?.avatar ? (
-                      <img
-                        src={selectedRoom.participants[0].avatar}
-                        alt={selectedRoom.name || ''}
-                        className="w-10 h-10 rounded-full"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                        {selectedRoom.room_type === 'direct' ? (
-                          <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
-                            {selectedRoom.name?.charAt(0).toUpperCase()}
-                          </span>
-                        ) : (
-                          <Users className="text-indigo-600 dark:text-indigo-400" size={18} />
-                        )}
-                      </div>
-                    )}
+                    {(() => {
+                      const currentUserId = String(user.id);
+                      const otherParticipant = selectedRoom.participants?.find(p => String(p.id) !== currentUserId);
+                      const displayAvatar = selectedRoom.room_type === 'direct' ? otherParticipant?.avatar : selectedRoom.participants?.[0]?.avatar;
+                      
+                      return displayAvatar ? (
+                        <img
+                          src={displayAvatar}
+                          alt={selectedRoom.name || ''}
+                          className="w-10 h-10 rounded-full"
+                          onError={(e) => {
+                            // Fallback to default if image fails to load
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                          {selectedRoom.room_type === 'direct' ? (
+                            <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+                              {selectedRoom.name?.charAt(0).toUpperCase()}
+                            </span>
+                          ) : (
+                            <Users className="text-indigo-600 dark:text-indigo-400" size={18} />
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div>
                       <h2 className="font-semibold text-gray-900 dark:text-white">
                         {selectedRoom.name || 'Chat'}
@@ -835,30 +1046,35 @@ const Chat = () => {
                           <div
                             className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}
                           >
-                            {showAvatar && !isOwnMessage && (
-                              <div className="flex-shrink-0">
-                                {message.sender?.avatar ? (
-                                  <img
-                                    src={message.sender.avatar}
-                                    alt={message.sender.username}
-                                    className="w-8 h-8 rounded-full"
-                                  />
-                                ) : (
-                                  <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                                    <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm">
-                                      {message.sender?.username?.charAt(0).toUpperCase() || 'U'}
-                                    </span>
-                                  </div>
-                                )}
-                              </div>
-                            )}
-                            {!showAvatar && !isOwnMessage && <div className="w-8" />}
+                            {showAvatar && !isOwnMessage && (() => {
+                              // Use sender avatar, or fallback to participant avatar from selectedRoom
+                              const senderId = String(message.sender_id);
+                              const participant = selectedRoom?.participants?.find(p => String(p.id) === senderId);
+                              
+                              // Get avatar - prioritize sender, then participant, ensure URL is processed
+                              let avatarToUse = message.sender?.avatar;
+                              if (!avatarToUse && participant?.avatar) {
+                                avatarToUse = getAvatarUrl(participant.avatar);
+                              } else if (avatarToUse) {
+                                avatarToUse = getAvatarUrl(avatarToUse);
+                              }
+                              
+                              const usernameToUse = message.sender?.username || participant?.username;
+                              
+                              return (
+                                <MessageAvatar 
+                                  avatar={avatarToUse}
+                                  username={usernameToUse}
+                                />
+                              );
+                            })()}
+                            {!showAvatar && !isOwnMessage && <div className="w-8 h-8 flex-shrink-0" />}
                             <div
                               className={`flex flex-col max-w-[70%] ${isOwnMessage ? 'items-end' : 'items-start'}`}
                             >
-                              {showAvatar && !isOwnMessage && (
+                              {showAvatar && !isOwnMessage && message.sender?.username && (
                                 <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                                  {message.sender?.username || 'Unknown'}
+                                  {message.sender.username}
                                 </span>
                               )}
                               <div
