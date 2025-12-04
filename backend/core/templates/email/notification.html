@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ notification_title }} - {{ site_name }}</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f8f9fa;
+        }
+        .container {
+            background-color: white;
+            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo {
+            font-size: 28px;
+            font-weight: bold;
+            color: #6366f1;
+            margin-bottom: 10px;
+        }
+        .title {
+            font-size: 24px;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+        .content {
+            margin-bottom: 30px;
+        }
+        .notification-box {
+            background-color: #f3f4f6;
+            border-left: 4px solid #6366f1;
+            border-radius: 6px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        .notification-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 10px;
+        }
+        .notification-message {
+            color: #4b5563;
+            margin: 0;
+        }
+        .button {
+            display: inline-block;
+            background-color: #6366f1;
+            color: white;
+            padding: 12px 30px;
+            text-decoration: none;
+            border-radius: 6px;
+            font-weight: 600;
+            margin: 20px 0;
+        }
+        .button:hover {
+            background-color: #4f46e5;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #6b7280;
+            font-size: 14px;
+        }
+        .info {
+            background-color: #dbeafe;
+            border: 1px solid #3b82f6;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #1e40af;
+        }
+        .warning {
+            background-color: #fef3c7;
+            border: 1px solid #f59e0b;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #92400e;
+        }
+        .success {
+            background-color: #d1fae5;
+            border: 1px solid #10b981;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 20px 0;
+            color: #065f46;
+        }
+        .icon {
+            font-size: 24px;
+            margin-right: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="logo">📚 {{ site_name }}</div>
+            <h1 class="title">{{ notification_title }}</h1>
+        </div>
+        
+        <div class="content">
+            <p>Hello <strong>{{ username }}</strong>,</p>
+            
+            <div class="notification-box">
+                <div class="notification-title">{{ notification_title }}</div>
+                <div class="notification-message">{{ notification_message }}</div>
+            </div>
+            
+            {% if notification_type == 'task_due' %}
+            <div class="warning">
+                <strong>⏰ Reminder:</strong> You have a task due soon. Don't forget to complete it!
+            </div>
+            {% elif notification_type == 'task_completed' %}
+            <div class="success">
+                <strong>✅ Great job!</strong> You've completed a task. Keep up the good work!
+            </div>
+            {% elif notification_type == 'study_reminder' %}
+            <div class="info">
+                <strong>📖 Study Time:</strong> Time to focus on your studies!
+            </div>
+            {% elif notification_type == 'note_reminder' %}
+            <div class="info">
+                <strong>📝 Note Reminder:</strong> Don't forget to review your notes!
+            </div>
+            {% endif %}
+            
+            {% if action_url %}
+            <div style="text-align: center;">
+                <a href="{{ action_url }}" class="button">View in {{ site_name }}</a>
+            </div>
+            {% endif %}
+            
+            <p>This is an automated notification from {{ site_name }}. You're receiving this because you have notifications enabled.</p>
+        </div>
+        
+        <div class="footer">
+            <p>This email was sent to {{ email }}. If you have any questions, please contact our support team.</p>
+            <p>&copy; 2024 {{ site_name }}. All rights reserved.</p>
+        </div>
+    </div>
+</body>
+</html>
+

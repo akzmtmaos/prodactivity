@@ -132,3 +132,68 @@ def is_email_configured():
         settings.EMAIL_HOST_PASSWORD and 
         settings.EMAIL_HOST == 'smtp.gmail.com'
     )
+
+def send_notification_email(notification):
+    """
+    Send email notification to user when a notification is created
+    
+    Args:
+        notification: Django Notification instance
+        
+    Returns:
+        bool: True if email was sent successfully, False otherwise
+    """
+    # Skip if email is not configured
+    if not is_email_configured():
+        logger.warning("Email not configured, skipping notification email")
+        return False
+    
+    # Skip if user doesn't have an email
+    if not notification.user.email:
+        logger.warning(f"User {notification.user.username} has no email, skipping notification email")
+        return False
+    
+    try:
+        # Determine action URL based on notification type
+        action_url = None
+        if notification.notification_type == 'task_due':
+            action_url = f"{settings.FRONTEND_URL}/tasks"
+        elif notification.notification_type == 'task_completed':
+            action_url = f"{settings.FRONTEND_URL}/tasks"
+        elif notification.notification_type == 'study_reminder':
+            action_url = f"{settings.FRONTEND_URL}/study-timer"
+        elif notification.notification_type == 'note_reminder':
+            action_url = f"{settings.FRONTEND_URL}/notes"
+        else:
+            action_url = f"{settings.FRONTEND_URL}/notifications"
+        
+        # Render HTML email template
+        html_message = render_to_string('email/notification.html', {
+            'username': notification.user.username,
+            'email': notification.user.email,
+            'notification_title': notification.title,
+            'notification_message': notification.message,
+            'notification_type': notification.notification_type,
+            'action_url': action_url,
+            'site_name': settings.SITE_NAME,
+        })
+        
+        # Create plain text version
+        plain_message = strip_tags(html_message)
+        
+        # Send email
+        send_mail(
+            subject=f'{notification.title} - {settings.SITE_NAME}',
+            message=plain_message,
+            from_email=f"ProdActivity <{settings.EMAIL_HOST_USER}>",
+            recipient_list=[notification.user.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        
+        logger.info(f"Notification email sent to {notification.user.email} for: {notification.title}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send notification email to {notification.user.email}: {str(e)}")
+        return False

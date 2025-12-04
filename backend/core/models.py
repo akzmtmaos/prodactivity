@@ -104,10 +104,16 @@ class AIConfiguration(models.Model):
 
 @receiver(post_save, sender=Notification)
 def sync_notification_on_save(sender, instance, created, **kwargs):
-    """Sync notification to Supabase when created or updated"""
+    """Sync notification to Supabase when created or updated, and send email notification"""
     try:
         if created:
             sync_notification_to_supabase(instance)
+            # Send email notification
+            try:
+                from .email_utils import send_notification_email
+                send_notification_email(instance)
+            except Exception as e:
+                print(f"⚠️  Error sending notification email: {e}")
         else:
             update_notification_in_supabase(instance)
     except Exception as e:

@@ -15,6 +15,15 @@ def purge_trash_job():
     except Exception as e:
         logger.error(f"❌ Error during scheduled trash purge: {e}")
 
+def send_notifications_job():
+    """Job to send notifications for due/overdue tasks and upcoming events"""
+    try:
+        logger.info("📧 Running scheduled notifications check...")
+        call_command('send_notifications')
+        logger.info("✅ Scheduled notifications check completed")
+    except Exception as e:
+        logger.error(f"❌ Error during scheduled notifications check: {e}")
+
 def start_scheduler():
     """Start the background scheduler for automated tasks"""
     global scheduler
@@ -36,8 +45,20 @@ def start_scheduler():
             replace_existing=True
         )
         
+        # Run send_notifications every 6 hours (at 6 AM, 12 PM, 6 PM, 12 AM)
+        scheduler.add_job(
+            send_notifications_job,
+            'cron',
+            hour='6,12,18,0',
+            minute=0,
+            id='send_notifications_periodic',
+            replace_existing=True
+        )
+        
         scheduler.start()
-        logger.info("✅ Trash auto-purge scheduler started (daily at 3:00 AM)")
+        logger.info("✅ Scheduler started:")
+        logger.info("   - Trash auto-purge: Daily at 3:00 AM")
+        logger.info("   - Email notifications: Every 6 hours (6 AM, 12 PM, 6 PM, 12 AM)")
         
     except Exception as e:
         logger.error(f"❌ Failed to start scheduler: {e}")
