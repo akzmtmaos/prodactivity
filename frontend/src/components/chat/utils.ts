@@ -33,15 +33,18 @@ export const getAvatarUrl = (avatar: string | null | undefined): string | null =
 export const formatMessagePreview = (content: string | null | undefined): string => {
   if (!content) return '';
   
-  // Check if content contains attachments
-  const attachmentsMatch = content.match(/__ATTACHMENTS__(.+)$/);
-  if (attachmentsMatch) {
+  // Check if content contains attachments - use [\s\S] to match newlines
+  const attachmentsMatch = content.match(/__ATTACHMENTS__([\s\S]+)$/);
+  if (attachmentsMatch && attachmentsMatch[1]) {
     try {
-      const attachments = JSON.parse(attachmentsMatch[1]) as Attachment[];
-      if (attachments && attachments.length > 0) {
-        const text = content.replace(/__ATTACHMENTS__.+/g, '').trim();
+      const attachmentsJson = attachmentsMatch[1].trim();
+      const attachments = JSON.parse(attachmentsJson) as Attachment[];
+      if (attachments && Array.isArray(attachments) && attachments.length > 0) {
+        const text = content.replace(/__ATTACHMENTS__[\s\S]+$/, '').trim();
         const imageCount = attachments.filter(a => a.type === 'image').length;
         const fileCount = attachments.filter(a => a.type === 'file').length;
+        
+        console.log('📋 Formatting preview:', { total: attachments.length, images: imageCount, files: fileCount });
         
         // Build preview message
         const parts: string[] = [];
@@ -61,7 +64,7 @@ export const formatMessagePreview = (content: string | null | undefined): string
       }
     } catch (e) {
       // If parsing fails, return content as-is
-      console.error('Error parsing attachments in preview:', e);
+      console.error('❌ Error parsing attachments in preview:', e, 'Content preview:', content.substring(0, 200));
     }
   }
   

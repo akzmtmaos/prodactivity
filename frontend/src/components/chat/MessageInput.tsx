@@ -143,6 +143,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
     e.preventDefault();
     if ((!newMessage.trim() && attachments.length === 0) || isSendingMessage) return;
 
+    console.log('📎 MessageInput: Preparing to send attachments:', { count: attachments.length, attachments: attachments.map(a => a.file.name) });
+
     const attachmentData: Attachment[] = attachments.map(att => ({
       url: att.preview || URL.createObjectURL(att.file),
       type: att.file.type.startsWith('image/') ? 'image' : 'file',
@@ -150,6 +152,11 @@ const MessageInput: React.FC<MessageInputProps> = ({
       size: att.file.size,
       mime_type: att.file.type,
     }));
+
+    console.log('📎 MessageInput: Sending attachment data:', { 
+      count: attachmentData.length, 
+      attachments: attachmentData.map(a => ({ name: a.name, type: a.type, url: a.url?.substring(0, 50) }))
+    });
 
     onSubmit(e, attachmentData);
     setAttachments([]);

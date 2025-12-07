@@ -629,45 +629,88 @@ const Chat = () => {
     const currentUserId = String(user.id);
     const uploadedAttachments: Attachment[] = [];
 
-    // Check if bucket exists by trying to list it (or we'll just try to upload and handle errors)
-    console.log('📤 Starting attachment upload...', { count: attachments.length, roomId: selectedRoom.id });
+    console.log('📤 Starting attachment upload...', { 
+      count: attachments.length, 
+      roomId: selectedRoom.id,
+      attachments: attachments.map(a => ({ name: a.name, type: a.type, url: a.url?.substring(0, 50) }))
+    });
 
-    for (const att of attachments) {
+    // FIRST: Convert all blob/data URLs to File objects SYNCHRONOUSLY before async uploads
+    // This prevents blob URLs from being invalidated during async operations
+    console.log('📦 Converting all attachments to File objects...');
+    const filePromises: Promise<{ file: File; attachment: Attachment; index: number } | null>[] = [];
+    
+    for (let i = 0; i < attachments.length; i++) {
+      const att = attachments[i];
+      
+      // If already a permanent URL, we'll handle it separately
+      if (att.url.startsWith('http://') || att.url.startsWith('https://')) {
+        console.log(`⏭️ Attachment ${i + 1}/${attachments.length} already has permanent URL, skipping conversion`);
+        filePromises.push(Promise.resolve({ file: null as any, attachment: att, index: i }));
+        continue;
+      }
+
+      // Convert blob/data URL to File - do this synchronously for all attachments
+      const convertPromise = (async () => {
+        try {
+          console.log(`📁 Converting attachment ${i + 1}/${attachments.length} to File:`, { name: att.name, urlType: att.url.substring(0, 20) });
+          
+          let file: File;
+          if (att.url.startsWith('blob:') || att.url.startsWith('data:')) {
+            const response = await fetch(att.url);
+            const blob = await response.blob();
+            file = new File([blob], att.name, { type: att.mime_type || blob.type });
+            console.log(`✅ Converted attachment ${i + 1}/${attachments.length} to File:`, { name: file.name, size: file.size, type: file.type });
+          } else {
+            console.warn(`⚠️ Unknown URL type for attachment ${i + 1}/${attachments.length}, skipping:`, att.url);
+            return null;
+          }
+          
+          return { file, attachment: att, index: i };
+        } catch (error) {
+          console.error(`❌ Error converting attachment ${i + 1}/${attachments.length} to File:`, error);
+          return null;
+        }
+      })();
+      
+      filePromises.push(convertPromise);
+    }
+
+    // Wait for ALL conversions to complete before starting uploads
+    const convertedFiles = await Promise.all(filePromises);
+    console.log(`✅ Converted ${convertedFiles.filter(f => f !== null).length}/${attachments.length} attachments to File objects`);
+
+    // NOW: Upload all the converted files
+    for (const converted of convertedFiles) {
+      if (!converted) {
+        console.warn(`⚠️ Skipping null converted file`);
+        continue;
+      }
+
+      const { file, attachment: att, index: i } = converted;
+      
       try {
-        // If it's already a permanent URL, skip upload
+        // If it's already a permanent URL, just add it
         if (att.url.startsWith('http://') || att.url.startsWith('https://')) {
-          console.log('⏭️ Skipping upload for existing URL:', att.url);
+          console.log(`⏭️ Skipping upload for existing URL (${i + 1}/${attachments.length}):`, att.url);
           uploadedAttachments.push(att);
           continue;
         }
 
-        console.log('📁 Processing attachment:', { name: att.name, type: att.type, urlType: att.url.substring(0, 20) });
-
-        // Convert blob/data URL to File
-        let file: File;
-        if (att.url.startsWith('blob:')) {
-          const response = await fetch(att.url);
-          const blob = await response.blob();
-          file = new File([blob], att.name, { type: att.mime_type || blob.type });
-          console.log('✅ Converted blob to File:', { name: file.name, size: file.size, type: file.type });
-        } else if (att.url.startsWith('data:')) {
-          const response = await fetch(att.url);
-          const blob = await response.blob();
-          file = new File([blob], att.name, { type: att.mime_type || blob.type });
-          console.log('✅ Converted data URL to File:', { name: file.name, size: file.size, type: file.type });
-        } else {
-          console.warn('⚠️ Unknown URL type, skipping:', att.url);
-          uploadedAttachments.push(att);
+        if (!file) {
+          console.warn(`⚠️ No file to upload for attachment ${i + 1}/${attachments.length}`);
           continue;
         }
 
-        // Create unique filename
+        // Create unique filename with index to ensure uniqueness
         const fileExt = att.name.split('.').pop() || 'bin';
         const sanitizedName = att.name.replace(/[^a-zA-Z0-9.-]/g, '_');
-        const fileName = `${currentUserId}_${Date.now()}_${Math.random().toString(36).substring(7)}_${sanitizedName}`;
+        const timestamp = Date.now();
+        const randomStr = Math.random().toString(36).substring(7);
+        const fileName = `${currentUserId}_${timestamp}_${i}_${randomStr}_${sanitizedName}`;
         const filePath = `chat_attachments/${selectedRoom.id}/${fileName}`;
 
-        console.log('📤 Uploading to Supabase Storage:', { bucket: 'chat_attachments', path: filePath, size: file.size });
+        console.log(`📤 Uploading attachment ${i + 1}/${attachments.length} to Supabase Storage:`, { bucket: 'chat_attachments', path: filePath, size: file.size });
 
         // Upload to Supabase Storage
         const { data: uploadData, error: uploadError } = await supabase.storage
@@ -705,22 +748,33 @@ const Chat = () => {
           size: att.size,
           mime_type: att.mime_type,
         });
+        
+        console.log(`✅ Successfully uploaded attachment ${i + 1}/${attachments.length}:`, { name: att.name, url: urlData.publicUrl });
       } catch (error: any) {
-        console.error('❌ Error processing attachment:', error);
+        console.error(`❌ Error processing attachment ${i + 1}/${attachments.length}:`, error, { name: att.name, type: att.type });
         // If it's a critical error (like bucket not found), throw it
         if (error.message?.includes('not found') || error.message?.includes('Bucket')) {
           throw error;
         }
         // Otherwise, continue with other attachments but log the error
-        console.warn('⚠️ Continuing with other attachments despite error');
+        console.warn(`⚠️ Skipping attachment ${i + 1}/${attachments.length}, continuing with others...`);
       }
     }
 
+    console.log('✅ Upload complete:', { 
+      uploaded: uploadedAttachments.length, 
+      total: attachments.length,
+      successRate: uploadedAttachments.length > 0 ? `${((uploadedAttachments.length / attachments.length) * 100).toFixed(1)}%` : '0%'
+    });
+    
     if (uploadedAttachments.length === 0 && attachments.length > 0) {
       throw new Error('Failed to upload any attachments. Please check your Supabase Storage configuration.');
     }
-
-    console.log('✅ Upload complete:', { uploaded: uploadedAttachments.length, total: attachments.length });
+    
+    if (uploadedAttachments.length < attachments.length) {
+      console.warn(`⚠️ WARNING: Only ${uploadedAttachments.length} out of ${attachments.length} attachments uploaded successfully`);
+    }
+    
     return uploadedAttachments;
   };
 
