@@ -164,6 +164,8 @@ def send_notification_email(notification):
             action_url = f"{settings.FRONTEND_URL}/study-timer"
         elif notification.notification_type == 'note_reminder':
             action_url = f"{settings.FRONTEND_URL}/notes"
+        elif notification.notification_type == 'schedule_reminder':
+            action_url = f"{settings.FRONTEND_URL}/schedule"
         else:
             action_url = f"{settings.FRONTEND_URL}/notifications"
         

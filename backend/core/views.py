@@ -22,6 +22,24 @@ class NotificationListView(generics.ListAPIView):
     def get_queryset(self):
         return Notification.objects.filter(user=self.request.user)
 
+class NotificationCreateView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    
+    def post(self, request):
+        """
+        Create a new notification. This will automatically:
+        - Save to Django database
+        - Sync to Supabase (via signal)
+        - Send email notification (via signal)
+        """
+        serializer = NotificationSerializer(data=request.data)
+        if serializer.is_valid():
+            # Set user to current authenticated user
+            notification = serializer.save(user=request.user)
+            # Email will be sent automatically via signal in models.py
+            return Response(NotificationSerializer(notification).data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
 class NotificationMarkReadView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 

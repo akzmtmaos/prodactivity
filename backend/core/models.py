@@ -18,6 +18,7 @@ class Notification(models.Model):
         ('task_completed', 'Task Completed'),
         ('note_reminder', 'Note Reminder'),
         ('study_reminder', 'Study Reminder'),
+        ('schedule_reminder', 'Schedule Reminder'),
         ('general', 'General'),
     ]
     
