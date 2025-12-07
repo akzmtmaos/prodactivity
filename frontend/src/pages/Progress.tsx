@@ -517,6 +517,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
 
 const Progress = () => {
   const [user, setUser] = useState<any | null>(null);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
   const [greeting, setGreeting] = useState('');
   const [progressView, setProgressView] = useState('Daily');
   const [loading, setLoading] = useState(true);
@@ -631,6 +632,19 @@ const Progress = () => {
     } else {
       setUser({ username: 'User' });
     }
+    
+    // Fetch user avatar from API
+    (async () => {
+      try {
+        const res = await axiosInstance.get('/me/');
+        if (res?.data?.avatar) {
+          setUserAvatar(res.data.avatar);
+        }
+      } catch (e) {
+        // ignore if endpoint not available
+      }
+    })();
+    
     // Set greeting based on time of day
     const hour = new Date().getHours();
     if (hour < 12) setGreeting('Good morning');
@@ -1852,6 +1866,8 @@ const Progress = () => {
                 streakData={streakData}
                 refreshProductivity={refreshProductivity}
                 getProductivityColor={getProductivityColor}
+                username={user?.username || 'User'}
+                avatar={userAvatar}
               />
             </div>
 

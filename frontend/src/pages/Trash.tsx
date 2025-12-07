@@ -1,12 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
 import TrashList from '../components/trash/TrashList';
 import Toast from '../components/common/Toast';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
-import { Trash2 } from 'lucide-react';
-import { useRef } from 'react';
+import { Trash2, ChevronDown, Search } from 'lucide-react';
 import Pagination from '../components/common/Pagination';
 import axiosInstance from '../utils/axiosConfig';
 import { API_BASE_URL } from '../config/api';
@@ -21,8 +20,11 @@ export type TrashItem = {
   tags?: string[]; // Optional tags for filtering quizzes from reviewers
 };
 
-const TABS = ['all', 'notes', 'decks', 'flashcards', 'notebooks', 'reviewer', 'quiz', 'tasks'] as const;
+const TABS = ['all', 'filter'] as const;
 type TabType = typeof TABS[number];
+
+const ITEM_TYPES = ['notebooks', 'notes', 'decks', 'flashcards', 'reviewer', 'quiz', 'tasks'] as const;
+type ItemType = typeof ITEM_TYPES[number];
 
 const ITEMS_PER_PAGE = 10;
 
@@ -37,6 +39,8 @@ const Trash = () => {
   const [tasks, setTasks] = useState<TrashItem[]>([]);
   const [flashcards, setFlashcards] = useState<TrashItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>(tab && TABS.includes(tab) ? tab : 'all');
+  const [selectedTypes, setSelectedTypes] = useState<Set<ItemType>>(new Set<ItemType>(['notebooks' as ItemType]));
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
@@ -52,15 +56,39 @@ const Trash = () => {
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Sync activeTab with URL param
   useEffect(() => {
-    if (tab && TABS.includes(tab)) {
-      setActiveTab(tab);
+    // Check if URL param is a valid tab type
+    if (tab && TABS.includes(tab as TabType)) {
+      setActiveTab(tab as TabType);
+    } else if (tab && ITEM_TYPES.includes(tab as ItemType)) {
+      // If it's an old-style type tab (notes, decks, etc.), convert to filter tab
+      setSelectedTypes(new Set([tab as ItemType]));
+      setActiveTab('filter');
+      navigate('/trash/filter'); // Update URL to new format
     } else {
       setActiveTab('all');
     }
-  }, [tab]);
+  }, [tab, navigate]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsDropdownOpen(false);
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isDropdownOpen]);
 
   useEffect(() => {
     // Get user data from localStorage
@@ -235,11 +263,30 @@ const Trash = () => {
   useEffect(() => {
     setCurrentPage(1);
     // Don't clear selection when tab changes - keep items selected across tabs
-  }, [activeTab, notes, decks, notebooks, reviewers, tasks, flashcards]);
+  }, [activeTab, selectedTypes, notes, decks, notebooks, reviewers, tasks, flashcards]);
 
   const handleTabClick = (tab: TabType) => {
     setActiveTab(tab);
-    navigate(`/trash/${tab}`);
+    if (tab === 'all') {
+      navigate('/trash/all');
+    } else {
+      navigate(`/trash/filter`);
+    }
+  };
+
+  const handleTypeToggle = (type: ItemType) => {
+    const newSelectedTypes = new Set(selectedTypes);
+    if (newSelectedTypes.has(type)) {
+      newSelectedTypes.delete(type);
+      // Ensure at least one type is selected
+      if (newSelectedTypes.size === 0) {
+        return; // Don't allow deselecting all types
+      }
+    } else {
+      newSelectedTypes.add(type);
+    }
+    setSelectedTypes(newSelectedTypes);
+    setCurrentPage(1); // Reset to first page when type changes
   };
 
   const handleRestore = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz') => {
@@ -493,20 +540,21 @@ const Trash = () => {
     filteredItems = [...notes, ...decks, ...flashcards, ...notebooks, ...nonQuizReviewers, ...quizzes, ...tasks]
       .filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()))
       .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
-  } else if (activeTab === 'notes') {
-    filteredItems = notes.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
-  } else if (activeTab === 'decks') {
-    filteredItems = decks.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
-  } else if (activeTab === 'flashcards') {
-    filteredItems = flashcards.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
-  } else if (activeTab === 'notebooks') {
-    filteredItems = notebooks.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
-  } else if (activeTab === 'reviewer') {
-    filteredItems = nonQuizReviewers.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
-  } else if (activeTab === 'quiz') {
-    filteredItems = quizzes.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
-  } else if (activeTab === 'tasks') {
-    filteredItems = tasks.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
+  } else if (activeTab === 'filter') {
+    // Filter by selected types (multiple types can be selected)
+    const itemsByType: TrashItem[] = [];
+    
+    if (selectedTypes.has('notes')) itemsByType.push(...notes);
+    if (selectedTypes.has('decks')) itemsByType.push(...decks);
+    if (selectedTypes.has('flashcards')) itemsByType.push(...flashcards);
+    if (selectedTypes.has('notebooks')) itemsByType.push(...notebooks);
+    if (selectedTypes.has('reviewer')) itemsByType.push(...nonQuizReviewers);
+    if (selectedTypes.has('quiz')) itemsByType.push(...quizzes);
+    if (selectedTypes.has('tasks')) itemsByType.push(...tasks);
+    
+    filteredItems = itemsByType
+      .filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()))
+      .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
   }
 
   const totalPages = Math.ceil(filteredItems.length / ITEMS_PER_PAGE);
@@ -551,47 +599,30 @@ const Trash = () => {
               View and restore deleted items
             </p>
           </div>
-          <div className="flex flex-col sm:flex-row gap-2 items-center w-full md:w-auto">
-            <div className="w-full sm:w-64">
-              <div className="relative rounded-md shadow-sm">
-                <input
-                  ref={searchInputRef}
-                  type="text"
-                  className="block w-full rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white pl-10 pr-3 py-2 text-sm"
-                  placeholder="Search trash..."
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                />
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-            </div>
+          <div className="flex flex-col sm:flex-row items-stretch gap-2 md:gap-4 w-full md:w-auto">
             {selectedItems.size > 0 && (
               <>
                 <button
-                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center"
+                  className="inline-flex items-center h-10 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
                   onClick={() => setShowRestoreSelectedModal(true)}
                 >
                   <svg className="mr-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="23 4 23 10 17 10"></polyline>
                     <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
                   </svg>
-                  Restore Selected ({selectedItems.size})
+                  Restore Item ({selectedItems.size})
                 </button>
                 <button
-                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center"
+                  className="inline-flex items-center h-10 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
                   onClick={() => setShowDeleteSelectedModal(true)}
                 >
                   <Trash2 className="mr-2" size={18} />
-                  Delete Selected ({selectedItems.size})
+                  Delete Item ({selectedItems.size})
                 </button>
               </>
             )}
             <button
-              className={`bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition-colors flex items-center ${filteredItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`inline-flex items-center h-10 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${filteredItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
               onClick={() => filteredItems.length > 0 && setShowDeleteAllModal(true)}
               disabled={filteredItems.length === 0}
             >
@@ -603,87 +634,99 @@ const Trash = () => {
 
         {/* Tabs styled like Settings */}
         <div>
-          <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
-            <button
-              onClick={() => handleTabClick('all')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'all'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              All
-            </button>
-            <button
-              onClick={() => handleTabClick('notebooks')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'notebooks'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Notebooks
-            </button>
-            <button
-              onClick={() => handleTabClick('notes')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'notes'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Notes
-            </button>
-            <button
-              onClick={() => handleTabClick('decks')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'decks'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Decks
-            </button>
-            <button
-              onClick={() => handleTabClick('flashcards')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'flashcards'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Flashcards
-            </button>
-            <button
-              onClick={() => handleTabClick('reviewer')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'reviewer'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Reviewer
-            </button>
-            <button
-              onClick={() => handleTabClick('quiz')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'quiz'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Quiz
-            </button>
-            <button
-              onClick={() => handleTabClick('tasks')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'tasks'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Tasks
-            </button>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-700 mb-8">
+            <div className="flex space-x-4">
+              <button
+                onClick={() => handleTabClick('all')}
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'all'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                All
+              </button>
+              <button
+                onClick={() => handleTabClick('filter')}
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'filter'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                Filter by Type
+              </button>
+            </div>
+            
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Search Bar */}
+              <div className="relative w-full sm:w-56">
+                <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
+                <input
+                  ref={searchInputRef}
+                  type="text"
+                  placeholder="Search trash..."
+                  value={searchTerm}
+                  onChange={e => setSearchTerm(e.target.value)}
+                  className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+              
+              {/* Type Dropdown with Checkboxes - Only show when Filter by Type tab is active */}
+              {activeTab === 'filter' && (
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  type="button"
+                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                  className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
+                >
+                  <span>
+                    {selectedTypes.size === 0
+                      ? 'Select types...'
+                      : selectedTypes.size === ITEM_TYPES.length
+                      ? 'All types'
+                      : `${selectedTypes.size} type${selectedTypes.size > 1 ? 's' : ''} selected`}
+                  </span>
+                  <ChevronDown
+                    size={16}
+                    className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                
+                {isDropdownOpen && (
+                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 py-2">
+                    {ITEM_TYPES.map((type) => {
+                      const typeLabels: Record<ItemType, string> = {
+                        notebooks: 'Notebooks',
+                        notes: 'Notes',
+                        decks: 'Decks',
+                        flashcards: 'Flashcards',
+                        reviewer: 'Reviewer',
+                        quiz: 'Quiz',
+                        tasks: 'Tasks',
+                      };
+                      return (
+                        <label
+                          key={type}
+                          className="flex items-center px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={selectedTypes.has(type)}
+                            onChange={() => handleTypeToggle(type)}
+                            className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                          />
+                          <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">
+                            {typeLabels[type]}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+              )}
+            </div>
           </div>
           <div className="mt-4">
             <TrashList

@@ -140,6 +140,20 @@ html {
   }
 }
 
+/* Shimmer animation for progress bar */
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
 /* Hide navbar when quiz is active */
 body.quiz-active aside,
 body.quiz-active nav,
@@ -160,6 +174,30 @@ html.quiz-active body {
 }
 
 html.quiz-active body #root > div {
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Hide navbar when image modal is active */
+body.image-modal-active aside,
+body.image-modal-active nav,
+html.image-modal-active body > div > nav,
+html.image-modal-active body aside[class*="fixed"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Ensure image modal covers full screen without gaps */
+html.image-modal-active,
+html.image-modal-active body {
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+html.image-modal-active body #root > div {
   margin: 0 !important;
   padding: 0 !important;
 }

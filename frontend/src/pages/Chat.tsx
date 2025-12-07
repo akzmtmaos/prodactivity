@@ -1,72 +1,22 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import PageLayout from '../components/PageLayout';
-import HelpButton from '../components/HelpButton';
-import { MessageCircle, Search, Users, Send, MoreVertical } from 'lucide-react';
+import { MessageCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Toast from '../components/common/Toast';
-import { getApiBaseUrl } from '../config/api';
-
-interface User {
-  id: string;
-  username: string;
-  email: string;
-  avatar: string | null;
-}
-
-interface ChatRoom {
-  id: string;
-  name: string | null;
-  room_type: 'direct' | 'group';
-  created_at: string;
-  last_message?: {
-    content: string;
-    created_at: string;
-    sender_id: string;
-  };
-  participants?: User[];
-  unread_count?: number;
-}
-
-interface Message {
-  id: string;
-  room_id: string;
-  sender_id: string;
-  content: string;
-  created_at: string;
-  is_edited: boolean;
-  is_deleted: boolean;
-  sender?: User;
-}
-
-// Avatar component that handles image loading and fallback
-const MessageAvatar: React.FC<{ avatar: string | null | undefined; username?: string }> = ({ avatar, username }) => {
-  const [imageError, setImageError] = useState(false);
-  const shouldShowDefault = !avatar || imageError;
-  
-  // Ensure both image and default avatar use identical structure for perfect alignment
-  return (
-    <div className="flex-shrink-0">
-      <div className="w-8 h-8 rounded-full overflow-hidden">
-        {shouldShowDefault ? (
-          <div className="w-full h-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-            <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm leading-none">
-              {username?.charAt(0).toUpperCase() || 'U'}
-            </span>
-          </div>
-        ) : (
-          <img
-            src={avatar}
-            alt={username || ''}
-            className="w-full h-full object-cover"
-            onError={() => setImageError(true)}
-          />
-        )}
-      </div>
-    </div>
-  );
-};
+import { useNavbar } from '../context/NavbarContext';
+import {
+  ChatSidebar,
+  ChatHeader,
+  MessagesList,
+  MessageInput,
+  type ChatRoom,
+  type User,
+  type Message,
+  type Attachment,
+  getAvatarUrl,
+} from '../components/chat';
 
 const Chat = () => {
+  const { isCollapsed } = useNavbar();
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<'chats' | 'users'>('chats');
@@ -79,39 +29,26 @@ const Chat = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
-
-  // Utility function to construct proper avatar URL
-  const getAvatarUrl = useCallback((avatar: string | null | undefined): string | null => {
-    if (!avatar) return null;
-    
-    // If it's already a full URL (starts with http:// or https://), return as is
-    if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
-      return avatar;
-    }
-    
-    // If it's a relative path starting with /, construct full URL
-    if (avatar.startsWith('/')) {
-      const apiBaseUrl = getApiBaseUrl();
-      // Remove /api from the base URL to get backend base URL
-      const backendBaseUrl = apiBaseUrl.replace('/api', '');
-      return `${backendBaseUrl}${avatar}`;
-    }
-    
-    // If it's just a filename, construct URL with /media/avatars/ prefix
-    const apiBaseUrl = getApiBaseUrl();
-    const backendBaseUrl = apiBaseUrl.replace('/api', '');
-    return `${backendBaseUrl}/media/avatars/${avatar}`;
-  }, []);
+  const selectedRoomRef = useRef<ChatRoom | null>(null);
+  const userRef = useRef<any | null>(null);
+  
+  // Keep refs in sync with state
+  useEffect(() => {
+    selectedRoomRef.current = selectedRoom;
+  }, [selectedRoom]);
+  
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
     if (userData) {
       try {
         const parsedUser = JSON.parse(userData);
-        // Ensure ID is converted to string for Supabase compatibility
         if (parsedUser.id) {
           parsedUser.id = String(parsedUser.id);
         }
@@ -135,35 +72,26 @@ const Chat = () => {
 
   useEffect(() => {
     if (selectedRoom?.id) {
-      // Clear messages when switching rooms to avoid showing old messages
       setMessages([]);
-      
-      // Load messages in background
       fetchMessages(selectedRoom.id);
-      
-      // Set up real-time subscription
       const unsubscribe = subscribeToMessages(selectedRoom.id);
       markAsRead(selectedRoom.id);
       
       return () => {
-        // Cleanup subscription when room changes
         if (unsubscribe) {
           unsubscribe();
         }
-        // Also clean up the channel reference
         if (subscriptionRef.current) {
           supabase.removeChannel(subscriptionRef.current);
           subscriptionRef.current = null;
         }
       };
     } else {
-      // Clear messages when no room is selected
       setMessages([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoom]);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -182,7 +110,6 @@ const Chat = () => {
       setLoading(true);
       const currentUserId = String(user.id);
       
-      // Fetch rooms where user is a participant
       const { data: participants, error: participantsError } = await supabase
         .from('room_participants')
         .select('*, chat_rooms(*)')
@@ -193,11 +120,9 @@ const Chat = () => {
         return;
       }
 
-      // Process rooms and get last messages
       const roomPromises = (participants || []).map(async (participant: any) => {
         const room = participant.chat_rooms;
         
-        // Get last message
         const { data: lastMessage } = await supabase
           .from('messages')
           .select('*')
@@ -206,7 +131,6 @@ const Chat = () => {
           .limit(1)
           .single();
 
-        // Get participants for this room
         const { data: roomParticipants } = await supabase
           .from('room_participants')
           .select('user_id')
@@ -214,19 +138,16 @@ const Chat = () => {
 
         const participantIds = (roomParticipants || []).map((p: any) => p.user_id);
         
-        // Get user details for participants
         const { data: participantUsers } = await supabase
           .from('profiles')
           .select('id, username, email, avatar')
           .in('id', participantIds);
 
-        // Process avatars to ensure proper URLs
         const processedUsers = (participantUsers || []).map((u: any) => ({
           ...u,
           avatar: getAvatarUrl(u.avatar)
         }));
 
-        // For direct messages, set name to other user's name
         let roomName = room.name;
         if (room.room_type === 'direct' && processedUsers) {
           const currentUserId = String(user.id);
@@ -236,7 +157,6 @@ const Chat = () => {
           }
         }
 
-        // Count unread messages
         const { data: unreadMessages } = await supabase
           .from('messages')
           .select('id', { count: 'exact' })
@@ -259,7 +179,6 @@ const Chat = () => {
       });
 
       const rooms = await Promise.all(roomPromises);
-      // Sort by last message time (most recent first)
       rooms.sort((a, b) => {
         const aTime = a.last_message?.created_at || a.created_at;
         const bTime = b.last_message?.created_at || b.created_at;
@@ -283,7 +202,6 @@ const Chat = () => {
     
     try {
       const currentUserId = String(user.id);
-      console.log('Fetching all users (excluding:', currentUserId, ')');
       
       const { data: users, error } = await supabase
         .from('profiles')
@@ -297,14 +215,12 @@ const Chat = () => {
         return;
       }
 
-      // Ensure all user IDs are strings and process avatar URLs
       const normalizedUsers = (users || []).map(u => ({
         ...u,
         id: String(u.id),
         avatar: getAvatarUrl(u.avatar)
       }));
       
-      console.log('Fetched users:', normalizedUsers.length);
       setAllUsers(normalizedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -326,7 +242,6 @@ const Chat = () => {
         return;
       }
 
-      // Get sender details for each message
       const senderIds = Array.from(new Set(messagesData?.map((m: any) => String(m.sender_id)) || []));
       
       if (senderIds.length > 0) {
@@ -339,17 +254,12 @@ const Chat = () => {
           console.error('Error fetching senders:', sendersError);
         }
 
-        // Process avatars to ensure proper URLs and normalize IDs to strings
-        const processedSenders = (senders || []).map((s: any) => {
-          const avatarUrl = getAvatarUrl(s.avatar);
-          return {
-            ...s,
-            id: String(s.id),
-            avatar: avatarUrl
-          };
-        });
+        const processedSenders = (senders || []).map((s: any) => ({
+          ...s,
+          id: String(s.id),
+          avatar: getAvatarUrl(s.avatar)
+        }));
 
-        // Also get participant data from selectedRoom as fallback
         const participantMap = new Map<string, User>();
         if (selectedRoom?.participants) {
           selectedRoom.participants.forEach(p => {
@@ -364,7 +274,6 @@ const Chat = () => {
           const senderId = String(msg.sender_id);
           let sender = processedSenders?.find((s: User) => String(s.id) === senderId);
           
-          // If sender not found in profiles, try to use participant data as fallback
           if (!sender) {
             const participant = participantMap.get(senderId);
             if (participant) {
@@ -372,9 +281,21 @@ const Chat = () => {
             }
           }
           
+          // Parse attachments from content
+          const { text, attachments } = parseAttachmentsFromContent(msg.content || '');
+          
+          console.log('📥 Fetched message:', { 
+            msgId: msg.id, 
+            hasAttachments: !!attachments, 
+            attachmentCount: attachments?.length || 0,
+            contentPreview: msg.content?.substring(0, 100)
+          });
+          
           return {
             ...msg,
             sender_id: senderId,
+            content: text,
+            attachments: attachments || undefined,
             sender: sender || undefined
           };
         });
@@ -388,10 +309,10 @@ const Chat = () => {
     }
   };
 
-  const subscribeToMessages = (roomId: string) => {
-    // Clean up existing subscription if any
+  const subscribeToMessages = useCallback((roomId: string) => {
     if (subscriptionRef.current) {
       supabase.removeChannel(subscriptionRef.current);
+      subscriptionRef.current = null;
     }
 
     const channel = supabase
@@ -403,85 +324,138 @@ const Chat = () => {
         filter: `room_id=eq.${roomId}`
       }, async (payload) => {
         console.log('📨 Real-time message received:', payload.new);
-        const newMsg = payload.new as Message;
-        const currentUserId = String(user?.id);
+        const newMsg = payload.new as any;
         
-        // Check if message already exists (to avoid duplicates from optimistic updates)
+        // Use functional updates to access latest state
         setMessages(prev => {
-          const exists = prev.some(msg => msg.id === newMsg.id || (msg.id.startsWith('temp-') && String(msg.sender_id) === String(newMsg.sender_id) && msg.content === newMsg.content));
-          if (exists) {
-            console.log('📨 Message already exists, skipping duplicate');
+          const currentUserId = String(userRef.current?.id || user?.id);
+          
+          // Check if message already exists
+          const existingIndex = prev.findIndex(msg => msg.id === newMsg.id);
+          if (existingIndex >= 0) {
+            // Update status to 'sent' if it was 'sending'
+            const existing = prev[existingIndex];
+            if (existing.status === 'sending') {
+              const updated = [...prev];
+              updated[existingIndex] = {
+                ...existing,
+                ...newMsg,
+                status: 'sent' as const,
+                sender: existing.sender
+              };
+              return updated;
+            }
             return prev;
           }
           
-          // If this is from the current user and we have an optimistic message, replace it
-          if (String(newMsg.sender_id) === currentUserId) {
-            const optimisticIndex = prev.findIndex(msg => msg.id.startsWith('temp-') && String(msg.sender_id) === currentUserId && msg.content === newMsg.content);
-            if (optimisticIndex >= 0) {
-              // Replace optimistic message with real one
-              supabase
-                .from('profiles')
-                .select('id, username, email, avatar')
-                .eq('id', newMsg.sender_id)
-                .single()
-                .then(({ data: sender }) => {
-                  const messageWithSender: Message = {
-                    ...newMsg,
-                    sender: sender ? {
-                      ...sender,
-                      avatar: getAvatarUrl(sender.avatar)
-                    } : undefined
-                  };
-                  setMessages(prevMsgs => {
-                    const newMsgs = [...prevMsgs];
-                    newMsgs[optimisticIndex] = messageWithSender;
-                    return newMsgs;
-                  });
-                });
-              return prev;
-            }
+          // Try to find and replace optimistic message
+          const optimisticIndex = prev.findIndex(msg => 
+            msg.id.startsWith('temp-') && 
+            String(msg.sender_id) === String(newMsg.sender_id) && 
+            msg.content === newMsg.content
+          );
+          
+          // Parse attachments from content
+          const { text, attachments } = parseAttachmentsFromContent(newMsg.content || '');
+          
+          console.log('📨 Processing real-time message:', { 
+            msgId: newMsg.id, 
+            hasAttachments: !!attachments, 
+            attachmentCount: attachments?.length || 0,
+            contentPreview: newMsg.content?.substring(0, 100)
+          });
+          
+          if (optimisticIndex >= 0) {
+            // Replace optimistic message with real one and mark as sent
+            const optimisticMsg = prev[optimisticIndex];
+            // Use parsed attachments, fallback to optimistic attachments if parsing failed
+            const finalAttachments = attachments || optimisticMsg.attachments;
+            console.log('🔄 Replacing optimistic message:', { 
+              optimisticAttachments: optimisticMsg.attachments?.length || 0,
+              parsedAttachments: attachments?.length || 0,
+              finalAttachments: finalAttachments?.length || 0
+            });
+            const realMessage: Message = {
+              ...newMsg,
+              content: text,
+              attachments: finalAttachments,
+              sender: optimisticMsg.sender,
+              status: 'sent' as const
+            };
+            
+            const newMsgs = [...prev];
+            newMsgs[optimisticIndex] = realMessage;
+            markAsRead(roomId);
+            return newMsgs;
           }
           
-          // Fetch sender details and add message immediately
-          (async () => {
-            try {
-              const { data: sender } = await supabase
-                .from('profiles')
-                .select('id, username, email, avatar')
-                .eq('id', newMsg.sender_id)
-                .single();
-              
-              const messageWithSender: Message = {
-                ...newMsg,
-                sender: sender ? {
-                  ...sender,
-                  avatar: getAvatarUrl(sender.avatar)
-                } : undefined
-              };
-              
-              setMessages(prevMsgs => {
-                // Final check to avoid duplicates
-                if (prevMsgs.some(msg => msg.id === messageWithSender.id)) {
-                  return prevMsgs;
-                }
-                console.log('📨 Adding new message to UI:', messageWithSender.id);
-                return [...prevMsgs, messageWithSender];
-              });
-              
-              markAsRead(roomId);
-            } catch (err: any) {
-              console.error('Error fetching sender details:', err);
-              // Still add message without sender details
-              setMessages(prevMsgs => {
-                if (prevMsgs.some(msg => msg.id === newMsg.id)) {
-                  return prevMsgs;
-                }
-                return [...prevMsgs, newMsg];
-              });
-            }
-          })();
+          // Add new message immediately with participant data if available
+          const latestRoom = selectedRoomRef.current;
+          let senderData: User | undefined;
           
-          return prev;
+          // Try participant data first (immediate, no fetch needed)
+          if (latestRoom?.participants) {
+            senderData = latestRoom.participants.find(p => 
+              String(p.id) === String(newMsg.sender_id)
+            );
+          }
+          
+          console.log('➕ Adding new message to UI:', { 
+            msgId: newMsg.id, 
+            hasAttachments: !!attachments, 
+            attachmentCount: attachments?.length || 0,
+            attachments: attachments 
+          });
+          
+          const messageToAdd: Message = {
+            ...newMsg,
+            content: text,
+            attachments: attachments || undefined,
+            sender: senderData,
+            status: String(newMsg.sender_id) === currentUserId ? ('sent' as const) : undefined
+          };
+          
+          console.log('📨 Message object created:', { 
+            id: messageToAdd.id,
+            attachmentsCount: messageToAdd.attachments?.length || 0,
+            attachments: messageToAdd.attachments 
+          });
+          
+          // Fetch sender details asynchronously if not available from participants
+          if (!senderData) {
+            (async () => {
+              try {
+                const { data: sender } = await supabase
+                  .from('profiles')
+                  .select('id, username, email, avatar')
+                  .eq('id', newMsg.sender_id)
+                  .single();
+                
+                if (sender) {
+                  const enrichedSender = {
+                    ...sender,
+                    avatar: getAvatarUrl(sender.avatar)
+                  };
+                  
+                  setMessages(prevMsgs => {
+                    return prevMsgs.map(msg => 
+                      msg.id === newMsg.id 
+                        ? {
+                            ...msg,
+                            sender: enrichedSender
+                          }
+                        : msg
+                    );
+                  });
+                }
+              } catch (err: any) {
+                console.error('Error fetching sender details:', err);
+              }
+            })();
+          }
+          
+          markAsRead(roomId);
+          return [...prev, messageToAdd];
         });
       })
       .on('postgres_changes', {
@@ -500,6 +474,12 @@ const Chat = () => {
         console.log('📡 Subscription status:', status);
         if (status === 'SUBSCRIBED') {
           console.log('✅ Real-time subscription active for room:', roomId);
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('❌ Real-time subscription error for room:', roomId);
+        } else if (status === 'TIMED_OUT') {
+          console.error('⏰ Real-time subscription timed out for room:', roomId);
+        } else if (status === 'CLOSED') {
+          console.log('🔌 Real-time subscription closed for room:', roomId);
         }
       });
 
@@ -510,7 +490,7 @@ const Chat = () => {
       supabase.removeChannel(channel);
       subscriptionRef.current = null;
     };
-  };
+  }, [user?.id]);
 
   const markAsRead = async (roomId: string) => {
     if (!user?.id) return;
@@ -531,14 +511,9 @@ const Chat = () => {
     if (!user?.id) return null;
 
     try {
-      // Ensure user IDs are strings
       const currentUserId = String(user.id);
       const otherUserStr = String(otherUserId);
 
-      console.log('Creating/checking room between:', currentUserId, 'and', otherUserStr);
-
-      // Check if direct room already exists - simpler approach
-      // Get all rooms where current user is a participant
       const { data: userRooms, error: userRoomsError } = await supabase
         .from('room_participants')
         .select('room_id, chat_rooms!inner(*)')
@@ -548,17 +523,14 @@ const Chat = () => {
         console.error('Error fetching user rooms:', userRoomsError);
       }
 
-      // Check each room to see if it's a direct message with the other user
       if (userRooms) {
         for (const userRoom of userRooms) {
-          // Handle the join result - chat_rooms might be an array or object
           const room = Array.isArray(userRoom.chat_rooms) 
             ? userRoom.chat_rooms[0] 
             : userRoom.chat_rooms;
           
           if (room && typeof room === 'object' && 'room_type' in room && room.room_type === 'direct') {
             const roomId = room.id as string;
-            // Check participants of this room
             const { data: participants } = await supabase
               .from('room_participants')
               .select('user_id')
@@ -568,7 +540,6 @@ const Chat = () => {
             if (participantIds.length === 2 && 
                 participantIds.includes(currentUserId) && 
                 participantIds.includes(otherUserStr)) {
-              // Room already exists
               console.log('Found existing room:', roomId);
               return room as any;
             }
@@ -576,7 +547,6 @@ const Chat = () => {
         }
       }
 
-      // Create new direct room
       console.log('Creating new direct room...');
       const { data: newRoom, error: roomError } = await supabase
         .from('chat_rooms')
@@ -592,9 +562,6 @@ const Chat = () => {
         throw roomError;
       }
 
-      console.log('Room created:', newRoom.id);
-
-      // Add both users as participants
       const { error: participantsError } = await supabase
         .from('room_participants')
         .insert([
@@ -604,7 +571,6 @@ const Chat = () => {
 
       if (participantsError) {
         console.error('Error adding participants:', participantsError);
-        // Try to clean up the room if participants failed
         await supabase.from('chat_rooms').delete().eq('id', newRoom.id);
         throw participantsError;
       }
@@ -615,12 +581,6 @@ const Chat = () => {
     } catch (error: any) {
       console.error('Error creating direct room:', error);
       const errorMessage = error?.message || 'Unknown error occurred';
-      console.error('Error details:', {
-        message: errorMessage,
-        code: error?.code,
-        details: error?.details,
-        hint: error?.hint
-      });
       setToast({ 
         message: `Failed to start conversation: ${errorMessage}`, 
         type: 'error' 
@@ -634,7 +594,6 @@ const Chat = () => {
     try {
       const room = await createOrGetDirectRoom(otherUser.id);
       if (room) {
-        // Fetch full participant details including processed avatar
         const { data: participantUsers } = await supabase
           .from('profiles')
           .select('id, username, email, avatar')
@@ -660,17 +619,176 @@ const Chat = () => {
     }
   };
 
-  const handleSendMessage = async (e: React.FormEvent) => {
+  const uploadAttachments = async (attachments: Attachment[]): Promise<Attachment[]> => {
+    if (!attachments || attachments.length === 0) return [];
+    if (!user?.id || !selectedRoom) {
+      console.error('❌ Missing user or selectedRoom for attachment upload');
+      throw new Error('User or room not available');
+    }
+
+    const currentUserId = String(user.id);
+    const uploadedAttachments: Attachment[] = [];
+
+    // Check if bucket exists by trying to list it (or we'll just try to upload and handle errors)
+    console.log('📤 Starting attachment upload...', { count: attachments.length, roomId: selectedRoom.id });
+
+    for (const att of attachments) {
+      try {
+        // If it's already a permanent URL, skip upload
+        if (att.url.startsWith('http://') || att.url.startsWith('https://')) {
+          console.log('⏭️ Skipping upload for existing URL:', att.url);
+          uploadedAttachments.push(att);
+          continue;
+        }
+
+        console.log('📁 Processing attachment:', { name: att.name, type: att.type, urlType: att.url.substring(0, 20) });
+
+        // Convert blob/data URL to File
+        let file: File;
+        if (att.url.startsWith('blob:')) {
+          const response = await fetch(att.url);
+          const blob = await response.blob();
+          file = new File([blob], att.name, { type: att.mime_type || blob.type });
+          console.log('✅ Converted blob to File:', { name: file.name, size: file.size, type: file.type });
+        } else if (att.url.startsWith('data:')) {
+          const response = await fetch(att.url);
+          const blob = await response.blob();
+          file = new File([blob], att.name, { type: att.mime_type || blob.type });
+          console.log('✅ Converted data URL to File:', { name: file.name, size: file.size, type: file.type });
+        } else {
+          console.warn('⚠️ Unknown URL type, skipping:', att.url);
+          uploadedAttachments.push(att);
+          continue;
+        }
+
+        // Create unique filename
+        const fileExt = att.name.split('.').pop() || 'bin';
+        const sanitizedName = att.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const fileName = `${currentUserId}_${Date.now()}_${Math.random().toString(36).substring(7)}_${sanitizedName}`;
+        const filePath = `chat_attachments/${selectedRoom.id}/${fileName}`;
+
+        console.log('📤 Uploading to Supabase Storage:', { bucket: 'chat_attachments', path: filePath, size: file.size });
+
+        // Upload to Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from('chat_attachments')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false
+          });
+
+        if (uploadError) {
+          console.error('❌ Error uploading attachment:', uploadError);
+          const errorMessage = uploadError.message || 'Unknown upload error';
+          
+          // If bucket doesn't exist, throw a more helpful error
+          if (errorMessage.includes('not found') || errorMessage.includes('Bucket') || errorMessage.includes('does not exist')) {
+            throw new Error('Storage bucket "chat_attachments" not found. Please create it in Supabase Storage settings.');
+          }
+          
+          throw new Error(`Upload failed: ${errorMessage}`);
+        }
+
+        console.log('✅ Upload successful:', uploadData);
+
+        // Get public URL
+        const { data: urlData } = supabase.storage
+          .from('chat_attachments')
+          .getPublicUrl(filePath);
+
+        console.log('✅ Public URL generated:', urlData.publicUrl);
+
+        uploadedAttachments.push({
+          url: urlData.publicUrl,
+          type: att.type,
+          name: att.name,
+          size: att.size,
+          mime_type: att.mime_type,
+        });
+      } catch (error: any) {
+        console.error('❌ Error processing attachment:', error);
+        // If it's a critical error (like bucket not found), throw it
+        if (error.message?.includes('not found') || error.message?.includes('Bucket')) {
+          throw error;
+        }
+        // Otherwise, continue with other attachments but log the error
+        console.warn('⚠️ Continuing with other attachments despite error');
+      }
+    }
+
+    if (uploadedAttachments.length === 0 && attachments.length > 0) {
+      throw new Error('Failed to upload any attachments. Please check your Supabase Storage configuration.');
+    }
+
+    console.log('✅ Upload complete:', { uploaded: uploadedAttachments.length, total: attachments.length });
+    return uploadedAttachments;
+  };
+
+  const parseAttachmentsFromContent = (content: string): { text: string; attachments: Attachment[] | undefined } => {
+    if (!content) return { text: '', attachments: undefined };
+    
+    // Use [\s\S] instead of . to match newlines as well
+    const attachmentsMatch = content.match(/__ATTACHMENTS__([\s\S]+)$/);
+    if (attachmentsMatch && attachmentsMatch[1]) {
+      try {
+        const attachmentsJson = attachmentsMatch[1].trim();
+        console.log('📎 Attempting to parse attachments JSON (first 200 chars):', attachmentsJson.substring(0, 200));
+        const attachments = JSON.parse(attachmentsJson) as Attachment[];
+        if (!Array.isArray(attachments)) {
+          console.error('❌ Parsed attachments is not an array:', attachments);
+          return { text: content.replace(/__ATTACHMENTS__[\s\S]+$/, '').trim(), attachments: undefined };
+        }
+        const text = content.replace(/__ATTACHMENTS__[\s\S]+$/, '').trim();
+        console.log('✅ Successfully parsed attachments:', { 
+          count: attachments.length, 
+          attachments: attachments.map(a => ({ type: a.type, name: a.name, url: a.url?.substring(0, 50) }))
+        });
+        return { text, attachments };
+      } catch (e) {
+        console.error('❌ Error parsing attachments JSON:', e);
+        console.error('❌ JSON string (first 500 chars):', attachmentsMatch[1].substring(0, 500));
+        // Return content without attachments part if parsing fails
+        return { text: content.replace(/__ATTACHMENTS__[\s\S]+$/, '').trim(), attachments: undefined };
+      }
+    }
+    return { text: content, attachments: undefined };
+  };
+
+  const handleSendMessage = async (e: React.FormEvent, attachments?: Attachment[]) => {
     e.preventDefault();
-    if (!newMessage.trim() || !selectedRoom || !user?.id || isSendingMessage) return;
+    if ((!newMessage.trim() && (!attachments || attachments.length === 0)) || !selectedRoom || !user?.id || isSendingMessage) return;
 
     const messageContent = newMessage.trim();
     const currentUserId = String(user.id);
     
-    // Clear input immediately for better UX
     setNewMessage('');
     
-    // Optimistically add message to UI immediately - NO LOADING SCREEN
+    // Upload attachments first
+    let uploadedAttachments: Attachment[] = [];
+    if (attachments && attachments.length > 0) {
+      setIsSendingMessage(true);
+      try {
+        uploadedAttachments = await uploadAttachments(attachments);
+        if (uploadedAttachments.length === 0 && attachments.length > 0) {
+          setToast({ 
+            message: 'Failed to upload attachments. Please check if the "chat_attachments" storage bucket exists in Supabase.', 
+            type: 'error' 
+          });
+          setIsSendingMessage(false);
+          return;
+        }
+      } catch (error: any) {
+        console.error('Error uploading attachments:', error);
+        const errorMessage = error?.message || 'Failed to upload attachments. Please try again.';
+        setToast({ 
+          message: errorMessage, 
+          type: 'error' 
+        });
+        setIsSendingMessage(false);
+        return;
+      }
+    }
+    
     const optimisticMessage: Message = {
       id: `temp-${Date.now()}`,
       room_id: selectedRoom.id,
@@ -679,6 +797,8 @@ const Chat = () => {
       created_at: new Date().toISOString(),
       is_edited: false,
       is_deleted: false,
+      status: 'sending',
+      attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
       sender: {
         id: currentUserId,
         username: user.username || 'You',
@@ -687,55 +807,116 @@ const Chat = () => {
       }
     };
     
-    // Add message immediately to UI - content stays visible
     setMessages(prev => [...prev, optimisticMessage]);
     setIsSendingMessage(true);
 
     try {
+      // Store attachments as JSON appended to content (will parse on fetch)
+      let contentToStore = messageContent;
+      if (uploadedAttachments.length > 0) {
+        const attachmentsJson = JSON.stringify(uploadedAttachments);
+        console.log('💾 Storing attachments in content:', { 
+          count: uploadedAttachments.length,
+          attachments: uploadedAttachments.map(a => ({ type: a.type, name: a.name })),
+          jsonLength: attachmentsJson.length 
+        });
+        if (!messageContent) {
+          contentToStore = `__ATTACHMENTS__${attachmentsJson}`;
+        } else {
+          contentToStore = `${messageContent}__ATTACHMENTS__${attachmentsJson}`;
+        }
+        console.log('💾 Final content to store (first 500 chars):', contentToStore.substring(0, 500));
+      }
+
       const { data, error } = await supabase
         .from('messages')
         .insert({
           room_id: selectedRoom.id,
           sender_id: currentUserId,
-          content: messageContent
+          content: contentToStore
         })
         .select()
         .single();
 
       if (error) {
         console.error('Error sending message:', error);
-        // Remove optimistic message on error
-        setMessages(prev => prev.filter(msg => msg.id !== optimisticMessage.id));
-        setNewMessage(messageContent); // Restore message on error
-        throw error;
+        // Update status to failed instead of removing
+        setMessages(prev => prev.map(msg => 
+          msg.id === optimisticMessage.id 
+            ? { ...msg, status: 'failed' as const }
+            : msg
+        ));
+        setNewMessage(messageContent);
+        setIsSendingMessage(false);
+        setToast({ message: `Failed to send message: ${error.message}`, type: 'error' });
+        return;
       }
 
-      // Replace optimistic message with real one - content stays visible
-      // Note: Real-time subscription will also catch this and handle it
+      // Immediately update status to 'sent' after successful insert
       if (data) {
-        const realMessage: Message = {
-          ...data,
-          sender: optimisticMessage.sender
-        };
-        setMessages(prev => prev.map(msg => 
-          msg.id === optimisticMessage.id ? realMessage : msg
-        ));
+        console.log('✅ Message sent successfully, updating status to "sent"', data.id);
+        setMessages(prev => {
+          // Find optimistic message by temp ID
+          const optimisticIndex = prev.findIndex(msg => msg.id === optimisticMessage.id);
+          
+          if (optimisticIndex >= 0) {
+            // Replace with real message and mark as sent
+            const newMsgs = [...prev];
+            newMsgs[optimisticIndex] = {
+              ...data,
+              content: messageContent, // Restore original content
+              attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
+              sender: optimisticMessage.sender,
+              status: 'sent' as const
+            };
+            return newMsgs;
+          }
+          
+          // Fallback: find by content matching
+          const matchingIndex = prev.findIndex(msg => 
+            msg.id.startsWith('temp-') && 
+            String(msg.sender_id) === currentUserId && 
+            msg.content === messageContent
+          );
+          
+          if (matchingIndex >= 0) {
+            const newMsgs = [...prev];
+            newMsgs[matchingIndex] = {
+              ...data,
+              content: messageContent,
+              attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined,
+              sender: prev[matchingIndex].sender || optimisticMessage.sender,
+              status: 'sent' as const
+            };
+            return newMsgs;
+          }
+          
+          return prev;
+        });
       }
       
-      // Update room's updated_at in background (non-blocking)
+      // Update room timestamp
       supabase
         .from('chat_rooms')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', selectedRoom.id);
 
-      // Refresh chat rooms list in background (non-blocking)
+      // Refresh chat rooms list
       fetchChatRooms();
+      
+      setIsSendingMessage(false);
     } catch (error: any) {
       console.error('Error sending message:', error);
-      const errorMessage = error?.message || 'Unknown error occurred';
-      setToast({ message: `Failed to send message: ${errorMessage}`, type: 'error' });
-    } finally {
-      setIsSendingMessage(false);
+      // Status will be set to 'failed' above if it's a Supabase error
+      // This catch is for unexpected errors
+      if (!error?.code) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === optimisticMessage.id 
+            ? { ...msg, status: 'failed' as const }
+            : msg
+        ));
+        setIsSendingMessage(false);
+      }
     }
   };
 
@@ -748,380 +929,47 @@ const Chat = () => {
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Always show content, never show loading screen
   if (!user) {
     return null;
   }
 
   return (
-    <PageLayout>
-      <div className="h-[calc(100vh-8rem)] flex flex-col">
-        {/* Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
-            Messages
-            <HelpButton 
-              content={
-                <div>
-                  <p className="font-semibold mb-2">Chat & Collaboration</p>
-                  <ul className="space-y-1 text-xs">
-                    <li>• <strong>Direct Messages:</strong> Chat one-on-one with other users</li>
-                    <li>• <strong>Group Chats:</strong> Create group conversations for collaboration</li>
-                    <li>• <strong>Real-time Messaging:</strong> Messages appear instantly</li>
-                    <li>• <strong>User Search:</strong> Find users by name or email to start conversations</li>
-                    <li>• <strong>Activity:</strong> See when users are active and message timestamps</li>
-                  </ul>
-                </div>
-              } 
-              title="Chat Help" 
-            />
-          </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
-            Connect and collaborate with other users
-          </p>
-        </div>
+    <>
+      <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-full h-full flex flex-col" style={{ margin: 0, padding: 0, paddingTop: 0, marginTop: 0, zIndex: 1 }}>
+        <div className={`flex-1 flex gap-0 bg-white dark:bg-gray-800 overflow-hidden h-full mt-16 md:mt-0 md:ml-0 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-64'} transition-[margin] duration-300 ease-in-out`}>
+          <ChatSidebar
+            activeView={activeView}
+            searchTerm={searchTerm}
+            chatRooms={filteredChatRooms}
+            allUsers={filteredUsers}
+            selectedRoom={selectedRoom}
+            currentUserId={String(user.id)}
+            isCreatingRoom={isCreatingRoom}
+            onViewChange={setActiveView}
+            onSearchChange={setSearchTerm}
+            onRoomSelect={setSelectedRoom}
+            onStartChat={handleStartChat}
+          />
 
-        <div className="flex-1 flex gap-4 bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden">
-          {/* Sidebar - Chat List or User List */}
-          <div className="w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-            {/* Tabs */}
-            <div className="flex border-b border-gray-200 dark:border-gray-700">
-              <button
-                onClick={() => {
-                  setActiveView('chats');
-                  setSelectedRoom(null);
-                }}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeView === 'chats'
-                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <MessageCircle className="inline-block mr-2" size={16} />
-                Chats
-              </button>
-              <button
-                onClick={() => setActiveView('users')}
-                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-                  activeView === 'users'
-                    ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-                }`}
-              >
-                <Users className="inline-block mr-2" size={16} />
-                Users
-              </button>
-            </div>
-
-            {/* Search */}
-            <div className="p-3 border-b border-gray-200 dark:border-gray-700">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-                <input
-                  type="text"
-                  placeholder={activeView === 'chats' ? 'Search chats...' : 'Search users...'}
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
-                />
-              </div>
-            </div>
-
-            {/* List */}
-            <div className="flex-1 overflow-y-auto">
-              {activeView === 'chats' ? (
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredChatRooms.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                      <MessageCircle className="mx-auto h-12 w-12 mb-2 opacity-50" />
-                      <p className="text-sm">No conversations yet</p>
-                      <p className="text-xs mt-1">Start a chat from the Users tab</p>
-                    </div>
-                  ) : (
-                    filteredChatRooms.map((room) => {
-                      const currentUserId = String(user.id);
-                      const otherParticipant = room.participants?.find(p => String(p.id) !== currentUserId);
-                      const displayName: string = room.room_type === 'direct' 
-                        ? (otherParticipant?.username || room.name || 'Unknown User')
-                        : (room.name || 'Group Chat');
-                      
-                      return (
-                        <button
-                          key={room.id}
-                          onClick={() => setSelectedRoom(room)}
-                          className={`w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                            selectedRoom?.id === room.id ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''
-                          }`}
-                        >
-                          <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0">
-                              {room.room_type === 'direct' && otherParticipant?.avatar ? (
-                                <img
-                                  src={otherParticipant.avatar}
-                                  alt={displayName}
-                                  className="w-12 h-12 rounded-full object-cover"
-                                  onError={(e) => {
-                                    // Hide image if it fails to load, will show default avatar
-                                    (e.target as HTMLImageElement).style.display = 'none';
-                                  }}
-                                />
-                              ) : (
-                                <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                                  {room.room_type === 'direct' ? (
-                                    <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-lg">
-                                      {displayName.charAt(0).toUpperCase()}
-                                    </span>
-                                  ) : (
-                                    <Users className="text-indigo-600 dark:text-indigo-400" size={20} />
-                                  )}
-                                </div>
-                              )}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center justify-between mb-1">
-                                <h3 className="font-semibold text-gray-900 dark:text-white truncate text-sm">
-                                  {displayName}
-                                </h3>
-                                {room.last_message && (
-                                  <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0 ml-2">
-                                    {new Date(room.last_message.created_at).toLocaleDateString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric'
-                                    })}
-                                  </span>
-                                )}
-                              </div>
-                              {room.last_message && (
-                                <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                                  {String(room.last_message.sender_id) === String(user.id) ? 'You: ' : ''}
-                                  {room.last_message.content}
-                                </p>
-                              )}
-                              {room.unread_count && room.unread_count > 0 && (
-                                <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-indigo-600 text-white rounded-full">
-                                  {room.unread_count}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredUsers.length === 0 ? (
-                    <div className="p-8 text-center text-gray-500 dark:text-gray-400">
-                      <Users className="mx-auto h-12 w-12 mb-2 opacity-50" />
-                      <p className="text-sm">No users found</p>
-                    </div>
-                  ) : (
-                    filteredUsers.map((otherUser) => (
-                      <button
-                        key={otherUser.id}
-                        onClick={() => handleStartChat(otherUser)}
-                        disabled={isCreatingRoom}
-                        className="w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {otherUser.avatar ? (
-                          <img
-                            src={otherUser.avatar}
-                            alt={otherUser.username}
-                            className="w-12 h-12 rounded-full object-cover"
-                            onError={(e) => {
-                              // Hide image if it fails to load, will show default avatar
-                              (e.target as HTMLImageElement).style.display = 'none';
-                            }}
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                            <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-lg">
-                              {otherUser.username.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-gray-900 dark:text-white truncate text-sm">
-                            {otherUser.username}
-                          </h3>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            {otherUser.email}
-                          </p>
-                        </div>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Main Chat Area */}
-          <div className="flex-1 flex flex-col transition-opacity duration-200">
+          <div className="flex-1 flex flex-col transition-opacity duration-200 h-full">
             {selectedRoom ? (
               <>
-                {/* Chat Header */}
-                <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800">
-                  <div className="flex items-center gap-3">
-                    {(() => {
-                      const currentUserId = String(user.id);
-                      const otherParticipant = selectedRoom.participants?.find(p => String(p.id) !== currentUserId);
-                      const displayAvatar = selectedRoom.room_type === 'direct' ? otherParticipant?.avatar : selectedRoom.participants?.[0]?.avatar;
-                      
-                      return displayAvatar ? (
-                        <img
-                          src={displayAvatar}
-                          alt={selectedRoom.name || ''}
-                          className="w-10 h-10 rounded-full"
-                          onError={(e) => {
-                            // Fallback to default if image fails to load
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                          {selectedRoom.room_type === 'direct' ? (
-                            <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
-                              {selectedRoom.name?.charAt(0).toUpperCase()}
-                            </span>
-                          ) : (
-                            <Users className="text-indigo-600 dark:text-indigo-400" size={18} />
-                          )}
-                        </div>
-                      );
-                    })()}
-                    <div>
-                      <h2 className="font-semibold text-gray-900 dark:text-white">
-                        {selectedRoom.name || 'Chat'}
-                      </h2>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {selectedRoom.room_type === 'direct' ? 'Direct message' : `${selectedRoom.participants?.length || 0} participants`}
-                      </p>
-                    </div>
-                  </div>
-                  <button className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg">
-                    <MoreVertical className="text-gray-600 dark:text-gray-400" size={20} />
-                  </button>
-                </div>
+                <ChatHeader room={selectedRoom} currentUserId={String(user.id)} />
+                
+                <MessagesList
+                  messages={messages}
+                  currentUserId={String(user.id)}
+                  selectedRoom={selectedRoom}
+                  messagesEndRef={messagesEndRef}
+                  messagesContainerRef={messagesContainerRef}
+                />
 
-                {/* Messages */}
-                <div
-                  ref={messagesContainerRef}
-                  className="flex-1 overflow-y-auto p-4 space-y-4 relative"
-                >
-                  {messages.length === 0 ? (
-                    <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
-                      <div className="text-center">
-                        <MessageCircle className="mx-auto h-12 w-12 mb-2 opacity-50" />
-                        <p className="text-sm">No messages yet</p>
-                        <p className="text-xs mt-1">Start the conversation!</p>
-                      </div>
-                    </div>
-                  ) : (
-                    messages.map((message, index) => {
-                      const currentUserId = String(user.id);
-                      const isOwnMessage = String(message.sender_id) === currentUserId;
-                      const prevMessage = index > 0 ? messages[index - 1] : null;
-                      const showAvatar = !prevMessage || String(prevMessage.sender_id) !== String(message.sender_id);
-                      const messageDate = new Date(message.created_at);
-                      const prevMessageDate = prevMessage ? new Date(prevMessage.created_at) : null;
-                      const showDateSeparator = !prevMessageDate || 
-                        messageDate.toDateString() !== prevMessageDate.toDateString();
-
-                      return (
-                        <React.Fragment key={message.id}>
-                          {showDateSeparator && (
-                            <div className="flex justify-center my-4">
-                              <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
-                                {messageDate.toLocaleDateString('en-US', {
-                                  weekday: 'long',
-                                  year: 'numeric',
-                                  month: 'long',
-                                  day: 'numeric'
-                                })}
-                              </span>
-                            </div>
-                          )}
-                          <div
-                            className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}
-                          >
-                            {showAvatar && !isOwnMessage && (() => {
-                              // Use sender avatar, or fallback to participant avatar from selectedRoom
-                              const senderId = String(message.sender_id);
-                              const participant = selectedRoom?.participants?.find(p => String(p.id) === senderId);
-                              
-                              // Get avatar - prioritize sender, then participant, ensure URL is processed
-                              let avatarToUse = message.sender?.avatar;
-                              if (!avatarToUse && participant?.avatar) {
-                                avatarToUse = getAvatarUrl(participant.avatar);
-                              } else if (avatarToUse) {
-                                avatarToUse = getAvatarUrl(avatarToUse);
-                              }
-                              
-                              const usernameToUse = message.sender?.username || participant?.username;
-                              
-                              return (
-                                <MessageAvatar 
-                                  avatar={avatarToUse}
-                                  username={usernameToUse}
-                                />
-                              );
-                            })()}
-                            {!showAvatar && !isOwnMessage && <div className="w-8 h-8 flex-shrink-0" />}
-                            <div
-                              className={`flex flex-col max-w-[70%] ${isOwnMessage ? 'items-end' : 'items-start'}`}
-                            >
-                              {showAvatar && !isOwnMessage && message.sender?.username && (
-                                <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-                                  {message.sender.username}
-                                </span>
-                              )}
-                              <div
-                                className={`px-4 py-2 rounded-2xl ${
-                                  isOwnMessage
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-                                }`}
-                              >
-                                <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-                              </div>
-                              <span className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                                {messageDate.toLocaleTimeString('en-US', {
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </span>
-                            </div>
-                          </div>
-                        </React.Fragment>
-                      );
-                    })
-                  )}
-                  <div ref={messagesEndRef} />
-                </div>
-
-                {/* Message Input */}
-                <form onSubmit={handleSendMessage} className="p-4 border-t border-gray-200 dark:border-gray-700">
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      placeholder="Type a message..."
-                      disabled={isSendingMessage}
-                      className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                    />
-                    <button
-                      type="submit"
-                      disabled={!newMessage.trim() || isSendingMessage}
-                      className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-                    >
-                      <Send size={18} />
-                      Send
-                    </button>
-                  </div>
-                </form>
+                <MessageInput
+                  newMessage={newMessage}
+                  isSendingMessage={isSendingMessage}
+                  onMessageChange={setNewMessage}
+                  onSubmit={handleSendMessage}
+                />
               </>
             ) : (
               <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
@@ -1143,9 +991,8 @@ const Chat = () => {
           onClose={() => setToast(null)}
         />
       )}
-    </PageLayout>
+    </>
   );
 };
 
 export default Chat;
-

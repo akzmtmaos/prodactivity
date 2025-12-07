@@ -125,20 +125,59 @@ class NotificationsService {
 
   /**
    * Create a new notification (for admin/system use)
+   * This now uses Django API to ensure email notifications are sent
    */
   async createNotification(notification: NotificationInsert): Promise<Notification> {
-    const { data, error } = await supabase
-      .from('notifications')
-      .insert(notification)
-      .select()
-      .single();
+    try {
+      // Use Django API endpoint to create notification
+      // This will automatically:
+      // 1. Save to Django database
+      // 2. Sync to Supabase (via Django signal)
+      // 3. Send email notification (via Django signal)
+      const { getApiBaseUrl } = require('../config/api');
+      const apiBaseUrl = getApiBaseUrl();
+      const token = localStorage.getItem('accessToken');
+      
+      const response = await fetch(`${apiBaseUrl}/notifications/create/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token ? `Bearer ${token}` : '',
+        },
+        body: JSON.stringify({
+          title: notification.title,
+          message: notification.message,
+          notification_type: notification.notification_type || 'general',
+          is_read: notification.is_read || false,
+        }),
+      });
 
-    if (error) {
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Failed to create notification' }));
+        console.error('Error creating notification via API:', errorData);
+        throw new Error(errorData.detail || 'Failed to create notification');
+      }
+
+      const data = await response.json();
+      console.log('✅ Notification created successfully via Django API:', data);
+      return data;
+    } catch (error: any) {
       console.error('Error creating notification:', error);
-      throw error;
-    }
+      // Fallback to direct Supabase insert if API fails (for backward compatibility)
+      console.warn('⚠️ Falling back to direct Supabase insert (email may not be sent)');
+      const { data, error: supabaseError } = await supabase
+        .from('notifications')
+        .insert(notification)
+        .select()
+        .single();
 
-    return data;
+      if (supabaseError) {
+        console.error('Supabase fallback also failed:', supabaseError);
+        throw supabaseError;
+      }
+
+      return data;
+    }
   }
 
   /**

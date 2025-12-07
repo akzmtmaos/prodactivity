@@ -54,26 +54,53 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
     // First check notification type for specific icons
     switch (notificationType) {
       case 'task_completed':
-        return <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />;
+        return {
+          icon: <CheckCircle size={24} className="text-green-600 dark:text-green-400" />,
+          bgColor: 'bg-green-100 dark:bg-green-900/20'
+        };
       case 'task_due':
-        return <AlertTriangle className="h-5 w-5 text-orange-600 dark:text-orange-400" />;
+        return {
+          icon: <AlertTriangle size={24} className="text-orange-600 dark:text-orange-400" />,
+          bgColor: 'bg-orange-100 dark:bg-orange-900/20'
+        };
       case 'note_reminder':
-        return <FileText className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
+        return {
+          icon: <FileText size={24} className="text-blue-600 dark:text-blue-400" />,
+          bgColor: 'bg-blue-100 dark:bg-blue-900/20'
+        };
       case 'study_reminder':
-        return <BookOpen className="h-5 w-5 text-purple-600 dark:text-purple-400" />;
+        return {
+          icon: <BookOpen size={24} className="text-purple-600 dark:text-purple-400" />,
+          bgColor: 'bg-purple-100 dark:bg-purple-900/20'
+        };
       case 'schedule_reminder':
-        return <Calendar className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />;
+        return {
+          icon: <Calendar size={24} className="text-indigo-600 dark:text-indigo-400" />,
+          bgColor: 'bg-indigo-100 dark:bg-indigo-900/20'
+        };
       default:
         // Fallback to type-based icons
         switch (type) {
           case 'success':
-            return <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400" />;
+            return {
+              icon: <CheckCircle size={24} className="text-green-600 dark:text-green-400" />,
+              bgColor: 'bg-green-100 dark:bg-green-900/20'
+            };
           case 'warning':
-            return <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />;
+            return {
+              icon: <AlertTriangle size={24} className="text-yellow-600 dark:text-yellow-400" />,
+              bgColor: 'bg-yellow-100 dark:bg-yellow-900/20'
+            };
           case 'error':
-            return <XCircle className="h-5 w-5 text-red-600 dark:text-red-400" />;
+            return {
+              icon: <XCircle size={24} className="text-red-600 dark:text-red-400" />,
+              bgColor: 'bg-red-100 dark:bg-red-900/20'
+            };
           default:
-            return <Info className="h-5 w-5 text-blue-600 dark:text-blue-400" />;
+            return {
+              icon: <Info size={24} className="text-blue-600 dark:text-blue-400" />,
+              bgColor: 'bg-blue-100 dark:bg-blue-900/20'
+            };
         }
     }
   };
@@ -113,6 +140,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   };
 
   const hasNavigation = notificationType !== 'general';
+  const iconData = getNotificationIcon();
 
   return (
     <div
@@ -124,11 +152,13 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
       }`}
     >
       <div className="flex items-start justify-between">
-        <div className="flex items-start space-x-3 flex-1">
-          <div className="flex-shrink-0 mt-1">
-            {getNotificationIcon()}
+        <div className="flex items-center flex-1">
+          <div className="flex-shrink-0">
+            <div className={`p-3 ${iconData.bgColor} rounded-lg`}>
+              {iconData.icon}
+            </div>
           </div>
-          <div className="flex-1">
+          <div className="ml-4 flex-1">
             <h3 className="font-medium text-gray-900 dark:text-white">{title}</h3>
             <p className="mt-1 text-sm text-gray-600 dark:text-gray-300">{message}</p>
             <div className="flex items-center mt-2 text-xs text-gray-500 dark:text-gray-400">

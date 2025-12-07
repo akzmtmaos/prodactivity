@@ -3,6 +3,7 @@ import LevelProgressRing from './LevelProgressRing';
 import StreaksCalendar from './StreaksCalendar';
 import DailyBreakdownModal from './DailyBreakdownModal';
 import { List } from 'lucide-react';
+import { getAvatarUrl } from '../chat/utils';
 
 interface ProgressOverviewProps {
   userLevel: {
@@ -14,6 +15,8 @@ interface ProgressOverviewProps {
   streakData: any[];
   refreshProductivity: () => void;
   getProductivityColor?: (status: string) => string;
+  username?: string;
+  avatar?: string | null;
 }
 
 const ProgressOverview: React.FC<ProgressOverviewProps> = ({
@@ -21,9 +24,14 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
   todaysProductivity,
   streakData,
   refreshProductivity,
-  getProductivityColor
+  getProductivityColor,
+  username = 'User',
+  avatar
 }) => {
   const [showTodayBreakdown, setShowTodayBreakdown] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  
+  const avatarUrl = avatar ? getAvatarUrl(avatar) : null;
   
   // Default productivity color function if not provided
   const defaultGetProductivityColor = (status: string) => {
@@ -71,17 +79,56 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
           />
         </div>
         
-        {/* Level XP Bar */}
-        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-lg dark:shadow-indigo-500/10 p-6 mb-4">
-          <div className="flex items-center justify-between mb-3">
-            <span className="text-sm font-semibold text-indigo-700 dark:text-indigo-300">Level XP</span>
-            <span className="text-sm font-bold text-gray-900 dark:text-gray-100">{userLevel.currentXP} / {userLevel.xpToNextLevel} XP</span>
-          </div>
-          <div className="w-full h-3 bg-gray-100 dark:bg-gray-700/50 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 dark:from-indigo-400 dark:to-indigo-500 transition-all duration-500 rounded-full"
-              style={{ width: `${progressPercentage}%` }}
-            />
+        {/* Level XP Bar - Discord Rank Card Style */}
+        <div className="bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 backdrop-blur-sm border-2 border-indigo-300/50 dark:border-indigo-400/30 rounded-2xl shadow-2xl dark:shadow-indigo-500/20 p-5 mb-4">
+          <div className="flex items-center gap-4">
+            {/* Profile Picture */}
+            <div className="flex-shrink-0 relative">
+              <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-indigo-400/60 dark:border-indigo-400/50 shadow-lg ring-4 ring-indigo-400/20 dark:ring-indigo-400/20">
+                {avatarUrl && !imageError ? (
+                  <img
+                    src={avatarUrl}
+                    alt={username}
+                    className="w-full h-full object-cover"
+                    onError={() => setImageError(true)}
+                  />
+                ) : (
+                  <div className="w-full h-full bg-gradient-to-br from-indigo-500 to-purple-600 dark:from-indigo-400 dark:to-purple-500 flex items-center justify-center">
+                    <span className="text-2xl font-bold text-white">
+                      {username?.charAt(0).toUpperCase() || 'U'}
+                    </span>
+                  </div>
+                )}
+              </div>
+              {/* Level Badge */}
+              <div className="absolute -bottom-1 -right-1 w-8 h-8 bg-indigo-600 dark:bg-indigo-500 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center shadow-lg">
+                <span className="text-xs font-bold text-white">{userLevel.currentLevel}</span>
+              </div>
+            </div>
+            
+            {/* Progress Bar Section */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-900 dark:text-gray-100 font-bold text-base truncate">{username}</span>
+                </div>
+                <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
+                  {userLevel.currentXP} / {userLevel.xpToNextLevel} XP
+                </span>
+              </div>
+              <div className="w-full h-4 bg-gray-200/70 dark:bg-gray-800/70 rounded-full overflow-hidden shadow-inner">
+                <div
+                  className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-indigo-500 dark:from-indigo-400 dark:via-purple-400 dark:to-indigo-400 transition-all duration-500 rounded-full shadow-lg relative overflow-hidden"
+                  style={{ width: `${progressPercentage}%` }}
+                >
+                  {/* Animated shimmer effect */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
+                </div>
+              </div>
+              <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                Level {userLevel.currentLevel} • {userLevel.xpToNextLevel - userLevel.currentXP} XP to Level {userLevel.currentLevel + 1}
+              </div>
+            </div>
           </div>
         </div>
         
