@@ -3,6 +3,7 @@ import { MessageCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Toast from '../components/common/Toast';
 import { useNavbar } from '../context/NavbarContext';
+import { useParams, useNavigate } from 'react-router-dom';
 import {
   ChatSidebar,
   ChatHeader,
@@ -17,6 +18,8 @@ import {
 
 const Chat = () => {
   const { isCollapsed } = useNavbar();
+  const { userId } = useParams<{ userId?: string }>();
+  const navigate = useNavigate();
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<'chats' | 'users'>('chats');
@@ -613,11 +616,62 @@ const Chat = () => {
         };
         setSelectedRoom(chatRoom);
         setActiveView('chats');
+        // Update URL to include userId
+        navigate(`/chat/${otherUser.id}`, { replace: true });
       }
     } finally {
       setIsCreatingRoom(false);
     }
   };
+
+  // Handler for room selection that also updates URL
+  const handleRoomSelect = (room: ChatRoom) => {
+    setSelectedRoom(room);
+    // Update URL if it's a direct chat
+    if (room.room_type === 'direct' && user?.id) {
+      const otherParticipant = room.participants?.find(p => String(p.id) !== String(user.id));
+      if (otherParticipant) {
+        navigate(`/chat/${otherParticipant.id}`, { replace: true });
+      }
+    } else {
+      // For group chats, navigate to base chat
+      if (userId) {
+        navigate('/chat', { replace: true });
+      }
+    }
+  };
+
+  // Handle URL parameter to automatically start chat with user
+  useEffect(() => {
+    if (userId && user?.id && allUsers.length > 0) {
+      const targetUser = allUsers.find(u => String(u.id) === String(userId));
+      if (targetUser) {
+        // Check if we already have this room selected
+        const existingRoom = chatRooms.find(room => {
+          if (room.room_type === 'direct' && room.participants) {
+            return room.participants.some(p => String(p.id) === String(userId));
+          }
+          return false;
+        });
+        
+        if (existingRoom) {
+          // Room exists, just select it
+          handleRoomSelect(existingRoom);
+        } else if (!selectedRoom || String(selectedRoom.participants?.[0]?.id) !== String(userId)) {
+          // Room doesn't exist, create it
+          console.log('🔗 URL parameter detected, starting chat with user:', userId);
+          handleStartChat(targetUser);
+        }
+      }
+    }
+  }, [userId, user?.id, allUsers.length, chatRooms.length]);
+
+  // Clear URL when room is cleared
+  useEffect(() => {
+    if (selectedRoom === null && userId) {
+      navigate('/chat', { replace: true });
+    }
+  }, [selectedRoom, userId]);
 
   const uploadAttachments = async (attachments: Attachment[]): Promise<Attachment[]> => {
     if (!attachments || attachments.length === 0) return [];
@@ -1001,7 +1055,7 @@ const Chat = () => {
             isCreatingRoom={isCreatingRoom}
             onViewChange={setActiveView}
             onSearchChange={setSearchTerm}
-            onRoomSelect={setSelectedRoom}
+            onRoomSelect={handleRoomSelect}
             onStartChat={handleStartChat}
           />
 

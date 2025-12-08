@@ -28,10 +28,40 @@ export const getAvatarUrl = (avatar: string | null | undefined): string | null =
 
 /**
  * Formats a message preview for display in chat list
- * Handles attachments and returns user-friendly text
+ * Handles attachments and shared items, returns user-friendly text
  */
 export const formatMessagePreview = (content: string | null | undefined): string => {
   if (!content) return '';
+  
+  // Check for shared items first
+  const sharedMatch = content.match(/__SHARED_ITEM__([\s\S]+)$/);
+  if (sharedMatch && sharedMatch[1]) {
+    try {
+      const sharedData = JSON.parse(sharedMatch[1].trim());
+      const itemType = sharedData.itemType || 'item';
+      const itemTitle = sharedData.itemTitle || 'item';
+      
+      // Get icon based on item type
+      const icons: Record<string, string> = {
+        'note': '📝',
+        'notebook': '📔',
+        'reviewer': '📚',
+        'task': '✅'
+      };
+      const icon = icons[itemType] || '📄';
+      
+      // Check if there's additional text content
+      const text = content.replace(/__SHARED_ITEM__[\s\S]+$/, '').trim();
+      if (text) {
+        return `${text} • ${icon} Shared ${itemType}`;
+      }
+      
+      return `${icon} Shared ${itemType}: ${itemTitle}`;
+    } catch (e) {
+      // If parsing fails, continue to check for attachments
+      console.error('❌ Error parsing shared item in preview:', e);
+    }
+  }
   
   // Check if content contains attachments - use [\s\S] to match newlines
   const attachmentsMatch = content.match(/__ATTACHMENTS__([\s\S]+)$/);
@@ -68,6 +98,10 @@ export const formatMessagePreview = (content: string | null | undefined): string
     }
   }
   
-  return content;
+  // Return plain text, removing both shared items and attachments markers
+  return content
+    .replace(/__SHARED_ITEM__[\s\S]+$/, '')
+    .replace(/__ATTACHMENTS__[\s\S]+$/, '')
+    .trim();
 };
 

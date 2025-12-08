@@ -203,7 +203,7 @@ function App() {
               }
             />
             <Route
-              path="/chat"
+              path="/chat/:userId?"
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
                   <Chat />

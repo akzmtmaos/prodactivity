@@ -22,10 +22,15 @@ const SessionLogs: React.FC<{ logs: SessionLogEntry[] }> = ({ logs }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 30;
 
+  // Sort logs by start date (newest first) before filtering
+  const sortedLogs = [...logs].sort((a, b) => {
+    return new Date(b.start).getTime() - new Date(a.start).getTime();
+  });
+  
   // Filter logs based on selected filter
   const filteredLogs = filter === 'All' 
-    ? logs 
-    : logs.filter(log => log.type === filter);
+    ? sortedLogs 
+    : sortedLogs.filter(log => log.type === filter);
   
   // Reset to page 1 when filter changes
   useEffect(() => {
@@ -36,7 +41,7 @@ const SessionLogs: React.FC<{ logs: SessionLogEntry[] }> = ({ logs }) => {
   const totalPages = Math.ceil(filteredLogs.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const paginatedLogs = filteredLogs.slice(startIndex, endIndex).reverse(); // Show newest first
+  const paginatedLogs = filteredLogs.slice(startIndex, endIndex); // Already sorted newest first
 
   // Calculate statistics (using all logs, not filtered)
   const studySessions = logs.filter(log => log.type === 'Study');
@@ -418,13 +423,32 @@ const StudyTimer: React.FC = () => {
   // Listen for session saved events to auto-refresh session logs
   useEffect(() => {
     const handleSessionSaved = () => {
-      // Small delay to ensure backend has processed the save
+      // Optimistic update: immediately add the latest session from localStorage
+      const logs = localStorage.getItem('studyTimerLogs');
+      if (logs) {
+        try {
+          const parsedLogs = JSON.parse(logs).map((log: any) => ({
+            ...log,
+            start: new Date(log.start),
+            end: new Date(log.end)
+          }));
+          // Sort by date (newest first) and update state immediately
+          const sortedLogs = parsedLogs.sort((a: SessionLogEntry, b: SessionLogEntry) => {
+            return new Date(b.start).getTime() - new Date(a.start).getTime();
+          });
+          setSessionLogs(sortedLogs);
+        } catch (e) {
+          console.error('Error parsing session logs for optimistic update:', e);
+        }
+      }
+      
+      // Then refresh from backend to ensure consistency (with small delay to allow backend to process)
       setTimeout(() => {
         loadSessionLogs();
         if (refreshSessionsCount) {
           refreshSessionsCount();
         }
-      }, 500);
+      }, 300);
     };
 
     window.addEventListener('studyTimerSessionSaved', handleSessionSaved);

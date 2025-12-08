@@ -738,6 +738,20 @@ const Progress = () => {
       }
     };
     
+    // Listen for achievement unlock events to refresh user level
+    const handleAchievementUnlocked = async () => {
+      console.log('🏆 Achievement unlocked event received, refreshing user level...');
+      try {
+        // Add a small delay to allow XP to be saved
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const levelData = await fetchUserLevel();
+        setUserLevel(levelData);
+        console.log('✅ User level refreshed after achievement unlock');
+      } catch (error) {
+        console.error('Error refreshing user level after achievement unlock:', error);
+      }
+    };
+
     // Listen for subtask completion events to refresh productivity data
     const handleSubtaskCompleted = async () => {
       console.log('🔄 Subtask completion event received, refreshing productivity data...');
@@ -759,11 +773,13 @@ const Progress = () => {
     window.addEventListener('taskCompleted', handleTaskCompleted);
     window.addEventListener('taskCreated', handleTaskCreated);
     window.addEventListener('subtaskCompleted', handleSubtaskCompleted);
+    window.addEventListener('achievementUnlocked', handleAchievementUnlocked);
     
     return () => {
       window.removeEventListener('taskCompleted', handleTaskCompleted);
       window.removeEventListener('taskCreated', handleTaskCreated);
       window.removeEventListener('subtaskCompleted', handleSubtaskCompleted);
+      window.removeEventListener('achievementUnlocked', handleAchievementUnlocked);
     };
   }, []);
 

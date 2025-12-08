@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import ReactDOM from 'react-dom';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
-import { Star, StarOff, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy, Edit } from 'lucide-react';
+import { Star, StarOff, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy, Edit, MoreVertical, FileText, File } from 'lucide-react';
 import { truncateHtmlContent } from '../../utils/htmlUtils';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosConfig';
 import ShareModal from '../collaboration/ShareModal';
+import jsPDF from 'jspdf';
 
 interface Reviewer {
   id: number;
@@ -53,7 +55,40 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
 }) => {
   const navigate = useNavigate();
   const [showShareModal, setShowShareModal] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+  const buttonRef = useRef<HTMLButtonElement>(null);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
   const isQuiz = reviewer.tags && Array.isArray(reviewer.tags) && reviewer.tags.includes('quiz');
+
+  // Update menu position when it opens
+  useEffect(() => {
+    if (showMenu && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + 8,
+        right: window.innerWidth - rect.right,
+      });
+    }
+  }, [showMenu]);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node) &&
+          buttonRef.current && !buttonRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu]);
 
   const handleSourceClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -119,6 +154,7 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
 
   const handleDownloadDocx = async (e: React.MouseEvent) => {
     e.stopPropagation();
+    setShowMenu(false);
     const title = reviewer.title || 'Reviewer';
     const safeTitle = title
       .toLowerCase()
@@ -158,6 +194,44 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
     a.click();
     a.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadPdf = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowMenu(false);
+    const title = reviewer.title || 'Reviewer';
+    const safeTitle = title
+      .toLowerCase()
+      .replace(/[^a-z0-9-_ ]/gi, '')
+      .trim()
+      .replace(/\s+/g, '_')
+      .slice(0, 80) || 'reviewer';
+
+    const pdf = new jsPDF();
+    
+    // Add title
+    pdf.setFontSize(18);
+    pdf.text(title, 14, 20);
+    
+    // Add content
+    const contentText = reviewer.content || '';
+    // Remove HTML tags for PDF
+    const textContent = contentText.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ');
+    
+    pdf.setFontSize(11);
+    const lines = pdf.splitTextToSize(textContent, 180); // 180mm width
+    let y = 30;
+    
+    lines.forEach((line: string) => {
+      if (y > 270) { // New page if near bottom
+        pdf.addPage();
+        y = 20;
+      }
+      pdf.text(line, 14, y);
+      y += 7;
+    });
+
+    pdf.save(`${safeTitle}.pdf`);
   };
   return (
     <div
@@ -226,48 +300,93 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
             </button>
           )}
           
-          <button
-            onClick={e => {
-              e.stopPropagation();
-              setShowShareModal(true);
-            }}
-            className="p-2 text-gray-400 hover:text-indigo-500 transition-colors"
-            title="Share reviewer/quiz"
-          >
-            <Share2 size={16} />
-          </button>
-          
-          {onEdit && (
+          {/* Three-dot menu */}
+          <div className="relative">
             <button
+              ref={buttonRef}
               onClick={e => {
                 e.stopPropagation();
-                onEdit(reviewer);
+                setShowMenu(!showMenu);
               }}
-              className="p-2 text-gray-400 hover:text-indigo-500 transition-colors"
-              title="Edit reviewer"
+              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              title="More options"
             >
-              <Edit size={16} />
+              <MoreVertical size={16} />
             </button>
-          )}
-          
-          <button
-            onClick={handleDownloadDocx}
-            className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-            title="Download as Word (.docx)"
-          >
-            <Download size={16} />
-          </button>
-          
-          <button
-            onClick={e => {
-              e.stopPropagation();
-              onDelete(reviewer.id);
-            }}
-            className="p-2 text-gray-400 hover:text-red-500 transition-colors"
-            title="Delete reviewer"
-          >
-            <Trash2 size={16} />
-          </button>
+            
+            {/* Dropdown Menu - Rendered as Portal */}
+            {showMenu && ReactDOM.createPortal(
+              <div 
+                ref={menuRef}
+                className="fixed w-48 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-[9999]"
+                style={{
+                  top: `${menuPosition.top}px`,
+                  right: `${menuPosition.right}px`,
+                }}
+              >
+                <div className="py-1">
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      setShowShareModal(true);
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <Share2 size={16} />
+                    Share {isQuiz ? 'Quiz' : 'Reviewer'}
+                  </button>
+                  
+                  {onEdit && (
+                    <button
+                      onClick={e => {
+                        e.stopPropagation();
+                        onEdit(reviewer);
+                        setShowMenu(false);
+                      }}
+                      className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                    >
+                      <Edit size={16} />
+                      Edit {isQuiz ? 'Quiz' : 'Reviewer'}
+                    </button>
+                  )}
+                  
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                  
+                  <button
+                    onClick={handleDownloadDocx}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <FileText size={16} />
+                    Download as DOC
+                  </button>
+                  
+                  <button
+                    onClick={handleDownloadPdf}
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-2"
+                  >
+                    <File size={16} />
+                    Download as PDF
+                  </button>
+                  
+                  <div className="border-t border-gray-200 dark:border-gray-700 my-1"></div>
+                  
+                  <button
+                    onClick={e => {
+                      e.stopPropagation();
+                      onDelete(reviewer.id);
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2"
+                  >
+                    <Trash2 size={16} />
+                    Delete {isQuiz ? 'Quiz' : 'Reviewer'}
+                  </button>
+                </div>
+              </div>,
+              document.body
+            )}
+          </div>
           
           {showGenerateQuiz && onGenerateQuiz && (
             <button

@@ -28,6 +28,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
   onShared
 }) => {
   const [users, setUsers] = useState<User[]>([]);
+  const [allUsers, setAllUsers] = useState<User[]>([]); // Store all users for search
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [permissionLevel, setPermissionLevel] = useState<'view' | 'edit' | 'comment'>('view');
@@ -36,7 +37,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      fetchUsers();
+      fetchUsersWithChatRooms();
       // Fetch already shared users
       fetchSharedUsers();
     } else {
@@ -46,27 +47,80 @@ const ShareModal: React.FC<ShareModalProps> = ({
     }
   }, [isOpen, itemType, itemId]);
 
-  const fetchUsers = async () => {
+  // Fetch users that have chat rooms with current user
+  const fetchUsersWithChatRooms = async () => {
     try {
       const userData = localStorage.getItem('user');
       if (!userData) return;
 
       const currentUser = JSON.parse(userData);
+      const currentUserId = String(currentUser.id);
       
-      const { data: usersData, error } = await supabase
-        .from('profiles')
-        .select('id, username, email, avatar')
-        .neq('id', currentUser.id)
-        .order('username', { ascending: true });
+      // Get all chat rooms where current user is a participant
+      const { data: participants, error: participantsError } = await supabase
+        .from('room_participants')
+        .select('room_id, chat_rooms!inner(*)')
+        .eq('user_id', currentUserId);
 
-      if (error) {
-        console.error('Error fetching users:', error);
+      if (participantsError) {
+        console.error('Error fetching chat rooms:', participantsError);
         return;
       }
 
-      setUsers(usersData || []);
+      // Get all unique user IDs from chat rooms (excluding current user)
+      const userIds = new Set<string>();
+      
+      for (const participant of participants || []) {
+        const room = Array.isArray(participant.chat_rooms) 
+          ? participant.chat_rooms[0] 
+          : participant.chat_rooms;
+        
+        if (room && typeof room === 'object' && 'id' in room) {
+          // Get all participants of this room
+          const { data: roomParticipants } = await supabase
+            .from('room_participants')
+            .select('user_id')
+            .eq('room_id', room.id);
+
+          (roomParticipants || []).forEach((p: any) => {
+            const userId = String(p.user_id);
+            if (userId !== currentUserId) {
+              userIds.add(userId);
+            }
+          });
+        }
+      }
+
+      // Fetch user profiles for these IDs
+      if (userIds.size > 0) {
+        const { data: usersData, error: usersError } = await supabase
+          .from('profiles')
+          .select('id, username, email, avatar')
+          .in('id', Array.from(userIds))
+          .order('username', { ascending: true });
+
+        if (usersError) {
+          console.error('Error fetching user profiles:', usersError);
+          return;
+        }
+
+        setUsers(usersData || []);
+      } else {
+        setUsers([]);
+      }
+
+      // Also fetch all users for search functionality
+      const { data: allUsersData, error: allUsersError } = await supabase
+        .from('profiles')
+        .select('id, username, email, avatar')
+        .neq('id', currentUserId)
+        .order('username', { ascending: true });
+
+      if (!allUsersError) {
+        setAllUsers(allUsersData || []);
+      }
     } catch (error) {
-      console.error('Error fetching users:', error);
+      console.error('Error fetching users with chat rooms:', error);
     }
   };
 
@@ -83,9 +137,8 @@ const ShareModal: React.FC<ShareModalProps> = ({
         return;
       }
 
-      // Set already shared users as selected
-      const sharedUserIds = (sharedData || []).map(item => item.shared_with);
-      setSelectedUsers(sharedUserIds);
+      // Don't auto-select already shared users - let user choose who to share with
+      // The shared users list is just for reference, not for pre-selection
     } catch (error) {
       console.error('Error fetching shared users:', error);
     }
@@ -97,6 +150,133 @@ const ShareModal: React.FC<ShareModalProps> = ({
         ? prev.filter(id => id !== userId)
         : [...prev, userId]
     );
+  };
+
+  const createOrGetDirectRoom = async (otherUserId: string, currentUserId: string) => {
+    try {
+      const otherUserStr = String(otherUserId);
+      const currentUserStr = String(currentUserId);
+
+      // Check if room already exists
+      const { data: userRooms, error: userRoomsError } = await supabase
+        .from('room_participants')
+        .select('room_id, chat_rooms!inner(*)')
+        .eq('user_id', currentUserStr);
+
+      if (userRooms) {
+        for (const userRoom of userRooms) {
+          const room = Array.isArray(userRoom.chat_rooms) 
+            ? userRoom.chat_rooms[0] 
+            : userRoom.chat_rooms;
+          
+          if (room && typeof room === 'object' && 'room_type' in room && room.room_type === 'direct') {
+            const roomId = room.id as string;
+            const { data: participants } = await supabase
+              .from('room_participants')
+              .select('user_id')
+              .eq('room_id', roomId);
+
+            const participantIds = (participants || []).map((p: any) => String(p.user_id));
+            if (participantIds.length === 2 && 
+                participantIds.includes(currentUserStr) && 
+                participantIds.includes(otherUserStr)) {
+              return room as any;
+            }
+          }
+        }
+      }
+
+      // Create new room
+      const { data: newRoom, error: roomError } = await supabase
+        .from('chat_rooms')
+        .insert({
+          room_type: 'direct',
+          created_by: currentUserStr
+        })
+        .select()
+        .single();
+
+      if (roomError) {
+        throw roomError;
+      }
+
+      // Add participants
+      const { error: participantsError } = await supabase
+        .from('room_participants')
+        .insert([
+          { room_id: newRoom.id, user_id: currentUserStr },
+          { room_id: newRoom.id, user_id: otherUserStr }
+        ]);
+
+      if (participantsError) {
+        await supabase.from('chat_rooms').delete().eq('id', newRoom.id);
+        throw participantsError;
+      }
+
+      return newRoom;
+    } catch (error) {
+      console.error('Error creating/getting chat room:', error);
+      return null;
+    }
+  };
+
+  const sendShareMessage = async (roomId: string, currentUserId: string, sharedUserId: string) => {
+    try {
+      // Create share message content with special format
+      const shareData = {
+        type: 'share',
+        itemType: itemType,
+        itemId: itemId,
+        itemTitle: itemTitle,
+        permissionLevel: permissionLevel
+      };
+      
+      const messageContent = `__SHARED_ITEM__${JSON.stringify(shareData)}`;
+
+      const { error } = await supabase
+        .from('messages')
+        .insert({
+          room_id: roomId,
+          sender_id: currentUserId,
+          content: messageContent
+        });
+
+      if (error) {
+        console.error('Error sending share message:', error);
+      }
+    } catch (error) {
+      console.error('Error sending share message:', error);
+    }
+  };
+
+  const sendShareEmailNotification = async (sharedUserId: string, currentUser: any) => {
+    try {
+      // Import getApiBaseUrl to get the correct API URL
+      const { getApiBaseUrl } = await import('../../config/api');
+      const apiBaseUrl = getApiBaseUrl();
+      
+      const response = await fetch(`${apiBaseUrl}/collaboration/send-share-email/`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        },
+        body: JSON.stringify({
+          shared_user_id: sharedUserId,
+          item_type: itemType,
+          item_id: itemId,
+          item_title: itemTitle,
+          permission_level: permissionLevel,
+          shared_by_username: currentUser.username || 'Someone'
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Failed to send email notification');
+      }
+    } catch (error) {
+      console.error('Error sending email notification:', error);
+    }
   };
 
   const handleShare = async () => {
@@ -114,26 +294,37 @@ const ShareModal: React.FC<ShareModalProps> = ({
       }
 
       const currentUser = JSON.parse(userData);
+      const currentUserId = String(currentUser.id);
       
       // Share with each selected user
-      const sharePromises = selectedUsers.map(userId =>
-        supabase
+      const sharePromises = selectedUsers.map(async (userId) => {
+        // 1. Create share record
+        await supabase
           .from('shared_items')
           .upsert({
             item_type: itemType,
             item_id: itemId,
-            shared_by: currentUser.id,
+            shared_by: currentUserId,
             shared_with: userId,
             permission_level: permissionLevel,
             is_accepted: false
           }, {
             onConflict: 'item_type,item_id,shared_with'
-          })
-      );
+          });
+
+        // 2. Create/get chat room and send message
+        const room = await createOrGetDirectRoom(userId, currentUserId);
+        if (room) {
+          await sendShareMessage(room.id, currentUserId, userId);
+        }
+
+        // 3. Send email notification
+        await sendShareEmailNotification(userId, currentUser);
+      });
 
       await Promise.all(sharePromises);
 
-      setToast({ message: `Shared ${itemType} with ${selectedUsers.length} user(s)`, type: 'success' });
+      setToast({ message: `Shared ${itemType} with ${selectedUsers.length} user${selectedUsers.length !== 1 ? 's' : ''}`, type: 'success' });
       
       // Log activity
       await supabase
@@ -142,11 +333,14 @@ const ShareModal: React.FC<ShareModalProps> = ({
           selectedUsers.map(userId => ({
             item_type: itemType,
             item_id: itemId,
-            user_id: currentUser.id,
+            user_id: currentUserId,
             activity_type: 'shared',
             description: `Shared ${itemTitle} with user`
           }))
         );
+
+      // Reset selected users after sharing
+      setSelectedUsers([]);
 
       if (onShared) {
         onShared();
@@ -163,7 +357,11 @@ const ShareModal: React.FC<ShareModalProps> = ({
     }
   };
 
-  const filteredUsers = users.filter(user =>
+  // Filter users: if searching, show all users; otherwise show only users with chat rooms
+  const filteredUsers = (searchTerm.trim() 
+    ? allUsers 
+    : users
+  ).filter(user =>
     user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -235,7 +433,13 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
           {/* User List */}
           <div className="space-y-2 max-h-64 overflow-y-auto">
-            {filteredUsers.length === 0 ? (
+            {!searchTerm.trim() && users.length === 0 ? (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                <Users className="mx-auto h-12 w-12 mb-2 opacity-50" />
+                <p className="text-sm">No users with existing conversations</p>
+                <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">Search to find other users</p>
+              </div>
+            ) : filteredUsers.length === 0 ? (
               <div className="text-center py-8 text-gray-500 dark:text-gray-400">
                 <Users className="mx-auto h-12 w-12 mb-2 opacity-50" />
                 <p className="text-sm">No users found</p>
@@ -293,7 +497,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
             disabled={loading || selectedUsers.length === 0}
             className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
           >
-            {loading ? 'Sharing...' : `Share with ${selectedUsers.length} user(s)`}
+            {loading ? 'Sharing...' : selectedUsers.length > 0 ? `Share (${selectedUsers.length} user${selectedUsers.length !== 1 ? 's' : ''})` : 'Share'}
           </button>
         </div>
       </div>

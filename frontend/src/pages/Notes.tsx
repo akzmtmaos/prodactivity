@@ -1544,47 +1544,148 @@ const Notes = () => {
     }
   }, [notebooks, noteIdFromUrl, navigate]);
 
-  // Add useEffect to handle URL-based navigation (only for direct URL access/refresh)
+  // Listen for custom event to open shared notes from chat
   useEffect(() => {
-    if (notebooks.length > 0) {
-      if (notebookId) {
-        // URL has notebook ID: /notes/notebooks/{id} or /notes/notebooks/{id}/notes/{noteId}
-        const parsedNotebookId = parseInt(notebookId);
-        const notebook = notebooks.find(nb => nb.id === parsedNotebookId);
+    const handleOpenSharedNote = async (event: Event) => {
+      const customEvent = event as CustomEvent<{ noteId: number; notebookId: number }>;
+      const { noteId, notebookId } = customEvent.detail;
+      if (!noteId || !notebookId) return;
+      
+      console.log('📝 Received openSharedNote event:', { noteId, notebookId });
+      
+      try {
+        // Ensure notebooks are loaded - wait for them if needed
+        let currentNotebooks = notebooks;
+        if (currentNotebooks.length === 0) {
+          console.log('📚 Notebooks not loaded, fetching...');
+          await fetchNotebooks();
+          // Wait a bit more for state to update
+          await new Promise(resolve => setTimeout(resolve, 300));
+          // Try to get notebooks from state or refetch
+          currentNotebooks = notebooks;
+        }
         
-        if (notebook && (!selectedNotebook || selectedNotebook.id !== notebook.id)) {
+        // Fetch the note
+        console.log('📄 Fetching note:', noteId);
+        const response = await axiosInstance.get(`/notes/${noteId}/`);
+        const note = response.data;
+        console.log('✅ Note fetched:', note);
+        
+        // Find the notebook for this note - use the notebookId from the note or the event
+        const targetNotebookId = note.notebook || notebookId;
+        let notebook = currentNotebooks.find(nb => nb.id === targetNotebookId);
+        
+        // If notebook not found, wait a bit and try again (state might not be updated yet)
+        if (!notebook && notebooks.length === 0) {
+          await new Promise(resolve => setTimeout(resolve, 500));
+          notebook = notebooks.find(nb => nb.id === targetNotebookId);
+        }
+        
+        if (notebook) {
+          console.log('📔 Found notebook:', notebook);
           setSelectedNotebook(notebook);
           setCurrentView('notes');
-          fetchNotes(notebook.id);
-          setSelectedForBulk([]); // Clear selection when navigating to a notebook
+          await fetchNotes(notebook.id);
           
-          // If there's a note ID in the URL, open that note
-          if (noteIdFromUrl) {
-            const parsedNoteId = parseInt(noteIdFromUrl);
-            const note = notes.find(n => n.id === parsedNoteId);
-            if (note) {
-              setNoteEditorNote(note);
+          // Wait for notes to load, then find and open the note
+          await new Promise(resolve => setTimeout(resolve, 300));
+          
+          // Open the note in the editor
+          setNoteEditorNote(note);
+          setIsNewNoteEditor(false);
+          setShowNoteEditor(true);
+          console.log('✅ Note opened in editor');
+        } else {
+          console.error('❌ Notebook not found:', targetNotebookId);
+        }
+      } catch (error) {
+        console.error('❌ Failed to open shared note:', error);
+      }
+    };
+
+    window.addEventListener('openSharedNote', handleOpenSharedNote);
+    return () => {
+      window.removeEventListener('openSharedNote', handleOpenSharedNote);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [notebooks]);
+
+  // Add useEffect to handle URL-based navigation (only for direct URL access/refresh)
+  useEffect(() => {
+    const handleUrlNavigation = async () => {
+      if (notebooks.length > 0) {
+        if (notebookId) {
+          // URL has notebook ID: /notes/notebooks/{id} or /notes/notebooks/{id}/notes/{noteId}
+          const parsedNotebookId = parseInt(notebookId);
+          const notebook = notebooks.find(nb => nb.id === parsedNotebookId);
+          
+          if (notebook && (!selectedNotebook || selectedNotebook.id !== notebook.id)) {
+            setSelectedNotebook(notebook);
+            setCurrentView('notes');
+            await fetchNotes(notebook.id);
+            setSelectedForBulk([]); // Clear selection when navigating to a notebook
+            
+            // If there's a note ID in the URL, open that note
+            if (noteIdFromUrl && hasOpenedNoteFromUrlRef.current !== noteIdFromUrl) {
+              const parsedNoteId = parseInt(noteIdFromUrl);
+              // Wait a bit for notes to load, then try to find the note
+              await new Promise(resolve => setTimeout(resolve, 300));
+              
+              // First try to find in already loaded notes
+              let note = notes.find(n => n.id === parsedNoteId);
+              
+              // If note not found in loaded notes, fetch it directly
+              if (!note) {
+                try {
+                  console.log('📄 Fetching note from URL:', parsedNoteId);
+                  const response = await axiosInstance.get(`/notes/${parsedNoteId}/`);
+                  note = response.data;
+                  console.log('✅ Note fetched from URL:', note);
+                } catch (error) {
+                  console.error('❌ Failed to fetch note from URL:', error);
+                }
+              }
+              
+              if (note) {
+                setNoteEditorNote(note);
+                setIsNewNoteEditor(false);
+                setShowNoteEditor(true);
+                // Mark as opened to prevent reopening
+                hasOpenedNoteFromUrlRef.current = noteIdFromUrl;
+                console.log('✅ Note opened from URL');
+              }
+            }
+          }
+        }
+        } else if (noteIdFromUrl) {
+          // Legacy URL: /notes/{id} - just open the note
+          const parsedNoteId = parseInt(noteIdFromUrl);
+          let note = notes.find(n => n.id === parsedNoteId);
+          
+          // If note not found, fetch it
+          if (!note) {
+            try {
+              const response = await axiosInstance.get(`/notes/${parsedNoteId}/`);
+              note = response.data;
+            } catch (error) {
+              console.error('Failed to fetch note:', error);
+            }
+          }
+          
+          // Use a const to help TypeScript understand the type
+          const foundNote = note;
+          if (foundNote && foundNote.notebook) {
+            const notebook = notebooks.find(nb => nb.id === foundNote.notebook);
+            if (notebook && (!selectedNotebook || selectedNotebook.id !== notebook.id)) {
+              setSelectedNotebook(notebook);
+              setCurrentView('notes');
+              await fetchNotes(notebook.id);
+              setNoteEditorNote(foundNote);
               setIsNewNoteEditor(false);
               setShowNoteEditor(true);
             }
           }
-        }
-      } else if (noteIdFromUrl) {
-        // Legacy URL: /notes/{id} - just open the note
-        const parsedNoteId = parseInt(noteIdFromUrl);
-        const note = notes.find(n => n.id === parsedNoteId);
-        if (note) {
-          const notebook = notebooks.find(nb => nb.id === note.notebook);
-          if (notebook && (!selectedNotebook || selectedNotebook.id !== notebook.id)) {
-            setSelectedNotebook(notebook);
-            setCurrentView('notes');
-            fetchNotes(notebook.id);
-            setNoteEditorNote(note);
-            setIsNewNoteEditor(false);
-            setShowNoteEditor(true);
-          }
-        }
-      } else {
+        } else {
         // Main notes page: /notes - ensure we show notebooks view
         if (currentView !== 'notebooks' || selectedNotebook) {
           setCurrentView('notebooks');

@@ -880,33 +880,58 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
 
   return (
     <div className="space-y-6 h-full">
-      {/* Sticky Header and Tabs */}
+      {/* Header */}
       <div className="bg-transparent dark:bg-transparent pb-2">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+            Reviewer
+            <HelpButton 
+              content={
+                <div>
+                  <p className="font-semibold mb-2">Reviewer & Study Materials</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>• <strong>Generate Reviewers:</strong> Create study materials from your notes</li>
+                    <li>• <strong>AI-Powered:</strong> Intelligent content generation and summarization</li>
+                    <li>• <strong>Multiple Formats:</strong> Questions, summaries, and study guides</li>
+                    <li>• <strong>Source Tracking:</strong> See which notes were used to create reviewers</li>
+                    <li>• <strong>Favorites:</strong> Mark important reviewers for quick access</li>
+                    <li>• <strong>Tags:</strong> Organize reviewers by topic or subject</li>
+                    <li>• <strong>Export:</strong> Download reviewers for offline study</li>
+                  </ul>
+                </div>
+              } 
+              title="Reviewer Help" 
+            />
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400 mt-2">Generate study materials from your notes</p>
+        </div>
+        {/* Tabs and Controls Row */}
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-2">
+          {/* Tabs */}
+          <div className="flex space-x-4">
+            <button
+              onClick={() => { setActiveTab('reviewer'); navigate('/reviewer/r'); }}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'reviewer'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+            >
               Reviewer
-              <HelpButton 
-                content={
-                  <div>
-                    <p className="font-semibold mb-2">Reviewer & Study Materials</p>
-                    <ul className="space-y-1 text-xs">
-                      <li>• <strong>Generate Reviewers:</strong> Create study materials from your notes</li>
-                      <li>• <strong>AI-Powered:</strong> Intelligent content generation and summarization</li>
-                      <li>• <strong>Multiple Formats:</strong> Questions, summaries, and study guides</li>
-                      <li>• <strong>Source Tracking:</strong> See which notes were used to create reviewers</li>
-                      <li>• <strong>Favorites:</strong> Mark important reviewers for quick access</li>
-                      <li>• <strong>Tags:</strong> Organize reviewers by topic or subject</li>
-                      <li>• <strong>Export:</strong> Download reviewers for offline study</li>
-                    </ul>
-                  </div>
-                } 
-                title="Reviewer Help" 
-              />
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">Generate study materials from your notes</p>
+            </button>
+            <button
+              onClick={() => { setActiveTab('quiz'); navigate('/reviewer/q'); }}
+              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                activeTab === 'quiz'
+                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+              }`}
+            >
+              Quiz
+            </button>
           </div>
-          <div className="flex flex-col sm:flex-row items-center gap-2 mt-4 sm:mt-0 justify-end w-full sm:w-auto">
+          {/* Search, Filter, and Generate Controls */}
+          <div className="flex items-center gap-2">
             {/* Search Bar */}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
@@ -915,12 +940,12 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                 placeholder="Search reviewers..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-48 sm:w-64 pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-transparent text-gray-900 dark:text-white placeholder-gray-500"
+                className="w-full sm:w-56 pl-9 pr-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-transparent text-gray-900 dark:text-white placeholder-gray-500"
               />
             </div>
             {/* Filter Dropdown */}
             <select
-              className="ml-2 px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-transparent text-gray-900 dark:text-white"
+              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-transparent text-gray-900 dark:text-white"
               value={filterType}
               onChange={e => setFilterType(e.target.value)}
             >
@@ -940,35 +965,12 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
             {/* Generate Button */}
             <button
               onClick={openGenerateModal}
-              className="flex items-center px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
+              className="inline-flex items-center px-4 py-1.5 text-sm font-medium rounded-lg border border-transparent text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
             >
               <Plus size={16} className="mr-2" />
               Generate
             </button>
           </div>
-        </div>
-        {/* Tabs styled like Schedule */}
-        <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-2">
-          <button
-            onClick={() => { setActiveTab('reviewer'); navigate('/reviewer/r'); }}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-              activeTab === 'reviewer'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-            }`}
-          >
-            Reviewer
-          </button>
-          <button
-            onClick={() => { setActiveTab('quiz'); navigate('/reviewer/q'); }}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-              activeTab === 'quiz'
-                ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-            }`}
-          >
-            Quiz
-          </button>
         </div>
       </div>
 

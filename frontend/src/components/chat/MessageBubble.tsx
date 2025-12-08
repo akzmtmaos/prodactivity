@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import MessageAvatar from './MessageAvatar';
 import { Message, ChatRoom, User } from './types';
 import { getAvatarUrl } from './utils';
-import { File, Download, X } from 'lucide-react';
+import { File, Download, X, FileText, BookOpen, ClipboardList, CheckSquare } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface MessageBubbleProps {
   message: Message;
@@ -21,10 +22,28 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   showAvatar,
   showDateSeparator,
 }) => {
+  const navigate = useNavigate();
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [imageGallery, setImageGallery] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const isOwnMessage = String(message.sender_id) === currentUserId;
+
+  // Parse shared item from message content
+  const parseSharedItem = (content: string) => {
+    const sharedMatch = content.match(/__SHARED_ITEM__(.+)$/);
+    if (sharedMatch && sharedMatch[1]) {
+      try {
+        return JSON.parse(sharedMatch[1]);
+      } catch (e) {
+        console.error('Error parsing shared item:', e);
+        return null;
+      }
+    }
+    return null;
+  };
+
+  const sharedItem = parseSharedItem(message.content || '');
+  const displayContent = sharedItem ? message.content.replace(/__SHARED_ITEM__.+$/, '').trim() : message.content;
 
   // Get all images from attachments
   const imageAttachments = message.attachments?.filter(att => att.type === 'image') || [];
@@ -120,21 +139,123 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               {usernameToUse}
             </span>
           )}
-          <div
-            className={`px-4 py-2 rounded-2xl ${
+          {/* Shared Item Card */}
+          {sharedItem && (
+            <div className={`rounded-lg border-2 ${
               isOwnMessage
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-            } ${message.attachments && message.attachments.length > 0 ? 'space-y-2' : ''}`}
-          >
-            {/* Message Content */}
-            {message.content && (
-              <p className="text-sm whitespace-pre-wrap break-words">{message.content}</p>
-            )}
+                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'
+            } p-4 max-w-sm`}>
+              <div className="flex items-start gap-3">
+                {sharedItem.itemType === 'note' || sharedItem.itemType === 'notebook' ? (
+                  <FileText className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`} size={24} />
+                ) : sharedItem.itemType === 'reviewer' ? (
+                  <BookOpen className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`} size={24} />
+                ) : sharedItem.itemType === 'task' ? (
+                  <CheckSquare className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`} size={24} />
+                ) : (
+                  <ClipboardList className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`} size={24} />
+                )}
+                <div className="flex-1 min-w-0">
+                  <p className={`text-xs font-semibold mb-1 ${
+                    isOwnMessage ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300'
+                  }`}>
+                    Shared {sharedItem.itemType}
+                  </p>
+                  <p className={`text-sm font-medium mb-2 truncate ${
+                    isOwnMessage ? 'text-indigo-900 dark:text-indigo-100' : 'text-gray-900 dark:text-white'
+                  }`}>
+                    {sharedItem.itemTitle}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs px-2 py-1 rounded ${
+                      isOwnMessage
+                        ? 'bg-indigo-200 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200'
+                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                    }`}>
+                      {sharedItem.permissionLevel}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        try {
+                          if (sharedItem.itemType === 'note') {
+                            // Fetch note to get notebook ID
+                            const { getApiBaseUrl } = await import('../../config/api');
+                            const apiBaseUrl = getApiBaseUrl();
+                            const token = localStorage.getItem('access_token');
+                            
+                            const response = await fetch(`${apiBaseUrl}/notes/${sharedItem.itemId}/`, {
+                              headers: {
+                                'Authorization': `Bearer ${token}`
+                              }
+                            });
+                            
+                            if (response.ok) {
+                              const note = await response.json();
+                              // Navigate to note using the correct route format: /notes/notebooks/:notebookId/notes/:noteId
+                              navigate(`/notes/notebooks/${note.notebook}/notes/${note.id}`, { replace: false });
+                              
+                              // Wait for navigation to complete, then trigger custom event to open the note
+                              // Use a longer delay to ensure the Notes component is mounted and ready
+                              setTimeout(() => {
+                                window.dispatchEvent(new CustomEvent('openSharedNote', { 
+                                  detail: { noteId: note.id, notebookId: note.notebook } 
+                                }));
+                              }, 500);
+                            } else {
+                              // If note not found or no access, just navigate to notes
+                              navigate('/notes');
+                            }
+                          } else if (sharedItem.itemType === 'notebook') {
+                            // Navigate to notebook view
+                            navigate(`/notes/notebooks/${sharedItem.itemId}`);
+                          } else if (sharedItem.itemType === 'reviewer') {
+                            navigate(`/reviewer/${sharedItem.itemId}`);
+                          } else if (sharedItem.itemType === 'task') {
+                            navigate('/tasks');
+                          }
+                        } catch (error) {
+                          console.error('Error loading shared item:', error);
+                          // Fallback navigation
+                          if (sharedItem.itemType === 'note' || sharedItem.itemType === 'notebook') {
+                            navigate('/notes');
+                          } else if (sharedItem.itemType === 'reviewer') {
+                            navigate('/reviewer');
+                          } else if (sharedItem.itemType === 'task') {
+                            navigate('/tasks');
+                          }
+                        }
+                      }}
+                      className={`text-xs font-medium ${
+                        isOwnMessage
+                          ? 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-700'
+                          : 'text-blue-600 dark:text-blue-400 hover:text-blue-700'
+                      } hover:underline`}
+                    >
+                      View →
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
-            {/* Attachments */}
-            {message.attachments && message.attachments.length > 0 && (
-              <div className={`${message.content ? 'mt-2' : ''}`}>
+          {/* Text Content with Background Bubble */}
+          {displayContent && (
+            <div
+              className={`px-4 py-2 rounded-2xl ${
+                isOwnMessage
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+              } ${sharedItem ? 'mt-2' : ''}`}
+            >
+              <p className="text-sm whitespace-pre-wrap break-words">{displayContent}</p>
+            </div>
+          )}
+
+          {/* Attachments without Background Container */}
+          {message.attachments && message.attachments.length > 0 && (
+            <div className={`${message.content ? 'mt-2' : ''}`}>
                 {/* Image Gallery - Messenger Style */}
                 {imageAttachments.length > 0 && (
                   <div className={`rounded-lg overflow-hidden ${
@@ -191,31 +312,26 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         download={att.name}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`flex items-center gap-3 p-3 rounded-lg border-2 transition-colors ${
-                          isOwnMessage
-                            ? 'bg-indigo-500/20 border-indigo-400/50 hover:bg-indigo-500/30'
-                            : 'bg-gray-200/50 dark:bg-gray-600/50 border-gray-300 dark:border-gray-600 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
+                        className="flex items-center gap-3 p-3 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                       >
-                        <File size={24} className={isOwnMessage ? 'text-white' : 'text-gray-600 dark:text-gray-300'} />
+                        <File size={24} className="text-gray-600 dark:text-gray-300" />
                         <div className="flex-1 min-w-0">
-                          <p className={`text-sm font-medium truncate ${isOwnMessage ? 'text-white' : 'text-gray-900 dark:text-white'}`}>
+                          <p className="text-sm font-medium truncate text-gray-900 dark:text-white">
                             {att.name}
                           </p>
                           {att.size && (
-                            <p className={`text-xs ${isOwnMessage ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'}`}>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
                               {formatFileSize(att.size)}
                             </p>
                           )}
                         </div>
-                        <Download size={18} className={isOwnMessage ? 'text-white/70' : 'text-gray-500 dark:text-gray-400'} />
+                        <Download size={18} className="text-gray-500 dark:text-gray-400" />
                       </a>
                     ))}
                   </div>
                 )}
               </div>
             )}
-          </div>
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs text-gray-500 dark:text-gray-400">
               {messageDate.toLocaleTimeString('en-US', {

@@ -101,6 +101,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
   // Primary navigation items (most important)
   const primaryNavItems = [
     { path: "/", name: "Home", icon: <Home size={20} /> },
+    { path: "/chat", name: "Messages", icon: <MessageCircle size={20} /> },
     { path: "/progress", name: "Progress", icon: <BarChart2 size={20} /> },
     { path: "/notes", name: "Notes", icon: <FileText size={20} /> },
     { path: "/decks", name: "Flashcards", icon: <Layers size={20} /> },
@@ -109,7 +110,6 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
 
   // Secondary navigation items (less frequently used)
   const secondaryNavItems = [
-    { path: "/chat", name: "Messages", icon: <MessageCircle size={20} /> },
     { path: "/reviewer/r", name: "Reviewer", icon: <Brain size={20} /> },
     { path: "/schedule", name: "Schedule", icon: <Calendar size={20} /> },
     { path: "/study-timer", name: "Study Timer", icon: <Clock size={20} /> },
@@ -124,43 +124,43 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     <>
       {/* Vertical Navbar for Desktop */}
       <aside
-        className={`hidden md:flex fixed inset-y-0 left-0 z-30 flex-col transition-all duration-300 bg-white dark:bg-gray-800 shadow-lg
+        className={`hidden md:flex fixed inset-y-0 left-0 z-30 flex-col transition-all duration-300 bg-white dark:bg-gray-800 shadow-lg h-screen
           ${isCollapsed ? 'w-20' : 'w-64'}
         `}
       >
         {/* Collapse/Expand button for desktop */}
-        <div className="flex justify-end p-3">
+        <div className="flex justify-end p-2 flex-shrink-0">
           <button
             onClick={() => setIsCollapsed(!isCollapsed)}
             className="p-1 rounded-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
           >
-            {isCollapsed ? <ChevronRight size={20} /> : <ChevronLeft size={20} />}
+            {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
           </button>
         </div>
 
         {/* App logo/name */}
         <div 
-          className="flex items-center justify-center p-4 border-b border-gray-200 dark:border-gray-700 cursor-pointer"
+          className="flex items-center justify-center p-2 border-b border-gray-200 dark:border-gray-700 cursor-pointer flex-shrink-0"
           onClick={() => {
             if (isCollapsed) {
               setIsCollapsed(false);
             }
           }}
         >
-          <span className={`text-xl font-bold text-indigo-600 dark:text-indigo-400 ${isCollapsed ? 'hidden' : ''}`}>
+          <span className={`text-lg font-bold text-indigo-600 dark:text-indigo-400 ${isCollapsed ? 'hidden' : ''}`}>
             ProdActivity
           </span>
-          <span className={`text-2xl font-bold text-indigo-600 dark:text-indigo-400 ${!isCollapsed ? 'hidden' : ''}`}>P</span>
+          <span className={`text-xl font-bold text-indigo-600 dark:text-indigo-400 ${!isCollapsed ? 'hidden' : ''}`}>P</span>
         </div>
 
         {/* Navigation links */}
-        <nav className="flex-1 px-4 py-4 overflow-y-auto">
-          <ul className="space-y-2">
+        <nav className="flex-1 px-2 py-1 overflow-hidden flex flex-col min-h-0">
+          <ul className="flex-1 flex flex-col justify-evenly h-full">
             {allNavItems.map((item) => (
-              <li key={item.path} className="relative">
+              <li key={item.path} className="relative flex-1 flex items-center min-h-0">
                 <Link
                   to={item.path}
-                  className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors
+                  className={`flex items-center w-full px-3 py-1 text-xs font-medium rounded-lg transition-colors h-full
                     ${location.pathname === item.path 
                       ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200" 
                       : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"}
@@ -170,12 +170,12 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                   {item.name === 'Notifications' ? (
                     <span className="flex items-center">
                       <NotificationBadge count={unreadCount} onClick={() => navigate('/notifications')} />
-                      <span className={`ml-3 ${isCollapsed ? 'hidden' : 'inline'}`}>{item.name}</span>
+                      <span className={`ml-2 ${isCollapsed ? 'hidden' : 'inline'}`}>{item.name}</span>
                     </span>
                   ) : (
                     <>
                       <span>{item.icon}</span>
-                      <span className={`ml-3 ${isCollapsed ? 'hidden' : 'inline'}`}>{item.name}</span>
+                      <span className={`ml-2 ${isCollapsed ? 'hidden' : 'inline'}`}>{item.name}</span>
                     </>
                   )}
                 </Link>
@@ -185,11 +185,11 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         </nav>
 
         {/* User actions */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="p-2 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
           <div className="relative">
             <button
               onClick={() => navigate('/profile')}
-              className={`flex items-center w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${isCollapsed ? 'justify-center' : ''}`}
+              className={`flex items-center w-full px-3 py-1.5 text-xs font-medium rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${isCollapsed ? 'justify-center' : ''}`}
               title={isCollapsed ? (user?.username || "Profile") : undefined}
             >
               {user?.avatar ? (
@@ -197,17 +197,17 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                   src={user.avatar}
                   alt="avatar"
                   className="rounded-full object-cover border-2 border-indigo-400"
-                  style={{ width: 40, height: 40, minWidth: 40, minHeight: 40 }}
+                  style={{ width: 32, height: 32, minWidth: 32, minHeight: 32 }}
                 />
               ) : (
                 <span
-                  className="rounded-full bg-indigo-500 text-white font-bold text-lg flex items-center justify-center"
-                  style={{ width: 40, height: 40, minWidth: 40, minHeight: 40 }}
+                  className="rounded-full bg-indigo-500 text-white font-bold text-sm flex items-center justify-center"
+                  style={{ width: 32, height: 32, minWidth: 32, minHeight: 32 }}
                 >
                   {getInitials(user?.displayName || user?.username || "U")}
                 </span>
               )}
-              <span className={`ml-3 text-gray-800 dark:text-gray-200 font-medium ${isCollapsed ? 'hidden' : 'inline'}`}>{user?.displayName || user?.username || "User"}</span>
+              <span className={`ml-2 text-gray-800 dark:text-gray-200 font-medium ${isCollapsed ? 'hidden' : 'inline'}`}>{user?.displayName || user?.username || "User"}</span>
             </button>
           </div>
         </div>

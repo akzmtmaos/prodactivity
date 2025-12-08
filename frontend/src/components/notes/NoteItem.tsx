@@ -1,5 +1,6 @@
 // frontend/src/components/NoteItem.tsx
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { Edit, Trash2, MoreVertical, Archive, RotateCcw, AlertTriangle, Share2 } from 'lucide-react';
 import EditTitleModal from './EditTitleModal';
 import ShareModal from '../collaboration/ShareModal';
@@ -41,6 +42,8 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
   const [showEditModal, setShowEditModal] = React.useState(false);
   const [showShareModal, setShowShareModal] = React.useState(false);
   const menuRef = React.useRef<HTMLDivElement>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const portalMenuRef = React.useRef<HTMLDivElement>(null);
 
   // Helper function to format dates
   const formatDate = (dateString: string) => {
@@ -71,15 +74,26 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
 
   // Close menu on outside click
   React.useEffect(() => {
-    const onDocClick = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-    setShowMenu(false);
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as Node;
+      if (
+        portalMenuRef.current && !portalMenuRef.current.contains(target) &&
+        buttonRef.current && !buttonRef.current.contains(target)
+      ) {
+        setShowMenu(false);
       }
-  };
+    };
+
     if (showMenu) {
-      document.addEventListener('mousedown', onDocClick);
+      // Use a small delay to prevent immediate closing
+      setTimeout(() => {
+        document.addEventListener('mousedown', handleClickOutside);
+      }, 0);
     }
-    return () => document.removeEventListener('mousedown', onDocClick);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, [showMenu]);
 
   // Helper function to get priority color
@@ -221,14 +235,24 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
         </div>
         <div className="relative" ref={menuRef}>
           <button
+            ref={buttonRef}
             onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
             className="p-2 text-gray-500 hover:text-gray-700"
             title="More"
           >
             <MoreVertical size={16} className="text-gray-500 dark:text-gray-300" />
           </button>
-          {showMenu && (
-            <div className="absolute right-0 mt-2 w-32 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-10">
+          {showMenu && ReactDOM.createPortal(
+            <div 
+              ref={portalMenuRef}
+              className="fixed bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-lg z-[9999]"
+              style={{
+                top: buttonRef.current ? buttonRef.current.getBoundingClientRect().bottom + window.scrollY + 4 : 0,
+                right: buttonRef.current ? window.innerWidth - buttonRef.current.getBoundingClientRect().right + window.scrollX : 0,
+                width: '128px'
+              }}
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               {!note.is_archived && (
                 <>
                 <button
@@ -266,7 +290,8 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
               >
                 <Trash2 size={14} className="inline mr-2 text-red-600" /> Delete
               </button>
-            </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>

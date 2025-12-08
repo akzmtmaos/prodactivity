@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { Award, Flame, Target, Clock, BookOpen, Calendar, Zap, Star, Trophy, CheckCircle, Lock } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface WeeklyStats {
   totalTasksCompleted: number;
@@ -32,8 +33,168 @@ interface Achievement {
 }
 
 const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestStreak = 0 }) => {
-  // Define all achievements
-  const allAchievements: Achievement[] = [
+  const [awardedAchievements, setAwardedAchievements] = useState<Set<string>>(new Set());
+  const isProcessingRef = useRef(false);
+  const hasLoadedRef = useRef(false);
+  const lastCheckedLevelRef = useRef<number>(userLevel?.currentLevel || 1);
+  const lastStatsRef = useRef<WeeklyStats | null>(null);
+  const justAwardedXPRef = useRef(false);
+
+  // Load previously awarded achievements from DATABASE (not localStorage)
+  // This effect runs once on mount to load from database
+  useEffect(() => {
+    const loadAwardedAchievements = async () => {
+      try {
+        const userData = localStorage.getItem('user');
+        if (!userData) {
+          hasLoadedRef.current = true;
+          return;
+        }
+
+        const user = JSON.parse(userData);
+        const userId = user?.id;
+        if (!userId) {
+          hasLoadedRef.current = true;
+          return;
+        }
+
+        // Fetch all achievement XP logs from database
+        const { data: achievementLogs, error } = await supabase
+          .from('xp_logs')
+          .select('description')
+          .eq('user_id', userId)
+          .eq('source', 'achievement_unlock');
+
+        if (error) {
+          console.error('Error loading awarded achievements from database:', error);
+          hasLoadedRef.current = true;
+          return;
+        }
+
+        // Store achievement descriptions in a Set for quick lookup
+        // We'll map to IDs later when allAchievements is available
+        const awardedDescriptions = new Set<string>();
+        if (achievementLogs) {
+          achievementLogs.forEach(log => {
+            if (log.description) {
+              awardedDescriptions.add(log.description);
+            }
+          });
+        }
+
+        // Store in a ref for later use
+        (window as any).__awardedAchievementDescriptions = awardedDescriptions;
+        hasLoadedRef.current = true;
+        console.log(`📋 Loaded ${awardedDescriptions.size} awarded achievements from database`);
+      } catch (err) {
+        console.error('Error loading awarded achievements:', err);
+        hasLoadedRef.current = true;
+      }
+    };
+
+    loadAwardedAchievements();
+  }, []); // Run once on mount
+
+  // Get XP reward based on rarity
+  const getXPReward = (rarity: string): number => {
+    switch (rarity) {
+      case 'common':
+        return 25;
+      case 'rare':
+        return 50;
+      case 'epic':
+        return 100;
+      case 'legendary':
+        return 200;
+      default:
+        return 25;
+    }
+  };
+
+  // Award XP for achievement - ONLY if not already awarded (checked in database)
+  const awardAchievementXP = useCallback(async (achievement: Achievement) => {
+    try {
+      const userData = localStorage.getItem('user');
+      if (!userData) return;
+
+      const user = JSON.parse(userData);
+      const userId = user?.id;
+      if (!userId) return;
+
+      const xpAmount = getXPReward(achievement.rarity);
+      const achievementDescription = `Achievement unlocked: ${achievement.title} (${achievement.rarity})`;
+
+      // FIRST: Check database to see if this achievement was already awarded
+      const { data: existingLogs, error: checkError } = await supabase
+        .from('xp_logs')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('source', 'achievement_unlock')
+        .eq('description', achievementDescription)
+        .limit(1);
+
+      if (checkError) {
+        console.error('❌ Error checking existing achievement XP:', checkError);
+        return;
+      }
+
+      // If already awarded, skip
+      if (existingLogs && existingLogs.length > 0) {
+        console.log(`⏭️  Achievement "${achievement.title}" already awarded, skipping`);
+        // Mark as awarded in state
+        setAwardedAchievements(prev => {
+          const newAwarded = new Set(prev);
+          newAwarded.add(achievement.id);
+          return newAwarded;
+        });
+        return;
+      }
+
+      console.log(`🏆 Awarding ${xpAmount} XP for achievement: ${achievement.title}`);
+
+      // Award XP only if not already in database
+      const { error: xpError } = await supabase
+        .from('xp_logs')
+        .insert([{
+          user_id: userId,
+          xp_amount: xpAmount,
+          source: 'achievement_unlock',
+          description: achievementDescription,
+          created_at: new Date().toISOString()
+        }]);
+
+      if (xpError) {
+        console.error('❌ Error awarding achievement XP:', xpError);
+      } else {
+        console.log(`✅ Achievement XP awarded: +${xpAmount} XP for "${achievement.title}"`);
+        
+        // Mark achievement as awarded in state
+        setAwardedAchievements(prev => {
+          const newAwarded = new Set(prev);
+          newAwarded.add(achievement.id);
+          return newAwarded;
+        });
+
+        // Dispatch event to refresh user level
+        window.dispatchEvent(new CustomEvent('achievementUnlocked', {
+          detail: { achievement, xpAmount }
+        }));
+
+        // Show toast notification
+        window.dispatchEvent(new CustomEvent('showToast', {
+          detail: {
+            message: `🏆 Achievement Unlocked! +${xpAmount} XP`,
+            type: 'success'
+          }
+        }));
+      }
+    } catch (err) {
+      console.error('Error awarding achievement XP:', err);
+    }
+  }, []);
+
+  // Define all achievements (memoized to prevent unnecessary recalculations)
+  const allAchievements: Achievement[] = useMemo(() => [
     // Streak Achievements
     {
       id: 'streak-3',
@@ -183,7 +344,32 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
       unlocked: stats.averageProductivity >= 95,
       rarity: 'legendary'
     }
-  ];
+  ], [stats, userLevel, longestStreak]);
+
+  // Map awarded achievement descriptions to IDs after allAchievements is defined
+  useEffect(() => {
+    if (!hasLoadedRef.current || allAchievements.length === 0) {
+      return;
+    }
+
+    const awardedDescriptions = (window as any).__awardedAchievementDescriptions as Set<string> | undefined;
+    if (!awardedDescriptions) {
+      return;
+    }
+
+    // Map descriptions to achievement IDs
+    const awarded = new Set<string>();
+    allAchievements.forEach(achievement => {
+      const description = `Achievement unlocked: ${achievement.title} (${achievement.rarity})`;
+      if (awardedDescriptions.has(description)) {
+        awarded.add(achievement.id);
+      }
+    });
+
+    setAwardedAchievements(awarded);
+    console.log(`📋 Mapped ${awarded.size} awarded achievements to IDs`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allAchievements.length]); // Run when allAchievements is defined
 
   // Get rarity colors
   const getRarityColor = (rarity: string) => {
@@ -216,22 +402,97 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
     }
   };
 
+  // Check for newly unlocked achievements and award XP
+  // ONLY when stats change, NOT when level changes (to prevent infinite loop)
+  useEffect(() => {
+    // Don't run if we haven't loaded from database yet
+    if (!hasLoadedRef.current) {
+      return;
+    }
+
+    // Don't run if we're already processing
+    if (isProcessingRef.current) {
+      return;
+    }
+
+    // Don't run if we just awarded XP (prevent immediate re-trigger)
+    if (justAwardedXPRef.current) {
+      return;
+    }
+
+    // Check if stats actually changed (not just a reference change)
+    const statsChanged = !lastStatsRef.current || 
+      lastStatsRef.current.totalTasksCompleted !== stats.totalTasksCompleted ||
+      lastStatsRef.current.totalStudyTime !== stats.totalStudyTime ||
+      lastStatsRef.current.averageProductivity !== stats.averageProductivity ||
+      lastStatsRef.current.streak !== stats.streak;
+
+    // ONLY check achievements when stats change, NOT when level changes
+    if (!statsChanged) {
+      // Update refs even if we don't process, to prevent false triggers
+      if (lastStatsRef.current) {
+        lastStatsRef.current = { ...stats };
+      }
+      return;
+    }
+
+    const checkAndAwardAchievements = async () => {
+      // Set processing flag to prevent concurrent runs
+      isProcessingRef.current = true;
+      justAwardedXPRef.current = true; // Set this BEFORE processing
+
+      try {
+        // Update refs BEFORE processing to prevent re-triggering
+        lastStatsRef.current = { ...stats };
+        const currentLevel = userLevel?.currentLevel || 1;
+        lastCheckedLevelRef.current = currentLevel;
+
+        // Check ALL achievements (including level-based) when stats change
+        // The database check in awardAchievementXP will prevent duplicates
+        const newlyUnlocked = allAchievements.filter(
+          achievement => achievement.unlocked && !awardedAchievements.has(achievement.id)
+        );
+
+        if (newlyUnlocked.length > 0) {
+          console.log(`🎯 Found ${newlyUnlocked.length} newly unlocked achievement(s)`);
+          // Award XP for each newly unlocked achievement
+          // The awardAchievementXP function will check database to prevent duplicates
+          for (const achievement of newlyUnlocked) {
+            await awardAchievementXP(achievement);
+            // Small delay between awards to avoid overwhelming the system
+            await new Promise(resolve => setTimeout(resolve, 300));
+          }
+        }
+      } finally {
+        // Reset flags after a delay to allow state updates to settle
+        setTimeout(() => {
+          isProcessingRef.current = false;
+          justAwardedXPRef.current = false;
+        }, 5000);
+      }
+    };
+
+    checkAndAwardAchievements();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stats.totalTasksCompleted, stats.totalStudyTime, stats.averageProductivity, stats.streak, longestStreak, awardedAchievements]); // Only specific stat fields, NOT userLevel!
+
+
   const unlockedAchievements = allAchievements.filter(achievement => achievement.unlocked);
   const lockedAchievements = allAchievements.filter(achievement => !achievement.unlocked);
 
   return (
-    <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-lg dark:shadow-indigo-500/10 overflow-hidden">
+    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
       <div className="p-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl">
+            <div className="p-3 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
               <Award size={24} className="text-yellow-600 dark:text-yellow-400" />
             </div>
-            <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-gray-100">
+            <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
               Achievements
             </h2>
           </div>
-          <div className="text-sm text-gray-500 dark:text-gray-300 bg-gray-50/80 dark:bg-gray-700/80 px-3 py-1 rounded-xl">
+          <div className="text-sm text-gray-500 dark:text-gray-400">
             {unlockedAchievements.length} / {allAchievements.length} unlocked
           </div>
         </div>
@@ -248,25 +509,26 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
               {unlockedAchievements.map((achievement) => (
                 <div 
                   key={achievement.id}
-                  className={`p-4 rounded-xl border-2 transition-all duration-300 hover:scale-[1.02] hover:shadow-md bg-white/90 dark:bg-gray-750/90 backdrop-blur-sm ${getRarityColor(achievement.rarity)}`}
+                  className={`p-4 rounded-lg border-2 transition-all duration-200 hover:scale-105 ${getRarityColor(achievement.rarity)}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="p-2 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                        {achievement.icon}
-                      </div>
-                      <h4 className="ml-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {achievement.icon}
+                      <h4 className="ml-2 text-sm font-medium text-gray-900 dark:text-white">
                         {achievement.title}
                       </h4>
                     </div>
                     <CheckCircle size={16} className="text-green-500" />
                   </div>
-                  <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                     {achievement.description}
                   </p>
-                  <div className="mt-3">
-                    <span className={`text-xs font-medium px-3 py-1 rounded-full ${getRarityTextColor(achievement.rarity)} bg-opacity-20`}>
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${getRarityTextColor(achievement.rarity)} bg-opacity-20`}>
                       {achievement.rarity.toUpperCase()}
+                    </span>
+                    <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                      +{getXPReward(achievement.rarity)} XP
                     </span>
                   </div>
                 </div>
