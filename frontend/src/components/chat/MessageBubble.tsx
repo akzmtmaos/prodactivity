@@ -179,32 +179,42 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                       onClick={async () => {
                         try {
                           if (sharedItem.itemType === 'note') {
-                            // Fetch note to get notebook ID
-                            const { getApiBaseUrl } = await import('../../config/api');
-                            const apiBaseUrl = getApiBaseUrl();
-                            const token = localStorage.getItem('access_token');
+                            // Fetch note to get notebook ID using axiosInstance (which has auth configured)
+                            const axiosInstance = (await import('../../utils/axiosConfig')).default;
                             
-                            const response = await fetch(`${apiBaseUrl}/notes/${sharedItem.itemId}/`, {
-                              headers: {
-                                'Authorization': `Bearer ${token}`
-                              }
-                            });
-                            
-                            if (response.ok) {
-                              const note = await response.json();
+                            try {
+                              const response = await axiosInstance.get(`/notes/${sharedItem.itemId}/`);
+                              const note = response.data;
+                              
+                              console.log('✅ Note fetched for navigation:', { 
+                                noteId: note.id, 
+                                notebookId: note.notebook,
+                                title: note.title 
+                              });
+                              
                               // Navigate to note using the correct route format: /notes/notebooks/:notebookId/notes/:noteId
-                              navigate(`/notes/notebooks/${note.notebook}/notes/${note.id}`, { replace: false });
+                              const targetUrl = `/notes/notebooks/${note.notebook}/notes/${note.id}`;
+                              console.log('🔗 Navigating to:', targetUrl);
+                              navigate(targetUrl, { replace: false });
                               
                               // Wait for navigation to complete, then trigger custom event to open the note
-                              // Use a longer delay to ensure the Notes component is mounted and ready
+                              // Use a shorter delay since we're handling this in URL navigation now
                               setTimeout(() => {
+                                console.log('📨 Dispatching openSharedNote event:', { noteId: note.id, notebookId: note.notebook });
                                 window.dispatchEvent(new CustomEvent('openSharedNote', { 
                                   detail: { noteId: note.id, notebookId: note.notebook } 
                                 }));
-                              }, 500);
-                            } else {
-                              // If note not found or no access, just navigate to notes
-                              navigate('/notes');
+                              }, 300);
+                            } catch (error: any) {
+                              console.error('❌ Failed to fetch note:', error.response?.status, error.response?.statusText || error.message);
+                              // Only navigate away if it's a real error
+                              if (error.response?.status === 404 || error.response?.status === 403) {
+                                console.warn('⚠️ Note not accessible, redirecting to /notes');
+                                navigate('/notes');
+                              } else if (error.response?.status === 401) {
+                                console.error('🔐 Authentication failed, check token');
+                                // Don't navigate away on auth error, let user see the error
+                              }
                             }
                           } else if (sharedItem.itemType === 'notebook') {
                             // Navigate to notebook view
