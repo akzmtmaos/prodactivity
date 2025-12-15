@@ -6,6 +6,7 @@ export { default as ChatHeader } from './ChatHeader';
 export { default as MessagesList } from './MessagesList';
 export { default as MessageBubble } from './MessageBubble';
 export { default as MessageInput } from './MessageInput';
+export { default as ProfileView } from './ProfileView';
 export * from './types';
 export type { Attachment } from './types';
 export * from './utils';

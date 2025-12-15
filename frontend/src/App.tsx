@@ -27,6 +27,7 @@ import QuizSessionPage from './pages/QuizSessionPage';
 import StudySessionPage from './pages/StudySessionPage';
 import TimerWidget from './components/studytimer/TimerWidget';
 import Profile from './pages/Profile';
+import UserProfile from './pages/UserProfile';
 import Chat from './pages/Chat';
 import Toast from './components/common/Toast';
 import { useScheduleNotifications } from './hooks/useScheduleNotifications';
@@ -199,6 +200,14 @@ function App() {
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
                   <Profile />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/profile/:username"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <UserProfile />
                 </PrivateRoute>
               }
             />

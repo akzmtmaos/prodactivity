@@ -4,11 +4,13 @@ import { supabase } from '../lib/supabase';
 import Toast from '../components/common/Toast';
 import { useNavbar } from '../context/NavbarContext';
 import { useParams, useNavigate } from 'react-router-dom';
+import axiosInstance from '../utils/axiosConfig';
 import {
   ChatSidebar,
   ChatHeader,
   MessagesList,
   MessageInput,
+  ProfileView,
   type ChatRoom,
   type User,
   type Message,
@@ -32,6 +34,9 @@ const Chat = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [searchingUsers, setSearchingUsers] = useState(false);
+  const [viewingProfile, setViewingProfile] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -68,7 +73,7 @@ const Chat = () => {
   useEffect(() => {
     if (user?.id) {
       fetchChatRooms();
-      fetchAllUsers();
+      // Don't fetch all users by default - only fetch when searching
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -197,39 +202,65 @@ const Chat = () => {
     }
   };
 
-  const fetchAllUsers = async () => {
-    if (!user?.id) {
-      console.error('Cannot fetch users: user.id is missing');
+  const searchUsers = async (query: string) => {
+    if (!user?.id || !query || query.trim().length < 2) {
+      setAllUsers([]);
       return;
     }
     
     try {
-      const currentUserId = String(user.id);
+      setSearchingUsers(true);
+      console.log('🔍 Searching users with query:', query.trim());
+      const response = await axiosInstance.get(`/search-users/?q=${encodeURIComponent(query.trim())}`);
+      console.log('✅ Search response:', response.data);
+      const data = response.data;
       
-      const { data: users, error } = await supabase
-        .from('profiles')
-        .select('id, username, email, avatar')
-        .neq('id', currentUserId)
-        .order('username', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching users:', error);
-        setToast({ message: 'Failed to load users', type: 'error' });
-        return;
-      }
-
-      const normalizedUsers = (users || []).map(u => ({
+      const normalizedUsers = (data.users || []).map((u: any) => ({
         ...u,
         id: String(u.id),
-        avatar: getAvatarUrl(u.avatar)
+        avatar: getAvatarUrl(u.avatar),
+        email: u.email || ''
       }));
       
+      console.log('✅ Normalized users:', normalizedUsers);
       setAllUsers(normalizedUsers);
-    } catch (error) {
-      console.error('Error fetching users:', error);
-      setToast({ message: 'Failed to load users', type: 'error' });
+    } catch (error: any) {
+      console.error('❌ Error searching users:', error);
+      console.error('❌ Error response:', error.response?.data);
+      console.error('❌ Error status:', error.response?.status);
+      const errorMessage = error.response?.data?.message || error.message || 'Failed to search users';
+      setToast({ message: errorMessage, type: 'error' });
+      setAllUsers([]);
+    } finally {
+      setSearchingUsers(false);
     }
   };
+
+  // Debounced search effect
+  useEffect(() => {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+
+    // Only search if we're in the users view
+    if (activeView === 'users' && searchTerm.trim().length >= 2) {
+      // Set a timeout to debounce the search
+      searchTimeoutRef.current = setTimeout(() => {
+        searchUsers(searchTerm);
+      }, 500); // 500ms delay
+    } else if (activeView === 'users' && searchTerm.trim().length < 2) {
+      // Clear results if search term is too short
+      setAllUsers([]);
+    }
+
+    // Cleanup function
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchTerm, activeView, user?.id]);
 
   const fetchMessages = async (roomId: string) => {
     try {
@@ -592,20 +623,48 @@ const Chat = () => {
     }
   };
 
-  const handleStartChat = async (otherUser: User) => {
+  const handleStartChat = async (otherUser: User | string) => {
+    let targetUser: User;
+    
+    // If it's a username string, find the user from allUsers or fetch it
+    if (typeof otherUser === 'string') {
+      const foundUser = allUsers.find(u => u.username === otherUser);
+      if (!foundUser) {
+        // Fetch user profile if not in current search results
+        try {
+          const response = await axiosInstance.get(`/profile/${otherUser}/`);
+          const profile = response.data;
+          targetUser = {
+            id: String(profile.id),
+            username: profile.username,
+            email: profile.email || '',
+            avatar: getAvatarUrl(profile.avatar)
+          };
+        } catch (error) {
+          console.error('Error fetching user:', error);
+          setToast({ message: 'Failed to start chat', type: 'error' });
+          return;
+        }
+      } else {
+        targetUser = foundUser;
+      }
+    } else {
+      targetUser = otherUser;
+    }
+
     setIsCreatingRoom(true);
     try {
-      const room = await createOrGetDirectRoom(otherUser.id);
+      const room = await createOrGetDirectRoom(targetUser.id);
       if (room) {
         const { data: participantUsers } = await supabase
           .from('profiles')
           .select('id, username, email, avatar')
-          .eq('id', otherUser.id);
+          .eq('id', targetUser.id);
         
         const processedUser = participantUsers?.[0] ? {
           ...participantUsers[0],
           avatar: getAvatarUrl(participantUsers[0].avatar)
-        } : otherUser;
+        } : targetUser;
 
         const chatRoom: ChatRoom = {
           id: room.id,
@@ -617,16 +676,27 @@ const Chat = () => {
         setSelectedRoom(chatRoom);
         setActiveView('chats');
         // Update URL to include userId
-        navigate(`/chat/${otherUser.id}`, { replace: true });
+        navigate(`/chat/${targetUser.id}`, { replace: true });
       }
     } finally {
       setIsCreatingRoom(false);
     }
   };
 
+
   // Handler for room selection that also updates URL
-  const handleRoomSelect = (room: ChatRoom) => {
+  const handleRoomSelect = (room: ChatRoom | null) => {
+    if (!room) {
+      setSelectedRoom(null);
+      setViewingProfile(null);
+      if (userId) {
+        navigate('/chat', { replace: true });
+      }
+      return;
+    }
+    
     setSelectedRoom(room);
+    setViewingProfile(null);
     // Update URL if it's a direct chat
     if (room.room_type === 'direct' && user?.id) {
       const otherParticipant = room.participants?.find(p => String(p.id) !== String(user.id));
@@ -643,28 +713,46 @@ const Chat = () => {
 
   // Handle URL parameter to automatically start chat with user
   useEffect(() => {
-    if (userId && user?.id && allUsers.length > 0) {
-      const targetUser = allUsers.find(u => String(u.id) === String(userId));
-      if (targetUser) {
-        // Check if we already have this room selected
-        const existingRoom = chatRooms.find(room => {
-          if (room.room_type === 'direct' && room.participants) {
-            return room.participants.some(p => String(p.id) === String(userId));
-          }
-          return false;
-        });
-        
-        if (existingRoom) {
-          // Room exists, just select it
-          handleRoomSelect(existingRoom);
-        } else if (!selectedRoom || String(selectedRoom.participants?.[0]?.id) !== String(userId)) {
-          // Room doesn't exist, create it
-          console.log('🔗 URL parameter detected, starting chat with user:', userId);
-          handleStartChat(targetUser);
+    if (userId && user?.id && chatRooms.length > 0) {
+      // Check if we already have this room selected
+      const existingRoom = chatRooms.find(room => {
+        if (room.room_type === 'direct' && room.participants) {
+          return room.participants.some(p => String(p.id) === String(userId));
         }
+        return false;
+      });
+      
+      if (existingRoom) {
+        // Room exists, just select it
+        handleRoomSelect(existingRoom);
+      } else if (!selectedRoom || String(selectedRoom.participants?.[0]?.id) !== String(userId)) {
+        // Room doesn't exist, fetch user and create it
+        console.log('🔗 URL parameter detected, starting chat with user:', userId);
+        // Fetch user profile first
+        (async () => {
+          try {
+            const { data: profile } = await supabase
+              .from('profiles')
+              .select('id, username, email, avatar')
+              .eq('id', userId)
+              .single();
+            
+            if (profile) {
+              const targetUser: User = {
+                id: String(profile.id),
+                username: profile.username,
+                email: profile.email || '',
+                avatar: getAvatarUrl(profile.avatar)
+              };
+              handleStartChat(targetUser);
+            }
+          } catch (error) {
+            console.error('Error fetching user for chat:', error);
+          }
+        })();
       }
     }
-  }, [userId, user?.id, allUsers.length, chatRooms.length]);
+  }, [userId, user?.id, chatRooms.length]);
 
   // Clear URL when room is cleared
   useEffect(() => {
@@ -1032,11 +1120,6 @@ const Chat = () => {
     room.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredUsers = allUsers.filter(user =>
-    user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   if (!user) {
     return null;
   }
@@ -1049,7 +1132,7 @@ const Chat = () => {
             activeView={activeView}
             searchTerm={searchTerm}
             chatRooms={filteredChatRooms}
-            allUsers={filteredUsers}
+            allUsers={allUsers}
             selectedRoom={selectedRoom}
             currentUserId={String(user.id)}
             isCreatingRoom={isCreatingRoom}
@@ -1057,6 +1140,11 @@ const Chat = () => {
             onSearchChange={setSearchTerm}
             onRoomSelect={handleRoomSelect}
             onStartChat={handleStartChat}
+            onViewProfile={(username) => {
+              setViewingProfile(username);
+              setSelectedRoom(null);
+            }}
+            searchingUsers={searchingUsers}
           />
 
           <div className="flex-1 flex flex-col transition-opacity duration-200 h-full">
@@ -1079,6 +1167,17 @@ const Chat = () => {
                   onSubmit={handleSendMessage}
                 />
               </>
+            ) : viewingProfile ? (
+              <ProfileView
+                username={viewingProfile}
+                onClose={() => setViewingProfile(null)}
+                onStartChat={(username) => {
+                  const user = allUsers.find(u => u.username === username);
+                  if (user) {
+                    handleStartChat(user);
+                  }
+                }}
+              />
             ) : (
               <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">
                 <div className="text-center">

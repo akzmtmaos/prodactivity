@@ -12,10 +12,12 @@ interface ChatSidebarProps {
   selectedRoom: ChatRoom | null;
   currentUserId: string;
   isCreatingRoom: boolean;
+  searchingUsers?: boolean;
   onViewChange: (view: 'chats' | 'users') => void;
   onSearchChange: (term: string) => void;
-  onRoomSelect: (room: ChatRoom) => void;
+  onRoomSelect: (room: ChatRoom | null) => void;
   onStartChat: (user: User) => void;
+  onViewProfile: (username: string) => void;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
@@ -26,10 +28,12 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
   selectedRoom,
   currentUserId,
   isCreatingRoom,
+  searchingUsers = false,
   onViewChange,
   onSearchChange,
   onRoomSelect,
   onStartChat,
+  onViewProfile,
 }) => {
   return (
     <div className="w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col">
@@ -58,7 +62,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           }`}
         >
           <Users className="inline-block mr-2" size={16} />
-          Users
+          Find Friends
         </button>
       </div>
 
@@ -68,7 +72,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
           <input
             type="text"
-            placeholder={activeView === 'chats' ? 'Search chats...' : 'Search users...'}
+            placeholder={activeView === 'chats' ? 'Search chats...' : 'Search by username...'}
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
@@ -89,7 +93,9 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           <UserList
             users={allUsers}
             isCreatingRoom={isCreatingRoom}
+            loading={searchingUsers}
             onStartChat={onStartChat}
+            onViewProfile={onViewProfile}
           />
         )}
       </div>
