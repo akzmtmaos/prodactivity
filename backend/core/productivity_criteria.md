@@ -53,6 +53,19 @@ The system uses a four-level productivity scale based on the user's task complet
 
 These criteria and thresholds are shown to users in the Progress section of the app to ensure clarity and transparency.
 
+## Academic Support
+
+This productivity tracking methodology is supported by academic research and established frameworks:
+
+- **Goal-Setting Theory** (Locke & Latham, 1990): Validates task completion as a productivity metric
+- **Getting Things Done Framework** (Allen, 2001): Supports task management and deadline adherence
+- **Performance Management Research**: Four-tier classification aligns with performance rating systems
+- **Gamification Research**: Visual progress indicators and achievement tracking improve motivation
+
+For detailed literature review and academic references, see:
+- `productivity_literature_review.md` - Comprehensive academic literature review
+- `productivity_literature_summary.md` - Quick reference summary
+
 ---
 
 *For questions or suggestions about these criteria, please contact the development team.* 

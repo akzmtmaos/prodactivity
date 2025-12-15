@@ -199,3 +199,81 @@ def send_notification_email(notification):
     except Exception as e:
         logger.error(f"Failed to send notification email to {notification.user.email}: {str(e)}")
         return False
+
+def send_share_notification_email(shared_user, item_type, item_id, item_title, permission_level, shared_by_username):
+    """
+    Send email notification when an item is shared with a user
+    
+    Args:
+        shared_user: Django User instance of the user receiving the share
+        item_type: Type of item being shared ('note', 'notebook', 'reviewer', 'task')
+        item_id: ID of the item being shared
+        item_title: Title/name of the item being shared
+        permission_level: Permission level ('view', 'edit', 'comment')
+        shared_by_username: Username of the person sharing the item
+        
+    Returns:
+        bool: True if email was sent successfully, False otherwise
+    """
+    # Skip if email is not configured
+    if not is_email_configured():
+        logger.warning("Email not configured, skipping share notification email")
+        return False
+    
+    # Skip if user doesn't have an email
+    if not shared_user.email:
+        logger.warning(f"User {shared_user.username} has no email, skipping share notification email")
+        return False
+    
+    try:
+        from django.conf import settings
+        
+        # Determine item URL based on type
+        item_url_map = {
+            'note': f"{settings.FRONTEND_URL}/notes",
+            'notebook': f"{settings.FRONTEND_URL}/notes",
+            'reviewer': f"{settings.FRONTEND_URL}/reviewer",
+            'task': f"{settings.FRONTEND_URL}/tasks"
+        }
+        action_url = item_url_map.get(item_type, f"{settings.FRONTEND_URL}")
+        
+        # Permission level descriptions
+        permission_descriptions = {
+            'view': 'view only',
+            'edit': 'view and edit',
+            'comment': 'view and comment'
+        }
+        permission_desc = permission_descriptions.get(permission_level, permission_level)
+        
+        # Render HTML email template
+        html_message = render_to_string('email/share_notification.html', {
+            'username': shared_user.username,
+            'email': shared_user.email,
+            'shared_by_username': shared_by_username,
+            'item_type': item_type.capitalize(),
+            'item_title': item_title,
+            'permission_level': permission_level,
+            'permission_description': permission_desc,
+            'action_url': action_url,
+            'site_name': settings.SITE_NAME,
+        })
+        
+        # Create plain text version
+        plain_message = strip_tags(html_message)
+        
+        # Send email
+        send_mail(
+            subject=f'{shared_by_username} shared a {item_type} with you - {settings.SITE_NAME}',
+            message=plain_message,
+            from_email=f"ProdActivity <{settings.EMAIL_HOST_USER}>",
+            recipient_list=[shared_user.email],
+            html_message=html_message,
+            fail_silently=False,
+        )
+        
+        logger.info(f"Share notification email sent to {shared_user.email} for: {item_title}")
+        return True
+        
+    except Exception as e:
+        logger.error(f"Failed to send share notification email to {shared_user.email}: {str(e)}")
+        return False

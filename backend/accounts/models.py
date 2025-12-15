@@ -11,9 +11,45 @@ class Profile(models.Model):
     avatar = models.ImageField(upload_to='avatars/', blank=True, null=True)
     email_verified = models.BooleanField(default=False)
     email_verified_at = models.DateTimeField(null=True, blank=True)
-
+    bio = models.TextField(blank=True, null=True, max_length=500, help_text="User bio/description")
+    school = models.CharField(max_length=200, blank=True, null=True, help_text="School/University name")
+    year = models.CharField(max_length=50, blank=True, null=True, help_text="Academic year (e.g., 'First year', 'Fourth year')")
+    course = models.CharField(max_length=200, blank=True, null=True, help_text="Course/Major (e.g., 'Nursing')")
+    
     def __str__(self):
         return f"Profile of {self.user.username}"
+    
+    @property
+    def followers_count(self):
+        """Get the number of users following this profile"""
+        return Follow.objects.filter(following=self.user, is_active=True).count()
+    
+    @property
+    def following_count(self):
+        """Get the number of users this profile is following"""
+        return Follow.objects.filter(follower=self.user, is_active=True).count()
+
+
+class Follow(models.Model):
+    """
+    Model to represent a follow relationship between two users.
+    follower follows following (follower -> following)
+    """
+    follower = models.ForeignKey(User, on_delete=models.CASCADE, related_name='following_set')
+    following = models.ForeignKey(User, on_delete=models.CASCADE, related_name='followers_set')
+    created_at = models.DateTimeField(auto_now_add=True)
+    is_active = models.BooleanField(default=True)  # Allow soft delete
+    
+    class Meta:
+        unique_together = ['follower', 'following']
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['follower', 'is_active']),
+            models.Index(fields=['following', 'is_active']),
+        ]
+    
+    def __str__(self):
+        return f"{self.follower.username} follows {self.following.username}"
 
 
 @receiver(post_save, sender=User)
