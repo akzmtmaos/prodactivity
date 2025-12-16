@@ -19,6 +19,7 @@ class Notification(models.Model):
         ('note_reminder', 'Note Reminder'),
         ('study_reminder', 'Study Reminder'),
         ('schedule_reminder', 'Schedule Reminder'),
+        ('social_follow', 'New Follower'),
         ('general', 'General'),
     ]
     

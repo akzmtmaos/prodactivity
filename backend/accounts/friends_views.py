@@ -6,6 +6,7 @@ from django.contrib.auth.models import User
 from django.shortcuts import get_object_or_404
 from .models import Follow, Profile
 from django.db.models import Q, Count, F
+from core.models import Notification
 
 
 @api_view(['POST'])
@@ -37,6 +38,18 @@ def follow_user(request, username):
             if not follow.is_active:
                 follow.is_active = True
                 follow.save()
+
+                # Reactivated follow: also notify the user
+                try:
+                    Notification.objects.create(
+                        user=user_to_follow,
+                        title="New follower",
+                        message=f"{request.user.username} started following you.",
+                        notification_type="social_follow",
+                    )
+                except Exception as e:
+                    print(f"⚠️ Failed to create follow notification (reactivate): {e}")
+
                 return Response({
                     'success': True,
                     'message': f'Now following {username}',
@@ -49,11 +62,17 @@ def follow_user(request, username):
                     'following': True
                 }, status=status.HTTP_400_BAD_REQUEST)
         
-        # TODO: Sync to Supabase (implement later)
-        # try:
-        #     sync_follow_to_supabase(follow)
-        # except Exception as e:
-        #     print(f"⚠️ Failed to sync follow to Supabase: {e}")
+        # New follow: create notification for the user being followed
+        try:
+            Notification.objects.create(
+                user=user_to_follow,
+                title="New follower",
+                message=f"{request.user.username} started following you.",
+                notification_type="social_follow",
+            )
+        except Exception as e:
+            # Don't break follow flow if notification fails
+            print(f"⚠️ Failed to create follow notification: {e}")
         
         return Response({
             'success': True,
