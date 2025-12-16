@@ -39,6 +39,11 @@ const Profile: React.FC = () => {
   const [averageProductivity, setAverageProductivity] = useState(0);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [followers, setFollowers] = useState<any[]>([]);
+  const [following, setFollowing] = useState<any[]>([]);
+  const [activeFollowTab, setActiveFollowTab] = useState<'followers' | 'following' | null>(null);
+  const [loadingFollows, setLoadingFollows] = useState(false);
+  const [followsError, setFollowsError] = useState<string | null>(null);
 
   useEffect(() => {
     // Function to load user data
@@ -488,6 +493,52 @@ const Profile: React.FC = () => {
     const formatted = d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
     return formatted;
   })();
+
+  const fetchFollowList = async (type: 'followers' | 'following') => {
+    try {
+      setActiveFollowTab(type);
+      setFollowsError(null);
+      setLoadingFollows(true);
+
+      const url = type === 'followers' ? '/followers/' : '/following/';
+      const res = await axiosInstance.get(url);
+
+      if (type === 'followers') {
+        setFollowers(res.data?.followers || []);
+      } else {
+        setFollowing(res.data?.following || []);
+      }
+    } catch (error: any) {
+      console.error('Error fetching follow list:', error);
+      const message = error?.response?.data?.message || 'Failed to load follow list';
+      setFollowsError(message);
+    } finally {
+      setLoadingFollows(false);
+    }
+  };
+
+  // Ensure followers/following counts are fetched from profile endpoint (authoritative source)
+  useEffect(() => {
+    const fetchOwnProfileCounts = async () => {
+      try {
+        if (!user?.username) return;
+
+        const res = await axiosInstance.get(`/profile/${user.username}/`);
+        const data = res.data;
+
+        setUser((prev: any) => ({
+          ...(prev || {}),
+          followers_count: data.followers_count ?? 0,
+          following_count: data.following_count ?? 0,
+        }));
+      } catch (error) {
+        // Silently ignore if endpoint not available; counts will just be 0
+        console.error('Error fetching own profile follow counts:', error);
+      }
+    };
+
+    fetchOwnProfileCounts();
+  }, [user?.username]);
   
   // Get rarity colors (same as Progress page)
   const getRarityColor = (rarity: string) => {
@@ -637,8 +688,35 @@ const Profile: React.FC = () => {
                 </span>
               )}
               <div>
-                <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">{user?.displayName || user?.username || 'Profile'}</h1>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Joined {joinedLabel || '—'}</p>
+                <h1 className="text-3xl font-extrabold text-gray-900 dark:text-white">
+                  {user?.displayName || user?.username || 'Profile'}
+                </h1>
+                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                  Joined {joinedLabel || '—'}
+                </p>
+                {/* Followers / Following */}
+                <div className="flex gap-6 mt-3">
+                  <button
+                    type="button"
+                    onClick={() => fetchFollowList('followers')}
+                    className="text-left cursor-pointer select-none px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {user?.followers_count ?? 0}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Followers</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fetchFollowList('following')}
+                    className="text-left cursor-pointer select-none px-3 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <div className="text-lg font-semibold text-gray-900 dark:text-white">
+                      {user?.following_count ?? 0}
+                    </div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Following</div>
+                  </button>
+                </div>
               </div>
             </div>
             
@@ -667,6 +745,102 @@ const Profile: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* Followers / Following Modal */}
+      {activeFollowTab && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 dark:bg-black/60">
+          <div
+            className="absolute inset-0"
+            onClick={() => setActiveFollowTab(null)}
+          />
+          <div className="relative z-50 w-full max-w-lg mx-4 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+                    {activeFollowTab === 'followers' ? 'Followers' : 'Following'}
+                  </h2>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    {activeFollowTab === 'followers'
+                      ? `${followers.length} follower${followers.length === 1 ? '' : 's'}`
+                      : `${following.length} account${following.length === 1 ? '' : 's'} you follow`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveFollowTab(null)}
+                  className="text-sm px-3 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+
+              {followsError && (
+                <p className="text-sm text-red-600 dark:text-red-400 mb-3">{followsError}</p>
+              )}
+
+              {loadingFollows ? (
+                <div className="flex justify-center py-6">
+                  <div className="h-6 w-6 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
+                  {(activeFollowTab === 'followers' ? followers : following).map((item) => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-gray-700 px-4 py-3 bg-gray-50 dark:bg-gray-800/60"
+                    >
+                      <div className="flex items-center gap-3">
+                        {item.avatar ? (
+                          <img
+                            src={item.avatar}
+                            alt={item.username}
+                            className="w-10 h-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center text-sm font-semibold">
+                            {item.username?.charAt(0)?.toUpperCase() || 'U'}
+                          </div>
+                        )}
+                        <div>
+                          <div className="text-sm font-semibold text-gray-900 dark:text-white">
+                            {item.username}
+                          </div>
+                          {(item.school || item.course || item.bio) && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                              {item.school && <span>{item.school}</span>}
+                              {item.course && item.school && <span> • </span>}
+                              {item.course && <span>{item.course}</span>}
+                              {!item.school && !item.course && item.bio && (
+                                <span>{item.bio}</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      {activeFollowTab === 'followers' && item.is_following && (
+                        <span className="text-xs px-2 py-1 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700">
+                          Follows you
+                        </span>
+                      )}
+                    </div>
+                  ))}
+
+                  {(activeFollowTab === 'followers' ? followers : following).length === 0 &&
+                    !followsError &&
+                    !loadingFollows && (
+                      <p className="text-sm text-gray-500 dark:text-gray-400 text-center py-4">
+                        {activeFollowTab === 'followers'
+                          ? 'No one is following you yet.'
+                          : "You're not following anyone yet."}
+                      </p>
+                    )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Statistics */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 mb-6">

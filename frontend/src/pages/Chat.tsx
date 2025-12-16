@@ -3,7 +3,7 @@ import { MessageCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Toast from '../components/common/Toast';
 import { useNavbar } from '../context/NavbarContext';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../utils/axiosConfig';
 import {
   ChatSidebar,
@@ -21,6 +21,7 @@ import {
 const Chat = () => {
   const { isCollapsed } = useNavbar();
   const { userId } = useParams<{ userId?: string }>();
+  const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
@@ -77,6 +78,25 @@ const Chat = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+
+  // Sync profile view with URL query (?profile=username)
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const profileUsername = params.get('profile');
+
+    if (profileUsername) {
+      setViewingProfile(profileUsername);
+      setSelectedRoom(null);
+      setActiveView('users');
+    } else {
+      // If profile param is removed and no room is selected, clear viewingProfile
+      if (!selectedRoom) {
+        setViewingProfile(null);
+      }
+    }
+    // We intentionally don't include selectedRoom in deps to avoid loops
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]);
 
   useEffect(() => {
     if (selectedRoom?.id) {
@@ -1143,6 +1163,7 @@ const Chat = () => {
             onViewProfile={(username) => {
               setViewingProfile(username);
               setSelectedRoom(null);
+              navigate(`/chat?profile=${encodeURIComponent(username)}`, { replace: true });
             }}
             searchingUsers={searchingUsers}
           />
@@ -1170,11 +1191,18 @@ const Chat = () => {
             ) : viewingProfile ? (
               <ProfileView
                 username={viewingProfile}
-                onClose={() => setViewingProfile(null)}
+                onClose={() => {
+                  setViewingProfile(null);
+                  // Remove profile param from URL but stay on /chat
+                  navigate('/chat', { replace: true });
+                }}
                 onStartChat={(username) => {
-                  const user = allUsers.find(u => u.username === username);
-                  if (user) {
-                    handleStartChat(user);
+                  const userFromList = allUsers.find(u => u.username === username);
+                  if (userFromList) {
+                    handleStartChat(userFromList);
+                  } else {
+                    // Fallback: let handleStartChat resolve user by username
+                    handleStartChat(username);
                   }
                 }}
               />
