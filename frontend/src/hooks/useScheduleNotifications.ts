@@ -15,9 +15,18 @@ export const useScheduleNotifications = () => {
 
   useEffect(() => {
     const userData = localStorage.getItem('user');
-    if (!userData) return;
+    if (!userData || userData === 'undefined') return;
 
-    const user = JSON.parse(userData);
+    let user;
+    try {
+      user = JSON.parse(userData);
+    } catch (error) {
+      console.error('Failed to parse user data from localStorage:', error);
+      return;
+    }
+
+    if (!user || typeof user !== 'object' || !user.id) return;
+    
     const userId = user.id;
 
     if (!userId) return;
