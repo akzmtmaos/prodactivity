@@ -18,7 +18,7 @@ import { convertTextToHtml, linkifyContent, insertImage, getSelection, restoreSe
 
 // Use local worker file from public folder (most reliable)
 // The worker file should be in public/pdf.worker.min.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 interface Note {
   id: number;

@@ -28,7 +28,7 @@ import JSZip from 'jszip';
 
 // Set up PDF.js worker - use local file from public folder (most reliable)
 // The worker file should be in public/pdf.worker.min.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = `${process.env.PUBLIC_URL || ''}/pdf.worker.min.js`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 
 // Generate organized colors with better visual progression (same as ColorPickerModal)
 const generateNotebookColor = (notebookId: number): string => {
@@ -337,7 +337,7 @@ const Notes = () => {
         return;
       }
 
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.log('📡 Fetching notebooks from baseURL:', (axiosInstance.defaults as any).baseURL);
       }
 

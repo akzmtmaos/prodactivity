@@ -21,7 +21,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     return [];
   }
   
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log('🔄 Starting weekly aggregation with', dailyLogs.length, 'daily logs');
     console.log('🔄 Daily logs data:', dailyLogs);
   }
@@ -33,14 +33,14 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
   const todayStr = today.toISOString().split('T')[0];
   
   // Debug the date being used
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log('🔄 Weekly aggregation using today:', todayStr);
   }
   
   dailyLogs.forEach(log => {
     // Skip logs with missing period_start
     if (!log.period_start) {
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.warn('⚠️ Skipping log with undefined period_start:', log);
       }
       return;
@@ -50,7 +50,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     
     // Skip invalid dates
     if (isNaN(date.getTime())) {
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.warn('⚠️ Skipping log with invalid date:', log.period_start);
       }
       return;
@@ -60,7 +60,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     const logDateStr = log.period_start;
     
     if (logDateStr > todayStr) {
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.log('🔄 Skipping future date:', log.period_start, '(today is', todayStr + ')');
       }
       return;
@@ -104,7 +104,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
       });
     }
     if (mondayStr > todayStr) {
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.log('🔄 Skipping future week starting:', weekKey, '(today is', todayStr + ')');
       }
       return;
@@ -244,7 +244,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
         week.status = 'Low Productive';
       }
       
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.log(`🔄 Week ${week.period_start}: ${completionRates.length} days (current: ${isCurrentWeek}), rates: ${completionRates}, average: ${week.completion_rate}%`);
         console.log(`🔄 Week details:`, {
           weekStart: week.period_start,
@@ -406,7 +406,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     new Date(a.period_start).getTime() - new Date(b.period_start).getTime()
   );
   
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log('🔄 Weekly aggregation result:', result);
   }
   
@@ -420,7 +420,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
     return [];
   }
   
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log('🔄 Starting monthly aggregation with', dailyLogs.length, 'daily logs');
   }
   
@@ -433,7 +433,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
     
     // Skip future dates
     if (date > today) {
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.log('🔄 Skipping future date in monthly aggregation:', log.period_start);
       }
       return;
@@ -444,7 +444,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
     // Skip future months (where the month is in the future)
     const monthStart = new Date(monthKey);
     if (monthStart > today) {
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.log('🔄 Skipping future month:', monthKey);
       }
       return;
@@ -495,7 +495,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
         month.status = 'Low Productive';
       }
       
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.DEV) {
         console.log(`🔄 Month ${month.period_start}: ${dailyLogsForMonth.length} days, rates: ${dailyLogsForMonth.map(l => l.completion_rate)}, average: ${month.completion_rate}%`);
       }
     } else {
@@ -508,7 +508,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
     new Date(a.period_start).getTime() - new Date(b.period_start).getTime()
   );
   
-  if (process.env.NODE_ENV === 'development') {
+  if (import.meta.env.DEV) {
     console.log('🔄 Monthly aggregation result:', result);
   }
   
@@ -545,7 +545,7 @@ const Progress = () => {
   
   // Debug: Track selectedDate changes (only in development)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('selectedDate changed to:', selectedDate.toISOString());
     }
   }, [selectedDate]);
@@ -565,7 +565,7 @@ const Progress = () => {
   
   // Debug: Track prodLogs changes (only in development)
   useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
+    if (import.meta.env.DEV) {
       console.log('prodLogs changed to:', prodLogs.length, 'items');
     }
   }, [prodLogs]);
@@ -1234,7 +1234,7 @@ const Progress = () => {
         const userId = user.id || 11;
         
         // Only log in development mode to reduce console noise
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
           console.log('📊 Fetching productivity logs from Supabase for user:', userId, 'view:', progressView, 'date:', selectedDate.toISOString());
           console.log('📊 Current year being queried:', selectedDate.getFullYear());
         }
@@ -1606,7 +1606,7 @@ const Progress = () => {
           }
         }
         
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
           console.log('📊 Received productivity logs from Supabase:', data);
           console.log('📊 Total items received:', data.length);
           
@@ -1653,7 +1653,7 @@ const Progress = () => {
           return log; // Fallback
         });
         
-        if (process.env.NODE_ENV === 'development') {
+        if (import.meta.env.DEV) {
           console.log('📊 Transformed data for ProductivityHistory:', transformedData);
           
           // Debug Sep 23 in transformed data

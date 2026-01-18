@@ -2,9 +2,9 @@
 // This file provides the base API URL for all API calls
 
 const resolveDefaultBaseUrl = (): string => {
-  if (process.env.REACT_APP_API_URL) {
-    console.log('🌐 Using REACT_APP_API_URL:', process.env.REACT_APP_API_URL);
-    return process.env.REACT_APP_API_URL;
+  if (import.meta.env.VITE_API_URL) {
+    console.log('🌐 Using VITE_API_URL:', import.meta.env.VITE_API_URL);
+    return import.meta.env.VITE_API_URL;
   }
 
   if (typeof window !== 'undefined') {

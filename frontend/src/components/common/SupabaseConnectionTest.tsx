@@ -26,9 +26,9 @@ const SupabaseConnectionTest: React.FC = () => {
           
           // Get project info from environment variables
           setProjectInfo({
-            url: process.env.REACT_APP_SUPABASE_URL || 'Not configured',
-            hasAnonKey: !!process.env.REACT_APP_SUPABASE_ANON_KEY,
-            keyLength: process.env.REACT_APP_SUPABASE_ANON_KEY?.length || 0
+            url: import.meta.env.VITE_SUPABASE_URL || 'Not configured',
+            hasAnonKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+            keyLength: import.meta.env.VITE_SUPABASE_ANON_KEY?.length || 0
           });
         } else {
           console.log('Supabase connection test successful:', data);
