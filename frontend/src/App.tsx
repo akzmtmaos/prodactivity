@@ -5,6 +5,7 @@ import { NavbarProvider } from './context/NavbarContext';
 import { TimerProvider } from './context/TimerContext';
 import { NotificationsProvider } from './context/NotificationsContext';
 import Navbar from "./components/Navbar";
+import Header from "./components/Header";
 import Home from "./pages/Home";
 import Notes from "./pages/Notes";
 import Tasks from "./pages/Tasks";
@@ -48,6 +49,7 @@ const PrivateRoute = ({ isAuthenticated, children }: PrivateRouteProps) => {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
       <Navbar setIsAuthenticated={() => {}} />
+      <Header />
       <main className="relative w-full">
         {children}
       </main>

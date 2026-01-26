@@ -100,135 +100,152 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
 
   // Primary navigation items (most important)
   const primaryNavItems = [
-    { path: "/", name: "Home", icon: <Home size={20} /> },
-    { path: "/chat", name: "Messages", icon: <MessageCircle size={20} /> },
-    { path: "/progress", name: "Progress", icon: <BarChart2 size={20} /> },
-    { path: "/notes", name: "Notes", icon: <FileText size={20} /> },
-    { path: "/decks", name: "Flashcards", icon: <Layers size={20} /> },
-    { path: "/tasks", name: "Tasks", icon: <CheckSquare size={20} /> },
+    { path: "/", name: "Home", icon: <Home size={18} /> },
+    { path: "/chat", name: "Messages", icon: <MessageCircle size={18} /> },
+    { path: "/progress", name: "Progress", icon: <BarChart2 size={18} /> },
+    { path: "/notes", name: "Notes", icon: <FileText size={18} /> },
+    { path: "/decks", name: "Flashcards", icon: <Layers size={18} /> },
+    { path: "/tasks", name: "Tasks", icon: <CheckSquare size={18} /> },
   ];
 
   // Secondary navigation items (less frequently used)
   const secondaryNavItems = [
-    { path: "/reviewer/r", name: "Reviewer", icon: <Brain size={20} /> },
-    { path: "/schedule", name: "Schedule", icon: <Calendar size={20} /> },
-    { path: "/study-timer", name: "Study Timer", icon: <Clock size={20} /> },
-    { path: "/notifications", name: "Notifications", icon: <Bell size={20} /> },
-    { path: "/trash", name: "Trash", icon: <Trash2 size={20} /> },
-    { path: "/settings", name: "Settings", icon: <Settings size={20} /> },
+    { path: "/reviewer/r", name: "Reviewer", icon: <Brain size={18} /> },
+    { path: "/schedule", name: "Schedule", icon: <Calendar size={18} /> },
+    { path: "/study-timer", name: "Study Timer", icon: <Clock size={18} /> },
+    { path: "/notifications", name: "Notifications", icon: <Bell size={18} /> },
+    { path: "/trash", name: "Trash", icon: <Trash2 size={18} /> },
+    { path: "/settings", name: "Settings", icon: <Settings size={18} /> },
   ];
 
   const allNavItems = [...primaryNavItems, ...secondaryNavItems];
 
   return (
     <>
-      {/* Vertical Navbar for Desktop */}
+      {/* Vertical Navbar for Desktop - Supabase Style */}
       <aside
-        className={`hidden md:flex fixed inset-y-0 left-0 z-30 flex-col transition-all duration-300 bg-white dark:bg-gray-800 shadow-lg h-screen
-          ${isCollapsed ? 'w-20' : 'w-64'}
+        className={`hidden md:flex fixed inset-y-0 left-0 z-30 flex-col transition-[margin,width] duration-300 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 h-screen
+          ${isCollapsed ? 'w-14' : 'w-48'}
         `}
       >
-        {/* Collapse/Expand button for desktop */}
-        <div className="flex justify-end p-2 flex-shrink-0">
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="p-1 rounded-md text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
-          >
-            {isCollapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
-          </button>
-        </div>
-
-        {/* App logo/name */}
+        {/* App logo/name - Supabase style (bare P, no dark strip in light mode) */}
         <div 
-          className="flex items-center justify-center p-2 border-b border-gray-200 dark:border-gray-700 cursor-pointer flex-shrink-0"
+          className="flex items-center justify-center h-12 px-0 border-b border-gray-200 dark:border-gray-800 cursor-pointer flex-shrink-0 bg-white dark:bg-gray-900"
           onClick={() => {
             if (isCollapsed) {
               setIsCollapsed(false);
             }
+            navigate('/');
           }}
-        >
-          <span className={`text-lg font-bold text-indigo-600 dark:text-indigo-400 ${isCollapsed ? 'hidden' : ''}`}>
-            ProdActivity
+          >
+          <span className="text-lg font-semibold tracking-tight text-indigo-600 dark:text-indigo-400 leading-none">
+            P
           </span>
-          <span className={`text-xl font-bold text-indigo-600 dark:text-indigo-400 ${!isCollapsed ? 'hidden' : ''}`}>P</span>
         </div>
 
-        {/* Navigation links */}
-        <nav className="flex-1 px-2 py-1 overflow-hidden flex flex-col min-h-0">
-          <ul className="flex-1 flex flex-col justify-evenly h-full">
-            {allNavItems.map((item) => (
-              <li key={item.path} className="relative flex-1 flex items-center min-h-0">
-                <Link
-                  to={item.path}
-                  className={`flex items-center w-full px-3 py-1 text-xs font-medium rounded-lg transition-colors h-full
-                    ${location.pathname === item.path 
-                      ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200" 
-                      : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"}
-                    ${isCollapsed ? 'justify-center' : ''}`}
-                  title={isCollapsed ? item.name : undefined}
-                >
-                  {item.name === 'Notifications' ? (
-                    <span className="flex items-center">
-                      <NotificationBadge count={unreadCount} onClick={() => navigate('/notifications')} />
-                      <span className={`ml-2 ${isCollapsed ? 'hidden' : 'inline'}`}>{item.name}</span>
-                    </span>
-                  ) : (
-                    <>
-                      <span>{item.icon}</span>
-                      <span className={`ml-2 ${isCollapsed ? 'hidden' : 'inline'}`}>{item.name}</span>
-                    </>
-                  )}
-                </Link>
-              </li>
-            ))}
-          </ul>
+        {/* Navigation links - Supabase style */}
+        <nav className="flex-1 overflow-y-auto py-3">
+          {/* Primary Navigation */}
+          <div className="px-2">
+            <ul className="space-y-1">
+              {primaryNavItems.map((item) => {
+                const isActive = location.pathname === item.path || 
+                  (item.path === '/' && location.pathname === '/');
+                return (
+                  <li key={item.path}>
+                    <Link
+                      to={item.path}
+                      className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all
+                        ${isActive 
+                          ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" 
+                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                        ${isCollapsed ? 'justify-center' : ''}`}
+                      title={isCollapsed ? item.name : undefined}
+                    >
+                      <span className={`flex-shrink-0 ${isActive ? 'text-indigo-600 dark:text-indigo-400' : ''}`}>
+                        {item.icon}
+                      </span>
+                      {!isCollapsed && (
+                        <span className="truncate">{item.name}</span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Divider */}
+          {!isCollapsed && (
+            <div className="px-4 py-2">
+              <div className="h-px bg-gray-200 dark:bg-gray-800" />
+            </div>
+          )}
+
+          {/* Secondary Navigation */}
+          <div className="px-2 mt-2">
+            <ul className="space-y-1">
+              {secondaryNavItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <li key={item.path}>
+                    <Link
+                      to={item.path}
+                      className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all relative
+                        ${isActive 
+                          ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" 
+                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                        ${isCollapsed ? 'justify-center' : ''}`}
+                      title={isCollapsed ? item.name : undefined}
+                    >
+                      <span className={`flex-shrink-0 ${isActive ? 'text-indigo-600 dark:text-indigo-400' : ''}`}>
+                        {item.name === 'Notifications' ? (
+                          <div className="relative">
+                            <Bell size={18} />
+                            {unreadCount > 0 && (
+                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-gray-900"></span>
+                            )}
+                          </div>
+                        ) : (
+                          item.icon
+                        )}
+                      </span>
+                      {!isCollapsed && (
+                        <span className="truncate flex-1">
+                          {item.name}
+                          {item.name === 'Notifications' && unreadCount > 0 && (
+                            <span className="ml-2 px-1.5 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
+                              {unreadCount > 9 ? '9+' : unreadCount}
+                            </span>
+                          )}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
         </nav>
 
-        {/* User actions */}
-        <div className="p-2 border-t border-gray-200 dark:border-gray-700 flex-shrink-0">
-          <div className="relative">
-            <button
-              onClick={() => navigate('/profile')}
-              className={`flex items-center w-full px-3 py-1.5 text-xs font-medium rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700 ${isCollapsed ? 'justify-center' : ''}`}
-              title={isCollapsed ? (user?.username || "Profile") : undefined}
-            >
-              {user?.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt="avatar"
-                  className="rounded-full object-cover border-2 border-indigo-400"
-                  style={{ width: 32, height: 32, minWidth: 32, minHeight: 32 }}
-                />
-              ) : (
-                <span
-                  className="rounded-full bg-indigo-500 text-white font-bold text-sm flex items-center justify-center"
-                  style={{ width: 32, height: 32, minWidth: 32, minHeight: 32 }}
-                >
-                  {getInitials(user?.displayName || user?.username || "U")}
-                </span>
-              )}
-              <span className={`ml-2 text-gray-800 dark:text-gray-200 font-medium ${isCollapsed ? 'hidden' : 'inline'}`}>{user?.displayName || user?.username || "User"}</span>
-            </button>
-          </div>
+        {/* Collapse/Expand button - Supabase style */}
+        <div className="border-t border-gray-200 dark:border-gray-800 flex-shrink-0">
+          <button
+            onClick={() => setIsCollapsed(!isCollapsed)}
+            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+          >
+            {isCollapsed ? (
+              <ChevronRight size={18} className="mx-auto" />
+            ) : (
+              <>
+                <ChevronLeft size={18} />
+                <span>Collapse</span>
+              </>
+            )}
+          </button>
         </div>
       </aside>
 
-      {/* Mobile Header */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
-        <div className="flex items-center justify-between px-4 py-3">
-          <div className="flex items-center">
-            <span className="text-lg font-bold text-indigo-600 dark:text-indigo-400">
-              ProdActivity
-            </span>
-          </div>
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none"
-          >
-            {mobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-          </button>
-        </div>
-      </div>
 
       {/* Mobile Menu Overlay */}
       <div className={`md:hidden fixed inset-0 z-50 transition-opacity duration-300 ease-in-out ${
@@ -256,7 +273,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2 rounded-md text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 focus:outline-none transition-colors"
               >
-                <X size={20} />
+                <X size={18} />
               </button>
             </div>
 
@@ -370,7 +387,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
             onClick={() => setMobileMenuOpen(true)}
             className="flex flex-col items-center justify-center flex-1 h-full min-w-0 px-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
           >
-            <Menu size={20} className="mb-1" />
+            <Menu size={18} className="mb-1" />
             <span className="text-xs font-medium text-center truncate">More</span>
           </button>
         </nav>

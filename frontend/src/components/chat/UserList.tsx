@@ -75,11 +75,6 @@ const UserList: React.FC<UserListProps> = ({
               <h3 className="font-semibold text-gray-900 dark:text-white truncate text-sm">
                 {user.username}
               </h3>
-              {user.email && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                  {user.email}
-                </p>
-              )}
             </div>
           </button>
           

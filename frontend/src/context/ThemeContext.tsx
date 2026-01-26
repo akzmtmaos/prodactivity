@@ -16,17 +16,34 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return savedTheme || 'system';
   });
 
-  useEffect(() => {
-    // Apply theme when it changes
+  // Apply theme function
+  const applyTheme = React.useCallback((currentTheme: Theme) => {
     const root = document.documentElement;
     
-    if (theme === 'system') {
+    if (currentTheme === 'system') {
       const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-      root.classList.toggle('dark', systemTheme === 'dark');
+      if (systemTheme === 'dark') {
+        root.classList.add('dark');
+      } else {
+        root.classList.remove('dark');
+      }
+    } else if (currentTheme === 'dark') {
+      root.classList.add('dark');
     } else {
-      root.classList.toggle('dark', theme === 'dark');
+      // theme === 'light' - explicitly remove dark class
+      root.classList.remove('dark');
     }
+  }, []);
 
+  // Apply theme immediately on mount
+  useEffect(() => {
+    applyTheme(theme);
+  }, []); // Run once on mount
+
+  // Apply theme on mount and when it changes
+  useEffect(() => {
+    applyTheme(theme);
+    
     // Save theme to localStorage
     localStorage.setItem('theme', theme);
 
@@ -34,13 +51,13 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleChange = () => {
       if (theme === 'system') {
-        root.classList.toggle('dark', mediaQuery.matches);
+        applyTheme('system');
       }
     };
 
     mediaQuery.addEventListener('change', handleChange);
     return () => mediaQuery.removeEventListener('change', handleChange);
-  }, [theme]);
+  }, [theme, applyTheme]);
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>

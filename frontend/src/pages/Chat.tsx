@@ -1147,7 +1147,7 @@ const Chat = () => {
   return (
     <>
       <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-full h-full flex flex-col" style={{ margin: 0, padding: 0, paddingTop: 0, marginTop: 0, zIndex: 1 }}>
-        <div className={`flex-1 flex gap-0 bg-white dark:bg-gray-800 overflow-hidden h-full mt-16 md:mt-0 md:ml-0 ${isCollapsed ? 'lg:ml-20' : 'lg:ml-64'} transition-[margin] duration-300 ease-in-out`}>
+        <div className={`flex-1 flex gap-0 bg-white dark:bg-gray-800 overflow-hidden h-full mt-12 md:mt-12 ${isCollapsed ? 'md:ml-14' : 'md:ml-48'} transition-[margin] duration-300 ease-in-out`}>
           <ChatSidebar
             activeView={activeView}
             searchTerm={searchTerm}

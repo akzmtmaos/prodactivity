@@ -161,6 +161,11 @@ const Settings: React.FC = () => {
     notifications: true,
     autosaveNotes: localStorage.getItem('autosaveNotes') !== 'false' // Default to true
   });
+
+  // Sync settings.theme with theme from context
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, theme: theme }));
+  }, [theme]);
   const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'logs' | 'other' | 'logout'>('profile');
 
   // Profile management state
@@ -1061,9 +1066,12 @@ const Settings: React.FC = () => {
                           </label>
                           <div className="grid grid-cols-2 gap-4">
                             <button
-                              onClick={() => handleSettingChange('theme', 'light')}
+                              onClick={() => {
+                                setTheme('light');
+                                handleSettingChange('theme', 'light');
+                              }}
                               className={`p-4 rounded-lg border transition-colors ${
-                                settings.theme === 'light'
+                                theme === 'light'
                                   ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
                                   : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                               }`}
@@ -1072,9 +1080,12 @@ const Settings: React.FC = () => {
                               <span className="block text-sm text-gray-700 dark:text-gray-300">Light</span>
                             </button>
                             <button
-                              onClick={() => handleSettingChange('theme', 'dark')}
+                              onClick={() => {
+                                setTheme('dark');
+                                handleSettingChange('theme', 'dark');
+                              }}
                               className={`p-4 rounded-lg border transition-colors ${
-                                settings.theme === 'dark'
+                                theme === 'dark'
                                   ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
                                   : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
                               }`}
