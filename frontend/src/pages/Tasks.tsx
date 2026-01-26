@@ -8,6 +8,7 @@ import TaskForm from '../components/tasks/TaskForm';
 import TaskFilters from '../components/tasks/TaskFilters';
 import TaskSummary from '../components/tasks/TaskSummary';
 import { Task } from '../types/task';
+import { getXpForTask } from '../utils/xpUtils';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
 import { RealtimeProvider, useRealtime } from '../context/RealtimeContext';
@@ -79,7 +80,7 @@ const TasksContent = ({ user }: { user: any }) => {
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
 
   // State for tabs
-  const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed' | 'assigned'>('tasks');
   
   // State for pre-selected category when adding task from category tab
   const [selectedCategory, setSelectedCategory] = useState<string>('');
@@ -218,6 +219,65 @@ const TasksContent = ({ user }: { user: any }) => {
       
       console.log('Fetching tasks from Supabase for user:', userId);
       
+      // Handle assigned tasks separately
+      if (activeTab === 'assigned') {
+        const userData = localStorage.getItem('user');
+        if (!userData) {
+          setLoading(false);
+          return;
+        }
+        const currentUser = JSON.parse(userData);
+        
+        // Get task IDs assigned to this user
+        const { data: assignments, error: assignError } = await supabase
+          .from('task_assignments')
+          .select('task_id')
+          .eq('assigned_to', currentUser.id)
+          .in('status', ['pending', 'accepted', 'in_progress']);
+        
+        if (assignError) {
+          console.error('Error fetching assignments:', assignError);
+          setError('Failed to load assigned tasks.');
+          setLoading(false);
+          return;
+        }
+        
+        const assignedTaskIds = (assignments || []).map(a => a.task_id);
+        
+        if (assignedTaskIds.length === 0) {
+          setTasks([]);
+          setTotalCount(0);
+          setTotalPages(1);
+          setLoading(false);
+          return;
+        }
+        
+        // Fetch assigned tasks
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('*')
+          .in('id', assignedTaskIds)
+          .eq('is_deleted', false);
+        
+        if (error) {
+          console.error('Supabase error:', error);
+          setError('Failed to load assigned tasks.');
+          setLoading(false);
+          return;
+        }
+        
+        const mappedTasks = (data || []).map((task: any) => ({
+          ...task,
+          dueDate: task.due_date,
+        }));
+        
+        setTasks(mappedTasks);
+        setTotalCount(mappedTasks.length);
+        setTotalPages(Math.ceil(mappedTasks.length / pageSize));
+        setLoading(false);
+        return;
+      }
+      
       // Helper function to build base query with filters
       const buildBaseQuery = () => {
         let baseQuery = supabase
@@ -273,7 +333,7 @@ const TasksContent = ({ user }: { user: any }) => {
       
       console.log('Supabase tasks response (all):', data);
       
-      // Map due_date to dueDate for each task to match frontend expectations
+      // Map due_date to dueDate for each task
       const mappedTasks = (data || []).map((task: any) => ({
         ...task,
         dueDate: task.due_date,
@@ -361,7 +421,6 @@ const TasksContent = ({ user }: { user: any }) => {
       // Ensure user_id is an integer (database expects integer, not UUID)
       const userId = typeof user.id === 'number' ? user.id : parseInt(user.id) || 11;
       
-      // Map dueDate to due_date for Supabase compatibility and ensure no id field is included
       const { dueDate, ...rest } = taskData;
       const supabaseTaskData = { 
         ...rest, 
@@ -429,7 +488,6 @@ const TasksContent = ({ user }: { user: any }) => {
     if (!editingTask) return;
     
     try {
-      // Map dueDate to due_date for Supabase compatibility
       const { dueDate, ...rest } = taskData;
       const supabaseTaskData = { 
         ...rest, 
@@ -656,24 +714,22 @@ const TasksContent = ({ user }: { user: any }) => {
     }
   };
 
-  // Helper function to log XP and productivity when task is completed
-  const logTaskCompletion = async (taskId: number, taskTitle: string, dueDate?: string) => {
+  // Log XP and productivity when task is completed (dynamic XP by priority)
+  const logTaskCompletion = async (
+    taskId: number,
+    taskTitle: string,
+    dueDate?: string,
+    priority?: 'low' | 'medium' | 'high'
+  ) => {
     try {
-      // Get current user ID
       const userData = localStorage.getItem('user');
       const user = userData ? JSON.parse(userData) : null;
       const userId = user?.id || 11;
-      
-      console.log('🎮 Logging XP and productivity for task completion:', taskTitle);
-      
-      // Check if task is overdue (completed after due date)
-      const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
-      const isOverdue = dueDate && dueDate < today;
-      
-      // Award half XP (5) for overdue tasks, full XP (10) for on-time tasks
-      const xpAmount = isOverdue ? 5 : 10;
-      
-      console.log('🎮 Creating XP log entry for user:', userId, 'task:', taskId, 'XP:', xpAmount, isOverdue ? '(OVERDUE - Half XP)' : '(ON TIME - Full XP)');
+      const today = new Date().toLocaleDateString('en-CA');
+      const isOverdue = !!dueDate && dueDate < today;
+      const xpAmount = getXpForTask(priority ?? 'medium', isOverdue);
+
+      console.log('🎮 Logging XP for task:', taskTitle, 'priority:', priority ?? 'medium', 'XP:', xpAmount, isOverdue ? '(overdue)' : '(on-time)');
       const { error: xpError } = await supabase
         .from('xp_logs')
         .insert([{
@@ -684,16 +740,13 @@ const TasksContent = ({ user }: { user: any }) => {
           description: `Completed task: ${taskTitle}${isOverdue ? ' (Overdue)' : ''}`,
           created_at: new Date().toISOString()
         }]);
-      
+
       if (xpError) {
         console.error('❌ Error creating XP log:', xpError);
       } else {
-        console.log(`✅ XP log created successfully - +${xpAmount} XP added!${isOverdue ? ' (Half XP for overdue task)' : ''}`);
+        console.log(`✅ +${xpAmount} XP (${priority ?? 'medium'})`);
       }
-      
-      // Update productivity log for today
       await updateProductivityLog();
-      
     } catch (err) {
       console.error('Error in logTaskCompletion:', err);
     }
@@ -733,19 +786,12 @@ const TasksContent = ({ user }: { user: any }) => {
       
       console.log('Task completion updated in Supabase:', data);
       
-      // If task was completed, log XP and productivity
       if (!taskToToggle.completed && newCompletedStatus) {
-        console.log('🎮 Task was completed - logging XP and productivity');
-        console.log('🎮 Calling logTaskCompletion for task:', id, taskToToggle.title);
-        
-        await logTaskCompletion(id, taskToToggle.title, taskToToggle.dueDate);
-        
-        // Check if task is overdue for the toast message
+        await logTaskCompletion(id, taskToToggle.title, taskToToggle.dueDate, taskToToggle.priority);
         const today = new Date().toLocaleDateString('en-CA');
-        const isOverdue = taskToToggle.dueDate && taskToToggle.dueDate < today;
-        const xpAmount = isOverdue ? 5 : 10;
-        
-        showToast(`Task "${taskToToggle.title}" completed! +${xpAmount} XP${isOverdue ? ' (Half XP - Overdue)' : ''}`, 'success');
+        const isOverdue = !!taskToToggle.dueDate && taskToToggle.dueDate < today;
+        const xpAmount = getXpForTask(taskToToggle.priority ?? 'medium', isOverdue);
+        showToast(`Task "${taskToToggle.title}" completed! +${xpAmount} XP${isOverdue ? ' (Overdue)' : ''}`, 'success');
         
         // Trigger progress refresh for real-time updates
         window.dispatchEvent(new CustomEvent('taskCompleted', { 
@@ -767,23 +813,13 @@ const TasksContent = ({ user }: { user: any }) => {
     }
   };
 
-  // Handle task completion from evidence submission
   const handleTaskCompleted = async (completedTask: any) => {
-    console.log('Task completed through evidence modal:', completedTask.title);
-    
-    // Log XP and productivity for this task completion
-    await logTaskCompletion(completedTask.id, completedTask.title, completedTask.dueDate);
-    
-    // Update the task in the current list
+    await logTaskCompletion(completedTask.id, completedTask.title, completedTask.dueDate, completedTask.priority);
     setTasks(tasks.map(task => task.id === completedTask.id ? completedTask : task));
-    
-    // Check if task is overdue for the toast message
     const today = new Date().toLocaleDateString('en-CA');
-    const isOverdue = completedTask.dueDate && completedTask.dueDate < today;
-    const xpAmount = isOverdue ? 5 : 10;
-    
-    // Show success message with correct XP amount
-    showToast(`Task "${completedTask.title}" completed with evidence! +${xpAmount} XP${isOverdue ? ' (Half XP - Overdue)' : ''}`, 'success');
+    const isOverdue = !!completedTask.dueDate && completedTask.dueDate < today;
+    const xpAmount = getXpForTask(completedTask.priority ?? 'medium', isOverdue);
+    showToast(`Task "${completedTask.title}" completed with evidence! +${xpAmount} XP${isOverdue ? ' (Overdue)' : ''}`, 'success');
     
     // Trigger progress refresh for real-time updates
     window.dispatchEvent(new CustomEvent('taskCompleted', { 
@@ -1027,6 +1063,16 @@ const TasksContent = ({ user }: { user: any }) => {
               >
                 Completed
               </button>
+              <button
+                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'assigned'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+                onClick={() => setActiveTab('assigned')}
+              >
+                Assigned to Me
+              </button>
             </div>
             
             {/* Filters on the right */}
@@ -1182,9 +1228,13 @@ const TasksContent = ({ user }: { user: any }) => {
                 <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                 </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No tasks found</h3>
+                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
+                  {activeTab === 'assigned' ? 'No assigned tasks' : 'No tasks found'}
+                </h3>
                 <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {searchTerm || filterPriority !== 'all'
+                  {activeTab === 'assigned' 
+                    ? 'No tasks have been assigned to you yet. Tasks assigned by others will appear here.'
+                    : searchTerm || filterPriority !== 'all'
                     ? 'Try changing your search or filter criteria.'
                     : 'Get started by creating a new task.'}
                 </p>

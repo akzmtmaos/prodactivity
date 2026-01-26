@@ -124,7 +124,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     <>
       {/* Vertical Navbar for Desktop - Supabase Style */}
       <aside
-        className={`hidden md:flex fixed inset-y-0 left-0 z-30 flex-col transition-[margin,width] duration-300 bg-gray-50 dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 h-screen
+        className={`hidden md:flex fixed inset-y-0 left-0 z-30 flex-col transition-[margin,width] duration-300 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 h-screen
           ${isCollapsed ? 'w-14' : 'w-48'}
         `}
       >
@@ -228,22 +228,6 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
           </div>
         </nav>
 
-        {/* Collapse/Expand button - Supabase style */}
-        <div className="border-t border-gray-200 dark:border-gray-800 flex-shrink-0">
-          <button
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-          >
-            {isCollapsed ? (
-              <ChevronRight size={18} className="mx-auto" />
-            ) : (
-              <>
-                <ChevronLeft size={18} />
-                <span>Collapse</span>
-              </>
-            )}
-          </button>
-        </div>
       </aside>
 
 
@@ -253,8 +237,8 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
       }`}>
         {/* Backdrop */}
         <div 
-          className={`fixed inset-0 bg-black transition-opacity duration-300 ease-in-out ${
-            mobileMenuOpen ? 'bg-opacity-50' : 'bg-opacity-0'
+          className={`fixed inset-0 transition-opacity duration-300 ease-in-out ${
+            mobileMenuOpen ? 'bg-gray-900/50 dark:bg-gray-900/60' : 'bg-transparent'
           }`}
           onClick={() => setMobileMenuOpen(false)}
         />
@@ -395,7 +379,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
 
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Confirm Logout</h2>
             <p className="text-gray-600 dark:text-gray-300 mb-6">Are you sure you want to log out of your account?</p>

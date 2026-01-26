@@ -367,7 +367,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       {/* Expanded Image Modal - Messenger Style with Navigation */}
       {expandedImage && imageGallery.length > 0 && (
         <div
-          className="fixed top-0 left-0 right-0 bottom-0 w-screen h-screen z-[9999] bg-black bg-opacity-95 flex items-center justify-center"
+          className="fixed top-0 left-0 right-0 bottom-0 w-screen h-screen z-[9999] bg-gray-900/50 dark:bg-gray-900/60 flex items-center justify-center"
           onClick={() => {
             setExpandedImage(null);
             setImageGallery([]);

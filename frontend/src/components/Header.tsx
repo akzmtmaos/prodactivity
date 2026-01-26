@@ -16,7 +16,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
   const location = useLocation();
   const { unreadCount } = useNotificationsContext();
   const { theme, setTheme } = useTheme();
-  const { isCollapsed } = useNavbar();
+  const { isCollapsed, setIsCollapsed } = useNavbar();
   const [user, setUser] = useState<any | null>(null);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -112,9 +112,18 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
       } left-0`}
     >
       <div className="h-full flex items-center justify-between px-3 md:px-4">
-        {/* Left: Page Title & Description */}
+        {/* Left: Menu Button & Page Title */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-3">
+            {/* Menu button */}
+            <button
+              onClick={() => setIsCollapsed(!isCollapsed)}
+              className="flex items-center justify-center p-2 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors rounded-lg"
+              title={isCollapsed ? "Expand" : "Collapse"}
+            >
+              <Menu size={18} />
+            </button>
+            
             <h1 className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
               {getPageTitle()}
             </h1>
@@ -252,7 +261,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black bg-opacity-50" onClick={() => setMobileMenuOpen(false)}>
+        <div className="md:hidden fixed inset-0 z-50 bg-gray-900/50 dark:bg-gray-900/60" onClick={() => setMobileMenuOpen(false)}>
           <div className="fixed top-14 left-0 right-0 bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 overflow-y-auto">
             <div className="p-4 space-y-2">
               <button

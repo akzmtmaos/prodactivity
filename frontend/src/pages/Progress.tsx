@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import PageLayout from '../components/PageLayout';
 import StatsCards from '../components/progress/StatsCards';
-// Extracted components
+import StatsAnalysis from '../components/progress/StatsAnalysis';
 import ProgressHeader from '../components/progress/ProgressHeader';
 import ProgressOverview from '../components/progress/ProgressOverview';
 import ProductivityHistory from '../components/progress/ProductivityHistory';
@@ -526,7 +526,9 @@ const Progress = () => {
     totalTasksCompleted: 0,
     totalStudyTime: 0,
     averageProductivity: 0,
-    streak: 0
+    streak: 0,
+    tasksByPriority: null,
+    weightedProductivity: null,
   });
   const [userLevel, setUserLevel] = useState({ currentLevel: 1, currentXP: 0, xpToNextLevel: 1000 });
 
@@ -1894,6 +1896,13 @@ const Progress = () => {
           todaysProductivity={todaysProductivity}
         />
 
+        {/* In-depth statistics (priority breakdown, weighted productivity) */}
+        <StatsAnalysis
+          tasksByPriority={stats.tasksByPriority ?? null}
+          weightedProductivity={stats.weightedProductivity ?? null}
+          totalTasksCompleted={stats.totalTasksCompleted}
+        />
+
         {/* Productivity History (includes tabs below legend) */}
         <ProductivityHistory
           progressView={progressView}
@@ -2120,7 +2129,7 @@ async function fetchUserStats() {
     const userData = localStorage.getItem('user');
     if (!userData) {
       handle401();
-      return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0 };
+      return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0, tasksByPriority: null, weightedProductivity: null };
     }
     
     const user = JSON.parse(userData);
@@ -2128,19 +2137,47 @@ async function fetchUserStats() {
     
     console.log('📊 Fetching user stats from Supabase for user:', userId);
     
-    // Get total tasks completed
     const { data: tasksData, error: tasksError } = await supabase
       .from('tasks')
-      .select('id, completed')
+      .select('id, completed, priority')
       .eq('user_id', userId)
       .eq('is_deleted', false);
-    
+
     if (tasksError) {
       console.error('Supabase error fetching tasks:', tasksError);
-      return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0 };
+      return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0, tasksByPriority: null, weightedProductivity: null };
     }
-    
-    const totalTasksCompleted = tasksData?.filter(task => task.completed).length || 0;
+
+    const tasks = tasksData || [];
+    const totalTasksCompleted = tasks.filter((t: any) => t.completed).length;
+
+    const weights: Record<string, number> = { low: 1, medium: 2, high: 3 };
+    const byPriority: Record<string, { completed: number; total: number }> = {
+      low: { completed: 0, total: 0 },
+      medium: { completed: 0, total: 0 },
+      high: { completed: 0, total: 0 },
+    };
+    let totalWeight = 0;
+    let completedWeight = 0;
+
+    for (const t of tasks) {
+      const p = (t.priority || 'medium').toLowerCase();
+      const priority = ['low', 'medium', 'high'].includes(p) ? p : 'medium';
+      const w = weights[priority];
+      byPriority[priority].total += 1;
+      totalWeight += w;
+      if (t.completed) {
+        byPriority[priority].completed += 1;
+        completedWeight += w;
+      }
+    }
+
+    const tasksByPriority = {
+      low: byPriority.low,
+      medium: byPriority.medium,
+      high: byPriority.high,
+    };
+    const weightedProductivity = totalWeight > 0 ? (completedWeight / totalWeight) * 100 : null;
     
     // Get total study time from study timer sessions (in minutes)
     // Get Supabase auth user ID (UUID) - this is what Supabase expects
@@ -2207,14 +2244,16 @@ async function fetchUserStats() {
       totalTasksCompleted,
       totalStudyTime,
       averageProductivity,
-      streak: 0 // Will be overridden by calculateCurrentStreakFromData() for consistency
+      streak: 0,
+      tasksByPriority,
+      weightedProductivity,
     };
-    
+
     console.log('📊 User stats from Supabase:', stats);
     return stats;
   } catch (e) {
     console.error('Error fetching user stats from Supabase:', e);
-    return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0 };
+    return { totalTasksCompleted: 0, totalStudyTime: 0, averageProductivity: 0, streak: 0, tasksByPriority: null, weightedProductivity: null };
   }
 }
 

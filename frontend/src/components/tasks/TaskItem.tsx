@@ -5,7 +5,7 @@ import AddSubtaskModal from './AddSubtaskModal';
 import TaskActivityModal from './TaskActivityModal';
 import ShareModal from '../collaboration/ShareModal';
 import AssignTaskModal from '../collaboration/AssignTaskModal';
-import { Share2, UserCheck } from 'lucide-react';
+import { Share2, UserCheck, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface TaskItemProps {
@@ -71,6 +71,10 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [localSubtasks, setLocalSubtasks] = useState<Subtask[]>(task.subtasks || []);
+  const [collaborators, setCollaborators] = useState<Array<{ id: string; username: string; avatar: string | null }>>([]);
+  const [assignmentStatus, setAssignmentStatus] = useState<string | null>(null);
+  const [isAssignedToMe, setIsAssignedToMe] = useState(false);
+  const [collaborativeProgress, setCollaborativeProgress] = useState<{ total: number; completed: number } | null>(null);
 
   const totalSubtasks = useMemo(() => localSubtasks.length, [localSubtasks]);
   const completedSubtasks = useMemo(() => localSubtasks.filter(s => s.completed).length, [localSubtasks]);
@@ -101,7 +105,55 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
     };
 
     fetchSubtasks();
+    fetchCollaborators();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [task.id]);
+
+  // Fetch collaborators and assignment status
+  const fetchCollaborators = async () => {
+    try {
+      const userData = localStorage.getItem('user');
+      if (!userData) return;
+      const currentUser = JSON.parse(userData);
+
+      // Fetch assigned users
+      const { data: assignments, error: assignError } = await supabase
+        .from('task_assignments')
+        .select('assigned_to, status')
+        .eq('task_id', task.id)
+        .in('status', ['pending', 'accepted', 'in_progress', 'completed']);
+
+      if (assignError) {
+        console.error('Error fetching assignments:', assignError);
+        return;
+      }
+
+      // Check if current user is assigned
+      const myAssignment = (assignments || []).find(a => a.assigned_to === currentUser.id);
+      setIsAssignedToMe(!!myAssignment);
+      setAssignmentStatus(myAssignment?.status || null);
+
+      // Calculate collaborative progress
+      const totalAssignments = assignments?.length || 0;
+      const completedAssignments = assignments?.filter(a => a.status === 'completed').length || 0;
+      setCollaborativeProgress(totalAssignments > 0 ? { total: totalAssignments, completed: completedAssignments } : null);
+
+      // Fetch collaborator usernames
+      const collaboratorIds = (assignments || []).map(a => a.assigned_to);
+      if (collaboratorIds.length > 0) {
+        const { data: profiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, username, avatar')
+          .in('id', collaboratorIds);
+
+        if (!profileError && profiles) {
+          setCollaborators(profiles);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching collaborators:', err);
+    }
+  };
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
@@ -411,6 +463,31 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                   {task.task_category}
                 </span>
               )}
+              {collaborators.length > 0 && (
+                <div 
+                  className="flex items-center gap-1 text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-900/20 rounded px-2 py-0.5 cursor-help"
+                  title={`Collaborators: ${collaborators.map(c => c.username).join(', ')}${collaborativeProgress ? `\nProgress: ${collaborativeProgress.completed}/${collaborativeProgress.total} completed` : ''}`}
+                >
+                  <Users size={12} />
+                  <span>{collaborators.length} collaborator{collaborators.length !== 1 ? 's' : ''}</span>
+                  {collaborativeProgress && collaborativeProgress.total > 0 && (
+                    <span className="ml-1 text-indigo-500">
+                      ({collaborativeProgress.completed}/{collaborativeProgress.total})
+                    </span>
+                  )}
+                </div>
+              )}
+              {isAssignedToMe && (
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  assignmentStatus === 'completed'
+                    ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400'
+                    : assignmentStatus === 'in_progress'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400'
+                    : 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400'
+                }`}>
+                  {assignmentStatus === 'completed' ? '✓ Completed' : assignmentStatus === 'in_progress' ? 'In Progress' : 'Assigned'}
+                </span>
+              )}
               
               {/* Activity status indicators */}
               {!task.completed && (
@@ -450,6 +527,125 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
           </div>
           {/* Action icons */}
           <div className="flex items-center gap-2">
+            {isAssignedToMe && (
+              <div className="flex items-center gap-2">
+                {assignmentStatus === 'pending' && (
+                  <button
+                    className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1"
+                    onClick={async () => {
+                      try {
+                        const userData = localStorage.getItem('user');
+                        if (!userData) return;
+                        const currentUser = JSON.parse(userData);
+                        
+                        await supabase
+                          .from('task_assignments')
+                          .update({ status: 'accepted' })
+                          .eq('task_id', task.id)
+                          .eq('assigned_to', currentUser.id);
+                        
+                        fetchCollaborators();
+                        window.dispatchEvent(new CustomEvent('assignmentUpdated', { 
+                          detail: { taskId: task.id, status: 'accepted' } 
+                        }));
+                      } catch (err) {
+                        console.error('Error accepting assignment:', err);
+                      }
+                    }}
+                    title="Accept Assignment"
+                  >
+                    ✓ Accept
+                  </button>
+                )}
+                {assignmentStatus === 'accepted' && (
+                  <>
+                    <button
+                      className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                      onClick={async () => {
+                        try {
+                          const userData = localStorage.getItem('user');
+                          if (!userData) return;
+                          const currentUser = JSON.parse(userData);
+                          
+                          await supabase
+                            .from('task_assignments')
+                            .update({ status: 'in_progress' })
+                            .eq('task_id', task.id)
+                            .eq('assigned_to', currentUser.id);
+                          
+                          fetchCollaborators();
+                        } catch (err) {
+                          console.error('Error updating assignment:', err);
+                        }
+                      }}
+                      title="Start Working"
+                    >
+                      Start
+                    </button>
+                    <button
+                      className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
+                      onClick={async () => {
+                        try {
+                          const userData = localStorage.getItem('user');
+                          if (!userData) return;
+                          const currentUser = JSON.parse(userData);
+                          
+                          await supabase
+                            .from('task_assignments')
+                            .update({ 
+                              status: 'completed',
+                              completed_at: new Date().toISOString()
+                            })
+                            .eq('task_id', task.id)
+                            .eq('assigned_to', currentUser.id);
+                          
+                          fetchCollaborators();
+                          window.dispatchEvent(new CustomEvent('assignmentUpdated', { 
+                            detail: { taskId: task.id, status: 'completed' } 
+                          }));
+                        } catch (err) {
+                          console.error('Error completing assignment:', err);
+                        }
+                      }}
+                      title="Mark My Part Complete"
+                    >
+                      ✓ Complete
+                    </button>
+                  </>
+                )}
+                {assignmentStatus === 'in_progress' && (
+                  <button
+                    className="px-3 py-1.5 text-xs font-medium bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1"
+                    onClick={async () => {
+                      try {
+                        const userData = localStorage.getItem('user');
+                        if (!userData) return;
+                        const currentUser = JSON.parse(userData);
+                        
+                        await supabase
+                          .from('task_assignments')
+                          .update({ 
+                            status: 'completed',
+                            completed_at: new Date().toISOString()
+                          })
+                          .eq('task_id', task.id)
+                          .eq('assigned_to', currentUser.id);
+                        
+                        fetchCollaborators();
+                        window.dispatchEvent(new CustomEvent('assignmentUpdated', { 
+                          detail: { taskId: task.id, status: 'completed' } 
+                        }));
+                      } catch (err) {
+                        console.error('Error completing assignment:', err);
+                      }
+                    }}
+                    title="Mark My Part Complete"
+                  >
+                    ✓ Complete
+                  </button>
+                )}
+              </div>
+            )}
             <button
               className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
               onClick={() => setIsSubtasksOpen(prev => !prev)}

@@ -89,7 +89,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 z-50 flex items-center justify-center p-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
           <div className="p-6">
             <div className="animate-pulse space-y-4">
@@ -105,7 +105,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   if (error || !profile) {
     return (
-      <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 z-50 flex items-center justify-center p-4">
         <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
           <div className="p-6">
             <div className="flex justify-between items-center mb-4">
@@ -135,7 +135,7 @@ const UserProfileModal: React.FC<UserProfileModalProps> = ({
   const avatarUrl = profile.avatar ? getAvatarUrl(profile.avatar) : null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 z-50 flex items-center justify-center p-4">
       <div className="bg-white dark:bg-gray-800 rounded-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center z-10">

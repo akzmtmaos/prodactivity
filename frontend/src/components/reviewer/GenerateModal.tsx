@@ -189,7 +189,7 @@ const GenerateModal: React.FC<GenerateModalProps> = ({
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
+        className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 transition-opacity"
         onClick={handleBackdropClick}
       />
       

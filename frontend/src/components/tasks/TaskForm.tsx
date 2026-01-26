@@ -76,7 +76,7 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingC
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 flex items-center justify-center z-50">
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full p-6 mx-4">
         <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">
           {task ? 'Edit Task' : 'Add New Task'}
@@ -148,17 +148,19 @@ const TaskForm: React.FC<TaskFormProps> = ({ task, onSubmit, onCancel, existingC
                   value={formData.priority}
                   onChange={handleInputChange}
                 >
-                  <option value="low">Low</option>
-                  <option value="medium">Medium</option>
-                  <option value="high">High</option>
+                  <option value="low">Low (5 XP on-time / 2 overdue)</option>
+                  <option value="medium">Medium (10 XP on-time / 5 overdue)</option>
+                  <option value="high">High (20 XP on-time / 10 overdue)</option>
                 </select>
-                {/* Chevron icon for dropdown */}
                 <div className="pointer-events-none absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400">
                   <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.585l3.71-3.355a.75.75 0 111.02 1.1l-4 3.62a.75.75 0 01-1.02 0l-4-3.62a.75.75 0 01.02-1.1z" clipRule="evenodd" />
                   </svg>
                 </div>
               </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Priority determines both urgency and XP reward for fair scoring.
+              </p>
             </div>
           </div>
           
