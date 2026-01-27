@@ -85,7 +85,7 @@ const Decks = () => {
   const [showNoFlashcardsModal, setShowNoFlashcardsModal] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [activeTab, setActiveTab] = useState<'decks' | 'archived'>('decks');
+  const [activeTab, setActiveTab] = useState<'decks' | 'archived' | 'stats'>('decks');
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [currentArchivedPage, setCurrentArchivedPage] = useState<number>(1);
   const PAGE_SIZE = 12;
@@ -1073,69 +1073,17 @@ interface NoteItem {
                 Ready to learn something new today?
               </p>
             </div>
-            {/* Add Deck and Convert buttons */}
-            <div className="flex flex-col sm:flex-row items-stretch gap-2 md:gap-4 w-full md:w-auto">
-              {/* AI Generate Flashcards button */}
-            <button
-                onClick={() => setShowConvertModal(true)}
-                className="inline-flex items-center h-10 min-w-[200px] px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-emerald-600 hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500"
-              >
-                <FileText size={20} className="mr-2" />
-                Convert to Flashcards 
-              </button>
-              {/* Add Deck button */}
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="inline-flex items-center h-10 min-w-[140px] px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-            >
-              <Plus size={20} className="mr-2" />
-                Add Deck
-            </button>
+            {/* Buttons moved down into filter row */}
+            <div className="flex-1 md:flex-none" />
           </div>
-          </div>
-          {/* Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center">
-                <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                  <BookOpen size={24} className="text-blue-600 dark:text-blue-400" />
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalDecks}</h3>
-                  <p className="text-gray-600 dark:text-gray-400">Total Decks</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center">
-                <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                  <Target size={24} className="text-green-600 dark:text-green-400" />
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalCards}</h3>
-                  <p className="text-gray-600 dark:text-gray-400">Total Flashcards</p>
-                </div>
-              </div>
-            </div>
-            <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center">
-                <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
-                  <TrendingUp size={24} className="text-purple-600 dark:text-purple-400" />
-                </div>
-                <div className="ml-4">
-                  <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{averageProgress}%</h3>
-                  <p className="text-gray-600 dark:text-gray-400">Average Progress</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          {/* Tab Bar styled like Settings */}
+          {/* Tab Bar styled like Settings (compact, like Notes) */}
           <div>
             <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2 gap-4 flex-wrap">
+              {/* Tabs on left */}
               <div className="flex space-x-4">
                 <button
                   onClick={() => setActiveTab('decks')}
-                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                     activeTab === 'decks'
                       ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                       : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -1145,7 +1093,7 @@ interface NoteItem {
                 </button>
                 <button
                   onClick={() => setActiveTab('archived')}
-                  className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                     activeTab === 'archived'
                       ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                       : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -1153,64 +1101,94 @@ interface NoteItem {
                 >
                   Archived
                 </button>
+                <button
+                  onClick={() => setActiveTab('stats')}
+                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                    activeTab === 'stats'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  Stats
+                </button>
               </div>
-              {/* Search and Filters next to tabs */}
-              <div className="flex items-center gap-2 flex-wrap">
-                {/* Search */}
-                <div className="relative w-full sm:w-56">
-                  <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder={`Search ${activeTab === 'decks' ? 'decks' : 'archived'}...`}
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  />
-                </div>
-                {/* Sort */}
-                <div className="flex items-center gap-1">
-                  <Clock size={18} className="text-gray-400" />
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress')}
-                    className="px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="recent">Recent</option>
-                    <option value="name">Name</option>
-                    <option value="progress">Progress</option>
-                  </select>
-                </div>
-                {/* Filter */}
-                <div className="flex items-center gap-1">
-                  <Target size={18} className="text-gray-400" />
-                  <select
-                    value={filterBy}
-                    onChange={(e) => setFilterBy(e.target.value as 'all' | 'studied' | 'new')}
-                    className="px-2 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="all">All Decks</option>
-                    <option value="studied">Studied Decks</option>
-                    <option value="new">New Decks</option>
-                  </select>
-                </div>
-                {/* Pagination next to filters */}
-              {activeTab === 'decks' && (
-                <Pagination
-                  currentPage={currentPage}
-                  totalPages={Math.ceil(filteredDecks.length / PAGE_SIZE)}
-                  onPageChange={setCurrentPage}
-                />
-              )}
-                {activeTab === 'archived' && (
-                  <Pagination
-                    currentPage={currentArchivedPage}
-                    totalPages={Math.ceil(filteredArchivedDecks.length / PAGE_SIZE)}
-                    onPageChange={setCurrentArchivedPage}
-                  />
+              {/* Pagination / Filters / Actions on right (compact) */}
+              <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
+                {activeTab !== 'stats' && (
+                  <>
+                    {/* Pagination */}
+                    {activeTab === 'decks' && (
+                      <Pagination
+                        currentPage={currentPage}
+                        totalPages={Math.ceil(filteredDecks.length / PAGE_SIZE)}
+                        onPageChange={setCurrentPage}
+                      />
+                    )}
+                    {activeTab === 'archived' && (
+                      <Pagination
+                        currentPage={currentArchivedPage}
+                        totalPages={Math.ceil(filteredArchivedDecks.length / PAGE_SIZE)}
+                        onPageChange={setCurrentArchivedPage}
+                      />
+                    )}
+                    {/* Sort (Recent) */}
+                    <div className="flex items-center gap-1">
+                      <Clock size={14} className="text-gray-400" />
+                      <select
+                        value={sortBy}
+                        onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress')}
+                        className="px-1.5 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="recent">Recent</option>
+                        <option value="name">Name</option>
+                        <option value="progress">Progress</option>
+                      </select>
+                    </div>
+                    {/* Filter (All Decks) */}
+                    <div className="flex items-center gap-1">
+                      <Target size={14} className="text-gray-400" />
+                      <select
+                        value={filterBy}
+                        onChange={(e) => setFilterBy(e.target.value as 'all' | 'studied' | 'new')}
+                        className="px-1.5 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      >
+                        <option value="all">All Decks</option>
+                        <option value="studied">Studied Decks</option>
+                        <option value="new">New Decks</option>
+                      </select>
+                    </div>
+                    {/* Search Field */}
+                    <div className="relative w-full sm:w-48">
+                      <Search size={14} className="absolute left-2 top-1.5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder={`Search ${activeTab === 'decks' ? 'decks' : 'archived'}...`}
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="w-full pl-7 pr-2 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                    {/* Actions: Add Deck / Convert to Flashcards */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setShowConvertModal(true)}
+                        className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-emerald-600 text-emerald-700 dark:text-emerald-300 bg-white dark:bg-gray-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                      >
+                        <FileText size={14} className="mr-1.5" />
+                        Convert
+                      </button>
+                      <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                      >
+                        <Plus size={14} className="mr-1.5" />
+                        Add Deck
+                      </button>
+                    </div>
+                  </>
                 )}
               </div>
             </div>
-            {/* Removed the <hr> below the tabs for consistency */}
           </div>
           {/* Tab Content */}
           {activeTab === 'decks' && (
@@ -1595,6 +1573,45 @@ interface NoteItem {
                   </p>
                 </div>
               )}
+            </div>
+          )}
+          {activeTab === 'stats' && (
+            <div className="mt-6 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center">
+                    <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                      <BookOpen size={24} className="text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="ml-4">
+                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalDecks}</h3>
+                      <p className="text-gray-600 dark:text-gray-400">Total Decks</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center">
+                    <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
+                      <Target size={24} className="text-green-600 dark:text-green-400" />
+                    </div>
+                    <div className="ml-4">
+                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{totalCards}</h3>
+                      <p className="text-gray-600 dark:text-gray-400">Total Flashcards</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                  <div className="flex items-center">
+                    <div className="p-3 bg-purple-100 dark:bg-purple-900/20 rounded-lg">
+                      <TrendingUp size={24} className="text-purple-600 dark:text-purple-400" />
+                    </div>
+                    <div className="ml-4">
+                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{averageProgress}%</h3>
+                      <p className="text-gray-600 dark:text-gray-400">Average Progress</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>

@@ -13,7 +13,7 @@ import GlobalSearch from '../components/notes/GlobalSearch';
 import ImportantItemsPanel from '../components/notes/ImportantItemsPanel';
 import ColorPickerModal from '../components/notes/ColorPickerModal';
 import CreateNotebookModal from '../components/notes/CreateNotebookModal';
-import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle, Star, Download, Upload, FileText, File, Trash2 } from 'lucide-react';
+import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle, Star, Download, Upload, FileText, File, Trash2, X } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
 
@@ -3514,65 +3514,82 @@ const Notes = () => {
 
       {/* Bulk Delete Notes Modal */}
       {showNotesBulkDeleteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Notes</h3>
-              <button
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
-                onClick={() => setShowNotesBulkDeleteModal(false)}
-                aria-label="Close"
-              >
-                ×
-              </button>
-            </div>
-            <div className="p-6">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Select notes to delete. This action cannot be undone.</p>
-              <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
-                {notes.map((n) => (
-                  <label key={n.id} className="flex items-start gap-3 p-4 border-b last:border-b-0 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
-                      checked={selectedNotesForDelete.includes(n.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedNotesForDelete((prev) => [...prev, n.id]);
-                        } else {
-                          setSelectedNotesForDelete((prev) => prev.filter((id) => id !== n.id));
-                        }
-                      }}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900 dark:text-white line-clamp-1">{getPlainText(n.title || '') || 'Untitled'}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{getPreview(n.content || '') || 'No content'}</div>
-                    </div>
-                    <div className="text-xs text-gray-400">{new Date(n.updated_at).toLocaleDateString()}</div>
-                  </label>
-                ))}
-                {notes.length === 0 && (
-                  <div className="p-6 text-center text-gray-500 dark:text-gray-400">No notes available.</div>
-                )}
+        <div className="fixed inset-0 z-[100] overflow-y-auto">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 transition-opacity"
+            onClick={() => {
+              setShowNotesBulkDeleteModal(false);
+              setSelectedNotesForDelete([]);
+            }}
+          />
+          {/* Modal */}
+          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+            <div className="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full z-[101]">
+              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between relative">
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Notes</h3>
+                <button
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  onClick={() => {
+                    setShowNotesBulkDeleteModal(false);
+                    setSelectedNotesForDelete([]);
+                  }}
+                  aria-label="Close"
+                >
+                  <X size={20} />
+                </button>
               </div>
-            </div>
-            <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex justify-end gap-3 rounded-b-lg">
-              <button
-                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
-                onClick={() => setShowNotesBulkDeleteModal(false)}
-              >
-                Cancel
-              </button>
-              <button
-                disabled={selectedNotesForDelete.length === 0}
-                className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={() => {
-                  handleBulkDeleteNotes(selectedNotesForDelete);
-                  setSelectedNotesForDelete([]);
-                  setShowNotesBulkDeleteModal(false);
-                }}
-              >
-                Delete {selectedNotesForDelete.length > 0 ? `(${selectedNotesForDelete.length})` : ''}
-              </button>
+              <div className="p-6">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Select notes to delete. This action cannot be undone.</p>
+                <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+                  {notes.map((n) => (
+                    <label key={n.id} className="flex items-start gap-3 p-4 border-b last:border-b-0 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                        checked={selectedNotesForDelete.includes(n.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedNotesForDelete((prev) => [...prev, n.id]);
+                          } else {
+                            setSelectedNotesForDelete((prev) => prev.filter((id) => id !== n.id));
+                          }
+                        }}
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-gray-900 dark:text-white line-clamp-1">{getPlainText(n.title || '') || 'Untitled'}</div>
+                        <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{getPreview(n.content || '') || 'No content'}</div>
+                      </div>
+                      <div className="text-xs text-gray-400">{new Date(n.updated_at).toLocaleDateString()}</div>
+                    </label>
+                  ))}
+                  {notes.length === 0 && (
+                    <div className="p-6 text-center text-gray-500 dark:text-gray-400">No notes available.</div>
+                  )}
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex justify-end gap-3 rounded-b-lg">
+                <button
+                  className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  onClick={() => {
+                    setShowNotesBulkDeleteModal(false);
+                    setSelectedNotesForDelete([]);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  disabled={selectedNotesForDelete.length === 0}
+                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  onClick={() => {
+                    handleBulkDeleteNotes(selectedNotesForDelete);
+                    setSelectedNotesForDelete([]);
+                    setShowNotesBulkDeleteModal(false);
+                  }}
+                >
+                  Delete {selectedNotesForDelete.length > 0 ? `(${selectedNotesForDelete.length})` : ''}
+                </button>
+              </div>
             </div>
           </div>
         </div>

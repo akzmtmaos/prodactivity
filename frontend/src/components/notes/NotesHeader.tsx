@@ -1,5 +1,4 @@
 import React from 'react';
-import { Search } from 'lucide-react';
 import HelpButton from '../HelpButton';
 
 interface NotesHeaderProps {
@@ -45,18 +44,6 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
             : `Notes in ${selectedNotebook?.name || ''}`}
         </p>
       </div>
-      {/* Global Search Button - Top Right */}
-      {onGlobalSearch && (
-        <div className="mt-4 sm:mt-0">
-          <button
-            onClick={onGlobalSearch}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-2 shadow-sm hover:shadow-md"
-          >
-            <Search size={16} />
-            <span>Search</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 };

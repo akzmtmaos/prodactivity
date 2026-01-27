@@ -1862,8 +1862,8 @@ const Progress = () => {
           {/* Top-left subtle shape */}
           <div className="absolute top-1/4 left-1/6 w-48 h-48 bg-gradient-to-br from-cyan-400/6 to-transparent dark:from-cyan-500/10 rounded-full"></div>
           
-          {/* Minimal grid pattern overlay */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.02)_1px,transparent_1px)] bg-[size:40px_40px] dark:bg-[linear-gradient(to_right,rgba(255,255,255,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(255,255,255,0.02)_1px,transparent_1px)]"></div>
+          {/* Minimal grid pattern overlay - Removed in dark mode to avoid white lines */}
+          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.02)_1px,transparent_1px)] bg-[size:40px_40px] dark:bg-transparent"></div>
           
           {/* Subtle gradient overlay for depth */}
           <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/[0.01] dark:from-indigo-500/[0.02] dark:via-transparent dark:to-purple-500/[0.02]"></div>
