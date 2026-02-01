@@ -67,25 +67,31 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
     }
   }, [isOpen]);
 
-  // Get available filter options based on search results
+  // Get available filter options - use type for accurate filtering (category can be ambiguous)
+  const FILTER_CONFIG = [
+    { key: 'all', label: 'All', type: null },
+    { key: 'notes', label: 'Notes', type: 'note' as const },
+    { key: 'flashcards', label: 'Flashcards', type: 'deck' as const },
+    { key: 'tasks', label: 'Tasks', type: 'task' as const },
+    { key: 'system', label: 'System', type: 'system' as const },
+  ];
+
   const getAvailableFilters = () => {
-    const categories = new Set(searchResults.map(result => result.category));
-    return [
-      { key: 'all', label: 'All', count: searchResults.length },
-      ...Array.from(categories).map(category => ({
-        key: category.toLowerCase(),
-        label: category,
-        count: searchResults.filter(result => result.category === category).length
-      }))
-    ];
+    return FILTER_CONFIG.map(({ key, label, type }) => ({
+      key,
+      label,
+      count: type === null ? searchResults.length : searchResults.filter(r => r.type === type).length
+    })).filter(f => f.key === 'all' || f.count > 0); // Only show filters that have results
   };
 
-  // Filter search results based on active filter
+  // Filter search results by type (not category) for accurate filtering
   const getFilteredResults = () => {
     if (activeFilter === 'all') {
       return searchResults;
     }
-    return searchResults.filter(result => result.category.toLowerCase() === activeFilter);
+    const config = FILTER_CONFIG.find(f => f.key === activeFilter);
+    if (!config || !config.type) return searchResults;
+    return searchResults.filter(result => result.type === config.type);
   };
 
   // Search across all system components
@@ -337,36 +343,36 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
         style={{ zIndex: 9999 }}
       />
       
-      {/* Modal Container */}
+      {/* Modal Container - dtrack-region-ix style */}
       <div className="fixed inset-0 z-[10000] overflow-y-auto pointer-events-none" style={{ zIndex: 10000 }}>
       
-        {/* Modal */}
-        <div className="flex min-h-full items-start justify-center p-4 pt-12 pointer-events-auto">
-          <div className="relative w-full max-w-2xl bg-white dark:bg-gray-800 rounded-lg shadow-xl">
-          {/* Header */}
-          <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+        {/* Modal - horizontally and vertically centered */}
+        <div className="flex min-h-full items-center justify-center p-4 pointer-events-auto">
+          <div className="relative w-full max-w-xl bg-white dark:bg-[#171717] rounded-md shadow-xl border border-gray-200 dark:border-[#262626]">
+          {/* Header - compact */}
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#262626]">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
               Search
             </h2>
             <button
               onClick={onClose}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#262626] transition-colors"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
 
-          {/* Search Input */}
-          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+          {/* Search Input - compact like dtrack Input */}
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-[#262626]">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
+              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search notes, tasks, decks..."
-                className="w-full pl-10 pr-10 py-3 border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-300 dark:border-[#262626] bg-white dark:bg-[#202225] text-gray-900 dark:text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
               />
               {searchQuery && (
                 <button
@@ -376,38 +382,38 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                     searchInputRef.current?.focus();
                   }}
                   aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 text-gray-500 hover:text-gray-700 dark:text-gray-300 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#262626] rounded-md transition-colors"
                 >
-                  <X size={16} />
+                  <X size={14} />
                 </button>
               )}
             </div>
           </div>
 
           {/* Results */}
-          <div className="max-h-96 overflow-y-auto">
+          <div className="max-h-80 overflow-y-auto">
             {isSearching ? (
-              <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500 mx-auto mb-2"></div>
-                Searching...
+              <div className="py-6 px-4 text-center text-gray-500 dark:text-gray-400">
+                <div className="animate-spin rounded-full h-6 w-6 border-2 border-indigo-500 border-t-transparent mx-auto mb-2"></div>
+                <p className="text-xs">Searching...</p>
               </div>
             ) : searchResults.length === 0 && searchQuery.trim() ? (
-              <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                <Search size={48} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                <p>No results found for "{searchQuery}". Try a different search term.</p>
+              <div className="py-6 px-4 text-center text-gray-500 dark:text-gray-400">
+                <Search size={36} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+                <p className="text-sm">No results found for "{searchQuery}". Try a different search term.</p>
               </div>
             ) : searchResults.length === 0 ? (
-              <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                <Search size={48} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                <p className="mb-2">Start typing to search across notes, tasks, decks, and more</p>
+              <div className="py-6 px-4 text-center text-gray-500 dark:text-gray-400">
+                <Search size={36} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
+                <p className="text-sm mb-1">Start typing to search across notes, tasks, decks, and more</p>
                 <p className="text-xs text-gray-400 dark:text-gray-500">Press Esc to close</p>
               </div>
             ) : (
               <>
-                {/* Filter Buttons */}
+                {/* Filter Buttons - compact */}
                 {getAvailableFilters().length > 1 && (
-                  <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <div className="flex flex-wrap gap-2">
+                  <div className="px-4 py-2 border-b border-gray-200 dark:border-[#262626]">
+                    <div className="flex flex-wrap gap-1.5">
                       {getAvailableFilters().map((filter) => (
                         <button
                           key={filter.key}
@@ -417,10 +423,10 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                             setActiveFilter(filter.key);
                             setSelectedResultIndex(-1);
                           }}
-                          className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                          className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
                             activeFilter === filter.key
                               ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#262626] dark:text-gray-400 dark:hover:bg-[#333]'
                           }`}
                         >
                           {filter.label} ({filter.count})
@@ -431,14 +437,14 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                 )}
                 
                 {/* Search Results */}
-                <div className="py-2">
+                <div className="py-1">
                   {getFilteredResults().map((result, index) => (
                     <div
                       key={result.id}
-                      className={`flex items-center px-4 py-3 cursor-pointer transition-colors ${
+                      className={`flex items-center px-4 py-2.5 cursor-pointer transition-colors ${
                         index === selectedResultIndex 
                           ? 'bg-indigo-50 dark:bg-indigo-900/20' 
-                          : 'hover:bg-gray-50 dark:hover:bg-gray-700'
+                          : 'hover:bg-gray-50 dark:hover:bg-[#262626]'
                       }`}
                       onClick={() => handleResultClick(result)}
                       onMouseEnter={() => setSelectedResultIndex(index)}
@@ -462,15 +468,15 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                   
                   {/* No results for current filter */}
                   {getFilteredResults().length === 0 && searchResults.length > 0 && (
-                    <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
-                      <p>No results found for the selected filter.</p>
+                    <div className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                      <p className="text-sm">No results found for the selected filter.</p>
                       <button
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           setActiveFilter('all');
                         }}
-                        className="mt-2 text-sm text-indigo-600 dark:text-indigo-400 hover:underline"
+                        className="mt-2 text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
                       >
                         Show all results
                       </button>
@@ -481,9 +487,9 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
             )}
           </div>
 
-          {/* Footer */}
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700 rounded-b-lg">
-            <div className="flex items-center justify-between text-sm text-gray-500 dark:text-gray-400">
+          {/* Footer - compact */}
+          <div className="px-4 py-2.5 border-t border-gray-200 dark:border-[#262626] bg-gray-50 dark:bg-[#202225] rounded-b-md">
+            <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
               <span>
                 {searchResults.length > 0 ? `${searchResults.length} result${searchResults.length === 1 ? '' : 's'} found` : ''}
               </span>
