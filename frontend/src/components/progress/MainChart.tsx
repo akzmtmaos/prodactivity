@@ -199,12 +199,12 @@ const MainChart: React.FC<MainChartProps> = ({ view, data, prodLogs }) => {
   }
 
   return (
-    <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl shadow-lg dark:shadow-indigo-500/10 mb-8 overflow-hidden">
+    <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow mb-6 overflow-hidden">
       <div className="p-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center">
-            <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl">
+            <div className="p-2 bg-gray-100 dark:bg-[#1e1e1e] rounded-lg">
               <BarChart3 size={20} className="text-indigo-600 dark:text-indigo-400" />
             </div>
             <h2 className="ml-3 text-xl font-semibold text-gray-900 dark:text-gray-100">
@@ -213,7 +213,7 @@ const MainChart: React.FC<MainChartProps> = ({ view, data, prodLogs }) => {
           </div>
           
           {/* Metric Selector */}
-          <div className="bg-gray-50/80 dark:bg-gray-700/80 backdrop-blur-sm rounded-xl p-1">
+          <div className="bg-gray-100 dark:bg-[#1e1e1e] rounded-lg p-1">
             <div className="flex space-x-1">
               <button
                 onClick={() => setSelectedMetric('productivity')}

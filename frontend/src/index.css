@@ -76,21 +76,56 @@ html {
   scrollbar-color: #cbd5e1 #f1f1f1;
 }
 
+/* Dark mode - Supabase-style neutral grays (#1e1e1e) */
+.dark {
+  color-scheme: dark;
+}
+
+/* Main backgrounds: #1e1e1e - neutral dark */
+.dark .dark\:bg-gray-900 {
+  background-color: #1e1e1e !important;
+}
+.dark .dark\:bg-gray-800 {
+  background-color: #1e1e1e !important;
+}
+
+/* Secondary/input backgrounds: #252525 - slightly lighter */
+.dark .dark\:bg-gray-700 {
+  background-color: #252525 !important;
+}
+
+/* Borders: #333333 - subtle separation */
+.dark .dark\:border-gray-800,
+.dark .dark\:border-gray-700,
+.dark .dark\:border-gray-600 {
+  border-color: #333333 !important;
+}
+
+/* Hover backgrounds - #2d2d2d */
+.dark .dark\:hover\:bg-gray-700:hover,
+.dark .dark\:hover\:bg-gray-600:hover {
+  background-color: #2d2d2d !important;
+}
+
+.dark .dark\:hover\:bg-gray-800:hover {
+  background-color: #2d2d2d !important;
+}
+
 /* Dark mode scrollbar */
 .dark ::-webkit-scrollbar-track {
-  background: #1e293b;
+  background: #1e1e1e;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: #475569;
+  background: #404040;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: #64748b;
+  background: #525252;
 }
 
 .dark * {
-  scrollbar-color: #475569 #1e293b;
+  scrollbar-color: #404040 #1e1e1e;
 }
 
 /* ContentEditable Text Wrapping */

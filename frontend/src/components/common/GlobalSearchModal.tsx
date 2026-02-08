@@ -107,19 +107,22 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
       const results: SearchResult[] = [];
       const searchTerm = query.toLowerCase();
 
-      // Search Notes
+      // Search Notes - only add items that look like notes (have notebook_name/notebook)
       try {
         const notesResponse = await axiosInstance.get(`/notes/?search=${encodeURIComponent(query)}`);
         
         const notesData = notesResponse.data.results || notesResponse.data;
         if (Array.isArray(notesData)) {
-          notesData.forEach((note: Note) => {
+          notesData.forEach((item: Note & { flashcard_count?: number; flashcardCount?: number }) => {
+            // Skip if this looks like a deck (wrong API response)
+            if ('flashcard_count' in item || 'flashcardCount' in item) return;
+            const note = item as Note;
             results.push({
               id: note.id.toString(),
               type: 'note',
               title: note.title || 'Untitled Note',
               content: note.content,
-              description: `${note.notebook_name} • ${format(new Date(note.updated_at), 'MMM d, yyyy')}`,
+              description: `${note.notebook_name || 'Notebook'} • ${format(new Date(note.updated_at), 'MMM d, yyyy')}`,
               url: `/notes?note=${note.id}`,
               icon: <FileText className="w-4 h-4" />,
               category: 'Notes',
@@ -131,18 +134,23 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
         console.error('Error searching notes:', error);
       }
 
-      // Search Decks
+      // Search Decks - only add items that look like decks (have deck-like fields, NOT notebook_name)
       try {
         const decksResponse = await axiosInstance.get(`/decks/decks/?search=${encodeURIComponent(query)}`);
         
         const decksData = decksResponse.data.results || decksResponse.data;
         if (Array.isArray(decksData)) {
-          decksData.forEach((deck: Deck) => {
+          decksData.forEach((item: Deck & { notebook_name?: string; notebook?: number }) => {
+            // Skip if this looks like a note (wrong API response) - notes have notebook_name
+            if ('notebook_name' in item && item.notebook_name != null) return;
+            if ('notebook' in item && item.notebook != null && !('parent' in item)) return;
+            const deck = item as Deck;
+            const fcCount = deck.flashcardCount ?? (deck as { flashcard_count?: number }).flashcard_count ?? 0;
             results.push({
-              id: deck.id,
+              id: String(deck.id),
               type: 'deck',
               title: deck.title,
-              description: `${deck.flashcardCount} cards • ${deck.progress}% progress`,
+              description: `${fcCount} cards • ${deck.progress ?? 0}% progress`,
               url: `/decks/${deck.id}`,
               icon: <Target className="w-4 h-4" />,
               category: 'Flashcards',
@@ -348,22 +356,22 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
       
         {/* Modal - horizontally and vertically centered */}
         <div className="flex min-h-full items-center justify-center p-4 pointer-events-auto">
-          <div className="relative w-full max-w-xl bg-white dark:bg-[#171717] rounded-md shadow-xl border border-gray-200 dark:border-[#262626]">
+          <div className="relative w-full max-w-xl bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl border border-gray-200 dark:border-[#333333]">
           {/* Header - compact */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#262626]">
+          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
             <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
               Search
             </h2>
             <button
               onClick={onClose}
-              className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#262626] transition-colors"
+              className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d] transition-colors"
             >
               <X size={18} />
             </button>
           </div>
 
           {/* Search Input - compact like dtrack Input */}
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-[#262626]">
+          <div className="px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
             <div className="relative">
               <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
               <input
@@ -372,7 +380,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search notes, tasks, decks..."
-                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-300 dark:border-[#262626] bg-white dark:bg-[#202225] text-gray-900 dark:text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-300 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
               />
               {searchQuery && (
                 <button
@@ -382,7 +390,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                     searchInputRef.current?.focus();
                   }}
                   aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#262626] rounded-md transition-colors"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#2d2d2d] rounded-md transition-colors"
                 >
                   <X size={14} />
                 </button>
@@ -412,7 +420,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
               <>
                 {/* Filter Buttons - compact */}
                 {getAvailableFilters().length > 1 && (
-                  <div className="px-4 py-2 border-b border-gray-200 dark:border-[#262626]">
+                  <div className="px-4 py-2 border-b border-gray-200 dark:border-[#333333]">
                     <div className="flex flex-wrap gap-1.5">
                       {getAvailableFilters().map((filter) => (
                         <button
@@ -426,7 +434,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                           className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
                             activeFilter === filter.key
                               ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#262626] dark:text-gray-400 dark:hover:bg-[#333]'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#333333] dark:text-gray-400 dark:hover:bg-[#2d2d2d]'
                           }`}
                         >
                           {filter.label} ({filter.count})
@@ -444,7 +452,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                       className={`flex items-center px-4 py-2.5 cursor-pointer transition-colors ${
                         index === selectedResultIndex 
                           ? 'bg-indigo-50 dark:bg-indigo-900/20' 
-                          : 'hover:bg-gray-50 dark:hover:bg-[#262626]'
+                          : 'hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
                       }`}
                       onClick={() => handleResultClick(result)}
                       onMouseEnter={() => setSelectedResultIndex(index)}
@@ -488,7 +496,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
           </div>
 
           {/* Footer - compact */}
-          <div className="px-4 py-2.5 border-t border-gray-200 dark:border-[#262626] bg-gray-50 dark:bg-[#202225] rounded-b-md">
+          <div className="px-4 py-2.5 border-t border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#252525] rounded-b-md">
             <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
               <span>
                 {searchResults.length > 0 ? `${searchResults.length} result${searchResults.length === 1 ? '' : 's'} found` : ''}

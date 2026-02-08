@@ -50,36 +50,39 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <Palette className="h-6 w-6 text-indigo-600" />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
+    <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div
+        className="bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-full max-w-md mx-4 border border-gray-200 dark:border-[#333333]"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header - dtrack compact */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
+          <div className="flex items-center gap-2">
+            <Palette className="h-4 w-4 text-indigo-600" />
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
               {title}
             </h2>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
           >
-            <X className="h-6 w-6" />
+            <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Color Grid */}
-        <div className="p-6">
-          <div className="grid grid-cols-6 gap-3">
+        <div className="px-4 py-3">
+          <div className="grid grid-cols-6 gap-2">
             {NOTEBOOK_COLORS.map((color) => (
               <button
                 key={color.value}
                 onClick={() => handleColorSelect(color.value)}
                 className={`
-                  w-12 h-12 rounded-lg border-2 transition-all duration-200
+                  w-10 h-10 rounded-md border-2 transition-all duration-200
                   ${currentColor === color.value 
-                    ? 'border-gray-900 dark:border-white ring-2 ring-indigo-500 ring-offset-2' 
-                    : 'border-gray-200 dark:border-gray-600 hover:scale-110'
+                    ? 'border-gray-900 dark:border-white ring-2 ring-indigo-500 ring-offset-1' 
+                    : 'border-gray-200 dark:border-[#333333] hover:scale-105'
                   }
                 `}
                 style={{ backgroundColor: color.value }}
@@ -95,19 +98,19 @@ const ColorPickerModal: React.FC<ColorPickerModalProps> = ({
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700">
+        {/* Footer - dtrack compact */}
+        <div className="px-4 py-2.5 border-t border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#252525] rounded-b-md">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-500 dark:text-gray-400">Current:</span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">Current:</span>
               <div 
-                className="w-6 h-6 rounded border border-gray-200 dark:border-gray-600"
+                className="w-5 h-5 rounded border border-gray-200 dark:border-[#333333]"
                 style={{ backgroundColor: currentColor }}
-              ></div>
+              />
             </div>
             <button
               onClick={onClose}
-              className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+              className="px-2.5 py-1.5 text-xs bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors"
             >
               Cancel
             </button>

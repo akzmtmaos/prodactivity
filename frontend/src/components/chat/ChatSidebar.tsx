@@ -1,39 +1,28 @@
 import React from 'react';
 import { MessageCircle, Search, Users } from 'lucide-react';
 import ChatList from './ChatList';
-import UserList from './UserList';
-import { ChatRoom, User } from './types';
+import { ChatRoom } from './types';
 
 interface ChatSidebarProps {
-  activeView: 'chats' | 'users';
+  activeView: 'chats' | 'groups';
   searchTerm: string;
-  chatRooms: ChatRoom[];
-  allUsers: User[];
+  filteredChatRooms: ChatRoom[];
   selectedRoom: ChatRoom | null;
   currentUserId: string;
-  isCreatingRoom: boolean;
-  searchingUsers?: boolean;
-  onViewChange: (view: 'chats' | 'users') => void;
+  onViewChange: (view: 'chats' | 'groups') => void;
   onSearchChange: (term: string) => void;
   onRoomSelect: (room: ChatRoom | null) => void;
-  onStartChat: (user: User) => void;
-  onViewProfile: (username: string) => void;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
   activeView,
   searchTerm,
-  chatRooms,
-  allUsers,
+  filteredChatRooms,
   selectedRoom,
   currentUserId,
-  isCreatingRoom,
-  searchingUsers = false,
   onViewChange,
   onSearchChange,
   onRoomSelect,
-  onStartChat,
-  onViewProfile,
 }) => {
   return (
     <div className="w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col">
@@ -42,7 +31,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         <button
           onClick={() => {
             onViewChange('chats');
-            onRoomSelect(null as any);
+            onRoomSelect(null);
           }}
           className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
             activeView === 'chats'
@@ -51,18 +40,18 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           }`}
         >
           <MessageCircle className="inline-block mr-2" size={16} />
-          Chats
+          Chat
         </button>
         <button
-          onClick={() => onViewChange('users')}
+          onClick={() => onViewChange('groups')}
           className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-            activeView === 'users'
+            activeView === 'groups'
               ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
           }`}
         >
           <Users className="inline-block mr-2" size={16} />
-          Find Friends
+          Groups
         </button>
       </div>
 
@@ -72,7 +61,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
           <input
             type="text"
-            placeholder={activeView === 'chats' ? 'Search chats...' : 'Search by username...'}
+            placeholder={activeView === 'chats' ? 'Search chats...' : 'Search groups...'}
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
@@ -82,22 +71,13 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
       {/* List */}
       <div className="flex-1 overflow-y-auto">
-        {activeView === 'chats' ? (
-          <ChatList
-            rooms={chatRooms}
-            selectedRoom={selectedRoom}
-            currentUserId={currentUserId}
-            onRoomSelect={onRoomSelect}
-          />
-        ) : (
-          <UserList
-            users={allUsers}
-            isCreatingRoom={isCreatingRoom}
-            loading={searchingUsers}
-            onStartChat={onStartChat}
-            onViewProfile={onViewProfile}
-          />
-        )}
+        <ChatList
+          rooms={filteredChatRooms}
+          selectedRoom={selectedRoom}
+          currentUserId={currentUserId}
+          onRoomSelect={onRoomSelect}
+          emptyStateSubtext={activeView === 'groups' ? 'No group chats yet' : 'Find friends from the search bar in the sidebar'}
+        />
       </div>
     </div>
   );

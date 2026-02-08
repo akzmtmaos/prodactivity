@@ -3388,75 +3388,79 @@ const Notes = () => {
         }}
       />
 
-      {/* Export Format Selection Modal */}
+      {/* Export Format Modal - dtrack style */}
       {showExportFormatModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Choose Export Format
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Select the format you want to export your notes to:
-            </p>
-            <div className="space-y-3">
-              <button
-                onClick={exportToDOCX}
-                disabled={isExporting}
-                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FileText className="w-5 h-5 text-green-600" />
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">DOCX</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Microsoft Word document</div>
-                </div>
-              </button>
-              <button
-                onClick={exportToPDF}
-                disabled={isExporting}
-                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <File className="w-5 h-5 text-red-600" />
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">PDF</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Portable Document Format</div>
-                </div>
-              </button>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowExportFormatModal(false)}>
+          <div className="bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-96 max-w-md mx-4 border border-gray-200 dark:border-[#333333]" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                Choose Export Format
+              </h3>
             </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowExportFormatModal(false)}
-                disabled={isExporting}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
+            <div className="px-4 py-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Select the format you want to export your notes to:
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={exportToDOCX}
+                  disabled={isExporting}
+                  className="w-full flex items-center gap-2 p-2.5 text-left border border-gray-200 dark:border-[#333333] rounded-md hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">DOCX</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Microsoft Word document</div>
+                  </div>
+                </button>
+                <button
+                  onClick={exportToPDF}
+                  disabled={isExporting}
+                  className="w-full flex items-center gap-2 p-2.5 text-left border border-gray-200 dark:border-[#333333] rounded-md hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <File className="w-4 h-4 text-red-600 flex-shrink-0" />
+                  <div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">PDF</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Portable Document Format</div>
+                  </div>
+                </button>
+              </div>
+              <div className="flex justify-end mt-3">
+                <button
+                  onClick={() => setShowExportFormatModal(false)}
+                  disabled={isExporting}
+                  className="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-[#333333] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
-      {/* Export Scope Modal */}
+      {/* Export Scope Modal - dtrack style */}
       {showExportScopeModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4">
-            <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Export Notes</h3>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowExportScopeModal(false)}>
+          <div className="bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-full max-w-2xl mx-4 border border-gray-200 dark:border-[#333333]" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-[#333333] flex items-center justify-between">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Export Notes</h3>
               <button
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
                 onClick={() => setShowExportScopeModal(false)}
                 aria-label="Close"
               >
-                ×
+                <X size={18} />
               </button>
             </div>
-            <div className="p-6">
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Select notes to export, or export everything in this notebook.</p>
-              <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+            <div className="px-4 py-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Select notes to export, or export everything in this notebook.</p>
+              <div className="max-h-80 overflow-y-auto border border-gray-200 dark:border-[#333333] rounded-md">
                 {notes.map((n) => (
-                  <label key={n.id} className="flex items-start gap-3 p-4 border-b last:border-b-0 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                  <label key={n.id} className="flex items-start gap-3 p-3 border-b last:border-b-0 border-gray-100 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] cursor-pointer">
                     <input
                       type="checkbox"
-                      className="mt-1 h-5 w-5 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                      className="mt-1 h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                       checked={selectedNotesForExport.includes(n.id)}
                       onChange={(e) => {
                         if (e.target.checked) {
@@ -3466,27 +3470,27 @@ const Notes = () => {
                         }
                       }}
                     />
-                    <div className="flex-1">
-                      <div className="font-medium text-gray-900 dark:text-white line-clamp-1">{getPlainText(n.title || '') || 'Untitled'}</div>
-                      <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{getPreview(n.content || '') || 'No content'}</div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-1">{getPlainText(n.title || '') || 'Untitled'}</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{getPreview(n.content || '') || 'No content'}</div>
                     </div>
                     <div className="text-xs text-gray-400">{new Date(n.updated_at).toLocaleDateString()}</div>
                   </label>
                 ))}
                 {notes.length === 0 && (
-                  <div className="p-6 text-center text-gray-500 dark:text-gray-400">No notes available.</div>
+                  <div className="p-4 text-center text-xs text-gray-500 dark:text-gray-400">No notes available.</div>
                 )}
               </div>
             </div>
-            <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex justify-end gap-3 rounded-b-lg">
+            <div className="px-4 py-2.5 border-t border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#252525] rounded-b-md flex justify-end gap-2">
               <button
-                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
+                className="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
                 onClick={() => setShowExportScopeModal(false)}
               >
                 Cancel
               </button>
               <button
-                className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600"
+                className="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
                 onClick={() => {
                   setExportNotesList(notes);
                   setShowExportScopeModal(false);
@@ -3497,7 +3501,7 @@ const Notes = () => {
               </button>
               <button
                 disabled={selectedNotesForExport.length === 0}
-                className="px-4 py-2 rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2.5 py-1.5 text-xs rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => {
                   const list = notes.filter(n => selectedNotesForExport.includes(n.id));
                   setExportNotesList(list);
@@ -3512,41 +3516,39 @@ const Notes = () => {
         </div>
       )}
 
-      {/* Bulk Delete Notes Modal */}
+      {/* Bulk Delete Notes Modal - dtrack style */}
       {showNotesBulkDeleteModal && (
         <div className="fixed inset-0 z-[100] overflow-y-auto">
-          {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 transition-opacity"
+            className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60"
             onClick={() => {
               setShowNotesBulkDeleteModal(false);
               setSelectedNotesForDelete([]);
             }}
           />
-          {/* Modal */}
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full z-[101]">
-              <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between relative">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Delete Notes</h3>
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div className="relative bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl border border-gray-200 dark:border-[#333333] max-w-2xl w-full z-[101]" onClick={e => e.stopPropagation()}>
+              <div className="px-4 py-3 border-b border-gray-200 dark:border-[#333333] flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Delete Notes</h3>
                 <button
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                  className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
                   onClick={() => {
                     setShowNotesBulkDeleteModal(false);
                     setSelectedNotesForDelete([]);
                   }}
                   aria-label="Close"
                 >
-                  <X size={20} />
+                  <X size={18} />
                 </button>
               </div>
-              <div className="p-6">
-                <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Select notes to delete. This action cannot be undone.</p>
-                <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+              <div className="px-4 py-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Select notes to delete. This action cannot be undone.</p>
+                <div className="max-h-80 overflow-y-auto border border-gray-200 dark:border-[#333333] rounded-md">
                   {notes.map((n) => (
-                    <label key={n.id} className="flex items-start gap-3 p-4 border-b last:border-b-0 border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                    <label key={n.id} className="flex items-start gap-3 p-3 border-b last:border-b-0 border-gray-100 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] cursor-pointer">
                       <input
                         type="checkbox"
-                        className="mt-1 h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                        className="mt-1 h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
                         checked={selectedNotesForDelete.includes(n.id)}
                         onChange={(e) => {
                           if (e.target.checked) {
@@ -3556,21 +3558,21 @@ const Notes = () => {
                           }
                         }}
                       />
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-900 dark:text-white line-clamp-1">{getPlainText(n.title || '') || 'Untitled'}</div>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 line-clamp-2">{getPreview(n.content || '') || 'No content'}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white line-clamp-1">{getPlainText(n.title || '') || 'Untitled'}</div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2">{getPreview(n.content || '') || 'No content'}</div>
                       </div>
                       <div className="text-xs text-gray-400">{new Date(n.updated_at).toLocaleDateString()}</div>
                     </label>
                   ))}
                   {notes.length === 0 && (
-                    <div className="p-6 text-center text-gray-500 dark:text-gray-400">No notes available.</div>
+                    <div className="p-4 text-center text-xs text-gray-500 dark:text-gray-400">No notes available.</div>
                   )}
                 </div>
               </div>
-              <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 flex justify-end gap-3 rounded-b-lg">
+              <div className="px-4 py-2.5 border-t border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#252525] rounded-b-md flex justify-end gap-2">
                 <button
-                  className="px-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                  className="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
                   onClick={() => {
                     setShowNotesBulkDeleteModal(false);
                     setSelectedNotesForDelete([]);
@@ -3580,7 +3582,7 @@ const Notes = () => {
                 </button>
                 <button
                   disabled={selectedNotesForDelete.length === 0}
-                  className="px-4 py-2 rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-2.5 py-1.5 text-xs rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   onClick={() => {
                     handleBulkDeleteNotes(selectedNotesForDelete);
                     setSelectedNotesForDelete([]);
@@ -3595,59 +3597,63 @@ const Notes = () => {
         </div>
       )}
 
-      {/* Import Format Selection Modal */}
+      {/* Import Format Selection Modal - dtrack style */}
       {showImportFormatModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-96 max-w-md mx-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-              Choose Import Format
-            </h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6">
-              Select the format of the file you want to import:
-            </p>
-            <div className="space-y-3">
-              <button
-                onClick={importFromDOCX}
-                disabled={isImporting}
-                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FileText className="w-5 h-5 text-green-600" />
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">DOCX</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Microsoft Word document (full content extraction)</div>
-                </div>
-              </button>
-              <button
-                onClick={importFromPDF}
-                disabled={isImporting}
-                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <File className="w-5 h-5 text-red-600" />
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">PDF</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Portable Document Format (basic support)</div>
-                </div>
-              </button>
-              <button
-                onClick={importFromTXT}
-                disabled={isImporting}
-                className="w-full flex items-center gap-3 p-3 text-left border border-gray-200 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <FileText className="w-5 h-5 text-purple-600" />
-                <div>
-                  <div className="font-medium text-gray-900 dark:text-white">TXT</div>
-                  <div className="text-sm text-gray-500 dark:text-gray-400">Plain text file (full content support)</div>
-                </div>
-              </button>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowImportFormatModal(false)}>
+          <div className="bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-96 max-w-md mx-4 border border-gray-200 dark:border-[#333333]" onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                Choose Import Format
+              </h3>
             </div>
-            <div className="flex justify-end gap-3 mt-6">
-              <button
-                onClick={() => setShowImportFormatModal(false)}
-                disabled={isImporting}
-                className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors disabled:opacity-50"
-              >
-                Cancel
-              </button>
+            <div className="px-4 py-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                Select the format of the file you want to import:
+              </p>
+              <div className="space-y-2">
+                <button
+                  onClick={importFromDOCX}
+                  disabled={isImporting}
+                  className="w-full flex items-center gap-2 p-2.5 text-left border border-gray-200 dark:border-[#333333] rounded-md hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FileText className="w-4 h-4 text-green-600 flex-shrink-0" />
+                  <div className="text-left">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">DOCX</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Microsoft Word document (full content extraction)</div>
+                  </div>
+                </button>
+                <button
+                  onClick={importFromPDF}
+                  disabled={isImporting}
+                  className="w-full flex items-center gap-2 p-2.5 text-left border border-gray-200 dark:border-[#333333] rounded-md hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <File className="w-4 h-4 text-red-600 flex-shrink-0" />
+                  <div className="text-left">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">PDF</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Portable Document Format (basic support)</div>
+                  </div>
+                </button>
+                <button
+                  onClick={importFromTXT}
+                  disabled={isImporting}
+                  className="w-full flex items-center gap-2 p-2.5 text-left border border-gray-200 dark:border-[#333333] rounded-md hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <FileText className="w-4 h-4 text-purple-600 flex-shrink-0" />
+                  <div className="text-left">
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">TXT</div>
+                    <div className="text-xs text-gray-500 dark:text-gray-400">Plain text file (full content support)</div>
+                  </div>
+                </button>
+              </div>
+              <div className="flex justify-end mt-3">
+                <button
+                  onClick={() => setShowImportFormatModal(false)}
+                  disabled={isImporting}
+                  className="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-[#333333] text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -16,9 +16,9 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
   onBackToNotebooks,
   onGlobalSearch,
 }) => {
-  const notesHelpContent = (
+  const notebooksHelpContent = (
     <div>
-      <p className="font-semibold mb-2">Notes Management</p>
+      <p className="font-semibold mb-2">Notebooks Management</p>
       <ul className="space-y-1 text-xs">
         <li>• <strong>Notebooks:</strong> Organize your notes into different categories</li>
         <li>• <strong>Create Notes:</strong> Click the + button to add new notes</li>
@@ -35,12 +35,12 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
     <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
-          Notes
-          <HelpButton content={notesHelpContent} title="Notes Help" />
+          Notebooks
+          <HelpButton content={notebooksHelpContent} title="Notebooks Help" />
         </h1>
         <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
           {currentView === 'notebooks'
-            ? 'Create and manage your notes'
+            ? 'Create and manage your notebooks'
             : `Notes in ${selectedNotebook?.name || ''}`}
         </p>
       </div>

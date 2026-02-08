@@ -5,6 +5,8 @@ import { useNotificationsContext } from '../context/NotificationsContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNavbar } from '../context/NavbarContext';
 import GlobalSearchModal from './common/GlobalSearchModal';
+import HelpModal from './common/HelpModal';
+import HeaderTooltip from './common/HeaderTooltip';
 
 interface HeaderProps {
   pageTitle?: string;
@@ -22,6 +24,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSearchModal, setShowSearchModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
 
   useEffect(() => {
     const loadUserData = () => {
@@ -89,7 +92,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
     if (pageTitle) return pageTitle;
     const routeTitles: { [key: string]: string } = {
       '/': 'Home',
-      '/notes': 'Notes',
+      '/notes': 'Notebooks',
       '/tasks': 'Tasks',
       '/decks': 'Flashcards',
       '/progress': 'Progress',
@@ -102,12 +105,13 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
       '/settings': 'Settings',
       '/profile': 'Profile',
     };
+    if (location.pathname.startsWith('/notes')) return 'Notebooks';
     return routeTitles[location.pathname] || 'ProdActivity';
   };
 
   return (
     <header 
-      className={`fixed top-0 right-0 z-20 h-12 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 transition-all duration-300 ${
+      className={`fixed top-0 right-0 z-20 h-12 bg-white dark:bg-[#1c1c1c] border-b border-gray-200 dark:border-[#333333] transition-all duration-300 ${
         isCollapsed ? 'md:left-14' : 'md:left-48'
       } left-0`}
     >
@@ -148,7 +152,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
               onFocus={() => setShowSearchModal(true)}
               onClick={() => setShowSearchModal(true)}
               readOnly
-              className="pl-8 pr-3 py-1 w-40 text-xs border border-gray-300 dark:border-gray-700 rounded-md bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-500 focus:border-transparent cursor-pointer"
+              className="pl-8 pr-3 py-1 w-40 text-xs border border-gray-300 dark:border-[#333333] rounded-md bg-gray-50 dark:bg-[#252525] text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-500 focus:border-transparent cursor-pointer"
             />
           </div>
           
@@ -161,33 +165,37 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
           </button>
 
           {/* Theme Toggle */}
-          <button
-            onClick={toggleTheme}
-            className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-          >
-            {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
+          <HeaderTooltip label={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+            </button>
+          </HeaderTooltip>
 
           {/* Notifications */}
-          <button
-            onClick={() => navigate('/notifications')}
-            className="relative p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="Notifications"
-          >
-            <Bell size={18} />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-gray-800"></span>
-            )}
-          </button>
+          <HeaderTooltip label="Notifications">
+            <button
+              onClick={() => navigate('/notifications')}
+              className="relative p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <Bell size={18} />
+              {unreadCount > 0 && (
+                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-[#1c1c1c]"></span>
+              )}
+            </button>
+          </HeaderTooltip>
 
           {/* Help */}
-          <button
-            className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-            title="Help"
-          >
-            <HelpCircle size={18} />
-          </button>
+          <HeaderTooltip label="Help">
+            <button
+              onClick={() => setShowHelpModal(true)}
+              className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <HelpCircle size={18} />
+            </button>
+          </HeaderTooltip>
 
           {/* User Menu */}
           <div className="relative">
@@ -215,7 +223,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
                   className="fixed inset-0 z-10"
                   onClick={() => setShowUserMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 py-1 z-20">
+                <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-[#1c1c1c] rounded-lg shadow-lg border border-gray-200 dark:border-[#333333] py-1 z-20">
                   <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
                     <p className="text-sm font-medium text-gray-900 dark:text-white">
                       {user?.displayName || user?.username || "User"}
@@ -261,8 +269,8 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-gray-900/50 dark:bg-gray-900/60" onClick={() => setMobileMenuOpen(false)}>
-          <div className="fixed top-14 left-0 right-0 bottom-0 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 overflow-y-auto">
+        <div className="md:hidden fixed inset-0 z-50 bg-gray-900/50 dark:bg-black/40" onClick={() => setMobileMenuOpen(false)}>
+          <div className="fixed top-14 left-0 right-0 bottom-0 bg-white dark:bg-[#1c1c1c] border-t border-gray-200 dark:border-[#333333] overflow-y-auto">
             <div className="p-4 space-y-2">
               <button
                 onClick={() => {
@@ -310,6 +318,9 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
         isOpen={showSearchModal} 
         onClose={() => setShowSearchModal(false)} 
       />
+
+      {/* Help Modal */}
+      <HelpModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
     </header>
   );
 };

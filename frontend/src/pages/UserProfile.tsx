@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Flame, Target, Clock, Star, Trophy, Zap, UserPlus, UserMinus, MessageCircle, Mail, GraduationCap, Calendar } from 'lucide-react';
+import { ArrowLeft, Flame, Target, Clock, Star, Trophy, Zap, UserPlus, UserMinus, MessageCircle, Mail, GraduationCap, Calendar, CheckSquare, FileText, Layers, Brain, HelpCircle, BarChart3 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import axiosInstance from '../utils/axiosConfig';
 import PageLayout from '../components/PageLayout';
@@ -573,39 +573,73 @@ const UserProfile: React.FC = () => {
           </div>
         </div>
 
-        {/* Statistics Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalTasks}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Tasks Completed</div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.longestStreak}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Longest Streak</div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalStudyHours}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Study Hours</div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{averageProductivity}%</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Avg Productivity</div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalNotes}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Notes</div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalDecks}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Decks</div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalReviewer}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Reviewers</div>
-          </div>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700 p-4">
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">{stats.totalQuiz}</div>
-            <div className="text-sm text-gray-500 dark:text-gray-400">Quizzes</div>
+        {/* Statistics Grid - with icons to match own Profile Overview */}
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 mb-6">
+          <div className="p-6">
+            <div className="flex items-center mb-6">
+              <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
+                <BarChart3 size={24} className="text-blue-600 dark:text-blue-400" />
+              </div>
+              <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">Statistics</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                <CheckSquare className="text-emerald-600 dark:text-emerald-400" size={20} />
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Tasks Completed</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.totalTasks}</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                <Flame className="text-orange-500" size={20} />
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Longest Streak</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.longestStreak}</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                <Clock className="text-sky-600 dark:text-sky-400" size={20} />
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Study Hours</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.totalStudyHours}</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                <Zap className="text-green-600 dark:text-green-400" size={20} />
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Avg Productivity</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{averageProductivity}%</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                <FileText className="text-blue-500" size={20} />
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Notes</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.totalNotes}</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                <Layers className="text-indigo-500" size={20} />
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Decks</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.totalDecks}</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                <Brain className="text-purple-600 dark:text-purple-400" size={20} />
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Reviewers</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.totalReviewer}</p>
+                </div>
+              </div>
+              <div className="bg-gray-50 dark:bg-gray-700/30 rounded-lg p-4 border border-gray-200 dark:border-gray-700 flex items-center gap-3">
+                <HelpCircle className="text-pink-600 dark:text-pink-400" size={20} />
+                <div>
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Quizzes</p>
+                  <p className="text-2xl font-semibold text-gray-900 dark:text-white">{stats.totalQuiz}</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
 

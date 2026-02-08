@@ -429,7 +429,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       
       {/* Tabs - Below Legend */}
       <div className="flex justify-center mb-6">
-        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-2 shadow-lg dark:shadow-indigo-500/10 inline-flex">
+        <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg p-1.5 shadow inline-flex">
           <div className="flex space-x-1">
             {tabs.map(tab => (
               <button
@@ -449,8 +449,8 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
       </div>
       
       <div className="w-full mb-4">
-        <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 shadow-lg dark:shadow-indigo-500/10 rounded-2xl w-full flex flex-col overflow-hidden" style={{ height: 520 }}>
-          <div className="flex items-center justify-between bg-gray-50/80 dark:bg-gray-900/60 backdrop-blur-sm px-6 py-4 border-b border-gray-100 dark:border-gray-700/50">
+        <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow w-full flex flex-col overflow-hidden" style={{ height: 520 }}>
+          <div className="flex items-center justify-between bg-gray-50 dark:bg-[#1e1e1e] px-6 py-4 border-b border-gray-200 dark:border-[#333333]">
             <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Productivity Scale History</span>
             <div className="flex items-center space-x-2">
               <button 

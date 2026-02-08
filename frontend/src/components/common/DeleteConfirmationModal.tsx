@@ -30,49 +30,49 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
         onClick={onClose}
       />
 
-      {/* Modal */}
+      {/* Modal - dtrack-region-ix style */}
       <div className="flex min-h-full items-center justify-center p-4 text-center">
-        <div className="relative transform overflow-hidden rounded-lg bg-white dark:bg-gray-800 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+        <div className="relative transform overflow-hidden rounded-md bg-white dark:bg-[#1e1e1e] text-left shadow-xl border border-gray-200 dark:border-[#333333] transition-all sm:my-8 sm:w-full sm:max-w-lg">
           {/* Close button */}
           <button
             onClick={onClose}
-            className="absolute right-4 top-4 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300"
+            className="absolute right-3 top-3 p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
           >
-            <X className="h-5 w-5" />
+            <X className="h-4 w-4" />
           </button>
 
           {/* Content */}
-          <div className="px-6 py-6">
+          <div className="px-4 py-4">
             {/* Icon */}
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-              <AlertTriangle className="h-6 w-6 text-red-600 dark:text-red-400" />
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
+              <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
             </div>
 
             {/* Title and Message */}
-            <div className="mt-4 text-center">
-              <h3 className="text-lg font-semibold leading-6 text-gray-900 dark:text-white">
+            <div className="mt-3 text-center">
+              <h3 className="text-sm font-semibold leading-5 text-gray-900 dark:text-white">
                 {title}
               </h3>
-              <div className="mt-2">
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+              <div className="mt-1.5">
+                <p className="text-xs text-gray-500 dark:text-gray-400">
                   {message}
                 </p>
               </div>
             </div>
 
             {/* Buttons */}
-            <div className="mt-6 flex flex-col-reverse sm:flex-row sm:justify-center sm:space-x-3">
+            <div className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-center gap-2">
               <button
                 type="button"
                 onClick={onClose}
-                className="inline-flex w-full justify-center rounded-md bg-white dark:bg-gray-700 px-3 py-2 text-sm font-semibold text-gray-900 dark:text-white shadow-sm ring-1 ring-inset ring-gray-300 dark:ring-gray-600 hover:bg-gray-50 dark:hover:bg-gray-600 sm:w-auto"
+                className="inline-flex w-full justify-center rounded-md bg-white dark:bg-[#333333] px-2.5 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 border border-gray-300 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] sm:w-auto"
               >
                 {cancelLabel || 'Cancel'}
               </button>
               <button
                 type="button"
                 onClick={onConfirm}
-                className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 sm:w-auto"
+                className="inline-flex w-full justify-center rounded-md bg-red-600 px-2.5 py-1.5 text-xs font-medium text-white hover:bg-red-500 sm:w-auto"
               >
                 {confirmLabel || 'Delete'}
               </button>

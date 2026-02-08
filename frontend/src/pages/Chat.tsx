@@ -25,9 +25,8 @@ const Chat = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<'chats' | 'users'>('chats');
+  const [activeView, setActiveView] = useState<'chats' | 'groups'>('chats');
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -35,9 +34,7 @@ const Chat = () => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
-  const [searchingUsers, setSearchingUsers] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
-  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -83,20 +80,26 @@ const Chat = () => {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const profileUsername = params.get('profile');
+    const startUsername = params.get('start');
 
     if (profileUsername) {
       setViewingProfile(profileUsername);
       setSelectedRoom(null);
-      setActiveView('users');
+      setActiveView('chats');
+    } else if (startUsername && user?.id) {
+      // Start chat with user from Find Friends (navbar)
+      setViewingProfile(null);
+      setActiveView('chats');
+      const username = decodeURIComponent(startUsername);
+      navigate('/chat', { replace: true }); // Clear param to avoid re-triggering
+      handleStartChat(username);
     } else {
-      // If profile param is removed and no room is selected, clear viewingProfile
       if (!selectedRoom) {
         setViewingProfile(null);
       }
     }
-    // We intentionally don't include selectedRoom in deps to avoid loops
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search]);
+  }, [location.search, user?.id]);
 
   useEffect(() => {
     if (selectedRoom?.id) {
@@ -221,66 +224,6 @@ const Chat = () => {
       setLoading(false);
     }
   };
-
-  const searchUsers = async (query: string) => {
-    if (!user?.id || !query || query.trim().length < 2) {
-      setAllUsers([]);
-      return;
-    }
-    
-    try {
-      setSearchingUsers(true);
-      console.log('🔍 Searching users with query:', query.trim());
-      const response = await axiosInstance.get(`/search-users/?q=${encodeURIComponent(query.trim())}`);
-      console.log('✅ Search response:', response.data);
-      const data = response.data;
-      
-      const normalizedUsers = (data.users || []).map((u: any) => ({
-        ...u,
-        id: String(u.id),
-        avatar: getAvatarUrl(u.avatar),
-        email: u.email || ''
-      }));
-      
-      console.log('✅ Normalized users:', normalizedUsers);
-      setAllUsers(normalizedUsers);
-    } catch (error: any) {
-      console.error('❌ Error searching users:', error);
-      console.error('❌ Error response:', error.response?.data);
-      console.error('❌ Error status:', error.response?.status);
-      const errorMessage = error.response?.data?.message || error.message || 'Failed to search users';
-      setToast({ message: errorMessage, type: 'error' });
-      setAllUsers([]);
-    } finally {
-      setSearchingUsers(false);
-    }
-  };
-
-  // Debounced search effect
-  useEffect(() => {
-    // Clear previous timeout
-    if (searchTimeoutRef.current) {
-      clearTimeout(searchTimeoutRef.current);
-    }
-
-    // Only search if we're in the users view
-    if (activeView === 'users' && searchTerm.trim().length >= 2) {
-      // Set a timeout to debounce the search
-      searchTimeoutRef.current = setTimeout(() => {
-        searchUsers(searchTerm);
-      }, 500); // 500ms delay
-    } else if (activeView === 'users' && searchTerm.trim().length < 2) {
-      // Clear results if search term is too short
-      setAllUsers([]);
-    }
-
-    // Cleanup function
-    return () => {
-      if (searchTimeoutRef.current) {
-        clearTimeout(searchTimeoutRef.current);
-      }
-    };
-  }, [searchTerm, activeView, user?.id]);
 
   const fetchMessages = async (roomId: string) => {
     try {
@@ -646,27 +589,20 @@ const Chat = () => {
   const handleStartChat = async (otherUser: User | string) => {
     let targetUser: User;
     
-    // If it's a username string, find the user from allUsers or fetch it
     if (typeof otherUser === 'string') {
-      const foundUser = allUsers.find(u => u.username === otherUser);
-      if (!foundUser) {
-        // Fetch user profile if not in current search results
-        try {
-          const response = await axiosInstance.get(`/profile/${otherUser}/`);
-          const profile = response.data;
-          targetUser = {
-            id: String(profile.id),
-            username: profile.username,
-            email: profile.email || '',
-            avatar: getAvatarUrl(profile.avatar)
-          };
-        } catch (error) {
-          console.error('Error fetching user:', error);
-          setToast({ message: 'Failed to start chat', type: 'error' });
-          return;
-        }
-      } else {
-        targetUser = foundUser;
+      try {
+        const response = await axiosInstance.get(`/profile/${otherUser}/`);
+        const profile = response.data;
+        targetUser = {
+          id: String(profile.id),
+          username: profile.username,
+          email: profile.email || '',
+          avatar: getAvatarUrl(profile.avatar)
+        };
+      } catch (error) {
+        console.error('Error fetching user:', error);
+        setToast({ message: 'Failed to start chat', type: 'error' });
+        return;
       }
     } else {
       targetUser = otherUser;
@@ -731,48 +667,51 @@ const Chat = () => {
     }
   };
 
-  // Handle URL parameter to automatically start chat with user
+  // Handle URL parameter to automatically start/open chat with user (e.g. from profile page Message button)
   useEffect(() => {
-    if (userId && user?.id && chatRooms.length > 0) {
-      // Check if we already have this room selected
-      const existingRoom = chatRooms.find(room => {
-        if (room.room_type === 'direct' && room.participants) {
-          return room.participants.some(p => String(p.id) === String(userId));
-        }
-        return false;
-      });
-      
-      if (existingRoom) {
-        // Room exists, just select it
-        handleRoomSelect(existingRoom);
-      } else if (!selectedRoom || String(selectedRoom.participants?.[0]?.id) !== String(userId)) {
-        // Room doesn't exist, fetch user and create it
-        console.log('🔗 URL parameter detected, starting chat with user:', userId);
-        // Fetch user profile first
-        (async () => {
-          try {
-            const { data: profile } = await supabase
-              .from('profiles')
-              .select('id, username, email, avatar')
-              .eq('id', userId)
-              .single();
-            
-            if (profile) {
-              const targetUser: User = {
-                id: String(profile.id),
-                username: profile.username,
-                email: profile.email || '',
-                avatar: getAvatarUrl(profile.avatar)
-              };
-              handleStartChat(targetUser);
-            }
-          } catch (error) {
-            console.error('Error fetching user for chat:', error);
-          }
-        })();
+    if (!userId || !user?.id) return;
+
+    // Check if we already have this room in our list
+    const existingRoom = chatRooms.find(room => {
+      if (room.room_type === 'direct' && room.participants) {
+        return room.participants.some(p => String(p.id) === String(userId));
       }
+      return false;
+    });
+
+    if (existingRoom) {
+      handleRoomSelect(existingRoom);
+      return;
     }
-  }, [userId, user?.id, chatRooms.length]);
+
+    // Don't create if we already have this room selected
+    if (selectedRoom && selectedRoom.room_type === 'direct' && selectedRoom.participants?.some(p => String(p.id) === String(userId))) {
+      return;
+    }
+
+    // Room doesn't exist in list - fetch user and create/select room
+    (async () => {
+      try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('id, username, email, avatar')
+          .eq('id', userId)
+          .single();
+
+        if (profile) {
+          const targetUser: User = {
+            id: String(profile.id),
+            username: profile.username,
+            email: profile.email || '',
+            avatar: getAvatarUrl(profile.avatar)
+          };
+          handleStartChat(targetUser);
+        }
+      } catch (error) {
+        console.error('Error fetching user for chat:', error);
+      }
+    })();
+  }, [userId, user?.id, chatRooms]);
 
   // Clear URL when room is cleared
   useEffect(() => {
@@ -1136,9 +1075,15 @@ const Chat = () => {
     }
   };
 
-  const filteredChatRooms = chatRooms.filter(room =>
-    room.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredChatRooms = chatRooms
+    .filter(room => activeView === 'chats' ? room.room_type === 'direct' : room.room_type === 'group')
+    .filter(room => {
+      const search = searchTerm.toLowerCase().trim();
+      if (!search) return true;
+      const name = room.name?.toLowerCase() || '';
+      const participantNames = room.participants?.map(p => p.username?.toLowerCase()).filter(Boolean).join(' ') || '';
+      return name.includes(search) || participantNames.includes(search);
+    });
 
   if (!user) {
     return null;
@@ -1147,25 +1092,16 @@ const Chat = () => {
   return (
     <>
       <div className="fixed inset-0 top-0 left-0 right-0 bottom-0 w-full h-full flex flex-col" style={{ margin: 0, padding: 0, paddingTop: 0, marginTop: 0, zIndex: 1 }}>
-        <div className={`flex-1 flex gap-0 bg-white dark:bg-gray-800 overflow-hidden h-full mt-12 md:mt-12 ${isCollapsed ? 'md:ml-14' : 'md:ml-48'} transition-[margin] duration-300 ease-in-out`}>
+        <div className={`flex-1 flex gap-0 bg-white dark:bg-[#1e1e1e] overflow-hidden h-full mt-12 md:mt-12 ${isCollapsed ? 'md:ml-14' : 'md:ml-48'} transition-[margin] duration-300 ease-in-out`}>
           <ChatSidebar
             activeView={activeView}
             searchTerm={searchTerm}
-            chatRooms={filteredChatRooms}
-            allUsers={allUsers}
+            filteredChatRooms={filteredChatRooms}
             selectedRoom={selectedRoom}
             currentUserId={String(user.id)}
-            isCreatingRoom={isCreatingRoom}
             onViewChange={setActiveView}
             onSearchChange={setSearchTerm}
             onRoomSelect={handleRoomSelect}
-            onStartChat={handleStartChat}
-            onViewProfile={(username) => {
-              setViewingProfile(username);
-              setSelectedRoom(null);
-              navigate(`/chat?profile=${encodeURIComponent(username)}`, { replace: true });
-            }}
-            searchingUsers={searchingUsers}
           />
 
           <div className="flex-1 flex flex-col transition-opacity duration-200 h-full">
@@ -1196,15 +1132,7 @@ const Chat = () => {
                   // Remove profile param from URL but stay on /chat
                   navigate('/chat', { replace: true });
                 }}
-                onStartChat={(username) => {
-                  const userFromList = allUsers.find(u => u.username === username);
-                  if (userFromList) {
-                    handleStartChat(userFromList);
-                  } else {
-                    // Fallback: let handleStartChat resolve user by username
-                    handleStartChat(username);
-                  }
-                }}
+                onStartChat={(username) => handleStartChat(username)}
               />
             ) : (
               <div className="flex-1 flex items-center justify-center text-gray-500 dark:text-gray-400">

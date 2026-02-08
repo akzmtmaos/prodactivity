@@ -3,6 +3,7 @@ import PageLayout from '../components/PageLayout';
 import StatsCards from '../components/progress/StatsCards';
 import StatsAnalysis from '../components/progress/StatsAnalysis';
 import ProgressHeader from '../components/progress/ProgressHeader';
+import LevelProfileCard from '../components/progress/LevelProfileCard';
 import ProgressOverview from '../components/progress/ProgressOverview';
 import ProductivityHistory from '../components/progress/ProductivityHistory';
 import Achievements from '../components/progress/Achievements';
@@ -544,6 +545,27 @@ const Progress = () => {
 
   // Add state for selected date/period
   const [selectedDate, setSelectedDate] = useState(new Date());
+
+  // Main Progress page tab: Overview | Statistics | Achievements
+  const [activeMainTab, setActiveMainTab] = useState<'overview' | 'statistics' | 'achievements'>('overview');
+
+  const MAIN_TABS = ['overview', 'statistics', 'achievements'] as const;
+  const handleMainTabKeyDown = (e: React.KeyboardEvent) => {
+    const idx = MAIN_TABS.indexOf(activeMainTab);
+    if (e.key === 'ArrowRight' && idx < MAIN_TABS.length - 1) {
+      e.preventDefault();
+      setActiveMainTab(MAIN_TABS[idx + 1]);
+    } else if (e.key === 'ArrowLeft' && idx > 0) {
+      e.preventDefault();
+      setActiveMainTab(MAIN_TABS[idx - 1]);
+    } else if (e.key === 'Home') {
+      e.preventDefault();
+      setActiveMainTab('overview');
+    } else if (e.key === 'End') {
+      e.preventDefault();
+      setActiveMainTab('achievements');
+    }
+  };
   
   // Debug: Track selectedDate changes (only in development)
   useEffect(() => {
@@ -1844,29 +1866,13 @@ const Progress = () => {
   return (
     <PageLayout>
       <div className="min-h-screen flex flex-col relative">
-        {/* Modern Animated Background */}
+        {/* Background – same approach as Home for consistency */}
         <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-          {/* Clean Base - Darker background in dark mode for better contrast */}
-          <div className="absolute inset-0 bg-gradient-to-br from-gray-50 via-white to-gray-100 dark:from-[#0a0a0b] dark:via-[#0f0f12] dark:to-[#14141a]"></div>
-          
-          {/* Minimalist Geometric Elements - More vibrant in dark mode */}
-          {/* Top-right corner accent */}
-          <div className="absolute top-0 right-0 w-96 h-96 bg-gradient-to-bl from-indigo-500/10 via-transparent to-transparent dark:from-indigo-500/15"></div>
-          
-          {/* Bottom-left corner accent */}
-          <div className="absolute bottom-0 left-0 w-80 h-80 bg-gradient-to-tr from-blue-500/8 via-transparent to-transparent dark:from-blue-500/12"></div>
-          
-          {/* Center-right subtle shape */}
-          <div className="absolute top-1/3 right-1/4 w-64 h-64 bg-gradient-to-bl from-purple-400/5 to-transparent dark:from-purple-500/10 rounded-full"></div>
-          
-          {/* Top-left subtle shape */}
-          <div className="absolute top-1/4 left-1/6 w-48 h-48 bg-gradient-to-br from-cyan-400/6 to-transparent dark:from-cyan-500/10 rounded-full"></div>
-          
-          {/* Minimal grid pattern overlay - Removed in dark mode to avoid white lines */}
-          <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.02)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.02)_1px,transparent_1px)] bg-[size:40px_40px] dark:bg-transparent"></div>
-          
-          {/* Subtle gradient overlay for depth */}
-          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-black/[0.01] dark:from-indigo-500/[0.02] dark:via-transparent dark:to-purple-500/[0.02]"></div>
+          <div className="absolute inset-0 bg-white dark:bg-gray-900" />
+          <div className="absolute -top-20 -left-20 w-80 h-80 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30 rounded-full opacity-60" />
+          <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-bl from-blue-900/20 to-blue-800/20 dark:from-blue-800/30 dark:to-blue-700/30 rounded-full opacity-70" />
+          <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-gradient-to-tr from-blue-800/10 to-blue-900/10 dark:from-blue-700/20 dark:to-blue-800/20 rounded-full opacity-60" />
+          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-blue-50/20 dark:to-blue-950/20" />
         </div>
 
         {/* Main Content */}
@@ -1875,53 +1881,98 @@ const Progress = () => {
             {/* Header */}
             <ProgressHeader greeting={greeting} username={user?.username || 'User'} />
 
-            {/* Overview Section */}
-            <div className="flex flex-col">
-              <ProgressOverview
-                key={`progress-overview-${refreshKey}`}
-                userLevel={userLevel}
-                todaysProductivity={todaysProductivity}
-                streakData={streakData}
-                refreshProductivity={refreshProductivity}
-                getProductivityColor={getProductivityColor}
-                username={user?.username || 'User'}
-                avatar={userAvatar}
-              />
+            {/* Main tabs: Overview | Statistics | Achievements (same style as Notes, Decks, Tasks) */}
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-6">
+              <div
+                className="flex space-x-4"
+                role="tablist"
+                aria-label="Progress sections"
+                onKeyDown={handleMainTabKeyDown}
+              >
+                {MAIN_TABS.map((tab) => (
+                  <button
+                    key={tab}
+                    role="tab"
+                    aria-selected={activeMainTab === tab}
+                    aria-controls={`progress-panel-${tab}`}
+                    id={`progress-tab-${tab}`}
+                    tabIndex={activeMainTab === tab ? 0 : -1}
+                    onClick={() => setActiveMainTab(tab)}
+                    className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-t ${
+                      activeMainTab === tab
+                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                        : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                    }`}
+                  >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
             </div>
 
-        {/* Stats Cards */}
-        <StatsCards
-          key={`stats-${stats.streak}-${refreshKey}`}
-          stats={{ ...stats, streakData }}
-          todaysProductivity={todaysProductivity}
-        />
+            {/* Tab content */}
+            {activeMainTab === 'overview' && (
+              <div id="progress-panel-overview" role="tabpanel" aria-labelledby="progress-tab-overview">
+              <>
+                <LevelProfileCard
+                  userLevel={userLevel}
+                  username={user?.username || 'User'}
+                  avatar={userAvatar}
+                />
+                <div className="flex flex-col">
+                  <ProgressOverview
+                    key={`progress-overview-${refreshKey}`}
+                    userLevel={userLevel}
+                    todaysProductivity={todaysProductivity}
+                    streakData={streakData}
+                    currentStreak={stats.streak}
+                    longestStreak={calculateLongestStreak(streakData)}
+                    refreshProductivity={refreshProductivity}
+                    getProductivityColor={getProductivityColor}
+                    username={user?.username || 'User'}
+                    avatar={userAvatar}
+                  />
+                </div>
+                <StatsCards
+                  key={`stats-${stats.streak}-${refreshKey}`}
+                  stats={{ ...stats, streakData }}
+                  todaysProductivity={todaysProductivity}
+                />
+              </>
+              </div>
+            )}
 
-        {/* In-depth statistics (priority breakdown, weighted productivity) */}
-        <StatsAnalysis
-          tasksByPriority={stats.tasksByPriority ?? null}
-          weightedProductivity={stats.weightedProductivity ?? null}
-          totalTasksCompleted={stats.totalTasksCompleted}
-        />
+            {activeMainTab === 'statistics' && (
+              <div id="progress-panel-statistics" role="tabpanel" aria-labelledby="progress-tab-statistics">
+              <>
+                <StatsAnalysis
+                  tasksByPriority={stats.tasksByPriority ?? null}
+                  weightedProductivity={stats.weightedProductivity ?? null}
+                  totalTasksCompleted={stats.totalTasksCompleted}
+                />
+                <ProductivityHistory
+                  progressView={progressView}
+                  productivity={productivity}
+                  prodLogs={prodLogs}
+                  selectedDate={selectedDate}
+                  handlePrev={handlePrev}
+                  handleNext={handleNext}
+                  isPrevDisabled={isPrevDisabled}
+                  isNextDisabled={isNextDisabled}
+                  getDateDisplay={getDateDisplay}
+                  getProductivityColor={getProductivityColor}
+                  setProgressView={setProgressView}
+                  tabs={TABS}
+                />
+              </>
+              </div>
+            )}
 
-        {/* Productivity History (includes tabs below legend) */}
-        <ProductivityHistory
-          progressView={progressView}
-          productivity={productivity}
-          prodLogs={prodLogs}
-          selectedDate={selectedDate}
-          handlePrev={handlePrev}
-          handleNext={handleNext}
-          isPrevDisabled={isPrevDisabled}
-          isNextDisabled={isNextDisabled}
-          getDateDisplay={getDateDisplay}
-          getProductivityColor={getProductivityColor}
-          setProgressView={setProgressView}
-          tabs={TABS}
-        />
-
-
-            {/* Achievements */}
-            <Achievements stats={stats} userLevel={userLevel} longestStreak={calculateLongestStreak(streakData)} />
+            {activeMainTab === 'achievements' && (
+              <div id="progress-panel-achievements" role="tabpanel" aria-labelledby="progress-tab-achievements">
+                <Achievements stats={stats} userLevel={userLevel} longestStreak={calculateLongestStreak(streakData)} />
+              </div>
+            )}
           </div>
         </div>
       </div>

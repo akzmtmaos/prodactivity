@@ -132,45 +132,41 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
   const currentStreak = calculateCurrentStreak();
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
       {/* Streak Card */}
-      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-6 shadow-lg dark:shadow-orange-500/10 hover:shadow-xl dark:hover:shadow-orange-500/20 hover:scale-[1.02] transition-all duration-300 group">
-        <div className="flex items-center">
-          <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl group-hover:bg-orange-50 dark:group-hover:bg-orange-900/30 transition-colors">
-            <Flame size={24} className="text-orange-600 dark:text-orange-400" />
+      <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow p-4 transition-shadow hover:shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gray-100 dark:bg-[#1e1e1e] rounded-lg">
+            <Flame size={20} className="text-orange-600 dark:text-orange-400" />
           </div>
-          <div className="ml-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {currentStreak}
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">Current Streak</p>
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{currentStreak}</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Current Streak</p>
           </div>
         </div>
       </div>
 
       {/* Tasks Completed Card */}
-      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-6 shadow-lg dark:shadow-green-500/10 hover:shadow-xl dark:hover:shadow-green-500/20 hover:scale-[1.02] transition-all duration-300 group">
-        <div className="flex items-center">
-          <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl group-hover:bg-green-50 dark:group-hover:bg-green-900/30 transition-colors">
-            <Target size={24} className="text-green-600 dark:text-green-400" />
+      <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow p-4 transition-shadow hover:shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gray-100 dark:bg-[#1e1e1e] rounded-lg">
+            <Target size={20} className="text-green-600 dark:text-green-400" />
           </div>
-          <div className="ml-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {stats.totalTasksCompleted}
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">Tasks Completed</p>
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{stats.totalTasksCompleted}</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Tasks Completed</p>
           </div>
         </div>
       </div>
 
       {/* Study Time Card */}
-      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-6 shadow-lg dark:shadow-blue-500/10 hover:shadow-xl dark:hover:shadow-blue-500/20 hover:scale-[1.02] transition-all duration-300 group">
-        <div className="flex items-center">
-          <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30 transition-colors">
-            <Clock size={24} className="text-blue-600 dark:text-blue-400" />
+      <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow p-4 transition-shadow hover:shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gray-100 dark:bg-[#1e1e1e] rounded-lg">
+            <Clock size={20} className="text-blue-600 dark:text-blue-400" />
           </div>
-          <div className="ml-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
               {stats.totalStudyTime >= 60 
                 ? (() => {
                     const hours = Math.floor(stats.totalStudyTime / 60);
@@ -180,22 +176,20 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
                 : `${stats.totalStudyTime}m`
               }
             </h3>
-            <p className="text-gray-600 dark:text-gray-400">Study Time</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Study Time</p>
           </div>
         </div>
       </div>
 
       {/* Productivity Score Card */}
-      <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-6 shadow-lg dark:shadow-purple-500/10 hover:shadow-xl dark:hover:shadow-purple-500/20 hover:scale-[1.02] transition-all duration-300 group">
-        <div className="flex items-center">
-          <div className="p-3 bg-gray-50 dark:bg-gray-700 rounded-xl group-hover:bg-purple-50 dark:group-hover:bg-purple-900/30 transition-colors">
-            <TrendingUp size={24} className="text-purple-600 dark:text-purple-400" />
+      <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow p-4 transition-shadow hover:shadow-md">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-gray-100 dark:bg-[#1e1e1e] rounded-lg">
+            <TrendingUp size={20} className="text-purple-600 dark:text-purple-400" />
           </div>
-          <div className="ml-4">
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {stats.averageProductivity}%
-            </h3>
-            <p className="text-gray-600 dark:text-gray-400">Overall Productivity</p>
+          <div>
+            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{stats.averageProductivity}%</h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">Overall Productivity</p>
           </div>
         </div>
       </div>

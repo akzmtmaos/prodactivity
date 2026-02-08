@@ -35,7 +35,7 @@ const StatsAnalysis: React.FC<StatsAnalysisProps> = ({
   if (!hasPriority && !hasWeighted) return null;
 
   return (
-    <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm border border-gray-100 dark:border-gray-700/50 rounded-2xl p-6 shadow-lg dark:shadow-indigo-500/10">
+    <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow p-6">
       <div className="flex items-center gap-2 mb-4">
         <BarChart3 className="h-6 w-6 text-indigo-600 dark:text-indigo-400" />
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">

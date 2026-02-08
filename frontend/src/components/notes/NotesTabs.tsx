@@ -90,7 +90,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
     return (
       <div>
         {/* Tabs and Filters on same line */}
-        <div className="flex items-center justify-between gap-4 flex-wrap mb-3">
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-0">
           {/* Tabs on left */}
           <div className="flex space-x-4">
             <button
@@ -198,7 +198,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
             {activeNotebookTab === 'notebooks' && onCreateNotebook && (
               <button
                 onClick={onCreateNotebook}
-                className="px-2 h-7 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors flex items-center gap-1"
+                className="px-2 h-7 text-xs bg-indigo-600 text-white rounded hover:bg-indigo-700 transition-colors flex items-center gap-1 border border-indigo-400/70 dark:border-indigo-300/50 shadow-sm"
               >
                 <Plus size={14} />
                 <span>New Notebook</span>
@@ -206,8 +206,8 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
             )}
           </div>
         </div>
-        {/* HR Line - Separated from controls */}
-        <div className="border-b border-gray-200 dark:border-gray-700"></div>
+        {/* HR Line - directly under tabs/filters */}
+        <div className="border-b border-gray-200 dark:border-gray-700 mt-0"></div>
       </div>
     );
   }
@@ -215,7 +215,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
     return (
       <div>
         {/* Tabs and Filters on same line */}
-        <div className="flex items-center justify-between gap-4 flex-wrap mb-3">
+        <div className="flex items-center justify-between gap-4 flex-wrap mb-0">
           {/* Tabs on left */}
           <div className="flex space-x-4">
             <button
@@ -356,8 +356,8 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
             )}
           </div>
         </div>
-        {/* HR Line - Separated from controls */}
-        <div className="border-b border-gray-200 dark:border-gray-700"></div>
+        {/* HR Line - directly under tabs/filters */}
+        <div className="border-b border-gray-200 dark:border-gray-700 mt-0"></div>
       </div>
     );
   }

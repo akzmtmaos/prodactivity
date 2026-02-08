@@ -115,15 +115,8 @@ const NotebookList: React.FC<NotebookListProps> = ({
   }, [openMenuId]);
 
   return (
-    <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow p-5 h-full flex flex-col">
-      <div className="mb-4">
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
-          <Book className="inline-block mr-2" size={20} />
-          Notebooks
-        </h2>
-      </div>
-      
-      {/* Notebooks list */}
+    <div className="w-full h-full flex flex-col">
+      {/* Notebooks list - no duplicate header, page already shows "Notebooks" */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 overflow-y-auto flex-1" style={{ alignContent: 'start' }}>
         {notebooks.length === 0 && (
           <div className="col-span-full">
@@ -333,49 +326,37 @@ const NotebookList: React.FC<NotebookListProps> = ({
         />
       )}
 
-      {/* Bulk Delete Modal */}
+      {/* Bulk Delete Modal - dtrack style */}
       {showBulkDeleteModal && (
         <div className="fixed inset-0 z-[100] overflow-y-auto">
-          {/* Backdrop */}
           <div 
-            className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 transition-opacity"
+            className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60"
             onClick={() => {
               setShowBulkDeleteModal(false);
               setSelectedNotebooksForDelete([]);
             }}
           />
-          {/* Modal */}
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="relative inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full z-[101]">
-              <div className="bg-white dark:bg-gray-800 px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
-                {/* Close button */}
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div className="relative bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl border border-gray-200 dark:border-[#333333] max-w-4xl w-full z-[101]" onClick={e => e.stopPropagation()}>
+              <div className="px-4 py-3 border-b border-gray-200 dark:border-[#333333] flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Delete Notebooks</h3>
                 <button
                   onClick={() => {
                     setShowBulkDeleteModal(false);
                     setSelectedNotebooksForDelete([]);
                   }}
-                  className="absolute right-4 top-4 text-gray-400 hover:text-gray-500 dark:hover:text-gray-300 z-10"
+                  className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
                 >
-                  <X className="h-5 w-5" />
+                  <X className="h-4 w-4" />
                 </button>
-                <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 dark:bg-red-900/20 sm:mx-0 sm:h-10 sm:w-10">
-                    <Trash2 className="h-6 w-6 text-red-600 dark:text-red-400" />
-                  </div>
-                  <div className="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">
-                      Delete Notebooks
-                    </h3>
-                    <div className="mt-4">
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                        Select notebooks to delete. This will also delete all notes in these notebooks.
-                      </p>
-                      
-                      {/* Notebook Selection List */}
-                      <div className="max-h-96 overflow-y-auto border border-gray-200 dark:border-gray-600 rounded-lg">
+              </div>
+              <div className="px-4 py-3">
+                <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Select notebooks to delete. This will also delete all notes in these notebooks.
+                </p>
+                <div className="max-h-80 overflow-y-auto border border-gray-200 dark:border-[#333333] rounded-md">
                         {notebooks.map((notebook) => (
-                          <div key={notebook.id} className="flex items-center p-4 hover:bg-gray-50 dark:hover:bg-gray-700 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
+                          <div key={notebook.id} className="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border-b border-gray-100 dark:border-[#333333] last:border-b-0">
                             <input
                               type="checkbox"
                               id={`notebook-${notebook.id}`}
@@ -387,7 +368,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
                                   setSelectedNotebooksForDelete(selectedNotebooksForDelete.filter(id => id !== notebook.id));
                                 }
                               }}
-                              className="h-5 w-5 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                              className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
                             />
                             <label htmlFor={`notebook-${notebook.id}`} className="ml-4 flex items-center flex-1 cursor-pointer">
                               <div 
@@ -395,10 +376,10 @@ const NotebookList: React.FC<NotebookListProps> = ({
                                 style={{ backgroundColor: notebook.color }}
                               ></div>
                               <div className="flex-1">
-                                <div className="text-base font-medium text-gray-900 dark:text-white">
+                                <div className="text-sm font-medium text-gray-900 dark:text-white">
                                   {notebook.name}
                                 </div>
-                                <div className="text-sm text-gray-500 dark:text-gray-400">
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
                                   {notebook.notes_count} note{notebook.notes_count !== 1 ? 's' : ''} • Created {new Date(notebook.created_at).toLocaleDateString()}
                                 </div>
                               </div>
@@ -410,16 +391,23 @@ const NotebookList: React.FC<NotebookListProps> = ({
                         ))}
                       </div>
                       
-                      {selectedNotebooksForDelete.length > 0 && (
-                        <p className="mt-3 text-sm text-red-600 dark:text-red-400">
-                          {selectedNotebooksForDelete.length} notebook{selectedNotebooksForDelete.length > 1 ? 's' : ''} selected for deletion
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
+                {selectedNotebooksForDelete.length > 0 && (
+                  <p className="mt-2 text-xs text-red-600 dark:text-red-400">
+                    {selectedNotebooksForDelete.length} notebook{selectedNotebooksForDelete.length > 1 ? 's' : ''} selected for deletion
+                  </p>
+                )}
               </div>
-              <div className="bg-gray-50 dark:bg-gray-700 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+              <div className="px-4 py-2.5 border-t border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#252525] rounded-b-md flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBulkDeleteModal(false);
+                    setSelectedNotebooksForDelete([]);
+                  }}
+                  className="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
+                >
+                  Cancel
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -430,19 +418,9 @@ const NotebookList: React.FC<NotebookListProps> = ({
                     }
                   }}
                   disabled={selectedNotebooksForDelete.length === 0}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-2.5 py-1.5 text-xs rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Delete {selectedNotebooksForDelete.length > 0 ? `(${selectedNotebooksForDelete.length})` : ''}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowBulkDeleteModal(false);
-                    setSelectedNotebooksForDelete([]);
-                  }}
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                  Cancel
                 </button>
               </div>
             </div>

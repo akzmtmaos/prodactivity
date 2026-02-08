@@ -8,6 +8,7 @@ interface ChatListProps {
   selectedRoom: ChatRoom | null;
   currentUserId: string;
   onRoomSelect: (room: ChatRoom) => void;
+  emptyStateSubtext?: string;
 }
 
 const ChatList: React.FC<ChatListProps> = ({
@@ -15,6 +16,7 @@ const ChatList: React.FC<ChatListProps> = ({
   selectedRoom,
   currentUserId,
   onRoomSelect,
+  emptyStateSubtext = 'Find friends from the search bar in the sidebar',
 }) => {
   if (rooms.length === 0) {
     return (
@@ -22,7 +24,7 @@ const ChatList: React.FC<ChatListProps> = ({
         <div className="p-8 text-center text-gray-500 dark:text-gray-400">
           <MessageCircle className="mx-auto h-12 w-12 mb-2 opacity-50" />
           <p className="text-sm">No conversations yet</p>
-          <p className="text-xs mt-1">Start a chat from the Users tab</p>
+          <p className="text-xs mt-1">{emptyStateSubtext}</p>
         </div>
       </div>
     );
