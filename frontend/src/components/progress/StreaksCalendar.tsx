@@ -51,11 +51,11 @@ function getMonthMatrix(year: number, month: number) {
 
 const getStreakColor = (streak: boolean, productivity?: number) => {
   if (!streak) {
-    return 'bg-gray-200 dark:bg-gray-700';
+    // Light: light gray tile; dark: darker tile so each cell is distinct from card background
+    return 'bg-gray-200 dark:bg-[#1e1e1e]';
   }
-  
-  // Simple: Just green for any streak day
-  return 'bg-green-500 dark:bg-green-400';
+  // Streak day: green
+  return 'bg-green-500 dark:bg-green-500/90';
 };
 
 const monthNames = [

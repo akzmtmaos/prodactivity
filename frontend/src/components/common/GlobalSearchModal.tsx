@@ -346,7 +346,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
     <>
       {/* Backdrop - covers everything including navbar (z-30) and header (z-20) */}
       <div 
-        className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 transition-opacity"
+        className="fixed inset-0 bg-black/40 dark:bg-black/60 transition-opacity"
         onClick={onClose}
         style={{ zIndex: 9999 }}
       />

@@ -269,7 +269,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
 
       {/* Mobile Menu Overlay */}
       {mobileMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-gray-900/50 dark:bg-black/40" onClick={() => setMobileMenuOpen(false)}>
+        <div className="md:hidden fixed inset-0 z-50 bg-black/40 dark:bg-black/60" onClick={() => setMobileMenuOpen(false)}>
           <div className="fixed top-14 left-0 right-0 bottom-0 bg-white dark:bg-[#1c1c1c] border-t border-gray-200 dark:border-[#333333] overflow-y-auto">
             <div className="p-4 space-y-2">
               <button

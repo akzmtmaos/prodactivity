@@ -23,7 +23,7 @@ const EditNotebookModal: React.FC<EditNotebookModalProps> = ({ isOpen, currentNa
   };
 
   return (
-    <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
       <div
         className="bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-full max-w-md mx-4 border border-gray-200 dark:border-[#333333]"
         onClick={e => e.stopPropagation()}

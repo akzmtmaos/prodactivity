@@ -326,7 +326,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         {/* Backdrop */}
         <div 
           className={`fixed inset-0 transition-opacity duration-300 ease-in-out ${
-            mobileMenuOpen ? 'bg-gray-900/50 dark:bg-gray-900/60' : 'bg-transparent'
+            mobileMenuOpen ? 'bg-black/40 dark:bg-black/60' : 'bg-transparent'
           }`}
           onClick={() => setMobileMenuOpen(false)}
         />
@@ -573,7 +573,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
 
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (
-        <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
           <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Confirm Logout</h2>
             <p className="text-gray-600 dark:text-gray-300 mb-6">Are you sure you want to log out of your account?</p>

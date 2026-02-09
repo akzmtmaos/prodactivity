@@ -26,9 +26,15 @@ const CreateNotebookModal: React.FC<CreateNotebookModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 flex items-center justify-center z-50" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop – neutral (no blue tint), same as Find Friends panel */}
       <div
-        className="bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-full max-w-md mx-4 border border-gray-200 dark:border-[#333333]"
+        className="absolute inset-0 bg-black/40 dark:bg-black/60"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div
+        className="relative bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-full max-w-md mx-4 border border-gray-200 dark:border-[#333333]"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">

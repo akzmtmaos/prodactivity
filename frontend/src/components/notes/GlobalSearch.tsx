@@ -142,7 +142,7 @@ const GlobalSearch: React.FC<GlobalSearchProps> = ({ isOpen, onClose }) => {
     <div className="fixed inset-0 z-50 overflow-y-auto">
       {/* Backdrop */}
       <div 
-        className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60 transition-opacity"
+        className="fixed inset-0 bg-black/40 dark:bg-black/60 transition-opacity"
         onClick={onClose}
       />
       

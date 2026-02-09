@@ -330,7 +330,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
       {showBulkDeleteModal && (
         <div className="fixed inset-0 z-[100] overflow-y-auto">
           <div 
-            className="fixed inset-0 bg-gray-900/50 dark:bg-gray-900/60"
+            className="fixed inset-0 bg-black/40 dark:bg-black/60"
             onClick={() => {
               setShowBulkDeleteModal(false);
               setSelectedNotebooksForDelete([]);

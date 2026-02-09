@@ -1881,6 +1881,13 @@ const Progress = () => {
             {/* Header */}
             <ProgressHeader greeting={greeting} username={user?.username || 'User'} />
 
+            {/* Profile Card – above tabs so it’s visible on all tabs */}
+            <LevelProfileCard
+              userLevel={userLevel}
+              username={user?.username || 'User'}
+              avatar={userAvatar}
+            />
+
             {/* Main tabs: Overview | Statistics | Achievements (same style as Notes, Decks, Tasks) */}
             <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-6">
               <div
@@ -1913,13 +1920,12 @@ const Progress = () => {
             {/* Tab content */}
             {activeMainTab === 'overview' && (
               <div id="progress-panel-overview" role="tabpanel" aria-labelledby="progress-tab-overview">
-              <>
-                <LevelProfileCard
-                  userLevel={userLevel}
-                  username={user?.username || 'User'}
-                  avatar={userAvatar}
+                <StatsCards
+                  key={`stats-${stats.streak}-${refreshKey}`}
+                  stats={{ ...stats, streakData }}
+                  todaysProductivity={todaysProductivity}
                 />
-                <div className="flex flex-col">
+                <div className="flex flex-col mt-6">
                   <ProgressOverview
                     key={`progress-overview-${refreshKey}`}
                     userLevel={userLevel}
@@ -1933,12 +1939,6 @@ const Progress = () => {
                     avatar={userAvatar}
                   />
                 </div>
-                <StatsCards
-                  key={`stats-${stats.streak}-${refreshKey}`}
-                  stats={{ ...stats, streakData }}
-                  todaysProductivity={todaysProductivity}
-                />
-              </>
               </div>
             )}
 
