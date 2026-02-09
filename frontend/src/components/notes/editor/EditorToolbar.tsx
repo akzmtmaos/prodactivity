@@ -53,8 +53,8 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
   isReadOnly = false,
 }) => {
   return (
-    <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-10">
-      <div className="flex items-center justify-between gap-3 p-2 px-4">
+    <div className="h-12 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 sticky top-0 z-10">
+      <div className="h-full flex items-center justify-between gap-3 px-3 md:px-4">
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <button
             onClick={onBack}

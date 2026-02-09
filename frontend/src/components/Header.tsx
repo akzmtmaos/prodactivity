@@ -223,12 +223,12 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
                   className="fixed inset-0 z-10"
                   onClick={() => setShowUserMenu(false)}
                 />
-                <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-[#1c1c1c] rounded-lg shadow-lg border border-gray-200 dark:border-[#333333] py-1 z-20">
-                  <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
+                <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#252525] rounded-lg border border-gray-200 dark:border-[#333333] shadow z-20 py-1 min-w-0">
+                  <div className="px-3 py-2.5 border-b border-gray-100 dark:border-[#333333]">
+                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                       {user?.displayName || user?.username || "User"}
                     </p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
                       {user?.email || ""}
                     </p>
                   </div>
@@ -237,9 +237,9 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
                       navigate('/profile');
                       setShowUserMenu(false);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors text-left"
                   >
-                    <User size={16} />
+                    <User size={16} className="flex-shrink-0 text-gray-500 dark:text-gray-400" />
                     Profile
                   </button>
                   <button
@@ -247,17 +247,17 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
                       navigate('/settings');
                       setShowUserMenu(false);
                     }}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors text-left"
                   >
-                    <Settings size={16} />
+                    <Settings size={16} className="flex-shrink-0 text-gray-500 dark:text-gray-400" />
                     Settings
                   </button>
-                  <div className="border-t border-gray-200 dark:border-gray-700 my-1" />
+                  <div className="border-t border-gray-100 dark:border-[#333333] my-1" />
                   <button
                     onClick={handleLogout}
-                    className="w-full flex items-center gap-3 px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50/80 dark:hover:bg-red-900/20 transition-colors text-left"
                   >
-                    <LogOut size={16} />
+                    <LogOut size={16} className="flex-shrink-0" />
                     Log out
                   </button>
                 </div>

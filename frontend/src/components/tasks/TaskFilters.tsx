@@ -38,7 +38,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
     <div className="flex flex-wrap gap-3 items-center">
         {/* Priority filter */}
         <select
-          className="rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"
+          className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
           value={filterPriority}
           onChange={(e) => onFilterPriorityChange(e.target.value as Task['priority'] | 'all')}
         >
@@ -51,7 +51,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
         {/* Category filter */}
         {onFilterCategoryChange && categories.length > 0 && (
           <select
-            className="rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"
+            className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             value={filterCategory}
             onChange={(e) => onFilterCategoryChange(e.target.value)}
           >
@@ -67,7 +67,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
         {/* Sort by field */}
         {onSortFieldChange && (
           <select
-            className="rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white py-2 text-sm"
+            className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
             value={sortField}
             onChange={(e) => onSortFieldChange(e.target.value as 'dueDate' | 'priority' | 'title')}
           >
@@ -82,7 +82,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
           <button
             type="button"
             onClick={() => onSortDirectionChange(sortDirection === 'asc' ? 'desc' : 'asc')}
-            className="px-3 py-2 rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm hover:bg-gray-100 dark:hover:bg-gray-600 transition"
+            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white text-sm hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
             title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
           >
             {sortDirection === 'asc' ? '↑' : '↓'}
@@ -93,7 +93,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
         {onResetFilters && (
           <button
             type="button"
-            className="ml-2 px-3 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+            className="ml-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-200 text-sm hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition"
             onClick={onResetFilters}
             title="Reset all filters"
           >

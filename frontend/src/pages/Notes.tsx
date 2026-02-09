@@ -13,7 +13,7 @@ import GlobalSearch from '../components/notes/GlobalSearch';
 import ImportantItemsPanel from '../components/notes/ImportantItemsPanel';
 import ColorPickerModal from '../components/notes/ColorPickerModal';
 import CreateNotebookModal from '../components/notes/CreateNotebookModal';
-import { ChevronLeft, Plus, Book, Archive, Search, AlertTriangle, Star, Download, Upload, FileText, File, Trash2, X } from 'lucide-react';
+import { Plus, Book, Archive, Search, AlertTriangle, Star, Download, Upload, FileText, File, Trash2, X } from 'lucide-react';
 import NotesHeader from '../components/notes/NotesHeader';
 import NotesTabs from '../components/notes/NotesTabs';
 
@@ -145,6 +145,8 @@ const Notes = () => {
   const [noteDateEnd, setNoteDateEnd] = useState<string>('');
   const [notebookDateStart, setNotebookDateStart] = useState<string>('');
   const [notebookDateEnd, setNotebookDateEnd] = useState<string>('');
+  const [notebookListViewMode, setNotebookListViewMode] = useState<'compact' | 'comfortable'>('comfortable');
+  const [noteListViewMode, setNoteListViewMode] = useState<'compact' | 'comfortable'>('comfortable');
 
   // Add tab state
   const [activeTab, setActiveTab] = useState<'notes' | 'logs' | 'archived'>('notes');
@@ -2950,6 +2952,8 @@ const Notes = () => {
             notebookDateEnd={notebookDateEnd}
             setNotebookDateStart={setNotebookDateStart}
             setNotebookDateEnd={setNotebookDateEnd}
+            notebookListViewMode={notebookListViewMode}
+            setNotebookListViewMode={setNotebookListViewMode}
             searchTerm={searchTerm}
             setSearchTerm={setSearchTerm}
             filterType={filterType}
@@ -2960,6 +2964,8 @@ const Notes = () => {
             noteDateEnd={noteDateEnd}
             setNoteDateStart={setNoteDateStart}
             setNoteDateEnd={setNoteDateEnd}
+            noteListViewMode={noteListViewMode}
+            setNoteListViewMode={setNoteListViewMode}
             onGlobalSearch={() => setShowGlobalSearch(true)}
             onAIInsights={() => setShowAIInsights(true)}
             onCreateNotebook={() => setShowCreateNotebookModal(true)}
@@ -2981,54 +2987,8 @@ const Notes = () => {
             isExporting={isExporting}
             notesCount={notes.length}
           />
-          {/* Main Content */}
-          <div className="w-full bg-white dark:bg-gray-800 rounded-lg shadow h-[calc(100vh-8rem)] flex flex-col">
-            {/* Header with back button when viewing notes */}
-            {currentView === 'notes' && selectedNotebook && activeTab === 'notes' && (
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center">
-                    <button
-                      onClick={handleBackToNotebooks}
-                      className="p-2 mr-3 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      <ChevronLeft size={20} />
-                    </button>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-                        {selectedNotebook.name}
-                      </h2>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {notes.length} notes
-                      </span>
-                    </div>
-                  </div>
-              </div>
-            )}
-
-            {/* Header with back button when viewing archived notes - no Add button */}
-            {currentView === 'notes' && selectedNotebook && activeTab === 'archived' && (
-              <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    <button
-                      onClick={handleBackToNotebooks}
-                      className="p-2 mr-3 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                    >
-                      <ChevronLeft size={20} />
-                    </button>
-                    <div>
-                      <h2 className="text-lg font-semibold text-gray-800 dark:text-white">
-                        {selectedNotebook.name} - Archived
-                      </h2>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        {filteredArchivedNotes.length} archived notes
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
+          {/* Main Content - no white container */}
+          <div className="w-full h-[calc(100vh-8rem)] flex flex-col">
             {/* Content */}
             <div className="flex-1 overflow-hidden">
               {currentView === 'notebooks' && (
@@ -3073,6 +3033,7 @@ const Notes = () => {
                           onNotebookSearchTermChange={setNotebookSearchTerm}
                           totalCount={notebooks.length}
                           showAddButton={true}
+                          listViewMode={notebookListViewMode}
                         />
                       )}
                     </>
@@ -3120,6 +3081,7 @@ const Notes = () => {
                           onNotebookSearchTermChange={setNotebookSearchTerm}
                           totalCount={favoriteNotebooks.length}
                           showAddButton={false}
+                          listViewMode={notebookListViewMode}
                         />
                       )}
                     </>
@@ -3167,6 +3129,7 @@ const Notes = () => {
                           onNotebookSearchTermChange={setNotebookSearchTerm}
                           totalCount={archivedNotebooks.length}
                           showAddButton={false}
+                          listViewMode={notebookListViewMode}
                         />
                       )}
                     </>
@@ -3200,6 +3163,7 @@ const Notes = () => {
                   deletingNoteId={noteToDelete?.id || null}
                   onSelectionChange={setSelectedForBulk}
                   selectedForBulk={selectedForBulk}
+                  listViewMode={noteListViewMode}
                 />
               )}
               {currentView === 'notes' && activeTab === 'archived' && (
@@ -3248,6 +3212,7 @@ const Notes = () => {
                       deletingNoteId={noteToDelete?.id || null}
                       onSelectionChange={setSelectedForBulk}
                       selectedForBulk={selectedForBulk}
+                      listViewMode={noteListViewMode}
                     />
                   )}
                 </>

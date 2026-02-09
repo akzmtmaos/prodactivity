@@ -15,14 +15,15 @@ const HeaderTooltip: React.FC<HeaderTooltipProps> = ({ children, label }) => {
       onMouseLeave={() => setIsVisible(false)}
     >
       {children}
-      {isVisible && (
-        <div
-          className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-3 py-1.5 bg-gray-800 dark:bg-[#2d2d2d] text-white text-xs font-medium rounded-lg whitespace-nowrap z-50 shadow-lg pointer-events-none"
-          role="tooltip"
-        >
-          {label}
-        </div>
-      )}
+      <div
+        className={`absolute left-1/2 -translate-x-1/2 top-full mt-2 px-3 py-1.5 bg-black text-white text-xs font-medium rounded-lg whitespace-nowrap z-50 shadow pointer-events-none transition-all duration-200 ease-out ${
+          isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-1 pointer-events-none'
+        }`}
+        role="tooltip"
+        aria-hidden={!isVisible}
+      >
+        {label}
+      </div>
     </div>
   );
 };

@@ -176,7 +176,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
 
                           {showColorMenu && (
            <div
-             className="absolute color-menu z-50 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded shadow-md p-3 flex gap-2"
+             className="absolute color-menu z-50 mt-1 bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow p-2 flex gap-1.5"
              style={{ left: 0, top: '100%' }}
            >
              {/* Light highlight colors */}

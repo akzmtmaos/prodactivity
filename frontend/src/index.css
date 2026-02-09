@@ -111,6 +111,15 @@ html {
   background-color: #2d2d2d !important;
 }
 
+/* Note editor: keep page visible in dark mode (outer #1e1e1e, page #252525) */
+.dark .note-editor-outer-bg {
+  background-color: #1e1e1e !important;
+}
+.dark .note-editor-page-bg {
+  background-color: #252525 !important;
+  border: 1px solid #333333;
+}
+
 /* Dark mode scrollbar */
 .dark ::-webkit-scrollbar-track {
   background: #1e1e1e;

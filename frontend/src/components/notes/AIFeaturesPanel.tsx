@@ -1535,8 +1535,8 @@ Click "View Deck" to see your flashcards in the Decks section.`);
         </div>
       )}
 
-      {/* AI Features Sidebar (navbar at far right) */}
-      <div className="w-16 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col items-center py-4 space-y-4">
+      {/* AI Features Sidebar (navbar at far right - same width as main app sidebar collapsed w-14) */}
+      <div className="w-14 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col items-center py-3 space-y-1">
         {features.filter(f => f.show).map((feature) => (
           <button
             key={feature.id}

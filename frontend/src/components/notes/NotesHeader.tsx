@@ -1,4 +1,5 @@
 import React from 'react';
+import { ChevronLeft } from 'lucide-react';
 import HelpButton from '../HelpButton';
 
 interface NotesHeaderProps {
@@ -33,16 +34,27 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
 
   return (
     <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
-          Notebooks
-          <HelpButton content={notebooksHelpContent} title="Notebooks Help" />
-        </h1>
-        <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
-          {currentView === 'notebooks'
-            ? 'Create and manage your notebooks'
-            : `Notes in ${selectedNotebook?.name || ''}`}
-        </p>
+      <div className="flex items-start gap-3">
+        {currentView === 'notes' && onBackToNotebooks && (
+          <button
+            onClick={onBackToNotebooks}
+            className="p-2 mt-1 text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors flex-shrink-0"
+            aria-label="Back to notebooks"
+          >
+            <ChevronLeft size={24} />
+          </button>
+        )}
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+            {currentView === 'notes' && selectedNotebook ? selectedNotebook.name : 'Notebooks'}
+            <HelpButton content={notebooksHelpContent} title="Notebooks Help" />
+          </h1>
+          <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
+            {currentView === 'notebooks'
+              ? 'Create and manage your notebooks'
+              : `${notesCount} ${notesCount === 1 ? 'note' : 'notes'}`}
+          </p>
+        </div>
       </div>
     </div>
   );

@@ -78,14 +78,14 @@ const HelpButton: React.FC<HelpButtonProps> = ({ content, title = "Help", classN
       {isOpen && (
         <div
           ref={dropdownRef}
-          className="absolute z-50 w-80 p-4 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-xl top-full mt-2 left-1/2 -translate-x-1/2"
+          className="absolute z-50 w-80 p-4 bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow top-full mt-2 left-1/2 -translate-x-1/2"
         >
           <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
             {content}
           </div>
           <button
             onClick={closeDropdown}
-            className="absolute top-2 right-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 dark:hover:text-gray-300 dark:hover:bg-[#2d2d2d] transition-colors"
             aria-label="Close help"
           >
             ×

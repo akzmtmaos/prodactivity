@@ -678,7 +678,7 @@ const Trash = () => {
                 <button
                   type="button"
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg text-sm font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
                 >
                   <span>
                     {selectedTypes.size === 0
@@ -694,7 +694,7 @@ const Trash = () => {
                 </button>
                 
                 {isDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-10 py-2">
+                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-10 py-1">
                     {ITEM_TYPES.map((type) => {
                       const typeLabels: Record<ItemType, string> = {
                         notebooks: 'Notebooks',
@@ -708,7 +708,7 @@ const Trash = () => {
                       return (
                         <label
                           key={type}
-                          className="flex items-center px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 cursor-pointer transition-colors"
+                          className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] cursor-pointer transition-colors rounded mx-1"
                         >
                           <input
                             type="checkbox"

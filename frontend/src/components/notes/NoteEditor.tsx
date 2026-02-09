@@ -847,10 +847,10 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       <div className="flex-1 overflow-hidden">
         <div className="h-full flex min-w-0">
           {/* Editor */}
-          <div className={`flex-1 overflow-y-auto p-4 min-w-0 flex justify-center ${pageView ? 'bg-gray-100 dark:bg-gray-900' : ''}`}>
+          <div className={`flex-1 overflow-y-auto p-4 min-w-0 flex justify-center ${pageView ? 'bg-gray-100 dark:bg-gray-900 note-editor-outer-bg' : ''}`}>
             <div className={`${pageView ? 'w-full flex justify-center' : 'w-full'}`}>
               <div
-                className={`${pageView ? 'bg-white dark:bg-gray-800 shadow transition-[width] duration-200' : ''}`}
+                className={`${pageView ? 'bg-white dark:bg-gray-800 note-editor-page-bg shadow transition-[width] duration-200' : ''}`}
                 style={pageView ? (() => {
                   const sizes = { A4: { width: 794, height: 1123 }, Letter: { width: 816, height: 1056 } } as const;
                   const size = sizes[paperSize];

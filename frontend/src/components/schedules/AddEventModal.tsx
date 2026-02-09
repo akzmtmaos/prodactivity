@@ -215,7 +215,7 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
               <select
                 value={newEvent.category}
                 onChange={(e) => setNewEvent({...newEvent, category: e.target.value as any})}
-                className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
+                className="mt-1 block w-full p-2.5 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
               >
                 <option value="study">Study</option>
                 <option value="assignment">Assignment</option>
