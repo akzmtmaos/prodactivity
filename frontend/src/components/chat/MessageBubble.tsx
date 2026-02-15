@@ -263,8 +263,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             </div>
           )}
 
-          {/* Attachments without Background Container */}
-          {message.attachments && message.attachments.length > 0 && (
+          {/* Attachments without Background Container – use explicit check so we never render "0" */}
+          {Array.isArray(message.attachments) && message.attachments.length > 0 ? (
             <div className={`${message.content ? 'mt-2' : ''}`}>
                 {/* Image Gallery - Messenger Style */}
                 {imageAttachments.length > 0 && (
@@ -341,7 +341,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                   </div>
                 )}
               </div>
-            )}
+            ) : null}
           <div className="flex items-center gap-2 mt-1">
             <span className="text-xs text-gray-500 dark:text-gray-400">
               {messageDate.toLocaleTimeString('en-US', {

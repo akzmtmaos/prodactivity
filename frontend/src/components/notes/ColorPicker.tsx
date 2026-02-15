@@ -7,13 +7,12 @@ interface ColorPickerProps {
 }
 
 const HIGHLIGHT_COLORS = [
-  { name: 'Yellow', value: '#ffeb3b' },
-  { name: 'Green', value: '#a5d6a7' },
-  { name: 'Blue', value: '#90caf9' },
-  { name: 'Pink', value: '#f48fb1' },
-  { name: 'Orange', value: '#ffb74d' },
-  { name: 'Purple', value: '#ce93d8' },
-  { name: 'Red', value: '#ef9a9a' },
+  { name: 'Cream', value: '#fff3cd' },
+  { name: 'Light Blue', value: '#d1ecf1' },
+  { name: 'Light Green', value: '#d4edda' },
+  { name: 'Light Orange', value: '#ffeaa7' },
+  { name: 'Light Purple', value: '#e8d5ff' },
+  { name: 'Light Red', value: '#ffd6d6' },
   { name: 'Remove', value: 'transparent' }
 ];
 

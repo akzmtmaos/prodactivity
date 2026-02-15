@@ -2924,7 +2924,7 @@ const Notes = () => {
 
   return (
     <PageLayout>
-      <div className="flex h-full">
+      <div className="flex h-full overflow-x-hidden">
         <div className="flex-1 space-y-6">
                     {/* Header */}
           <NotesHeader

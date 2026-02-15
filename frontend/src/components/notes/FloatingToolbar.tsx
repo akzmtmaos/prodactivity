@@ -42,6 +42,11 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
     return null;
   }
 
+  // Keep toolbar within viewport (especially near the top when page view is off)
+  const TOOLBAR_OFFSET_Y = 50;  // distance above selection
+  const MIN_TOP = 60;           // keep below main header
+  const topPosition = Math.max(MIN_TOP, position.y - TOOLBAR_OFFSET_Y);
+
   const formatButtons = [
     {
       icon: Bold,
@@ -121,10 +126,10 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
   return (
     <div
       ref={toolbarRef}
-      className="floating-toolbar fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-2 flex items-center gap-1"
+      className="floating-toolbar fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-md shadow-lg px-1.5 py-1 flex items-center gap-0.5"
       style={{
         left: position.x,
-        top: position.y - 50, // Position above the selection
+        top: topPosition,
         transform: 'translateX(-50%)'
       }}
     >
@@ -136,12 +141,12 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
           <button
             key={index}
             onClick={() => handleFormat(button.command, button.value)}
-            className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors group relative ${
+            className={`p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors group relative ${
               isActive ? 'bg-blue-100 dark:bg-blue-900' : ''
             }`}
             title={`${button.label} (${button.shortcut})`}
           >
-            <Icon size={16} className={`${
+            <Icon size={14} className={`${
               isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-600 dark:text-gray-300'
             }`} />
             
@@ -155,15 +160,15 @@ const FloatingToolbar: React.FC<FloatingToolbarProps> = ({
       })}
       
       {/* Divider */}
-      <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 mx-1"></div>
+      <div className="w-px h-5 bg-gray-200 dark:bg-gray-600 mx-1"></div>
       
       {/* Quick actions */}
       <button
         onClick={() => handleFormat('createLink', prompt('Enter URL:') || undefined)}
-        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors group relative"
+        className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors group relative"
         title="Create Link (Ctrl+K)"
       >
-        <Link size={16} className="text-gray-600 dark:text-gray-300" />
+        <Link size={14} className="text-gray-600 dark:text-gray-300" />
         
         {/* Tooltip */}
         <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">

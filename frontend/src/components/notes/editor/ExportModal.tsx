@@ -28,27 +28,39 @@ const ExportModal: React.FC<ExportModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-md mx-4">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      {/* Backdrop – neutral, consistent with other note modals */}
+      <div
+        className="absolute inset-0 bg-black/40 dark:bg-black/60"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div
+        className="relative bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-full max-w-sm mx-4 border border-gray-200 dark:border-[#333333]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
             Export Note
           </h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
+            aria-label="Close export"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
-        <div className="mb-6">
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Export your note to your preferred format.
+        {/* Body */}
+        <div className="px-4 py-3 space-y-3 text-sm">
+          <p className="text-gray-600 dark:text-gray-400">
+            Export this note to your preferred format.
           </p>
 
-          <div className="space-y-3">
-            <label className="flex items-center space-x-3 cursor-pointer">
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
                 name="format"
@@ -57,13 +69,13 @@ const ExportModal: React.FC<ExportModalProps> = ({
                 onChange={(e) => setExportFormat(e.target.value as 'pdf' | 'doc')}
                 className="text-indigo-600 focus:ring-indigo-500"
               />
-              <div className="flex items-center space-x-2">
-                <FileText className="text-red-500" size={20} />
-                <span className="text-gray-900 dark:text-white">PDF Document</span>
+              <div className="flex items-center gap-2">
+                <FileText className="text-red-500" size={18} />
+                <span className="text-xs text-gray-900 dark:text-white">PDF document</span>
               </div>
             </label>
 
-            <label className="flex items-center space-x-3 cursor-pointer">
+            <label className="flex items-center gap-2 cursor-pointer">
               <input
                 type="radio"
                 name="format"
@@ -72,35 +84,36 @@ const ExportModal: React.FC<ExportModalProps> = ({
                 onChange={(e) => setExportFormat(e.target.value as 'pdf' | 'doc')}
                 className="text-indigo-600 focus:ring-indigo-500"
               />
-              <div className="flex items-center space-x-2">
-                <FileDown className="text-blue-500" size={20} />
-                <span className="text-gray-900 dark:text-white">Word Document</span>
+              <div className="flex items-center gap-2">
+                <FileDown className="text-blue-500" size={18} />
+                <span className="text-xs text-gray-900 dark:text-white">Word document</span>
               </div>
             </label>
           </div>
         </div>
 
-        <div className="flex space-x-3">
+        {/* Footer */}
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-[#333333] flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2 text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
             disabled={isExporting}
+            className="px-2.5 py-1.5 text-xs text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 rounded-md hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors font-medium disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleExport}
             disabled={isExporting}
-            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+            className="px-2.5 py-1.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isExporting ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
                 <span>Exporting...</span>
               </>
             ) : (
               <>
-                <Download size={16} />
+                <Download size={14} />
                 <span>Export</span>
               </>
             )}

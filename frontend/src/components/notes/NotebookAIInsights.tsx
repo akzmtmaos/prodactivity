@@ -12,7 +12,8 @@ import {
   Lightbulb,
   BarChart3,
   Calendar,
-  CheckCircle
+  CheckCircle,
+  X
 } from 'lucide-react';
 import axiosInstance from '../../utils/axiosConfig';
 
@@ -496,38 +497,45 @@ Guidelines:
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <Brain className="h-8 w-8 text-indigo-600" />
-              <div>
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
-                  AI Insights for {notebook.name}
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400">Notebook summary</p>
-              </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/40 dark:bg-black/60"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div
+        className="relative bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 dark:border-[#333333] mx-4"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header – same style as Create Notebook / Document Settings */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
+          <div className="flex items-center gap-2">
+            <Brain className="h-5 w-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+                AI Insights for {notebook.name}
+              </h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Notebook summary</p>
             </div>
-            <button
-              onClick={onClose}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              ×
-            </button>
           </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
         </div>
 
         {/* Simplified Notebook Summary (Ollama) */}
-        <div className="px-6 pt-4">
-          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-4 rounded-lg">
+        <div className="px-4 pt-3">
+          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-3 rounded-md border border-gray-200 dark:border-[#333333]">
             <div className="mb-2">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white">Notebook Summary</h3>
+              <h3 className="text-xs font-semibold text-gray-900 dark:text-white">Notebook Summary</h3>
             </div>
             {isSummarizing ? (
-              <div className="flex items-center py-8 text-gray-600 dark:text-gray-400">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-500 mr-3"></div>
+              <div className="flex items-center py-6 text-sm text-gray-600 dark:text-gray-400">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-500 mr-2"></div>
                 Generating summary…
               </div>
             ) : error ? (
@@ -586,42 +594,42 @@ Guidelines:
         {/* Tabs removed for simplified summary */}
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+        <div className="px-4 py-3 overflow-y-auto max-h-[calc(90vh-200px)]">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-500"></div>
-              <span className="ml-3 text-gray-600 dark:text-gray-400">Generating insights...</span>
+            <div className="flex items-center justify-center py-10">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
+              <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Generating insights...</span>
             </div>
           ) : error ? (
-            <div className="text-center py-12">
-              <AlertTriangle className="h-12 w-12 text-red-500 mx-auto mb-4" />
-              <p className="text-red-600 dark:text-red-400">{error}</p>
+            <div className="text-center py-10">
+              <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-3" />
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
             </div>
           ) : insights ? (
             <>
               {/* Overview Tab */}
               {activeTab === 'overview' && (
-                <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-6 rounded-lg">
-                    <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-3">
+                <div className="space-y-4">
+                  <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-3 rounded-md border border-gray-200 dark:border-[#333333]">
+                    <h3 className="text-xs font-semibold text-gray-900 dark:text-white mb-2">
                       Executive Summary
                     </h3>
-                    <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
+                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
                       {insights.overall_summary}
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600">
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                        <Target className="h-5 w-5 text-indigo-600" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
+                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                        <Target className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         Key Topics
                       </h4>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-1.5">
                         {insights.key_topics.map((topic, index) => (
                           <span
                             key={index}
-                            className="px-3 py-1 bg-indigo-100 dark:bg-indigo-900 text-indigo-800 dark:text-indigo-200 rounded-full text-sm"
+                            className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 rounded-full text-xs"
                           >
                             {topic}
                           </span>
@@ -629,21 +637,21 @@ Guidelines:
                       </div>
                     </div>
 
-                    <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600">
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                        <AlertTriangle className="h-5 w-5 text-orange-600" />
+                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
+                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-orange-600" />
                         Important Items
                       </h4>
                       <div className="space-y-2">
                         {insights.important_items.length > 0 ? (
                           insights.important_items.map((item, index) => (
-                            <div key={index} className="flex items-center gap-2 text-sm text-orange-600 dark:text-orange-400">
+                            <div key={index} className="flex items-center gap-2 text-xs text-orange-600 dark:text-orange-400">
                               <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
                               {item}
                             </div>
                           ))
                         ) : (
-                          <p className="text-gray-500 dark:text-gray-400">No important items detected</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">No important items detected</p>
                         )}
                       </div>
                     </div>
@@ -653,25 +661,25 @@ Guidelines:
 
               {/* Analysis Tab */}
               {activeTab === 'analysis' && (
-                <div className="space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600">
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <BarChart3 className="h-5 w-5 text-indigo-600" />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
+                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                        <BarChart3 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         Priority Distribution
                       </h4>
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {Object.entries(insights.priority_distribution).map(([priority, count]) => (
-                          <div key={priority} className="flex items-center justify-between">
+                          <div key={priority} className="flex items-center justify-between text-xs">
                             <span className="capitalize text-gray-700 dark:text-gray-300">{priority}</span>
                             <div className="flex items-center gap-2">
-                              <div className="w-24 bg-gray-200 dark:bg-gray-600 rounded-full h-2">
+                              <div className="w-20 bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
                                 <div
-                                  className="bg-indigo-500 h-2 rounded-full"
+                                  className="bg-indigo-500 h-1.5 rounded-full"
                                   style={{ width: `${(count / notes.length) * 100}%` }}
                                 ></div>
                               </div>
-                              <span className="text-sm text-gray-600 dark:text-gray-400 w-8 text-right">
+                              <span className="text-xs text-gray-600 dark:text-gray-400 w-6 text-right">
                                 {count}
                               </span>
                             </div>
@@ -680,21 +688,21 @@ Guidelines:
                       </div>
                     </div>
 
-                    <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600">
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <Clock className="h-5 w-5 text-indigo-600" />
+                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
+                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         Time Analysis
                       </h4>
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         <div>
-                          <span className="text-sm text-gray-600 dark:text-gray-400">Most Active:</span>
-                          <p className="font-medium text-gray-900 dark:text-white">{insights.time_analysis.most_active_period}</p>
+                          <span className="text-xs text-gray-600 dark:text-gray-400">Most Active:</span>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">{insights.time_analysis.most_active_period}</p>
                         </div>
                         <div>
-                          <span className="text-sm text-gray-600 dark:text-gray-400">Study Patterns:</span>
-                          <ul className="mt-1 space-y-1">
+                          <span className="text-xs text-gray-600 dark:text-gray-400">Study Patterns:</span>
+                          <ul className="mt-1 space-y-0.5">
                             {insights.time_analysis.study_patterns.map((pattern, index) => (
-                              <li key={index} className="text-sm text-gray-700 dark:text-gray-300">• {pattern}</li>
+                              <li key={index} className="text-xs text-gray-700 dark:text-gray-300">• {pattern}</li>
                             ))}
                           </ul>
                         </div>
@@ -702,15 +710,15 @@ Guidelines:
                     </div>
                   </div>
 
-                  <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                      <TrendingUp className="h-5 w-5 text-indigo-600" />
+                  <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
+                    <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                      <TrendingUp className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                       Content Gaps
                     </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                       {insights.content_gaps.map((gap, index) => (
-                        <div key={index} className="text-center p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
-                          <div className="text-yellow-600 dark:text-yellow-400 text-sm font-medium">{gap}</div>
+                        <div key={index} className="text-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-md border border-gray-200 dark:border-[#333333]">
+                          <div className="text-yellow-600 dark:text-yellow-400 text-xs font-medium">{gap}</div>
                         </div>
                       ))}
                     </div>
@@ -720,52 +728,52 @@ Guidelines:
 
               {/* Recommendations Tab */}
               {activeTab === 'recommendations' && (
-                <div className="space-y-6">
-                  <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600">
-                    <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                      <Lightbulb className="h-5 w-5 text-yellow-600" />
+                <div className="space-y-4">
+                  <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
+                    <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                      <Lightbulb className="h-4 w-4 text-yellow-600" />
                       Study Recommendations
                     </h4>
-                    <div className="space-y-3">
+                    <div className="space-y-2">
                       {insights.study_recommendations.map((rec, index) => (
-                        <div key={index} className="flex items-start gap-3">
-                          <CheckCircle className="h-5 w-5 text-green-500 mt-0.5 flex-shrink-0" />
-                          <p className="text-gray-700 dark:text-gray-300">{rec}</p>
+                        <div key={index} className="flex items-start gap-2">
+                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
+                          <p className="text-xs text-gray-700 dark:text-gray-300">{rec}</p>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600">
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <Calendar className="h-5 w-5 text-indigo-600" />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
+                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                        <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         Recommended Schedule
                       </h4>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {insights.time_analysis.recommended_schedule.map((schedule, index) => (
-                          <div key={index} className="text-sm text-gray-700 dark:text-gray-300">
+                          <div key={index} className="text-xs text-gray-700 dark:text-gray-300">
                             • {schedule}
                           </div>
                         ))}
                       </div>
                     </div>
 
-                    <div className="bg-white dark:bg-gray-700 p-6 rounded-lg border border-gray-200 dark:border-gray-600">
-                      <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                        <Target className="h-5 w-5 text-indigo-600" />
+                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
+                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                        <Target className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
                         Action Items
                       </h4>
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {insights.action_items.length > 0 ? (
                           insights.action_items.map((item, index) => (
-                            <div key={index} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                              <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
+                            <div key={index} className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
+                              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full flex-shrink-0"></div>
                               {item}
                             </div>
                           ))
                         ) : (
-                          <p className="text-gray-500 dark:text-gray-400">No immediate actions required</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">No immediate actions required</p>
                         )}
                       </div>
                     </div>

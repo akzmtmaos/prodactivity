@@ -50,17 +50,14 @@ interface NoteEditorProps {
 
 const AUTO_SAVE_DELAY = 2000;
 
+// Match palette in TextFormatting: first color is default (cream), no bright yellow
 const HIGHLIGHT_COLORS = [
-  { name: 'Yellow', value: '#ffeb3b' },
-  { name: 'Green', value: '#a5d6a7' },
-  { name: 'Blue', value: '#90caf9' },
-  { name: 'Pink', value: '#f48fb1' },
-  { name: 'Orange', value: '#ffb74d' },
-  { name: 'Purple', value: '#ce93d8' },
-  { name: 'Red', value: '#ef9a9a' },
-  { name: 'Light Blue', value: '#81d4fa' },
-  { name: 'Light Green', value: '#c8e6c9' },
-  { name: 'Light Yellow', value: '#fff9c4' }
+  { name: 'Cream', value: '#fff3cd' },
+  { name: 'Light Blue', value: '#d1ecf1' },
+  { name: 'Light Green', value: '#d4edda' },
+  { name: 'Light Orange', value: '#ffeaa7' },
+  { name: 'Light Purple', value: '#e8d5ff' },
+  { name: 'Light Red', value: '#ffd6d6' },
 ];
 
 const NoteEditor: React.FC<NoteEditorProps> = ({
@@ -102,7 +99,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   
   // Editor states
   const [showColorPicker, setShowColorPicker] = useState(false);
-  const [selectedColor, setSelectedColor] = useState<string>('#ffeb3b');
+  const [selectedColor, setSelectedColor] = useState<string>('#fff3cd');
   const [colorPickerPosition, setColorPickerPosition] = useState({ x: 0, y: 0 });
   const [isInitialized, setIsInitialized] = useState(false);
   const [pageView, setPageView] = useState<boolean>(true);
@@ -286,7 +283,35 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     }
   }, [isInitialized]);
 
-  // Global keyboard shortcut for Ctrl+S / Cmd+S
+  // Helper: detect if selection has highlight (queryCommandValue is unreliable, so check DOM)
+  const selectionHasHighlight = (sel: Selection): boolean => {
+    if (!sel || sel.rangeCount === 0) return false;
+    const range = sel.getRangeAt(0);
+    const editor = contentEditableRef.current;
+    if (!editor) return false;
+    const hasInlineBg = (node: Node): boolean => {
+      if (!node || !editor.contains(node)) return false;
+      if (node.nodeType === Node.ELEMENT_NODE) {
+        const bg = (node as HTMLElement).style?.backgroundColor;
+        if (bg && bg !== 'transparent') return true;
+      }
+      return node.parentElement ? hasInlineBg(node.parentElement) : false;
+    };
+    if (hasInlineBg(range.startContainer) || hasInlineBg(range.endContainer)) return true;
+    try {
+      const contents = range.cloneContents();
+      const walker = document.createTreeWalker(contents, NodeFilter.SHOW_ELEMENT, null);
+      let el: Node | null = walker.nextNode();
+      while (el) {
+        if ((el as HTMLElement).style?.backgroundColor && (el as HTMLElement).style.backgroundColor !== 'transparent') return true;
+        el = walker.nextNode();
+      }
+    } catch (_) {}
+    const cmdVal = document.queryCommandValue('hiliteColor');
+    return !!(cmdVal && cmdVal !== 'transparent' && cmdVal !== '');
+  };
+
+  // Global keyboard shortcuts: Ctrl+S save, Ctrl+Shift+H highlight toggle
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Handle Ctrl+S / Cmd+S to save note
@@ -296,19 +321,32 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
           handleSave();
         }
       }
+      // Ctrl+Shift+H: toggle highlight on selection (apply or remove)
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'H') {
+        const editor = contentEditableRef.current;
+        const sel = window.getSelection();
+        if (editor && sel && sel.rangeCount > 0 && !sel.isCollapsed && editor.contains(sel.anchorNode)) {
+          e.preventDefault();
+          const hasHighlight = selectionHasHighlight(sel);
+          if (hasHighlight) {
+            document.execCommand('hiliteColor', false, 'transparent');
+            setActiveFormatting(prev => ({ ...prev, highlight: false }));
+          } else {
+            document.execCommand('hiliteColor', false, selectedColor);
+            setActiveFormatting(prev => ({ ...prev, highlight: true }));
+          }
+        }
+      }
     };
 
-    // Add event listener to document
     document.addEventListener('keydown', handleKeyDown);
-
-    // Cleanup
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
       if (autoSaveTimeout.current) {
         clearTimeout(autoSaveTimeout.current);
       }
     };
-  }, [isReadOnly, hasChanges, handleSave]);
+  }, [isReadOnly, hasChanges, handleSave, selectedColor]);
 
   // Table insertion
   const insertTable = (rows: number = 3, cols: number = 3) => {
@@ -819,7 +857,7 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-white dark:bg-gray-900 z-[9999] flex flex-col" style={{ position: 'fixed', top: '-100vh', left: 0, right: 0, bottom: 0, marginTop: '100vh' }}>
+    <div className="fixed inset-0 bg-white dark:bg-gray-900 z-[9999] flex flex-col overflow-x-hidden" style={{ position: 'fixed', top: '-100vh', left: 0, right: 0, bottom: 0, marginTop: '100vh' }}>
       {/* Toolbar */}
       <EditorToolbar
         title={title}

@@ -61,7 +61,7 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
             className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex-shrink-0"
             type="button"
           >
-            <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+            <ArrowLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
           </button>
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <input
@@ -132,16 +132,6 @@ const EditorToolbar: React.FC<EditorToolbarProps> = ({
             >
               <Image size={16} />
             </button>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
-              <input 
-                type="checkbox" 
-                checked={pageView} 
-                onChange={(e) => onTogglePageView(e.target.checked)} 
-              />
-              Page view
-            </label>
           </div>
           <button
             onClick={onShowSettings}

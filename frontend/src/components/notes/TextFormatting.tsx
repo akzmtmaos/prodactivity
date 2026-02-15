@@ -38,9 +38,6 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
   onSelectHighlightColor,
   highlightColors
 }) => {
-  // Debug: Log the highlightColors prop
-  console.log('TextFormatting highlightColors:', highlightColors);
-  console.log('TextFormatting component rendering');
   const [showColorMenu, setShowColorMenu] = useState(false);
 
   const getActiveEditable = (): HTMLElement | null => {
@@ -165,7 +162,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
               ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white'
               : 'text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700'
           }`}
-          title="Highlight"
+          title="Highlight (Ctrl+Shift+H)"
         >
           <div 
             className="w-4 h-4 rounded-sm border border-gray-300 dark:border-gray-600" 
@@ -184,7 +181,7 @@ const TextFormatting: React.FC<TextFormattingProps> = ({
                onClick={() => { onSelectHighlightColor('#fff3cd'); setShowColorMenu(false); }}
                className="w-6 h-6 rounded-full border-2 border-gray-300 dark:border-gray-600 hover:scale-110 transition-transform"
                style={{ backgroundColor: '#fff3cd' }}
-               title="Light Yellow"
+               title="Cream"
              />
              <button
                onClick={() => { onSelectHighlightColor('#d1ecf1'); setShowColorMenu(false); }}

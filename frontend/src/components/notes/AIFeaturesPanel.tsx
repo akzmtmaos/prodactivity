@@ -241,6 +241,7 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
   const [chatInput, setChatInput] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [typingMessageIndex, setTypingMessageIndex] = useState<number | null>(null);
+  const chatInputRef = React.useRef<HTMLTextAreaElement | null>(null);
 
 
   // Smart chunking state
@@ -271,6 +272,15 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
       }
     }
   }, [chatMessages, activeFeature]);
+
+  // Reset chat textarea height and scrollbar when input is cleared (e.g. after send)
+  useEffect(() => {
+    if (chatInput === '' && chatInputRef.current) {
+      const el = chatInputRef.current;
+      el.style.height = 'auto';
+      el.style.overflowY = 'hidden';
+    }
+  }, [chatInput]);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem('accessToken');
@@ -1432,12 +1442,12 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                                 </div>
                               )}
                               
-                              {/* Message bubble */}
+                              {/* Message bubble: same scale as profile circle (w-8/h-8), light inner, dark border */}
                               <div
-                                className={`rounded-2xl p-4 break-words transition-all duration-200 ${
+                                className={`rounded-xl border px-2 py-1.5 break-words transition-all duration-200 min-h-8 ${
                                 message.role === 'user'
-                                    ? 'bg-indigo-600 text-white rounded-br-md'
-                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-bl-md'
+                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-700 text-indigo-900 dark:text-indigo-100'
+                                    : 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100'
                               } ${
                                 message.role === 'assistant' && isTyping && typingMessageIndex === index
                                     ? 'shadow-lg ring-2 ring-indigo-200 dark:ring-indigo-800'
@@ -1448,7 +1458,7 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                                 <>
                                   {console.log('🎬 Rendering TypingAnimation for message', index, 'content:', message.content)}
                                   <div 
-                                      className="text-sm leading-relaxed"
+                                      className="text-xs leading-relaxed [&_p:last-child]:mb-0 [&_*:last-child]:mb-0"
                                     dangerouslySetInnerHTML={{ 
                                         __html: (message.content ? convertMarkdownToHTML(message.content) : '<span class="text-gray-500 italic">Thinking...</span>') + '<span class="animate-pulse text-indigo-500 ml-1">|</span>'
                                     }}
@@ -1456,7 +1466,7 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                                 </>
                               ) : (
                                 <div 
-                                    className="text-sm leading-relaxed"
+                                    className="text-xs leading-relaxed [&_p:last-child]:mb-0 [&_*:last-child]:mb-0"
                                   dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(message.content) }}
                                 />
                               )}
@@ -1467,49 +1477,34 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                       )}
                     </div>
                     <div className="sticky bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                      <form onSubmit={handleChatSubmit} className="p-4">
-                        <div className="relative">
-                          <textarea
-                            value={chatInput}
-                            onChange={(e) => setChatInput(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                handleChatSubmit(e);
-                              }
-                            }}
-                            placeholder="Type your message..."
-                            className="w-full px-4 py-3 pr-16 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none min-h-[44px] max-h-32 overflow-y-auto"
-                            disabled={isLoading}
-                            rows={1}
-                            style={{
-                              height: 'auto',
-                              minHeight: '44px',
-                              maxHeight: '128px'
-                            }}
-                            onInput={(e) => {
-                              const target = e.target as HTMLTextAreaElement;
-                              target.style.height = 'auto';
-                              target.style.height = Math.min(target.scrollHeight, 128) + 'px';
-                            }}
-                          />
-                          
-                          {/* Send button inside the textarea */}
-                          <button
-                            type="submit"
-                            disabled={isLoading || !chatInput.trim()}
-                            className="absolute bottom-3 right-3 p-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
-                          >
-                            {isLoading ? (
-                              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                              </svg>
-                            )}
-                          </button>
-                          
-                        </div>
+                      <form onSubmit={handleChatSubmit} className="p-2">
+                        <textarea
+                          ref={chatInputRef}
+                          value={chatInput}
+                          onChange={(e) => setChatInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault();
+                              handleChatSubmit(e);
+                            }
+                          }}
+                          placeholder="Type your message... (Enter to send)"
+                          className="w-full text-xs px-3 py-1.5 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none min-h-7 max-h-24 overflow-y-hidden"
+                          disabled={isLoading}
+                          rows={1}
+                          style={{
+                            height: 'auto',
+                            minHeight: '28px',
+                            maxHeight: '96px'
+                          }}
+                          onInput={(e) => {
+                            const target = e.target as HTMLTextAreaElement;
+                            target.style.height = 'auto';
+                            const newHeight = Math.min(target.scrollHeight, 96);
+                            target.style.height = newHeight + 'px';
+                            target.style.overflowY = newHeight >= 96 ? 'auto' : 'hidden';
+                          }}
+                        />
                       </form>
                     </div>
                   </div>
@@ -1535,20 +1530,20 @@ Click "View Deck" to see your flashcards in the Decks section.`);
         </div>
       )}
 
-      {/* AI Features Sidebar (navbar at far right - same width as main app sidebar collapsed w-14) */}
-      <div className="w-14 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col items-center py-3 space-y-1">
+      {/* AI Features Sidebar (navbar at far right - matches document header scale) */}
+      <div className="w-12 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col items-center py-2 space-y-0.5 min-h-12">
         {features.filter(f => f.show).map((feature) => (
           <button
             key={feature.id}
             onClick={feature.action}
             disabled={isLoading}
-            className={`p-2 rounded-lg transition-colors group relative
+            className={`p-1.5 rounded-lg transition-colors group relative
               ${activeFeature === feature.id 
                 ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
-                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'}`}
+                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400'}`}
             title={feature.label}
           >
-            <feature.icon className="h-6 w-6" />
+            <feature.icon className="h-5 w-5" />
             <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
               <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
                 {feature.label}

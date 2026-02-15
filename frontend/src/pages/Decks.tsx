@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, BookOpen, TrendingUp, Clock, Target, FileText } from 'lucide-react';
+import { Plus, Search, BookOpen, TrendingUp, Clock, Target, FileText, ChevronDown, LayoutList, Play } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
 import Pagination from '../components/common/Pagination';
@@ -18,6 +18,7 @@ import type { SubDeck } from '../components/decks/SubDeckModal';
 import { truncateHtmlContent } from '../utils/htmlUtils';
 import { API_BASE_URL } from '../config/api';
 import axiosInstance from '../utils/axiosConfig';
+import HeaderTooltip from '../components/common/HeaderTooltip';
 
 interface FlashcardData {
   id: string;
@@ -90,6 +91,13 @@ const Decks = () => {
   const [currentArchivedPage, setCurrentArchivedPage] = useState<number>(1);
   const PAGE_SIZE = 12;
 
+  // Decks toolbar dropdowns (match Notes toolbar style)
+  const [deckSortOpen, setDeckSortOpen] = useState(false);
+  const [deckFilterOpen, setDeckFilterOpen] = useState(false);
+  const deckSortRef = useRef<HTMLDivElement | null>(null);
+  const deckFilterRef = useRef<HTMLDivElement | null>(null);
+  const [deckListViewMode, setDeckListViewMode] = useState<'comfortable' | 'compact'>('comfortable');
+
   // Notes -> Flashcards conversion modal state
 interface Notebook {
   id: number;
@@ -137,6 +145,13 @@ interface NoteItem {
   const [previewCount, setPreviewCount] = useState<number>(0);
   const [aiPreviewCards, setAiPreviewCards] = useState<FlashcardData[]>([]);
   const [showAiPreview, setShowAiPreview] = useState<boolean>(false);
+
+  const getDeckProgressColor = (progress: number) => {
+    if (progress >= 80) return 'bg-green-500';
+    if (progress >= 50) return 'bg-yellow-500';
+    if (progress >= 20) return 'bg-orange-500';
+    return 'bg-red-500';
+  };
 
   const ensureNotebooksLoaded = async () => {
     if (notebooks.length > 0) return;
@@ -201,6 +216,23 @@ interface NoteItem {
     setPreviewCount(selected.length * 4);
     setShowAiPreview(false);
   }, [selectedNoteIds, notesByNotebook, modalSelectedNotebookId, showConvertModal]);
+
+  // Close decks sort/filter dropdowns on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (deckSortRef.current && !deckSortRef.current.contains(target)) {
+        setDeckSortOpen(false);
+      }
+      if (deckFilterRef.current && !deckFilterRef.current.contains(target)) {
+        setDeckFilterOpen(false);
+      }
+    };
+    if (deckSortOpen || deckFilterOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [deckSortOpen, deckFilterOpen]);
 
   const handleToggleNoteSelection = (noteId: number) => {
     setSelectedNoteIds(prev => {
@@ -1131,31 +1163,128 @@ interface NoteItem {
                         onPageChange={setCurrentArchivedPage}
                       />
                     )}
-                    {/* Sort (Recent) */}
-                    <div className="flex items-center gap-1">
-                      <Clock size={14} className="text-gray-400" />
-                      <select
-                        value={sortBy}
-                        onChange={(e) => setSortBy(e.target.value as 'recent' | 'name' | 'progress')}
-                        className="px-1.5 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    {/* View mode toggle – Comfortable / Compact list (after pagination) */}
+                    <HeaderTooltip label={deckListViewMode === 'compact' ? 'Comfortable list' : 'Compact list'}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setDeckListViewMode((mode) =>
+                            mode === 'compact' ? 'comfortable' : 'compact'
+                          )
+                        }
+                        className="flex items-center justify-center h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                        aria-label={
+                          deckListViewMode === 'compact'
+                            ? 'Switch to comfortable list'
+                            : 'Switch to compact list'
+                        }
                       >
-                        <option value="recent">Recent</option>
-                        <option value="name">Name</option>
-                        <option value="progress">Progress</option>
-                      </select>
+                        <LayoutList size={14} className="text-gray-400" />
+                      </button>
+                    </HeaderTooltip>
+                    {/* Sort – icon-only dropdown (Recent/Name/Progress) */}
+                    <div className="relative" ref={deckSortRef}>
+                      <HeaderTooltip label={sortBy === 'recent' ? 'Recent' : sortBy === 'name' ? 'Name' : 'Progress'}>
+                        <button
+                          type="button"
+                          onClick={() => setDeckSortOpen((o) => !o)}
+                          className="flex items-center justify-center gap-0.5 h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                          aria-label="Sort decks"
+                          aria-expanded={deckSortOpen}
+                        >
+                          <Clock size={14} className="text-gray-400" />
+                          <ChevronDown
+                            size={10}
+                            className={`text-gray-500 dark:text-gray-400 transition-transform ${deckSortOpen ? 'rotate-180' : ''}`}
+                          />
+                        </button>
+                      </HeaderTooltip>
+                      {deckSortOpen && (
+                        <div className="absolute right-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 p-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSortBy('recent');
+                              setDeckSortOpen(false);
+                            }}
+                            className="w-full px-3 py-2.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
+                          >
+                            Recent
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSortBy('name');
+                              setDeckSortOpen(false);
+                            }}
+                            className="w-full px-3 py-2.5 mt-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
+                          >
+                            Name
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSortBy('progress');
+                              setDeckSortOpen(false);
+                            }}
+                            className="w-full px-3 py-2.5 mt-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
+                          >
+                            Progress
+                          </button>
+                        </div>
+                      )}
                     </div>
-                    {/* Filter (All Decks) */}
-                    <div className="flex items-center gap-1">
-                      <Target size={14} className="text-gray-400" />
-                      <select
-                        value={filterBy}
-                        onChange={(e) => setFilterBy(e.target.value as 'all' | 'studied' | 'new')}
-                        className="px-1.5 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                      >
-                        <option value="all">All Decks</option>
-                        <option value="studied">Studied Decks</option>
-                        <option value="new">New Decks</option>
-                      </select>
+                    {/* Filter – icon-only dropdown (All/Studied/New decks) */}
+                    <div className="relative" ref={deckFilterRef}>
+                      <HeaderTooltip label={filterBy === 'all' ? 'All decks' : filterBy === 'studied' ? 'Studied decks' : 'New decks'}>
+                        <button
+                          type="button"
+                          onClick={() => setDeckFilterOpen((o) => !o)}
+                          className="flex items-center justify-center gap-0.5 h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                          aria-label="Filter decks"
+                          aria-expanded={deckFilterOpen}
+                        >
+                          <Target size={14} className="text-gray-400" />
+                          <ChevronDown
+                            size={10}
+                            className={`text-gray-500 dark:text-gray-400 transition-transform ${deckFilterOpen ? 'rotate-180' : ''}`}
+                          />
+                        </button>
+                      </HeaderTooltip>
+                      {deckFilterOpen && (
+                        <div className="absolute right-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 p-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilterBy('all');
+                              setDeckFilterOpen(false);
+                            }}
+                            className="w-full px-3 py-2.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
+                          >
+                            All decks
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilterBy('studied');
+                              setDeckFilterOpen(false);
+                            }}
+                            className="w-full px-3 py-2.5 mt-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
+                          >
+                            Studied decks
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFilterBy('new');
+                              setDeckFilterOpen(false);
+                            }}
+                            className="w-full px-3 py-2.5 mt-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
+                          >
+                            New decks
+                          </button>
+                        </div>
+                      )}
                     </div>
                     {/* Search Field */}
                     <div className="relative w-full sm:w-48">
@@ -1165,21 +1294,21 @@ interface NoteItem {
                         placeholder={`Search ${activeTab === 'decks' ? 'decks' : 'archived'}...`}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full pl-7 pr-2 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                        className="w-full pl-7 pr-2 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       />
                     </div>
                     {/* Actions: Add Deck / Convert to Flashcards */}
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => setShowConvertModal(true)}
-                        className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-emerald-600 text-emerald-700 dark:text-emerald-300 bg-white dark:bg-gray-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                        className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-300 bg-white dark:bg-gray-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
                       >
                         <FileText size={14} className="mr-1.5" />
                         Convert
                       </button>
                       <button
                         onClick={() => setShowCreateModal(true)}
-                        className="inline-flex items-center h-8 px-3 text-xs font-medium rounded-md border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                        className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
                       >
                         <Plus size={14} className="mr-1.5" />
                         Add Deck
@@ -1193,57 +1322,105 @@ interface NoteItem {
           {/* Tab Content */}
           {activeTab === 'decks' && (
             <div className="space-y-6 pb-6">
-              {/* Decks Grid with scroll */}
+              {/* Decks list/grid with scroll */}
               <div className="max-h-[80vh] overflow-y-auto pr-1">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                  {pagedDecks.map((deck) => (
-                  <div key={deck.id} className="relative">
-                <DeckCard
-                  deck={deck}
-                      onStudy={handleStudy}
-                      onQuiz={handleQuiz}
-                      onEdit={handleEdit}
-                      onDelete={handleDelete}
-                      onViewStats={handleViewStats}
-                      onOpen={handleOpenDeck}
-                      onArchive={handleArchive}
-                      onResetProgress={handleResetProgress}
-                    />
-                    {/* Subdecks display - click to open deck and view subdeck */}
-                    {deck.subDecks && deck.subDecks.length > 0 && (
-                      <div className="mt-3 space-y-2">
-                        {deck.subDecks.map((sub) => (
-                          <div 
-                            key={sub.id} 
-                            onClick={() => navigate(`/decks/${deck.id}?subdeck=${sub.id}`)}
-                            className="group relative bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 hover:shadow-md transition-all cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600"
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="flex-1 min-w-0">
-                                <h4 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 truncate">
-                                  📚 {sub.title}
-                                </h4>
-                                {sub.description && (
-                                  <p className="text-xs text-indigo-600 dark:text-indigo-400 truncate mt-0.5">
-                                    {sub.description}
-                                  </p>
-                                )}
+                {deckListViewMode === 'comfortable' ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    {pagedDecks.map((deck) => (
+                      <div key={deck.id} className="relative">
+                        <DeckCard
+                          deck={deck}
+                          onStudy={handleStudy}
+                          onQuiz={handleQuiz}
+                          onEdit={handleEdit}
+                          onDelete={handleDelete}
+                          onViewStats={handleViewStats}
+                          onOpen={handleOpenDeck}
+                          onArchive={handleArchive}
+                          onResetProgress={handleResetProgress}
+                        />
+                        {/* Subdecks display - click to open deck and view subdeck */}
+                        {deck.subDecks && deck.subDecks.length > 0 && (
+                          <div className="mt-3 space-y-2">
+                            {deck.subDecks.map((sub) => (
+                              <div
+                                key={sub.id}
+                                onClick={() => navigate(`/decks/${deck.id}?subdeck=${sub.id}`)}
+                                className="group relative bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 hover:shadow-md transition-all cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 truncate">
+                                      📚 {sub.title}
+                                    </h4>
+                                    {sub.description && (
+                                      <p className="text-xs text-indigo-600 dark:text-indigo-400 truncate mt-0.5">
+                                        {sub.description}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <div className="text-indigo-400 dark:text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                    </svg>
+                                  </div>
+                                </div>
                               </div>
-                              <div className="text-indigo-400 dark:text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                </svg>
-                              </div>
-                            </div>
+                            ))}
                           </div>
-                        ))}
+                        )}
                       </div>
-                    )}
-                    {/* Removed Manage Subdecks button as requested */}
-          </div>
-                  ))}
-        </div>
-      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-1">
+                    {pagedDecks.map((deck) => (
+                      <div
+                        key={deck.id}
+                        className="flex items-center gap-3 w-full min-w-0 h-12 px-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors cursor-pointer group"
+                        onClick={() => handleOpenDeck(deck.id)}
+                      >
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0">
+                          <span
+                            className={`block w-full h-full rounded-full ${getDeckProgressColor(
+                              deck.progress
+                            )}`}
+                          />
+                        </div>
+                        <BookOpen className="flex-shrink-0 text-gray-500 dark:text-gray-400" size={18} />
+                        <span className="font-medium truncate flex-1 min-w-0 text-sm text-gray-800 dark:text-gray-200">
+                          {deck.title}
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                          {deck.flashcardCount} cards
+                        </span>
+                        <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                          {deck.progress}%
+                        </span>
+                        <div
+                          className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => handleStudy(deck.id)}
+                            className="px-2 h-7 text-[11px] rounded-md border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1"
+                          >
+                            <Play size={12} />
+                            <span>Study</span>
+                          </button>
+                          <button
+                            onClick={() => handleQuiz(deck.id)}
+                            className="px-2 h-7 text-[11px] rounded-md border border-purple-600 bg-purple-600 text-white hover:bg-purple-700 transition-colors flex items-center gap-1"
+                          >
+                            <TrendingUp size={12} />
+                            <span>Quiz</span>
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
               {/* Empty State */}
               {filteredDecks.length === 0 && (
                 <div className="text-center py-12">
@@ -1512,52 +1689,101 @@ interface NoteItem {
             <div className="space-y-6 pb-6">
               {filteredArchivedDecks.length > 0 ? (
                 <div className="max-h-[80vh] overflow-y-auto pr-1">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                    {pagedArchivedDecks.map((deck) => (
-                      <div key={deck.id} className="relative">
-                        <DeckCard
-                          deck={deck}
-                          onStudy={handleStudy}
-                          onQuiz={handleQuiz}
-                          onEdit={handleEdit}
-                          onDelete={handleDelete}
-                          onViewStats={handleViewStats}
-                          onOpen={handleOpenDeck}
-                          onArchive={handleArchive}
-                        />
-                        {/* Subdecks display - click to open deck and view subdeck */}
-                        {deck.subDecks && deck.subDecks.length > 0 && (
-                          <div className="mt-3 space-y-2">
-                            {deck.subDecks.map((sub) => (
-                              <div 
-                                key={sub.id} 
-                                onClick={() => navigate(`/decks/${deck.id}?subdeck=${sub.id}`)}
-                                className="group relative bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 hover:shadow-md transition-all cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <div className="flex-1 min-w-0">
-                                    <h4 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 truncate">
-                                      📚 {sub.title}
-                                    </h4>
-                                    {sub.description && (
-                                      <p className="text-xs text-indigo-600 dark:text-indigo-400 truncate mt-0.5">
-                                        {sub.description}
-                                      </p>
-                                    )}
-                                  </div>
-                                  <div className="text-indigo-400 dark:text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                                    </svg>
+                  {deckListViewMode === 'comfortable' ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                      {pagedArchivedDecks.map((deck) => (
+                        <div key={deck.id} className="relative">
+                          <DeckCard
+                            deck={deck}
+                            onStudy={handleStudy}
+                            onQuiz={handleQuiz}
+                            onEdit={handleEdit}
+                            onDelete={handleDelete}
+                            onViewStats={handleViewStats}
+                            onOpen={handleOpenDeck}
+                            onArchive={handleArchive}
+                          />
+                          {/* Subdecks display - click to open deck and view subdeck */}
+                          {deck.subDecks && deck.subDecks.length > 0 && (
+                            <div className="mt-3 space-y-2">
+                              {deck.subDecks.map((sub) => (
+                                <div
+                                  key={sub.id}
+                                  onClick={() => navigate(`/decks/${deck.id}?subdeck=${sub.id}`)}
+                                  className="group relative bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 hover:shadow-md transition-all cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      <h4 className="text-sm font-semibold text-indigo-900 dark:text-indigo-200 truncate">
+                                        📚 {sub.title}
+                                      </h4>
+                                      {sub.description && (
+                                        <p className="text-xs text-indigo-600 dark:text-indigo-400 truncate mt-0.5">
+                                          {sub.description}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="text-indigo-400 dark:text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                      </svg>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))}
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {pagedArchivedDecks.map((deck) => (
+                        <div
+                          key={deck.id}
+                          className="flex items-center gap-3 w-full min-w-0 h-12 px-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors cursor-pointer group"
+                          onClick={() => handleOpenDeck(deck.id)}
+                        >
+                          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0">
+                            <span
+                              className={`block w-full h-full rounded-full ${getDeckProgressColor(
+                                deck.progress
+                              )}`}
+                            />
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
+                          <BookOpen className="flex-shrink-0 text-gray-500 dark:text-gray-400" size={18} />
+                          <span className="font-medium truncate flex-1 min-w-0 text-sm text-gray-800 dark:text-gray-200">
+                            {deck.title}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                            {deck.flashcardCount} cards
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                            {deck.progress}%
+                          </span>
+                          <div
+                            className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <button
+                              onClick={() => handleStudy(deck.id)}
+                              className="px-2 h-7 text-[11px] rounded-md border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1"
+                            >
+                              <Play size={12} />
+                              <span>Study</span>
+                            </button>
+                            <button
+                              onClick={() => handleQuiz(deck.id)}
+                              className="px-2 h-7 text-[11px] rounded-md border border-purple-600 bg-purple-600 text-white hover:bg-purple-700 transition-colors flex items-center gap-1"
+                            >
+                              <TrendingUp size={12} />
+                              <span>Quiz</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="text-center py-12">

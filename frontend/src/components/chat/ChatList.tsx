@@ -87,12 +87,12 @@ const ChatList: React.FC<ChatListProps> = ({
                   <p className="text-sm text-gray-600 dark:text-gray-400 truncate">
                     {String(room.last_message.sender_id) === currentUserId ? 'You: ' : ''}
                     {formatMessagePreview(room.last_message.content)}
+                    {room.unread_count != null && room.unread_count > 0 && (
+                      <span className="text-indigo-600 dark:text-indigo-400 font-medium ml-1">
+                        ({room.unread_count})
+                      </span>
+                    )}
                   </p>
-                )}
-                {room.unread_count && room.unread_count > 0 && (
-                  <span className="inline-block mt-1 px-2 py-0.5 text-xs font-medium bg-indigo-600 text-white rounded-full">
-                    {room.unread_count}
-                  </span>
                 )}
               </div>
             </div>

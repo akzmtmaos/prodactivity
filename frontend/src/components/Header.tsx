@@ -165,7 +165,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
           </button>
 
           {/* Theme Toggle */}
-          <HeaderTooltip label={theme === 'dark' ? 'Light mode' : 'Dark mode'}>
+          <HeaderTooltip label={theme === 'dark' ? 'Light' : 'Dark'}>
             <button
               onClick={toggleTheme}
               className="p-2 rounded-lg text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"

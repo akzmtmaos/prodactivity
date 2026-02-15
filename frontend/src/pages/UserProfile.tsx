@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Flame, Target, Clock, Star, Trophy, Zap, UserPlus, UserMinus, MessageCircle, Mail, GraduationCap, Calendar, CheckSquare, FileText, Layers, Brain, HelpCircle, BarChart3 } from 'lucide-react';
+import { Flame, Target, Clock, Star, Trophy, Zap, UserPlus, UserMinus, MessageCircle, Mail, GraduationCap, Calendar, CheckSquare, FileText, Layers, Brain, HelpCircle, BarChart3 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import axiosInstance from '../utils/axiosConfig';
 import PageLayout from '../components/PageLayout';
@@ -436,8 +436,9 @@ const UserProfile: React.FC = () => {
             <button
               onClick={() => navigate('/chat')}
               className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              aria-label="Back"
             >
-              Back to Chat
+              Back
             </button>
           </div>
         </div>
@@ -451,15 +452,6 @@ const UserProfile: React.FC = () => {
   return (
     <PageLayout>
       <div className="max-w-5xl mx-auto px-4 py-10">
-        {/* Back Button */}
-        <button
-          onClick={() => navigate('/chat')}
-          className="mb-6 flex items-center gap-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-        >
-          <ArrowLeft size={20} />
-          <span>Back to Chat</span>
-        </button>
-
         {/* Profile Header */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 mb-6">
           <div className="p-6">

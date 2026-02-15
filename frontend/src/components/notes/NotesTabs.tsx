@@ -155,7 +155,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             {/* Filter Type – icon-only dropdown; tooltip below on hover */}
             <div className="relative" ref={notebookFilterRef}>
-              <HeaderTooltip label={notebookFilterType === 'name' ? 'Filter by name' : 'Filter by date'}>
+              <HeaderTooltip label={notebookFilterType === 'name' ? 'Name' : 'Date'}>
                 <button
                   type="button"
                   onClick={() => setNotebookFilterOpen((o) => !o)}
@@ -189,7 +189,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
               )}
             </div>
             {/* View mode toggle: icon only; tooltip below on hover (dtrack-style) */}
-            <HeaderTooltip label={notebookListViewMode === 'compact' ? 'Switch to Comfortable view' : 'Switch to Compact view'}>
+            <HeaderTooltip label={notebookListViewMode === 'compact' ? 'Comfortable list' : 'Compact list'}>
               <button
                 type="button"
                 onClick={() => setNotebookListViewMode?.(notebookListViewMode === 'compact' ? 'comfortable' : 'compact')}
@@ -226,7 +226,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
               </div>
             )}
             {/* Sort – icon reflects ASC (up) / DESC (down) */}
-            <HeaderTooltip label={notebookSortOrder === 'asc' ? 'Sort ascending (click for descending)' : 'Sort descending (click for ascending)'}>
+            <HeaderTooltip label={notebookSortOrder === 'asc' ? 'Ascending' : 'Descending'}>
               <button
                 type="button"
                 onClick={() => setNotebookSortOrder?.(notebookSortOrder === 'asc' ? 'desc' : 'asc')}
@@ -308,7 +308,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             {/* Filter Type – icon-only dropdown with Clock inside (no text on trigger) */}
             <div className="relative" ref={notesFilterRef}>
-              <HeaderTooltip label={filterType === 'title' ? 'Filter by title' : filterType === 'content' ? 'Filter by content' : 'Filter by date'}>
+              <HeaderTooltip label={filterType === 'title' ? 'Title' : filterType === 'content' ? 'Content' : 'Date'}>
                 <button
                   type="button"
                   onClick={() => setNotesFilterOpen((o) => !o)}
@@ -356,7 +356,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
               </div>
             )}
             {/* View mode toggle – compact / comfortable (before Sort) */}
-            <HeaderTooltip label={noteListViewMode === 'compact' ? 'Switch to Comfortable view' : 'Switch to Compact view'}>
+            <HeaderTooltip label={noteListViewMode === 'compact' ? 'Comfortable list' : 'Compact list'}>
               <button
                 type="button"
                 onClick={() => setNoteListViewMode?.(noteListViewMode === 'compact' ? 'comfortable' : 'compact')}
@@ -367,7 +367,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
               </button>
             </HeaderTooltip>
             {/* Sort */}
-            <HeaderTooltip label={sortOrder === 'asc' ? 'Sort ascending (click for descending)' : 'Sort descending (click for ascending)'}>
+            <HeaderTooltip label={sortOrder === 'asc' ? 'Ascending' : 'Descending'}>
               <button type="button" onClick={() => setSortOrder?.(sortOrder === 'asc' ? 'desc' : 'asc')} className="flex items-center justify-center h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors" aria-label={sortOrder === 'asc' ? 'Sort ascending' : 'Sort descending'}>
                 {sortOrder === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
               </button>
@@ -382,7 +382,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
             )}
             {/* Import Notes */}
             {onImportNotes && (
-              <HeaderTooltip label={isImporting ? 'Importing notes...' : 'Import notes'}>
+              <HeaderTooltip label={isImporting ? 'Importing…' : 'Import notes'}>
                 <button onClick={onImportNotes} disabled={isImporting} className="px-2 h-7 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center" aria-label="Import notes">
                   <Upload size={14} />
                 </button>
@@ -390,7 +390,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
             )}
             {/* Export Notes */}
             {onExportNotes && (
-              <HeaderTooltip label={isExporting ? 'Exporting notes...' : 'Export notes'}>
+              <HeaderTooltip label={isExporting ? 'Exporting…' : 'Export notes'}>
                 <button onClick={onExportNotes} disabled={isExporting || notesCount === 0} className="px-2 h-7 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center" aria-label="Export notes">
                   <Download size={14} />
                 </button>
@@ -409,7 +409,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
             </div>
             {/* AI Insights – after Search, before Add */}
             {selectedNotebook && onAIInsights && (
-              <HeaderTooltip label="Get AI-powered insights and recommendations">
+              <HeaderTooltip label="Insights">
                 <button onClick={onAIInsights} className="h-7 px-2.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1 border border-indigo-400/70 dark:border-indigo-300/50 shadow-sm" aria-label="AI Insights">
                   <Brain size={14} />
                   <span>Insights</span>
@@ -418,7 +418,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
             )}
             {/* Add Note – after Insights */}
             {onAddNote && activeTab === 'notes' && (
-              <HeaderTooltip label="Add new note">
+              <HeaderTooltip label="Add note">
                 <button onClick={onAddNote} className="h-7 px-2.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors flex items-center gap-1 border border-indigo-400/70 dark:border-indigo-300/50 shadow-sm" aria-label="Add new note">
                   <Plus size={14} />
                   <span>Add</span>
