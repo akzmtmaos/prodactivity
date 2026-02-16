@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   BookOpen, 
   FileText, 
@@ -16,7 +16,8 @@ import {
   Search,
   Filter,
   Download,
-  Share2
+  Share2,
+  ChevronDown
 } from 'lucide-react';
 import HelpButton from '../HelpButton';
 import axiosInstance from '../../utils/axiosConfig';
@@ -161,6 +162,8 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
   const [error, setError] = useState<string | null>(null);
   const [quizLoadingId, setQuizLoadingId] = useState<number | null>(null);
   const [filterType, setFilterType] = useState('all');
+  const [filterOpen, setFilterOpen] = useState(false);
+  const filterRef = useRef<HTMLDivElement>(null);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   
   // Delete confirmation modal state
@@ -719,6 +722,15 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
     setCurrentPageQuiz(1);
   }, [searchTerm, filterType]);
 
+  // Close filter dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setFilterOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // Add per-reviewer quiz generation state
   const generateQuizForReviewer = async (reviewer: Reviewer, questionCount: number = 10): Promise<boolean> => {
     setQuizLoadingId(reviewer.id);
@@ -879,11 +891,11 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
   // Render UI immediately; background fetch will hydrate data when ready
 
   return (
-    <div className="space-y-6 h-full">
-      {/* Header */}
-      <div className="bg-transparent dark:bg-transparent pb-2">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+    <div className="space-y-4 h-full">
+      {/* Header (compact, like Tasks) */}
+      <div className="bg-transparent dark:bg-transparent">
+        <div className="mb-4">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             Reviewer
             <HelpButton 
               content={
@@ -903,15 +915,14 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
               title="Reviewer Help" 
             />
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">Generate study materials from your notes</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Generate study materials from your notes</p>
         </div>
-        {/* Tabs and Controls Row */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-gray-200 dark:border-gray-700 pb-2">
-          {/* Tabs */}
+        {/* Tabs and Controls Row (same pattern as Tasks/Decks) */}
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2 gap-4 flex-wrap">
           <div className="flex space-x-4">
             <button
               onClick={() => { setActiveTab('reviewer'); navigate('/reviewer/r'); }}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+              className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                 activeTab === 'reviewer'
                   ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                   : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -921,7 +932,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
             </button>
             <button
               onClick={() => { setActiveTab('quiz'); navigate('/reviewer/q'); }}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+              className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                 activeTab === 'quiz'
                   ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                   : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -930,52 +941,83 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
               Quiz
             </button>
           </div>
-          {/* Search, Filter, and Generate Controls */}
-          <div className="flex items-center gap-2">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+          <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto">
+            {/* Search */}
+            <div className="relative w-full sm:w-48">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
               <input
                 type="text"
-                placeholder="Search reviewers..."
+                placeholder="Search..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full sm:w-56 pl-9 pr-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-transparent text-gray-900 dark:text-white placeholder-gray-500"
+                className="w-full h-7 pl-8 pr-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040]"
               />
             </div>
-            {/* Filter Dropdown */}
-            <select
-              className="px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-transparent dark:bg-transparent text-gray-900 dark:text-white"
-              value={filterType}
-              onChange={e => setFilterType(e.target.value)}
-            >
-              <option value="all">All</option>
-              <option value="favorites">Favorites</option>
-              <option value="notebook">By Notebook</option>
-              <option value="note">By Note</option>
-            </select>
-            {/* Bulk Delete Button */}
+            {/* Filter dropdown (custom, same style as TaskFilters/Notes) */}
+            <div className="relative" ref={filterRef}>
+              <button
+                type="button"
+                onClick={() => setFilterOpen((o) => !o)}
+                className="flex items-center justify-center gap-1 h-7 pl-2.5 pr-2 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                aria-expanded={filterOpen}
+                title="Filter"
+              >
+                <Filter size={14} className="text-gray-500 dark:text-gray-400" />
+                <span className="max-w-[100px] truncate">
+                  {filterType === 'all' ? 'All' : filterType === 'favorites' ? 'Favorites' : filterType === 'notebook' ? 'Notebook' : 'Note'}
+                </span>
+                <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
+              </button>
+              {filterOpen && (
+                <div className="absolute right-0 top-full mt-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
+                  {[
+                    { value: 'all', label: 'All' },
+                    { value: 'favorites', label: 'Favorites' },
+                    { value: 'notebook', label: 'By Notebook' },
+                    { value: 'note', label: 'By Note' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => { setFilterType(opt.value); setFilterOpen(false); }}
+                      className={`w-full px-2.5 py-1.5 text-left text-xs rounded-md transition-colors ${
+                        filterType === opt.value
+                          ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                      }`}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Bulk Delete (icon) */}
             <button
+              type="button"
               onClick={openBulkDeleteModal}
-              className="p-2 text-red-600 hover:text-white hover:bg-red-600 rounded-lg transition-colors"
+              className="flex items-center justify-center h-7 w-7 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-500 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-900/50 hover:bg-red-50 dark:hover:bg-red-900/10 transition-colors"
               title={`Delete multiple ${activeTab === 'reviewer' ? 'reviewers' : 'quizzes'}`}
+              aria-label="Bulk delete"
             >
-              <Trash2 size={18} />
+              <Trash2 size={14} />
             </button>
-            {/* Generate Button */}
+            {/* Generate */}
             <button
+              type="button"
               onClick={openGenerateModal}
-              className="inline-flex items-center px-4 py-1.5 text-sm font-medium rounded-lg border border-transparent text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+              className="flex items-center justify-center h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 transition-colors"
             >
-              <Plus size={16} className="mr-2" />
+              <Plus size={14} className="mr-1.5" />
               Generate
             </button>
           </div>
         </div>
       </div>
 
-      {/* Scrollable Tab Content */}
-      <div className="overflow-auto max-h-[70vh] scrollbar-thin scrollbar-thumb-indigo-400 scrollbar-track-gray-200 dark:scrollbar-thumb-indigo-600 dark:scrollbar-track-gray-800 px-1">
+      {/* List content in card (same as Tasks: bg card + p-2, compact spacing) */}
+      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
+        <div className="overflow-auto max-h-[calc(100vh-16rem)] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-gray-100 dark:scrollbar-track-gray-800 p-2">
         {activeTab === 'reviewer' ? (
           <>
             {/* Create Form */}
@@ -1114,7 +1156,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                 </p>
               </div>
             ) : (
-              <div className="grid gap-4">
+              <div className="space-y-1.5">
                 {paginatedReviewers.map(reviewer => (
                   <ReviewerCard
                     key={reviewer.id}
@@ -1153,7 +1195,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
               </p>
             </div>
           ) : (
-            <div className="grid gap-4">
+            <div className="space-y-1.5">
               {paginatedQuizzes.map(quiz => {
                 // Debug: Log quiz source data and best_score
                 if (quiz.id) {
@@ -1195,7 +1237,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
 
       {/* Pagination Controls - Outside Scrollable Area - Only show when not loading */}
       {!loading && activeTab === 'reviewer' && totalPagesReviewer > 1 && (
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-700 dark:text-gray-300">
               Showing {startIndexReviewer + 1} to {Math.min(endIndexReviewer, filteredReviewers.length)} of {filteredReviewers.length} results
@@ -1260,7 +1302,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       )}
       
       {!loading && activeTab === 'quiz' && totalPagesQuiz > 1 && (
-        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
           <div className="flex items-center justify-between">
             <div className="text-sm text-gray-700 dark:text-gray-300">
               Showing {startIndexQuiz + 1} to {Math.min(endIndexQuiz, filteredQuizzes.length)} of {filteredQuizzes.length} results
@@ -1323,6 +1365,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           </div>
         </div>
       )}
+      </div>
       {toast && (
         <Toast
           message={toast.message}

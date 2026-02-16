@@ -349,7 +349,7 @@ const Schedule = () => {
                   title="Schedule Help" 
                 />
               </h1>
-              <p className="mt-1 text-lg text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                 Here's your upcoming schedule.
               </p>
             </div>

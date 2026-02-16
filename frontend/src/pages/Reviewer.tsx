@@ -140,7 +140,7 @@ const Reviewer = () => {
   return (
     <PageLayout>
       <div className="flex h-full">
-        <div className="flex-1 space-y-6">
+        <div className="flex-1 space-y-4">
           <div className="max-w-7xl mx-auto">
             <ReviewerPanel notes={notes} notebooks={notebooks} activeTab={activeTab} setActiveTab={setActiveTab} />
           </div>

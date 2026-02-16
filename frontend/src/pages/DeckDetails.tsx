@@ -8,7 +8,6 @@ import DeleteConfirmationModal from '../components/decks/DeleteConfirmationModal
 import EditDeckModal from '../components/decks/EditDeckModal';
 import DeckStatsModal from '../components/decks/DeckStatsModal';
 import StudySession from '../components/decks/StudySession';
-import QuizSession from '../components/decks/QuizSession';
 import DeckCard from '../components/decks/DeckCard';
 import { truncateHtmlContent } from '../utils/htmlUtils';
 import { API_BASE_URL } from '../config/api';
@@ -83,7 +82,6 @@ const DeckDetails: React.FC = () => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
   const [showStudySession, setShowStudySession] = useState(false);
-  const [showQuizSession, setShowQuizSession] = useState(false);
   const [selectedSubdeck, setSelectedSubdeck] = useState<Subdeck | null>(null);
   const [selectedFlashcard, setSelectedFlashcard] = useState<Flashcard | null>(null);
   const [activeTab, setActiveTab] = useState<'subdecks' | 'flashcards'>('subdecks');
@@ -413,7 +411,7 @@ const DeckDetails: React.FC = () => {
 
   const handleQuiz = () => {
     if (deck) {
-      setShowQuizSession(true);
+      navigate(`/decks/${deck.id}/quiz`);
     }
   };
 
@@ -626,71 +624,93 @@ const DeckDetails: React.FC = () => {
             <span className="text-gray-900 dark:text-white font-semibold">{deck.title}</span>
           </div>
 
-          {/* Deck Actions */}
-          <div className="flex items-center justify-between mb-8">
-            <div className="flex items-center space-x-4">
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{deck.title}</h1>
-              <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
-                <span>{deck.flashcardCount} cards</span>
-                <span>•</span>
-                <span>{deck.progress}% complete</span>
-              </div>
-            </div>
-            <div className="flex space-x-3">
-              <button
-                onClick={handlePractice}
-                className="flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
-              >
-                <Play size={16} className="mr-2" />
-                Practice
-              </button>
-              <button
-                onClick={handleQuiz}
-                className="flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
-              >
-                <HelpCircle size={16} className="mr-2" />
-                Quiz
-              </button>
+          {/* Deck title + meta */}
+          <div className="flex items-center space-x-4 mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{deck.title}</h1>
+            <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-400">
+              <span>{deck.flashcardCount} cards</span>
+              <span>•</span>
+              <span>{deck.progress}% complete</span>
             </div>
           </div>
 
-          {/* Tabs Bar */}
-          <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-6">
-            <button
-              onClick={() => setActiveTab('subdecks')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'subdecks'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Subdecks
-            </button>
-            <button
-              onClick={() => setActiveTab('flashcards')}
-              className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'flashcards'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Flashcards
-            </button>
+          {/* Tabs Bar: tabs left, actions right (same pattern as Decks/Tasks) */}
+          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-4 gap-4 flex-wrap">
+            <div className="flex space-x-4">
+              <button
+                onClick={() => setActiveTab('subdecks')}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'subdecks'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                Subdecks
+              </button>
+              <button
+                onClick={() => setActiveTab('flashcards')}
+                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'flashcards'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+              >
+                Flashcards
+              </button>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
+              <button
+                type="button"
+                onClick={handlePractice}
+                className="flex items-center justify-center h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 transition-colors"
+              >
+                <Play size={14} className="mr-1.5" />
+                Practice
+              </button>
+              <button
+                type="button"
+                onClick={handleQuiz}
+                className="flex items-center justify-center h-7 px-3 text-xs font-medium rounded-lg bg-purple-600 hover:bg-purple-700 text-white focus:outline-none focus:ring-2 focus:ring-purple-300 dark:focus:ring-purple-500 transition-colors"
+              >
+                <HelpCircle size={14} className="mr-1.5" />
+                Quiz
+              </button>
+              {activeTab === 'subdecks' && (
+                <button
+                  type="button"
+                  onClick={() => setShowCreateSubdeck(true)}
+                  className="flex items-center justify-center h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 transition-colors"
+                >
+                  <Plus size={14} className="mr-1.5" />
+                  Add Subdeck
+                </button>
+              )}
+              {activeTab === 'flashcards' && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowImportModal(true)}
+                    className="flex items-center justify-center h-7 px-3 text-xs font-medium rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white focus:outline-none focus:ring-2 focus:ring-emerald-300 dark:focus:ring-emerald-500 transition-colors"
+                  >
+                    <FileText size={14} className="mr-1.5" />
+                    Import from Notes
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddForm((v) => !v)}
+                    className="flex items-center justify-center h-7 px-3 text-xs font-medium rounded-lg border border-indigo-400 bg-indigo-600 hover:bg-indigo-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 transition-colors"
+                  >
+                    <Plus size={14} className="mr-1.5" />
+                    {showAddForm ? 'Hide Form' : 'Add Flashcard'}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Tab Content */}
           {activeTab === 'subdecks' && (
             <div className="mb-10">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Subdecks</h2>
-                <button 
-                  onClick={() => setShowCreateSubdeck(true)}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
-                >
-                  <Plus size={20} className="mr-2" />
-                  Add Subdeck
-                </button>
-              </div>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 {subdecksLoading ? (
                   <div className="col-span-full text-center py-8">Loading subdecks...</div>
@@ -698,13 +718,7 @@ const DeckDetails: React.FC = () => {
                   <div className="col-span-full text-center py-8 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700">
                     <BookOpen size={48} className="mx-auto text-gray-400 mb-4" />
                     <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">No subdecks yet</h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">Create your first subdeck to organize your flashcards</p>
-                    <button
-                      onClick={() => setShowCreateSubdeck(true)}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium"
-                    >
-                      Create Subdeck
-                    </button>
+                    <p className="text-gray-600 dark:text-gray-400">Create your first subdeck using Add Subdeck in the tab above.</p>
                   </div>
                 ) : (
                   subdecks.map(subdeck => (
@@ -747,26 +761,6 @@ const DeckDetails: React.FC = () => {
 
           {activeTab === 'flashcards' && (
             <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Flashcards</h2>
-                <div className="flex gap-3">
-                  <button 
-                    onClick={() => setShowImportModal(true)}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
-                  >
-                    <FileText size={20} className="mr-2" />
-                    Import from Notes
-                  </button>
-                  <button 
-                    onClick={() => setShowAddForm((v) => !v)}
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium flex items-center transition-colors"
-                  >
-                    <Plus size={20} className="mr-2" />
-                    {showAddForm ? 'Hide Form' : 'Add Flashcard'}
-                  </button>
-                </div>
-              </div>
-              
               {/* Add Flashcard Container */}
               {showAddForm && (
                 <div className="mb-6 border border-gray-200 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 shadow-md overflow-hidden">
@@ -897,20 +891,23 @@ const DeckDetails: React.FC = () => {
                       
                       return (
                         <>
+                          <div className="space-y-3">
                           {paginatedFlashcards.map(card => (
-                    <div key={card.id} className="relative bg-white dark:bg-gray-800 rounded-xl shadow-md p-6 border border-gray-200 dark:border-gray-700 overflow-hidden">
-                      {/* Vertical colored bar on the left - using system indigo color */}
-                      <div className="absolute left-0 top-0 bottom-0 w-3 min-w-[12px] bg-gradient-to-b from-indigo-500 to-indigo-600 rounded-l-xl" />
-                      <div className="ml-6">
+                    <div key={card.id} className="relative bg-white dark:bg-[#252525] rounded-xl border border-gray-200 dark:border-[#333333] overflow-hidden transition-shadow hover:shadow-md">
+                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-xl" />
+                      <div className="pl-5 pr-4 py-4">
                       {editingFlashcardId === card.id ? (
                         // Edit Mode
                         <div className="space-y-4">
-                          <div className="border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
-                            <div className="p-4">
+                          <div className="rounded-lg border border-gray-200 dark:border-[#333333] overflow-hidden bg-gray-50 dark:bg-gray-800/50">
+                            <div className="px-3 py-2 border-b border-gray-200 dark:border-[#333333]">
+                              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Question</span>
+                            </div>
+                            <div className="p-3">
                               <textarea
-                                rows={4}
+                                rows={3}
                                 maxLength={800}
-                                className="w-full border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 dark:text-white text-base resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                                className="w-full border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 dark:text-white text-sm resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
                                 value={editingFlashcard.question}
                                 onChange={e => setEditingFlashcard({ ...editingFlashcard, question: e.target.value })}
                                 onKeyDown={e => {
@@ -919,15 +916,17 @@ const DeckDetails: React.FC = () => {
                                     handleUpdateFlashcard();
                                   }
                                 }}
-                                placeholder="Question goes here"
+                                placeholder="Question"
                               />
                             </div>
-                            <div className="border-t border-gray-200 dark:border-gray-700"></div>
-                            <div className="p-4">
+                            <div className="px-3 py-2 border-t border-gray-200 dark:border-[#333333]">
+                              <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Answer</span>
+                            </div>
+                            <div className="p-3">
                               <textarea
-                                rows={4}
+                                rows={3}
                                 maxLength={800}
-                                className="w-full border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 dark:text-white text-base resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
+                                className="w-full border-0 focus:ring-0 focus:outline-none bg-transparent text-gray-900 dark:text-white text-sm resize-none placeholder:text-gray-400 dark:placeholder:text-gray-500"
                                 value={editingFlashcard.answer}
                                 onChange={e => setEditingFlashcard({ ...editingFlashcard, answer: e.target.value })}
                                 onKeyDown={e => {
@@ -936,7 +935,7 @@ const DeckDetails: React.FC = () => {
                                     handleUpdateFlashcard();
                                   }
                                 }}
-                                placeholder="Answer goes here"
+                                placeholder="Answer"
                               />
                             </div>
                           </div>
@@ -944,24 +943,21 @@ const DeckDetails: React.FC = () => {
                             <button
                               onClick={handleCancelEdit}
                               type="button"
-                              className="px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg font-medium transition-colors"
+                              className="flex items-center justify-center h-7 px-3 text-xs font-medium rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
                             >
                               Cancel
                             </button>
                             <button
                               onClick={handleUpdateFlashcard}
                               disabled={isUpdatingFlashcard || !editingFlashcard.question.trim() || !editingFlashcard.answer.trim()}
-                              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors flex items-center"
+                              className="flex items-center justify-center h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white transition-colors"
                             >
                               {isUpdatingFlashcard ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                                  Updating...
-                                </>
+                                <div className="animate-spin rounded-full h-3.5 w-3.5 border-t-2 border-b-2 border-white" />
                               ) : (
                                 <>
-                                  <Edit2 size={16} className="mr-2" />
-                                  Save Changes
+                                  <Edit2 size={14} className="mr-1.5" />
+                                  Save
                                 </>
                               )}
                             </button>
@@ -970,57 +966,65 @@ const DeckDetails: React.FC = () => {
                       ) : (
                         // View Mode
                         <>
-                          <div className="flex items-start justify-between mb-4">
-                            <div className="flex-1">
-                              <div className="mb-3 text-gray-900 dark:text-white font-semibold text-lg">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="mb-2">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Question</span>
+                              </div>
+                              <div className="text-gray-900 dark:text-white text-sm font-medium leading-snug mb-4">
                                 {card.question && card.question.includes('<img') ? (
-                                  <div>
-                                    <span className="block mb-2">Q:</span>
+                                  <div className="space-y-2">
                                     {card.question.split('<img')[0].trim() && (
-                                      <div className="mb-2">{card.question.split('<img')[0].trim()}</div>
+                                      <div>{card.question.split('<img')[0].trim()}</div>
                                     )}
-                                    <div dangerouslySetInnerHTML={{ __html: card.question.match(/<img[^>]+>/)?.[0] || '' }} className="[&_img]:max-w-full [&_img]:max-h-64 [&_img]:h-auto [&_img]:rounded-lg [&_img]:border [&_img]:border-gray-300 [&_img]:dark:border-gray-600 [&_img]:mt-2" />
+                                    <div dangerouslySetInnerHTML={{ __html: card.question.match(/<img[^>]+>/)?.[0] || '' }} className="[&_img]:max-w-full [&_img]:max-h-48 [&_img]:h-auto [&_img]:rounded-lg [&_img]:border [&_img]:border-gray-200 [&_img]:dark:border-gray-600 [&_img]:mt-1" />
                                   </div>
                                 ) : (
-                                  <>Q: {card.question}</>
+                                  <span>{card.question}</span>
                                 )}
                               </div>
-                              <div className="text-gray-700 dark:text-gray-300 text-base">A: {card.answer}</div>
+                              <div className="mb-1">
+                                <span className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Answer</span>
+                              </div>
+                              <div className="text-gray-700 dark:text-gray-300 text-sm leading-snug">
+                                {card.answer}
+                              </div>
                             </div>
-                            <div className="flex space-x-2">
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              {card.difficulty && (
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                                  card.difficulty === 'easy' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' :
+                                  card.difficulty === 'medium' ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' :
+                                  'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400'
+                                }`}>
+                                  {card.difficulty.charAt(0).toUpperCase() + card.difficulty.slice(1)}
+                                </span>
+                              )}
                               <button
                                 onClick={() => handleStartEdit(card)}
-                                className="p-2 text-gray-500 hover:text-indigo-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                className="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-[#333333] rounded-lg transition-colors"
+                                aria-label="Edit"
                               >
-                                <Edit2 size={18} />
+                                <Edit2 size={16} />
                               </button>
                               <button
                                 onClick={() => {
                                   setSelectedFlashcard(card);
                                   setShowDeleteModal(true);
                                 }}
-                                className="p-2 text-gray-500 hover:text-red-600 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                                className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-[#333333] rounded-lg transition-colors"
+                                aria-label="Delete"
                               >
-                                <Trash2 size={18} />
+                                <Trash2 size={16} />
                               </button>
                             </div>
                           </div>
-                          {card.difficulty && (
-                            <div className="mt-4">
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                card.difficulty === 'easy' ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400' :
-                                card.difficulty === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-400' :
-                                'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
-                              }`}>
-                                {card.difficulty.charAt(0).toUpperCase() + card.difficulty.slice(1)}
-                              </span>
-                            </div>
-                          )}
                         </>
                       )}
                       </div>
                     </div>
                         ))}
+                          </div>
                         {/* Pagination below flashcard list */}
                         {flashcardTotalPages > 1 && (
                           <Pagination
@@ -1082,30 +1086,6 @@ const DeckDetails: React.FC = () => {
           onComplete={(results) => {
             console.log('Study session completed:', results);
             setShowStudySession(false);
-          }}
-        />
-      )}
-
-      {showQuizSession && deck && (
-        <QuizSession
-          deckId={deck.id}
-          deckTitle={deck.title}
-          flashcards={deck.flashcards.map(fc => ({
-            id: fc.id,
-            front: fc.front || fc.question,
-            back: fc.back || fc.answer,
-            difficulty: fc.difficulty
-          }))}
-          onClose={() => setShowQuizSession(false)}
-          onComplete={async (results) => {
-            // Refetch deck from backend for updated progress
-            const res = await axiosInstance.get(`/decks/decks/${deck.id}/`);
-            const data = res.data;
-            setDeck({
-              ...deck,
-              progress: data.progress || 0
-            });
-            setShowQuizSession(false);
           }}
         />
       )}

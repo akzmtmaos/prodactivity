@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, LayoutList } from 'lucide-react';
-import HeaderTooltip from '../components/common/HeaderTooltip';
+import { Plus, Search, FolderOpen, Tag } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
 import TaskList from '../components/tasks/TaskList';
@@ -82,23 +81,6 @@ const TasksContent = ({ user }: { user: any }) => {
 
   // State for tabs
   const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed' | 'assigned'>('tasks');
-  const [taskListViewMode, setTaskListViewMode] = useState<'comfortable' | 'compact'>(() => {
-    try {
-      const saved = localStorage.getItem('prodactivity-tasks-list-view');
-      return saved === 'compact' ? 'compact' : 'comfortable';
-    } catch {
-      return 'comfortable';
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('prodactivity-tasks-list-view', taskListViewMode);
-    } catch {
-      // ignore
-    }
-  }, [taskListViewMode]);
-
   // State for pre-selected category when adding task from category tab
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
@@ -999,7 +981,7 @@ const TasksContent = ({ user }: { user: any }) => {
                 title="Tasks Help"
               />
             </h1>
-            <p className="text-lg text-gray-600 dark:text-gray-400">
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Manage and track your tasks
             </p>
           </div>
@@ -1059,23 +1041,6 @@ const TasksContent = ({ user }: { user: any }) => {
             </div>
             {/* Filters + Search + Add Task (compact, same sizing as Decks) */}
             <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
-              {/* List view toggle – only when showing task list (not categories) */}
-              {activeTab !== 'categories' && (
-                <HeaderTooltip label={taskListViewMode === 'compact' ? 'Comfortable list' : 'Compact list'}>
-                  <button
-                    type="button"
-                    onClick={() => setTaskListViewMode((m) => (m === 'compact' ? 'comfortable' : 'compact'))}
-                    className={`flex items-center justify-center h-7 px-2.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                      taskListViewMode === 'compact'
-                        ? 'border-indigo-400 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-300 dark:border-indigo-400 dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:text-white dark:focus:ring-indigo-500'
-                        : 'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
-                    }`}
-                    aria-label={taskListViewMode === 'compact' ? 'Switch to comfortable list' : 'Switch to compact list'}
-                  >
-                    <LayoutList size={14} className={taskListViewMode === 'compact' ? 'text-white' : 'text-gray-400'} />
-                  </button>
-                </HeaderTooltip>
-              )}
               <TaskFilters
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
@@ -1161,63 +1126,58 @@ const TasksContent = ({ user }: { user: any }) => {
                 <p className="mt-2 text-gray-500 dark:text-gray-400">Loading tasks...</p>
               </div>
             ) : activeTab === 'categories' ? (
-              // Categories tab display
-              <div className="p-6">
+              // Categories tab display (same padding as All Tasks: p-2 so content reaches same left/right)
+              <div className="p-2">
                 {Object.keys(tasksByCategory).length === 0 ? (
-                  <div className="text-center">
-                    <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                    </svg>
-                    <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No categories found</h3>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                      Create tasks with categories to see them organized here.
-                    </p>
-                    <div className="mt-6">
-                      <button
-                        type="button"
-                        className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                        onClick={() => setIsFormOpen(true)}
-                      >
-                        <svg className="-ml-1 mr-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                          <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                        </svg>
-                        New Task
-                      </button>
+                  <div className="text-center py-12 px-4 bg-gray-50 dark:bg-[#252525] rounded-xl border border-gray-200 dark:border-[#333333]">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 dark:bg-[#333333] mb-4">
+                      <FolderOpen size={24} className="text-gray-400 dark:text-gray-500" />
                     </div>
+                    <h3 className="text-sm font-medium text-gray-900 dark:text-white">No categories yet</h3>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
+                      Create tasks with a category to see them grouped here.
+                    </p>
+                    <button
+                      type="button"
+                      className="mt-4 flex items-center justify-center h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 transition-colors mx-auto"
+                      onClick={() => setIsFormOpen(true)}
+                    >
+                      <Plus size={14} className="mr-1.5" />
+                      New Task
+                    </button>
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {Object.entries(tasksByCategory).map(([category, categoryTasks]) => {
                       const colors = getCategoryColor(category);
                       return (
-                        <div key={category} className="border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
-                          <div className={`${colors.bg} px-4 py-2 border-b ${colors.border}`}>
-                            <div className="flex items-center justify-between">
-                              <h3 className={`text-lg font-semibold ${colors.text}`}>
-                                {category}
-                              </h3>
-                              <div className="flex items-center gap-3">
-                                <span className={`text-sm ${colors.count}`}>
-                                  {categoryTasks.length} task{categoryTasks.length !== 1 ? 's' : ''}
-                                </span>
-                                                                 <button
-                                   onClick={() => {
-                                     setEditingTask(undefined);
-                                     setIsFormOpen(true);
-                                     // Store the category to pass to the form
-                                     setSelectedCategory(category);
-                                   }}
-                                  className={`p-1.5 rounded-full transition-all duration-200 hover:scale-110 ${colors.text} hover:bg-white/20`}
-                                  title={`Add task to ${category}`}
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                  </svg>
-                                </button>
+                        <div key={category} className="rounded-xl border border-gray-200 dark:border-[#333333] overflow-hidden bg-white dark:bg-[#252525] shadow-sm">
+                          <div className={`flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-[#333333] ${colors.bg}`}>
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${colors.bg} border ${colors.border}`}>
+                                <Tag size={16} className={colors.text} />
+                              </div>
+                              <div className="min-w-0">
+                                <h3 className={`text-sm font-semibold truncate ${colors.text}`}>
+                                  {category} ({categoryTasks.length} task{categoryTasks.length !== 1 ? 's' : ''})
+                                </h3>
                               </div>
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setEditingTask(undefined);
+                                setIsFormOpen(true);
+                                setSelectedCategory(category);
+                              }}
+                              className="flex-shrink-0 flex items-center justify-center h-7 w-7 rounded-lg text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white/50 dark:hover:bg-black/20 transition-colors"
+                              title={`Add task to ${category}`}
+                              aria-label={`Add task to ${category}`}
+                            >
+                              <Plus size={16} />
+                            </button>
                           </div>
-                          <div className="p-2 bg-white dark:bg-gray-800">
+                          <div className="border-t border-gray-200 dark:border-[#333333]">
                             <TaskList
                               tasks={categoryTasks}
                               onToggleComplete={toggleTaskCompletion}
@@ -1234,7 +1194,7 @@ const TasksContent = ({ user }: { user: any }) => {
                                 setEditingTask(undefined);
                                 setIsFormOpen(true);
                               }}
-                              compact={taskListViewMode === 'compact'}
+                              compact={true}
                             />
                           </div>
                         </div>
@@ -1291,7 +1251,7 @@ const TasksContent = ({ user }: { user: any }) => {
                     setEditingTask(undefined);
                     setIsFormOpen(true);
                   }}
-                  compact={taskListViewMode === 'compact'}
+                  compact={true}
                 />
                 
                 {/* Pagination Controls */}

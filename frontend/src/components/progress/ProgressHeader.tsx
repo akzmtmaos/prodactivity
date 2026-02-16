@@ -27,7 +27,7 @@ const ProgressHeader: React.FC<ProgressHeaderProps> = ({ greeting, username }) =
         Progress
         <HelpButton content={progressHelpContent} title="Progress Help" />
       </h1>
-      <p className="text-lg text-gray-600 dark:text-gray-400 mt-1">
+      <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
         Track your productivity and achievements
       </p>
     </div>

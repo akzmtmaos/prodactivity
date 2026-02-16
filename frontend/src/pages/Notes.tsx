@@ -2954,17 +2954,19 @@ const Notes = () => {
   return (
     <PageLayout>
       <div className="flex h-full overflow-x-hidden">
-        <div className="flex-1 space-y-6">
-                    {/* Header */}
-          <NotesHeader
-            currentView={currentView}
-            selectedNotebook={selectedNotebook}
-            notesCount={notes.length}
-            onBackToNotebooks={handleBackToNotebooks}
-            onGlobalSearch={() => setShowGlobalSearch(true)}
-          />
-          
-          {/* Tabs styled like Settings - Show for both notebooks and notes */}
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Header – mb-8 like Decks (space between subtitle and tabs) */}
+          <div className="flex-shrink-0 mb-8">
+            <NotesHeader
+              currentView={currentView}
+              selectedNotebook={selectedNotebook}
+              notesCount={notes.length}
+              onBackToNotebooks={handleBackToNotebooks}
+              onGlobalSearch={() => setShowGlobalSearch(true)}
+            />
+          </div>
+          {/* Tabs + list – small gap like Decks (mb-2) */}
+          <div className="flex-1 flex flex-col min-h-0 gap-2">
           <NotesTabs
             currentView={currentView}
             activeTab={activeTab}
@@ -3017,7 +3019,7 @@ const Notes = () => {
             notesCount={notes.length}
           />
           {/* Main Content - no white container */}
-          <div className="w-full h-[calc(100vh-8rem)] flex flex-col">
+          <div className="w-full flex-1 min-h-0 flex flex-col">
             {/* Content */}
             <div className="flex-1 overflow-hidden">
               {currentView === 'notebooks' && (
@@ -3260,6 +3262,7 @@ const Notes = () => {
                 </div>
               )}
             </div>
+          </div>
           </div>
           
 

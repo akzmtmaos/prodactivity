@@ -1181,7 +1181,7 @@ interface NoteItem {
                   title="Flashcards Help" 
                 />
               </h1>
-              <p className="text-gray-600 dark:text-gray-400 mt-2">
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                 Ready to learn something new today?
               </p>
             </div>

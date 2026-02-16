@@ -235,83 +235,61 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
   };
   return (
     <div
-      className="group relative bg-gradient-to-r from-white to-gray-50 dark:from-gray-800 dark:to-gray-800/80 rounded-xl p-4 border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden"
+      className="group relative bg-white dark:bg-[#252525] rounded-lg border border-gray-200 dark:border-[#333333] hover:border-indigo-400/50 dark:hover:border-indigo-500/50 hover:shadow-sm transition-all duration-150 cursor-pointer overflow-hidden"
       onClick={onClick}
     >
-      {/* Subtle accent line */}
-      <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-indigo-500 to-purple-500 opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
-      
-      <div className="flex items-center justify-between gap-4">
+      <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-lg" />
+      <div className="flex items-center justify-between gap-3 pl-3 pr-2.5 py-2">
         {/* Left: Title and Source */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
-              {reviewer.title}
-            </h3>
-            {(reviewer.source_note || reviewer.source_notebook) && (
-              <button
-                onClick={handleSourceClick}
-                className="flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors whitespace-nowrap"
-                title={`Go to ${reviewer.source_note ? 'note' : 'notebook'}: ${reviewer.source_note_title || reviewer.source_notebook_name || (reviewer.source_note ? `Note #${reviewer.source_note}` : `Notebook #${reviewer.source_notebook}`)}`}
-              >
-                <ExternalLink size={12} />
-                {reviewer.source_note_title || reviewer.source_notebook_name || 
-                  (reviewer.source_note ? `Note #${reviewer.source_note}` : `Notebook #${reviewer.source_notebook}`)}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Right: Actions */}
-        <div className="flex items-center gap-2">
-          {/* Best Score Badge (for quizzes only) */}
-          {reviewer.best_score !== null && reviewer.best_score !== undefined && (
-            <div className="flex items-center gap-1.5 px-2.5 py-1 bg-gradient-to-r from-yellow-50 to-amber-50 dark:from-yellow-900/20 dark:to-amber-900/20 border border-yellow-200 dark:border-yellow-800 rounded-full">
-              <Trophy size={14} className="text-yellow-600 dark:text-yellow-400" />
-              <div className="flex items-center gap-1">
-                <span className="text-xs font-semibold text-yellow-700 dark:text-yellow-300">
-                  {reviewer.best_score_correct && reviewer.best_score_total 
-                    ? `${reviewer.best_score_correct}/${reviewer.best_score_total}`
-                    : `${reviewer.best_score}%`}
-                </span>
-                {reviewer.best_score_correct && reviewer.best_score_total && (
-                  <span className="text-xs text-yellow-600 dark:text-yellow-400">
-                    ({reviewer.best_score}%)
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-          
-          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-            {new Date(reviewer.created_at).toLocaleDateString()}
-          </span>
-          
-          {showFavorite && onFavorite && (
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+            {reviewer.title}
+          </h3>
+          {(reviewer.source_note || reviewer.source_notebook) && (
             <button
-              onClick={e => {
-                e.stopPropagation();
-                onFavorite(reviewer.id);
-              }}
-              className="p-2 text-gray-400 hover:text-yellow-500 transition-colors"
-              title={reviewer.is_favorite ? "Remove from favorites" : "Add to favorites"}
+              onClick={handleSourceClick}
+              className="flex-shrink-0 flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors truncate max-w-[140px]"
+              title={`Go to ${reviewer.source_note ? 'note' : 'notebook'}: ${reviewer.source_note_title || reviewer.source_notebook_name || (reviewer.source_note ? `Note #${reviewer.source_note}` : `Notebook #${reviewer.source_notebook}`)}`}
             >
-              {reviewer.is_favorite ? <Star size={16} className="text-yellow-500 fill-current" /> : <StarOff size={16} />}
+              <ExternalLink size={11} />
+              <span className="truncate">{reviewer.source_note_title || reviewer.source_notebook_name || (reviewer.source_note ? `#${reviewer.source_note}` : `Notebook`)}</span>
             </button>
           )}
-          
-          {/* Three-dot menu */}
+        </div>
+
+        {/* Right: Meta + Actions */}
+        <div className="flex items-center gap-1.5 flex-shrink-0">
+          {/* Best Score (quizzes) */}
+          {reviewer.best_score !== null && reviewer.best_score !== undefined && (
+            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium">
+              <Trophy size={12} />
+              {reviewer.best_score_correct != null && reviewer.best_score_total != null
+                ? `${reviewer.best_score_correct}/${reviewer.best_score_total}`
+                : `${reviewer.best_score}%`}
+            </span>
+          )}
+          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap hidden sm:inline">
+            {new Date(reviewer.created_at).toLocaleDateString()}
+          </span>
+          {showFavorite && onFavorite && (
+            <button
+              onClick={e => { e.stopPropagation(); onFavorite(reviewer.id); }}
+              className="p-1.5 text-gray-400 hover:text-yellow-500 transition-colors rounded-md hover:bg-gray-100 dark:hover:bg-[#333333]"
+              title={reviewer.is_favorite ? "Remove from favorites" : "Add to favorites"}
+              aria-label={reviewer.is_favorite ? "Remove from favorites" : "Add to favorites"}
+            >
+              {reviewer.is_favorite ? <Star size={14} className="text-yellow-500 fill-current" /> : <StarOff size={14} />}
+            </button>
+          )}
           <div className="relative">
             <button
               ref={buttonRef}
-              onClick={e => {
-                e.stopPropagation();
-                setShowMenu(!showMenu);
-              }}
-              className="p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+              onClick={e => { e.stopPropagation(); setShowMenu(!showMenu); }}
+              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#333333] transition-colors"
               title="More options"
+              aria-label="More options"
             >
-              <MoreVertical size={16} />
+              <MoreVertical size={14} />
             </button>
             
             {/* Dropdown Menu - Rendered as Portal */}
@@ -390,34 +368,24 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
           
           {showGenerateQuiz && onGenerateQuiz && (
             <button
-              onClick={e => {
-                e.stopPropagation();
-                onGenerateQuiz(reviewer);
-              }}
-              className="flex items-center px-3 py-1.5 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              onClick={e => { e.stopPropagation(); onGenerateQuiz(reviewer); }}
               disabled={quizLoadingId === reviewer.id}
+              className="flex items-center justify-center h-7 px-2.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {quizLoadingId === reviewer.id ? (
-                <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                  Generating...
-                </>
+                <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
               ) : (
-                <>Generate Quiz</>
+                'Generate Quiz'
               )}
             </button>
           )}
-          
           {showTakeQuiz && onTakeQuiz && (
             <button
-              onClick={e => {
-                e.stopPropagation();
-                onTakeQuiz(reviewer);
-              }}
-              className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white text-sm rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-sm hover:shadow-md whitespace-nowrap font-semibold"
+              onClick={e => { e.stopPropagation(); onTakeQuiz(reviewer); }}
+              className="flex items-center justify-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
               title="Start interactive quiz"
             >
-              <PlayCircle size={16} />
+              <PlayCircle size={12} />
               Take Quiz
             </button>
           )}

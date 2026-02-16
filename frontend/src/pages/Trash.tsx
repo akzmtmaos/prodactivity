@@ -5,7 +5,7 @@ import HelpButton from '../components/HelpButton';
 import TrashList from '../components/trash/TrashList';
 import Toast from '../components/common/Toast';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
-import { Trash2, ChevronDown, Search } from 'lucide-react';
+import { Trash2, ChevronDown, Search, RotateCcw } from 'lucide-react';
 import Pagination from '../components/common/Pagination';
 import axiosInstance from '../utils/axiosConfig';
 import { API_BASE_URL } from '../config/api';
@@ -572,73 +572,40 @@ const Trash = () => {
   return (
     <PageLayout>
       <div className="space-y-6">
-        {/* Header */}
-        <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
-              Trash
-              <HelpButton 
-                content={
-                  <div>
-                    <p className="font-semibold mb-2">Trash Management</p>
-                    <ul className="space-y-1 text-xs">
-                      <li>• <strong>Deleted Items:</strong> View all deleted tasks, notes, decks, and notebooks</li>
-                      <li>• <strong>Restore:</strong> Bring back accidentally deleted items</li>
-                      <li>• <strong>Permanent Delete:</strong> Completely remove items from system</li>
-                      <li>• <strong>Search:</strong> Find specific deleted items quickly</li>
-                      <li>• <strong>Filter by Type:</strong> View tasks, notes, decks, or notebooks separately</li>
-                      <li>• <strong>Auto-cleanup:</strong> Items are automatically purged after 30 days</li>
-                      <li>• <strong>Bulk Actions:</strong> Restore or delete multiple items at once</li>
-                    </ul>
-                  </div>
-                } 
-                title="Trash Help" 
-              />
-            </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-2">
-              View and restore deleted items
-            </p>
-          </div>
-          <div className="flex flex-col sm:flex-row items-stretch gap-2 md:gap-4 w-full md:w-auto">
-            {selectedItems.size > 0 && (
-              <>
-                <button
-                  className="inline-flex items-center h-10 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                  onClick={() => setShowRestoreSelectedModal(true)}
-                >
-                  <svg className="mr-2" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="23 4 23 10 17 10"></polyline>
-                    <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-                  </svg>
-                  Restore Item ({selectedItems.size})
-                </button>
-                <button
-                  className="inline-flex items-center h-10 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500"
-                  onClick={() => setShowDeleteSelectedModal(true)}
-                >
-                  <Trash2 className="mr-2" size={18} />
-                  Delete Item ({selectedItems.size})
-                </button>
-              </>
-            )}
-            <button
-              className={`inline-flex items-center h-10 px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 ${filteredItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-              onClick={() => filteredItems.length > 0 && setShowDeleteAllModal(true)}
-              disabled={filteredItems.length === 0}
-            >
-              <Trash2 className="mr-2" size={18} />
-              Delete All
-            </button>
-          </div>
+        {/* Header – title + subtitle only (actions in tab row) */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+            Trash
+            <HelpButton 
+              content={
+                <div>
+                  <p className="font-semibold mb-2">Trash Management</p>
+                  <ul className="space-y-1 text-xs">
+                    <li>• <strong>Deleted Items:</strong> View all deleted tasks, notes, decks, and notebooks</li>
+                    <li>• <strong>Restore:</strong> Bring back accidentally deleted items</li>
+                    <li>• <strong>Permanent Delete:</strong> Completely remove items from system</li>
+                    <li>• <strong>Search:</strong> Find specific deleted items quickly</li>
+                    <li>• <strong>Filter by Type:</strong> View tasks, notes, decks, or notebooks separately</li>
+                    <li>• <strong>Auto-cleanup:</strong> Items are automatically purged after 30 days</li>
+                    <li>• <strong>Bulk Actions:</strong> Restore or delete multiple items at once</li>
+                  </ul>
+                </div>
+              } 
+              title="Trash Help" 
+            />
+          </h1>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+            View and restore deleted items
+          </p>
         </div>
 
-        {/* Tabs styled like Settings */}
+        {/* Tab row – tabs left, search + filter + actions right (compact, like Decks) */}
         <div>
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-gray-200 dark:border-gray-700 mb-8">
+          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2 gap-4 flex-wrap">
             <div className="flex space-x-4">
               <button
                 onClick={() => handleTabClick('all')}
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'all'
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -648,7 +615,7 @@ const Trash = () => {
               </button>
               <button
                 onClick={() => handleTabClick('filter')}
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'filter'
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -657,75 +624,106 @@ const Trash = () => {
                 Filter by Type
               </button>
             </div>
-            
+
             <div className="flex items-center gap-2 flex-wrap">
-              {/* Search Bar */}
-              <div className="relative w-full sm:w-56">
-                <Search size={18} className="absolute left-3 top-2.5 text-gray-400" />
+              {/* Pagination – before search */}
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+              {/* Search */}
+              <div className="relative w-full sm:w-48">
+                <Search size={14} className="absolute left-2 top-1.5 text-gray-400" />
                 <input
                   ref={searchInputRef}
                   type="text"
                   placeholder="Search trash..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-7 pr-2 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
-              
-              {/* Type Dropdown with Checkboxes - Only show when Filter by Type tab is active */}
+
+              {/* Type filter dropdown – when Filter tab active */}
               {activeTab === 'filter' && (
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg text-sm font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-colors"
-                >
-                  <span>
-                    {selectedTypes.size === 0
-                      ? 'Select types...'
-                      : selectedTypes.size === ITEM_TYPES.length
-                      ? 'All types'
-                      : `${selectedTypes.size} type${selectedTypes.size > 1 ? 's' : ''} selected`}
-                  </span>
-                  <ChevronDown
-                    size={16}
-                    className={`transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`}
-                  />
-                </button>
-                
-                {isDropdownOpen && (
-                  <div className="absolute right-0 mt-2 w-52 bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-10 py-1">
-                    {ITEM_TYPES.map((type) => {
-                      const typeLabels: Record<ItemType, string> = {
-                        notebooks: 'Notebooks',
-                        notes: 'Notes',
-                        decks: 'Decks',
-                        flashcards: 'Flashcards',
-                        reviewer: 'Reviewer',
-                        quiz: 'Quiz',
-                        tasks: 'Tasks',
-                      };
-                      return (
-                        <label
-                          key={type}
-                          className="flex items-center px-3 py-2 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] cursor-pointer transition-colors rounded mx-1"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={selectedTypes.has(type)}
-                            onChange={() => handleTypeToggle(type)}
-                            className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 dark:focus:ring-indigo-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
-                          />
-                          <span className="ml-3 text-sm text-gray-700 dark:text-gray-300">
+                <div className="relative" ref={dropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                    className="inline-flex items-center gap-1.5 h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                  >
+                    <span>
+                      {selectedTypes.size === 0
+                        ? 'Types...'
+                        : selectedTypes.size === ITEM_TYPES.length
+                        ? 'All types'
+                        : `${selectedTypes.size} type${selectedTypes.size > 1 ? 's' : ''}`}
+                    </span>
+                    <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                  {isDropdownOpen && (
+                    <div className="absolute right-0 top-full mt-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 py-1">
+                      {ITEM_TYPES.map((type) => {
+                        const typeLabels: Record<ItemType, string> = {
+                          notebooks: 'Notebooks',
+                          notes: 'Notes',
+                          decks: 'Decks',
+                          flashcards: 'Flashcards',
+                          reviewer: 'Reviewer',
+                          quiz: 'Quiz',
+                          tasks: 'Tasks',
+                        };
+                        return (
+                          <label
+                            key={type}
+                            className="flex items-center gap-2 px-2.5 py-1.5 text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] cursor-pointer transition-colors rounded-md mx-0.5"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedTypes.has(type)}
+                              onChange={() => handleTypeToggle(type)}
+                              className="w-4 h-4 text-indigo-600 bg-gray-100 border-gray-300 rounded focus:ring-indigo-500 dark:bg-gray-700 dark:border-gray-600 cursor-pointer"
+                            />
                             {typeLabels[type]}
-                          </span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
+
+              {/* Actions – compact buttons */}
+              {selectedItems.size > 0 && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => setShowRestoreSelectedModal(true)}
+                    className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-300 bg-white dark:bg-gray-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
+                  >
+                    <RotateCcw size={12} />
+                    Restore ({selectedItems.size})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeleteSelectedModal(true)}
+                    className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg border border-orange-600 text-orange-700 dark:text-orange-300 bg-white dark:bg-gray-800 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors"
+                  >
+                    <Trash2 size={12} />
+                    Delete ({selectedItems.size})
+                  </button>
+                </>
+              )}
+              <button
+                type="button"
+                onClick={() => filteredItems.length > 0 && setShowDeleteAllModal(true)}
+                disabled={filteredItems.length === 0}
+                className={`inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg border border-red-600 text-red-700 dark:text-red-300 bg-white dark:bg-gray-800 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors ${filteredItems.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <Trash2 size={12} />
+                Delete All
+              </button>
             </div>
           </div>
           <div className="mt-4">
@@ -736,11 +734,6 @@ const Trash = () => {
               selectedItems={selectedItems}
               onToggleSelection={handleToggleSelection}
               onSelectAll={handleSelectAll}
-            />
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
-              onPageChange={setCurrentPage}
             />
           </div>
         </div>

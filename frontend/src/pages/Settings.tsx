@@ -60,92 +60,38 @@ const StudyTimerSettings: React.FC = () => {
     updateSettings(tempSettings);
   };
   
+  const inputClass = "w-full px-3 py-2 text-sm border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500";
+  const labelClass = "block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1";
+
   return (
-    <div className="space-y-6">
-      {/* Pomodoro Mode Toggle */}
+    <div className="space-y-4">
       <div>
         <PomodoroModeToggle enabled={pomodoroMode} onToggle={handlePomodoroToggle} />
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-          <strong>Pomodoro ON:</strong> Timer automatically switches between study and break sessions.
-          <br />
-          <strong>Pomodoro OFF:</strong> Timer stops when it reaches 00:00 (no auto-switching).
-          {pomodoroMode && <><br />Classic Pomodoro: 25 min study, 5 min break, 15 min long break, 4 sessions per long break.</>}
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1.5">
+          Pomodoro ON: auto study/break. OFF: timer stops at 00:00.
+          {pomodoroMode && ' Classic: 25 / 5 / 15 min, 4 sessions per long break.'}
         </p>
       </div>
-      
-      {/* Timer Duration Settings */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Study Duration (minutes)
-          </label>
-          <input
-            type="number"
-            value={tempSettings.studyDuration / 60}
-            onChange={(e) => setTempSettings({
-              ...tempSettings,
-              studyDuration: parseInt(e.target.value) * 60
-            })}
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
-            min="1"
-          />
+          <label className={labelClass}>Study (min)</label>
+          <input type="number" value={tempSettings.studyDuration / 60} onChange={(e) => setTempSettings({ ...tempSettings, studyDuration: parseInt(e.target.value || '0') * 60 })} className={inputClass} min={1} />
         </div>
-        
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Break Duration (minutes)
-          </label>
-          <input
-            type="number"
-            value={tempSettings.breakDuration / 60}
-            onChange={(e) => setTempSettings({
-              ...tempSettings,
-              breakDuration: parseInt(e.target.value) * 60
-            })}
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
-            min="1"
-          />
+          <label className={labelClass}>Break (min)</label>
+          <input type="number" value={tempSettings.breakDuration / 60} onChange={(e) => setTempSettings({ ...tempSettings, breakDuration: parseInt(e.target.value || '0') * 60 })} className={inputClass} min={1} />
         </div>
-        
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Long Break Duration (minutes)
-          </label>
-          <input
-            type="number"
-            value={tempSettings.longBreakDuration / 60}
-            onChange={(e) => setTempSettings({
-              ...tempSettings,
-              longBreakDuration: parseInt(e.target.value) * 60
-            })}
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
-            min="1"
-          />
+          <label className={labelClass}>Long break (min)</label>
+          <input type="number" value={tempSettings.longBreakDuration / 60} onChange={(e) => setTempSettings({ ...tempSettings, longBreakDuration: parseInt(e.target.value || '0') * 60 })} className={inputClass} min={1} />
         </div>
-        
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Sessions Until Long Break
-          </label>
-          <input
-            type="number"
-            value={tempSettings.sessionsUntilLongBreak}
-            onChange={(e) => setTempSettings({
-              ...tempSettings,
-              sessionsUntilLongBreak: parseInt(e.target.value)
-            })}
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm"
-            min="1"
-          />
+          <label className={labelClass}>Sessions until long break</label>
+          <input type="number" value={tempSettings.sessionsUntilLongBreak} onChange={(e) => setTempSettings({ ...tempSettings, sessionsUntilLongBreak: parseInt(e.target.value || '0') })} className={inputClass} min={1} />
         </div>
       </div>
-      
-      {/* Save Button */}
-      <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-gray-700">
-        <button
-          onClick={handleSave}
-          className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-        >
+      <div className="flex justify-end pt-2 border-t border-gray-200 dark:border-[#333333]">
+        <button onClick={handleSave} className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1">
           Save Timer Settings
         </button>
       </div>
@@ -624,19 +570,18 @@ const Settings: React.FC = () => {
 
   return (
     <PageLayout>
-      {/* Header and messages at the top */}
       <div className="max-w-5xl mx-auto">
+        {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Settings</h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">Manage your account and preferences</p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">Manage your account and preferences</p>
         </div>
 
-
         {/* Main row: sticky sidebar + content */}
-        <div className="flex flex-col md:flex-row gap-8">
-          {/* Sticky Sidebar */}
-          <div className="w-full md:w-64 mb-6 md:mb-0">
-            <nav className="flex md:flex-col gap-2 md:gap-0 md:sticky md:top-8">
+        <div className="flex flex-col md:flex-row gap-6">
+          {/* Sidebar – compact nav */}
+          <div className="w-full md:w-56 flex-shrink-0 mb-4 md:mb-0">
+            <nav className="flex flex-row md:flex-col gap-1 md:sticky md:top-8 border-b md:border-b-0 border-gray-200 dark:border-gray-700 pb-2 md:pb-0">
               {TABS.map((tab) => (
                 <button
                   key={tab.key}
@@ -647,12 +592,12 @@ const Settings: React.FC = () => {
                       setActiveTab(tab.key as 'profile' | 'general' | 'logs' | 'other' | 'logout');
                     }
                   }}
-                  className={`w-full text-left px-4 py-3 rounded-lg font-medium transition-colors mb-2 md:mb-0 md:mt-0 md:rounded-none md:border-l-4 md:border-l-transparent md:px-6 md:py-2 md:text-base focus:outline-none ${
+                  className={`w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors focus:outline-none md:pl-4 md:border-l-2 ${
                     tab.key === 'logout'
-                      ? 'bg-transparent text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 md:hover:border-l-red-400'
+                      ? 'text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/10 md:border-l-transparent'
                       : activeTab === tab.key
-                        ? 'bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 md:border-l-indigo-600 dark:md:border-l-indigo-400 font-semibold'
-                        : 'bg-transparent text-gray-700 dark:text-gray-300 hover:bg-indigo-50 dark:hover:bg-indigo-900/10 md:hover:border-l-indigo-400'
+                        ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 md:border-l-indigo-600 dark:md:border-l-indigo-400 md:rounded-l-none'
+                        : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 md:border-l-transparent'
                   }`}
                 >
                   {tab.label}
@@ -664,10 +609,9 @@ const Settings: React.FC = () => {
           <div className="flex-1">
             <div>
               {activeTab === 'profile' && (
-                <div className="space-y-8 max-w-2xl mx-auto">
-                  {/* Profile Message */}
+                <div className="space-y-6 max-w-2xl">
                   {profileMessage && (
-                    <div className={`mb-6 p-4 rounded-lg ${
+                    <div className={`p-3 rounded-lg text-sm ${
                       profileMessage.type === 'success'
                         ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-400'
                         : 'bg-red-100 dark:bg-red-900/20 text-red-700 dark:text-red-400'
@@ -675,63 +619,52 @@ const Settings: React.FC = () => {
                       {profileMessage.text}
                     </div>
                   )}
-                  {/* Personal Info Card */}
-                  <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
-                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
-                      <UserIcon size={20} /> Personal Info
+                  {/* Personal Info */}
+                  <div className="bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-[#333333] p-4">
+                    <h2 className="text-base font-semibold mb-3 flex items-center gap-2 text-gray-900 dark:text-white">
+                      <UserIcon size={18} /> Personal Info
                     </h2>
-                    <div className="flex flex-col items-center gap-6 md:flex-row md:items-start">
-                      {/* Avatar */}
-                      <div className="flex flex-col items-center gap-2">
+                    <div className="flex flex-col items-center gap-4 md:flex-row md:items-start">
+                      <div className="flex flex-col items-center gap-1">
                         <div className="relative">
                           {avatarPreview ? (
-                            <img src={avatarPreview} alt="Avatar Preview" className="w-24 h-24 rounded-full object-cover border-2 border-indigo-500" />
+                            <img src={avatarPreview} alt="Avatar Preview" className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500" />
                           ) : profile.avatar ? (
-                            <img src={profile.avatar} alt="Avatar" className="w-24 h-24 rounded-full object-cover border-2 border-indigo-500" />
+                            <img src={profile.avatar} alt="Avatar" className="w-20 h-20 rounded-full object-cover border-2 border-indigo-500" />
                           ) : (
-                            <div className="w-24 h-24 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-2 border-indigo-500">
-                              <UserIcon size={40} className="text-gray-400 dark:text-gray-500" />
+                            <div className="w-20 h-20 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center border-2 border-indigo-500">
+                              <UserIcon size={32} className="text-gray-400 dark:text-gray-500" />
                             </div>
                           )}
-                          <label className="absolute bottom-0 right-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-2 cursor-pointer shadow-lg transition-colors">
-                            <input 
-                              type="file" 
-                              accept="image/*" 
-                              className="hidden" 
-                              onChange={handleAvatarChange}
-                            />
-                            <UserIcon size={16} />
+                          <label className="absolute bottom-0 right-0 bg-indigo-600 hover:bg-indigo-700 text-white rounded-full p-1.5 cursor-pointer transition-colors">
+                            <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
+                            <UserIcon size={14} />
                           </label>
                         </div>
                       </div>
-                      {/* Fields */}
-                      <div className="flex-1 grid grid-cols-1 gap-6">
+                      <div className="flex-1 grid grid-cols-1 gap-4 w-full">
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Username:</label>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Username</label>
                           <div className="relative">
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                              <UserIcon size={18} />
-                            </span>
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-gray-400"><UserIcon size={14} /></span>
                             <input
                               type="text"
                               value={profile.username}
                               onChange={e => handleProfileChange('username', e.target.value)}
-                              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-black dark:text-white shadow-sm focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
+                              className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                               placeholder="Username"
                             />
                           </div>
                         </div>
                         <div>
-                          <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">Email:</label>
+                          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Email</label>
                           <div className="relative">
-                            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
-                              <Mail size={18} />
-                            </span>
+                            <span className="absolute inset-y-0 left-0 flex items-center pl-2.5 text-gray-400"><Mail size={14} /></span>
                             <input
                               type="email"
                               value={profile.email}
                               onChange={e => handleProfileChange('email', e.target.value)}
-                              className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white/80 dark:bg-gray-800/80 text-black dark:text-white shadow-sm focus:shadow-indigo-200 dark:focus:shadow-indigo-900"
+                              className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                               placeholder="Email address"
                             />
                           </div>
@@ -739,150 +672,105 @@ const Settings: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  {/* Security Card */}
-                  <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 p-6">
-                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
-                      <Lock size={20} /> Security
+                  {/* Security */}
+                  <div className="bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-[#333333] p-4">
+                    <h2 className="text-base font-semibold mb-3 flex items-center gap-2 text-gray-900 dark:text-white">
+                      <Lock size={18} /> Security
                     </h2>
-                    <div className="flex flex-col gap-4 md:flex-row md:items-center md:gap-8">
-                      <button onClick={() => setShowPasswordModal(true)} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors">
-                        <Lock size={16} /> Change Password
+                    <div className="flex flex-wrap gap-2">
+                      <button onClick={() => setShowPasswordModal(true)} className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors">
+                        <Lock size={12} /> Change Password
                       </button>
-                      <button onClick={handleDeleteAccountClick} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium flex items-center gap-2 transition-colors">
-                        <Trash2 size={16} /> Delete Account
+                      <button onClick={handleDeleteAccountClick} className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg border border-red-600 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+                        <Trash2 size={12} /> Delete Account
                       </button>
                     </div>
                   </div>
-                  {/* Save Button */}
                   <div className="flex justify-end">
-                    <button onClick={saveProfile} disabled={isProfileSaving} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium flex items-center transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
-                      {isProfileSaving ? (<><div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>Saving...</>) : 'Save Profile'}
+                    <button onClick={saveProfile} disabled={isProfileSaving} className="inline-flex items-center gap-2 h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                      {isProfileSaving ? (<><div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" /> Saving...</>) : 'Save Profile'}
                     </button>
                   </div>
                   {/* Change Password Modal */}
                   {showPasswordModal && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-                      <div className="bg-white dark:bg-gray-900 rounded-xl shadow-lg p-8 w-full max-w-md mx-4">
-                        <h3 className="text-xl font-semibold mb-6 flex items-center gap-2 text-gray-900 dark:text-white">
-                          <Lock size={20}/> Change Password
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+                      <div className="bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-[#333333] shadow-xl p-5 w-full max-w-md mx-4">
+                        <h3 className="text-base font-semibold mb-4 flex items-center gap-2 text-gray-900 dark:text-white">
+                          <Lock size={18} /> Change Password
                         </h3>
-                        <div className="space-y-5">
+                        <div className="space-y-4">
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Current Password</label>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Current Password</label>
                             <input 
                               type="password" 
                               value={passwordFields.current} 
                               onChange={e => {
                                 setPasswordFields(f => ({ ...f, current: e.target.value }));
                                 setPasswordError('');
-                                // Clear validation error when user starts typing
-                                if (validationErrors.current) {
-                                  setValidationErrors(prev => ({ ...prev, current: undefined }));
-                                }
+                                if (validationErrors.current) setValidationErrors(prev => ({ ...prev, current: undefined }));
                               }}
-                              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm ${
-                                validationErrors.current 
-                                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
-                                  : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500'
+                              className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 bg-white dark:bg-[#252525] text-gray-900 dark:text-white ${
+                                validationErrors.current ? 'border-red-500 focus:ring-red-500' : 'border-gray-200 dark:border-[#333333] focus:ring-indigo-500'
                               }`}
-                              placeholder="Enter current password"
+                              placeholder="Current password"
                             />
-                            {validationErrors.current && (
-                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                {validationErrors.current}
-                              </p>
-                            )}
+                            {validationErrors.current && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{validationErrors.current}</p>}
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">New Password</label>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">New Password</label>
                             <input 
                               type="password" 
                               value={passwordFields.new} 
                               onChange={e => {
                                 setPasswordFields(f => ({ ...f, new: e.target.value }));
                                 setPasswordError('');
-                                // Clear validation error when user starts typing
-                                if (validationErrors.new) {
-                                  setValidationErrors(prev => ({ ...prev, new: undefined }));
-                                }
+                                if (validationErrors.new) setValidationErrors(prev => ({ ...prev, new: undefined }));
                               }}
-                              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm ${
-                                validationErrors.new 
-                                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
-                                  : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500'
+                              className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 bg-white dark:bg-[#252525] text-gray-900 dark:text-white ${
+                                validationErrors.new ? 'border-red-500 focus:ring-red-500' : 'border-gray-200 dark:border-[#333333] focus:ring-indigo-500'
                               }`}
-                              placeholder="Enter new password"
+                              placeholder="New password"
                             />
-                            {validationErrors.new && (
-                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                {validationErrors.new}
-                              </p>
-                            )}
-
+                            {validationErrors.new && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{validationErrors.new}</p>}
                           </div>
                           <div>
-                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Confirm New Password</label>
+                            <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Confirm New Password</label>
                             <input 
                               type="password" 
                               value={passwordFields.confirm} 
                               onChange={e => {
                                 setPasswordFields(f => ({ ...f, confirm: e.target.value }));
                                 setPasswordError('');
-                                // Clear validation error when user starts typing
-                                if (validationErrors.confirm) {
-                                  setValidationErrors(prev => ({ ...prev, confirm: undefined }));
-                                }
+                                if (validationErrors.confirm) setValidationErrors(prev => ({ ...prev, confirm: undefined }));
                               }}
-                              className={`w-full px-4 py-3 border rounded-lg focus:outline-none focus:ring-2 transition-all duration-200 bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-sm ${
-                                validationErrors.confirm 
-                                  ? 'border-red-500 focus:ring-red-500 focus:border-red-500' 
-                                  : 'border-gray-300 dark:border-gray-600 focus:ring-indigo-500 focus:border-indigo-500'
+                              className={`w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 bg-white dark:bg-[#252525] text-gray-900 dark:text-white ${
+                                validationErrors.confirm ? 'border-red-500 focus:ring-red-500' : 'border-gray-200 dark:border-[#333333] focus:ring-indigo-500'
                               }`}
                               placeholder="Confirm new password"
                             />
-                            {validationErrors.confirm && (
-                              <p className="mt-1 text-sm text-red-600 dark:text-red-400">
-                                {validationErrors.confirm}
-                              </p>
-                            )}
+                            {validationErrors.confirm && <p className="mt-1 text-xs text-red-600 dark:text-red-400">{validationErrors.confirm}</p>}
                           </div>
                           {passwordError && (
-                            <div className="text-red-600 text-sm bg-red-50 dark:bg-red-900/20 p-3 rounded-lg">
-                              {passwordError}
-                            </div>
+                            <div className="text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20 p-2 rounded-lg">{passwordError}</div>
                           )}
                         </div>
-                        <div className="mt-8 flex justify-end gap-3">
+                        <div className="mt-4 flex justify-end gap-2">
                           <button 
-                            onClick={() => {
-                              setShowPasswordModal(false);
-                              setPasswordFields({ current: '', new: '', confirm: '' });
-                              setPasswordError('');
-                              setValidationErrors({});
-                            }} 
-                            className="px-6 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                            onClick={() => { setShowPasswordModal(false); setPasswordFields({ current: '', new: '', confirm: '' }); setPasswordError(''); setValidationErrors({}); }} 
+                            className="h-7 px-3 text-xs font-medium rounded-lg border border-gray-200 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
                           >
                             Cancel
                           </button>
                           <button 
                             onClick={handleChangePassword}
-                            disabled={isChangingPassword || Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors])}
-                            className={`px-6 py-3 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
-                              (isChangingPassword || Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors])) 
-                                ? 'opacity-70 cursor-not-allowed bg-gray-400' 
+                            disabled={isChangingPassword || Object.keys(validationErrors).some(k => validationErrors[k as keyof typeof validationErrors])}
+                            className={`h-7 px-3 text-xs font-medium rounded-lg flex items-center gap-2 transition-colors ${
+                              isChangingPassword || Object.keys(validationErrors).some(k => validationErrors[k as keyof typeof validationErrors])
+                                ? 'opacity-60 cursor-not-allowed bg-gray-400 dark:bg-gray-600 text-white'
                                 : 'bg-indigo-600 hover:bg-indigo-700 text-white'
                             }`}
                           >
-                            {isChangingPassword ? (
-                              <>
-                                <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white"></div>
-                                Changing...
-                              </>
-                            ) : Object.keys(validationErrors).some(key => validationErrors[key as keyof typeof validationErrors]) ? (
-                              'Please fix validation errors'
-                            ) : (
-                              'Change Password'
-                            )}
+                            {isChangingPassword ? (<><div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" /> Changing...</>) : Object.keys(validationErrors).some(k => validationErrors[k as keyof typeof validationErrors]) ? 'Fix errors' : 'Change Password'}
                           </button>
                         </div>
                       </div>
@@ -1047,131 +935,72 @@ const Settings: React.FC = () => {
               )}
 
               {activeTab === 'general' && (
-                <div className="space-y-6">
-                  {/* Appearance Section */}
-                  <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl shadow-md border border-indigo-100 dark:border-indigo-700">
-                    <div className="p-6">
-                      <div className="flex items-center mb-4">
-                        <div className="p-3 bg-indigo-100 dark:bg-indigo-900/20 rounded-lg">
-                          <Sun size={24} className="text-indigo-600 dark:text-indigo-400" />
-                        </div>
-                        <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
-                          Appearance
-                        </h2>
-                      </div>
-                      <div className="space-y-4">
+                <div className="space-y-4 max-w-2xl">
+                  {/* Appearance */}
+                  <div className="bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-[#333333] p-4">
+                    <h2 className="text-base font-semibold mb-3 flex items-center gap-2 text-gray-900 dark:text-white">
+                      <Sun size={18} className="text-indigo-500 dark:text-indigo-400" /> Appearance
+                    </h2>
+                    <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-2">Theme</label>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => { setTheme('light'); handleSettingChange('theme', 'light'); }}
+                        className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-lg border text-sm transition-colors ${
+                          theme === 'light' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300' : 'border-gray-200 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        <Sun size={20} className="text-gray-600 dark:text-gray-400" />
+                        Light
+                      </button>
+                      <button
+                        onClick={() => { setTheme('dark'); handleSettingChange('theme', 'dark'); }}
+                        className={`flex-1 flex flex-col items-center gap-1 p-3 rounded-lg border text-sm transition-colors ${
+                          theme === 'dark' ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300' : 'border-gray-200 dark:border-[#333333] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        <Moon size={20} className="text-gray-600 dark:text-gray-400" />
+                        Dark
+                      </button>
+                    </div>
+                  </div>
+                  {/* Preferences */}
+                  <div className="bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-[#333333] p-4">
+                    <h2 className="text-base font-semibold mb-3 flex items-center gap-2 text-gray-900 dark:text-white">
+                      <Bell size={18} className="text-green-500 dark:text-green-400" /> Preferences
+                    </h2>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-4">
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                            Theme
-                          </label>
-                          <div className="grid grid-cols-2 gap-4">
-                            <button
-                              onClick={() => {
-                                setTheme('light');
-                                handleSettingChange('theme', 'light');
-                              }}
-                              className={`p-4 rounded-lg border transition-colors ${
-                                theme === 'light'
-                                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                                  : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                              }`}
-                            >
-                              <Sun size={24} className="mx-auto mb-2 text-gray-600 dark:text-gray-400" />
-                              <span className="block text-sm text-gray-700 dark:text-gray-300">Light</span>
-                            </button>
-                            <button
-                              onClick={() => {
-                                setTheme('dark');
-                                handleSettingChange('theme', 'dark');
-                              }}
-                              className={`p-4 rounded-lg border transition-colors ${
-                                theme === 'dark'
-                                  ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                                  : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                              }`}
-                            >
-                              <Moon size={24} className="mx-auto mb-2 text-gray-600 dark:text-gray-400" />
-                              <span className="block text-sm text-gray-700 dark:text-gray-300">Dark</span>
-                            </button>
-                          </div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">Enable Notifications</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Receive notifications for important updates</p>
                         </div>
+                        <button
+                          onClick={() => handleSettingChange('notifications', !settings.notifications)}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${settings.notifications ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.notifications ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                      </div>
+                      <div className="flex items-center justify-between gap-4 pt-3 border-t border-gray-200 dark:border-[#333333]">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">Autosave Notes</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">Automatically save notes while you type</p>
+                        </div>
+                        <button
+                          onClick={() => handleSettingChange('autosaveNotes', !settings.autosaveNotes)}
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${settings.autosaveNotes ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${settings.autosaveNotes ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
                       </div>
                     </div>
                   </div>
-                  {/* Preferences Section */}
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
-                    <div className="p-6">
-                      <div className="flex items-center mb-4">
-                        <div className="p-3 bg-green-100 dark:bg-green-900/20 rounded-lg">
-                          <Bell size={24} className="text-green-600 dark:text-green-400" />
-                        </div>
-                        <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
-                          Preferences
-                        </h2>
-                      </div>
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                              Enable Notifications
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Receive notifications for important updates
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleSettingChange('notifications', !settings.notifications)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              settings.notifications ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                settings.notifications ? 'translate-x-6' : 'translate-x-1'
-                              }`}
-                            />
-                          </button>
-                        </div>
-                        
-                        <div className="flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700">
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                              Autosave Notes
-                            </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
-                              Automatically save notes while you type
-                            </p>
-                          </div>
-                          <button
-                            onClick={() => handleSettingChange('autosaveNotes', !settings.autosaveNotes)}
-                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                              settings.autosaveNotes ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'
-                            }`}
-                          >
-                            <span
-                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                settings.autosaveNotes ? 'translate-x-6' : 'translate-x-1'
-                              }`}
-                            />
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  {/* Study Timer Settings Section */}
-                  <div className="bg-blue-50 dark:bg-blue-900/20 rounded-xl shadow-md border border-blue-100 dark:border-blue-700">
-                    <div className="p-6">
-                      <div className="flex items-center mb-4">
-                        <div className="p-3 bg-blue-100 dark:bg-blue-900/20 rounded-lg">
-                          <Clock size={24} className="text-blue-600 dark:text-blue-400" />
-                        </div>
-                        <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
-                          Study Timer Settings
-                        </h2>
-                      </div>
-                      <StudyTimerSettings />
-                    </div>
+                  {/* Study Timer */}
+                  <div className="bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-[#333333] p-4">
+                    <h2 className="text-base font-semibold mb-3 flex items-center gap-2 text-gray-900 dark:text-white">
+                      <Clock size={18} className="text-blue-500 dark:text-blue-400" /> Study Timer Settings
+                    </h2>
+                    <StudyTimerSettings />
                   </div>
                 </div>
               )}
@@ -1185,23 +1014,16 @@ const Settings: React.FC = () => {
           </div>
         </div>
       </div>
-      {/* Log Out Confirmation Modal */}
       {showLogoutModal && ReactDOM.createPortal(
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-6 max-w-sm w-full mx-4">
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-4">Confirm Logout</h2>
-            <p className="text-gray-600 dark:text-gray-300 mb-6">Are you sure you want to log out of your account?</p>
-            <div className="flex justify-end space-x-3">
-              <button 
-                onClick={() => setShowLogoutModal(false)}
-                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-lg transition-colors focus:outline-none"
-              >
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-[#333333] shadow-xl p-4 max-w-sm w-full mx-4">
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white mb-2">Confirm Logout</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Are you sure you want to log out?</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setShowLogoutModal(false)} className="h-7 px-3 text-xs font-medium rounded-lg border border-gray-200 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors">
                 Cancel
               </button>
-              <button 
-                onClick={handleLogout}
-                className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded-lg transition-colors focus:outline-none"
-              >
+              <button onClick={handleLogout} className="h-7 px-3 text-xs font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors">
                 Log Out
               </button>
             </div>

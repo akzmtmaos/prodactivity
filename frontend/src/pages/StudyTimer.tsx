@@ -539,7 +539,7 @@ const StudyTimer: React.FC = () => {
               title="Study Timer Help" 
             />
           </h1>
-          <p className="text-gray-600 dark:text-gray-400 mt-2">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             Track your study sessions
           </p>
         </div>

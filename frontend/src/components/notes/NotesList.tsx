@@ -171,15 +171,15 @@ const NotesList: React.FC<NotesListProps> = ({
                     <Settings size={14} />
                   </button>
                   {openOptionsNoteId === note.id && (
-                    <div className="absolute right-0 top-full mt-1 py-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50">
-                      <button onClick={() => { onEditNote(note); setOpenOptionsNoteId(null); }} className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-none first:rounded-t-lg">
-                        <Edit size={14} /> Edit
+                    <div className="absolute right-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
+                      <button onClick={() => { onEditNote(note); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                        <Edit size={12} /> Edit
                       </button>
-                      <button onClick={() => { onArchiveNote(note.id, !note.is_archived); setOpenOptionsNoteId(null); }} className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2">
-                        {note.is_archived ? <><RotateCcw size={14} /> Unarchive</> : <><Archive size={14} /> Archive</>}
+                      <button onClick={() => { onArchiveNote(note.id, !note.is_archived); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                        {note.is_archived ? <><RotateCcw size={12} /> Unarchive</> : <><Archive size={12} /> Archive</>}
                       </button>
-                      <button onClick={() => { onDeleteNote(note.id); setOpenOptionsNoteId(null); }} className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-none last:rounded-b-lg">
-                        <Trash2 size={14} /> Delete
+                      <button onClick={() => { onDeleteNote(note.id); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-md mx-0.5">
+                        <Trash2 size={12} /> Delete
                       </button>
                     </div>
                   )}

@@ -33,7 +33,7 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
   );
 
   return (
-    <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
       <div className="flex items-start gap-3">
         {currentView === 'notes' && onBackToNotebooks && (
           <button
@@ -49,7 +49,7 @@ const NotesHeader: React.FC<NotesHeaderProps> = ({
             {currentView === 'notes' && selectedNotebook ? selectedNotebook.name : 'Notebooks'}
             <HelpButton content={notebooksHelpContent} title="Notebooks Help" />
           </h1>
-          <p className="text-lg text-gray-600 dark:text-gray-400 mt-2">
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             {currentView === 'notebooks'
               ? 'Create and manage your notebooks'
               : `${notesCount} ${notesCount === 1 ? 'note' : 'notes'}`}

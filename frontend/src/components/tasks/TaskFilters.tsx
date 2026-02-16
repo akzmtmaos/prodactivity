@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, RotateCcw, Calendar, Flag, ListOrdered } from 'lucide-react';
 import { Task } from '../../types/task';
 
 interface TaskFiltersProps {
@@ -126,17 +126,21 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
         </div>
       )}
 
-      {/* Sort dropdown */}
+      {/* Sort dropdown (icon trigger) */}
       {onSortFieldChange && (
         <div className="relative" ref={sortRef}>
           <button
             type="button"
             onClick={() => { setSortOpen((o) => !o); setPriorityOpen(false); setCategoryOpen(false); }}
-            className={dropdownTrigger}
+            className={`flex items-center justify-center gap-0.5 h-7 px-2.5 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-600 dark:text-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors`}
             aria-expanded={sortOpen}
+            title={SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? 'Sort by'}
+            aria-label={`Sort by ${SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? 'Due Date'}`}
           >
-            {SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? 'Due Date'}
-            <ChevronDown size={12} className={`text-gray-500 dark:text-gray-400 transition-transform ${sortOpen ? 'rotate-180' : ''}`} />
+            {sortField === 'dueDate' && <Calendar size={14} />}
+            {sortField === 'priority' && <Flag size={14} />}
+            {sortField === 'title' && <ListOrdered size={14} />}
+            <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${sortOpen ? 'rotate-180' : ''}`} />
           </button>
           {sortOpen && (
             <div className={dropdownPanel}>
@@ -164,8 +168,8 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
 
       {/* Reset Filters */}
       {onResetFilters && (
-        <button type="button" className={compactButton} onClick={onResetFilters} title="Reset all filters">
-          Reset
+        <button type="button" className={`flex items-center justify-center h-7 w-7 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040]`} onClick={onResetFilters} title="Reset all filters" aria-label="Reset all filters">
+          <RotateCcw size={14} />
         </button>
       )}
     </div>
