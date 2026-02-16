@@ -100,8 +100,8 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
     if (reviewer.source_note) {
       // If we have notebook ID from backend, use it
       if (reviewer.source_note_notebook_id) {
-        console.log('Navigating to:', `/notes/notebooks/${reviewer.source_note_notebook_id}/notes/${reviewer.source_note}`);
-        navigate(`/notes/notebooks/${reviewer.source_note_notebook_id}/notes/${reviewer.source_note}`);
+        console.log('Navigating to:', `/notebooks/${reviewer.source_note_notebook_id}/note/${reviewer.source_note}`);
+        navigate(`/notebooks/${reviewer.source_note_notebook_id}/note/${reviewer.source_note}`);
       } else {
         // Fetch the note to get notebook ID
         console.log('Fetching note to get notebook ID...');
@@ -111,20 +111,20 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
           console.log('Fetched note:', note);
           
           if (note.notebook) {
-            console.log('Navigating to:', `/notes/notebooks/${note.notebook}/notes/${reviewer.source_note}`);
-            navigate(`/notes/notebooks/${note.notebook}/notes/${reviewer.source_note}`);
+            console.log('Navigating to:', `/notebooks/${note.notebook}/note/${reviewer.source_note}`);
+            navigate(`/notebooks/${note.notebook}/note/${reviewer.source_note}`);
           } else {
             console.log('Note has no notebook, going to /notes');
-            navigate('/notes');
+            navigate('/notebooks');
           }
         } catch (err) {
           console.error('Failed to fetch note:', err);
-          navigate('/notes');
+          navigate('/notebooks');
         }
       }
     } else if (reviewer.source_notebook) {
       console.log('Navigating to notebook:', `/notes?notebook=${reviewer.source_notebook}`);
-      navigate(`/notes?notebook=${reviewer.source_notebook}`);
+      navigate(`/notebooks?notebook=${reviewer.source_notebook}`);
     }
   };
 

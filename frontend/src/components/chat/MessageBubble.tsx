@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import MessageAvatar from './MessageAvatar';
 import { Message, ChatRoom, User } from './types';
 import { getAvatarUrl } from './utils';
@@ -192,8 +193,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                                 title: note.title 
                               });
                               
-                              // Navigate to note using the correct route format: /notes/notebooks/:notebookId/notes/:noteId
-                              const targetUrl = `/notes/notebooks/${note.notebook}/notes/${note.id}`;
+                              // Navigate to note: /notebooks/:notebookId/note/:noteId
+                              const targetUrl = `/notebooks/${note.notebook}/note/${note.id}`;
                               console.log('🔗 Navigating to:', targetUrl);
                               navigate(targetUrl, { replace: false });
                               
@@ -210,7 +211,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                               // Only navigate away if it's a real error
                               if (error.response?.status === 404 || error.response?.status === 403) {
                                 console.warn('⚠️ Note not accessible, redirecting to /notes');
-                                navigate('/notes');
+                                navigate('/notebooks');
                               } else if (error.response?.status === 401) {
                                 console.error('🔐 Authentication failed, check token');
                                 // Don't navigate away on auth error, let user see the error
@@ -218,7 +219,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                             }
                           } else if (sharedItem.itemType === 'notebook') {
                             // Navigate to notebook view
-                            navigate(`/notes/notebooks/${sharedItem.itemId}`);
+                            navigate(`/notebooks/${sharedItem.itemId}`);
                           } else if (sharedItem.itemType === 'reviewer') {
                             navigate(`/reviewer/${sharedItem.itemId}`);
                           } else if (sharedItem.itemType === 'task') {
@@ -228,7 +229,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                           console.error('Error loading shared item:', error);
                           // Fallback navigation
                           if (sharedItem.itemType === 'note' || sharedItem.itemType === 'notebook') {
-                            navigate('/notes');
+                            navigate('/notebooks');
                           } else if (sharedItem.itemType === 'reviewer') {
                             navigate('/reviewer');
                           } else if (sharedItem.itemType === 'task') {
@@ -364,18 +365,20 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
         </div>
       </div>
 
-      {/* Expanded Image Modal - Messenger Style with Navigation */}
-      {expandedImage && imageGallery.length > 0 && (
+      {/* Expanded Image Modal - rendered in portal so it appears above the header */}
+      {expandedImage && imageGallery.length > 0 && createPortal(
         <div
-          className="fixed top-0 left-0 right-0 bottom-0 w-screen h-screen z-[9999] bg-black/40 dark:bg-black/60 flex items-center justify-center"
+          className="fixed inset-0 w-full h-full z-[9999] bg-black/90 flex items-center justify-center"
           onClick={() => {
             setExpandedImage(null);
             setImageGallery([]);
             setCurrentImageIndex(0);
           }}
           style={{ margin: 0, padding: 0 }}
+          role="dialog"
+          aria-modal="true"
+          aria-label="View image"
         >
-          {/* Close Button */}
           <button
             className="absolute top-4 right-4 text-white hover:text-gray-300 z-10 p-3 rounded-full hover:bg-white/10 transition-colors"
             onClick={(e) => {
@@ -384,15 +387,16 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               setImageGallery([]);
               setCurrentImageIndex(0);
             }}
+            aria-label="Close"
           >
             <X size={32} />
           </button>
 
-          {/* Previous Button */}
           {imageGallery.length > 1 && (
             <button
               className="absolute left-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 z-10 p-3 rounded-full hover:bg-white/10 transition-colors"
               onClick={handlePrevImage}
+              aria-label="Previous image"
             >
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M15 18l-6-6 6-6"/>
@@ -400,11 +404,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             </button>
           )}
 
-          {/* Next Button */}
           {imageGallery.length > 1 && (
             <button
               className="absolute right-4 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 z-10 p-3 rounded-full hover:bg-white/10 transition-colors"
               onClick={handleNextImage}
+              aria-label="Next image"
             >
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M9 18l6-6-6-6"/>
@@ -412,21 +416,20 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             </button>
           )}
 
-          {/* Image Counter */}
           {imageGallery.length > 1 && (
             <div className="absolute top-4 left-1/2 -translate-x-1/2 text-white bg-black/50 px-4 py-2 rounded-full text-sm z-10">
               {currentImageIndex + 1} / {imageGallery.length}
             </div>
           )}
 
-          {/* Image */}
           <img
             src={expandedImage}
             alt={`Image ${currentImageIndex + 1} of ${imageGallery.length}`}
             className="max-w-full max-h-full object-contain p-4"
             onClick={(e) => e.stopPropagation()}
           />
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );

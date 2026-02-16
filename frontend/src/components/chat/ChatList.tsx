@@ -37,6 +37,7 @@ const ChatList: React.FC<ChatListProps> = ({
         const displayName: string = room.room_type === 'direct' 
           ? (otherParticipant?.username || room.name || 'Unknown User')
           : (room.name || 'Group Chat');
+        const avatarSrc = room.room_type === 'direct' ? otherParticipant?.avatar : room.avatar_url;
         
         return (
           <button
@@ -48,9 +49,9 @@ const ChatList: React.FC<ChatListProps> = ({
           >
             <div className="flex items-start gap-3">
               <div className="flex-shrink-0">
-                {room.room_type === 'direct' && otherParticipant?.avatar ? (
+                {avatarSrc ? (
                   <img
-                    src={otherParticipant.avatar}
+                    src={avatarSrc}
                     alt={displayName}
                     className="w-12 h-12 rounded-full object-cover"
                     onError={(e) => {

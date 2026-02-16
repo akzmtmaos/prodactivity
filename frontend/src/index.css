@@ -76,6 +76,15 @@ html {
   scrollbar-color: #cbd5e1 #f1f1f1;
 }
 
+/* Hide scrollbar but keep scroll behavior (e.g. chat message field) */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
 /* Dark mode - Supabase-style neutral grays (#1e1e1e) */
 .dark {
   color-scheme: dark;
@@ -228,6 +237,12 @@ html.image-modal-active body aside[class*="fixed"] {
   visibility: hidden !important;
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+/* Put header behind the image viewer overlay when viewing a chat image */
+body.image-modal-active header,
+html.image-modal-active header {
+  z-index: 0 !important;
 }
 
 /* Ensure image modal covers full screen without gaps */

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-// axios import not needed; using Supabase only
+import { Plus, Search, LayoutList } from 'lucide-react';
+import HeaderTooltip from '../components/common/HeaderTooltip';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
 import TaskList from '../components/tasks/TaskList';
@@ -81,7 +82,23 @@ const TasksContent = ({ user }: { user: any }) => {
 
   // State for tabs
   const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed' | 'assigned'>('tasks');
-  
+  const [taskListViewMode, setTaskListViewMode] = useState<'comfortable' | 'compact'>(() => {
+    try {
+      const saved = localStorage.getItem('prodactivity-tasks-list-view');
+      return saved === 'compact' ? 'compact' : 'comfortable';
+    } catch {
+      return 'comfortable';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('prodactivity-tasks-list-view', taskListViewMode);
+    } catch {
+      // ignore
+    }
+  }, [taskListViewMode]);
+
   // State for pre-selected category when adding task from category tab
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
@@ -960,65 +977,31 @@ const TasksContent = ({ user }: { user: any }) => {
     <PageLayout>
       <div className="space-y-6">
         <div className="max-w-7xl mx-auto">
-          {/* Header section with filters on same line */}
-          <div className="mb-8 flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-center">
-                Tasks
-                <HelpButton 
-                  content={
-                    <div>
-                      <p className="font-semibold mb-2">Task Management</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• <strong>Create Tasks:</strong> Add new tasks with due dates and priorities</li>
-                        <li>• <strong>Priority Levels:</strong> High, Medium, Low priority tasks</li>
-                        <li>• <strong>Due Dates:</strong> Set deadlines and track overdue tasks</li>
-                        <li>• <strong>Subtasks:</strong> Break down complex tasks into smaller parts</li>
-                        <li>• <strong>Time Tracking:</strong> Log time spent on tasks</li>
-                        <li>• <strong>Evidence Upload:</strong> Attach files as proof of completion</li>
-                        <li>• <strong>Archive/Delete:</strong> Organize completed and old tasks</li>
-                      </ul>
-                    </div>
-                  } 
-                  title="Tasks Help" 
-                />
-              </h1>
-              <p className="text-lg text-gray-600 dark:text-gray-400">
-                Manage and track your tasks
-              </p>
-            </div>
-            
-            {/* Search and Add Task button */}
-            <div className="flex items-center gap-4">
-              {/* Search input */}
-              <div className="relative">
-                <input
-                  type="text"
-                  className="block w-64 rounded-md border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white pl-10 pr-3 py-2 text-sm"
-                  placeholder="Search tasks..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                />
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <svg className="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                  </svg>
-                </div>
-              </div>
-              
-              <button
-                className="inline-flex items-center h-10 min-w-[140px] px-4 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                onClick={() => {
-                  setEditingTask(undefined);
-                  setIsFormOpen(true);
-                }}
-              >
-                <svg className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-                Add Task
-              </button>
-            </div>
+          {/* Header – title only; Search + Add Task moved to filter row below */}
+          <div className="mb-4">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-center">
+              Tasks
+              <HelpButton
+                content={
+                  <div>
+                    <p className="font-semibold mb-2">Task Management</p>
+                    <ul className="space-y-1 text-xs">
+                      <li>• <strong>Create Tasks:</strong> Add new tasks with due dates and priorities</li>
+                      <li>• <strong>Priority Levels:</strong> High, Medium, Low priority tasks</li>
+                      <li>• <strong>Due Dates:</strong> Set deadlines and track overdue tasks</li>
+                      <li>• <strong>Subtasks:</strong> Break down complex tasks into smaller parts</li>
+                      <li>• <strong>Time Tracking:</strong> Log time spent on tasks</li>
+                      <li>• <strong>Evidence Upload:</strong> Attach files as proof of completion</li>
+                      <li>• <strong>Archive/Delete:</strong> Organize completed and old tasks</li>
+                    </ul>
+                  </div>
+                }
+                title="Tasks Help"
+              />
+            </h1>
+            <p className="text-lg text-gray-600 dark:text-gray-400">
+              Manage and track your tasks
+            </p>
           </div>
 
           {/* Task summary */}
@@ -1030,11 +1013,11 @@ const TasksContent = ({ user }: { user: any }) => {
             dueTodayCount={taskStats.due_today}
           />
 
-          {/* Tabs for Tasks and Completed with Search on the right */}
-          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-6">
+          {/* Tabs + Filters row (same style as Decks: compact tabs, filters + search + Add Task on right) */}
+          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-4 gap-4 flex-wrap">
             <div className="flex space-x-4">
               <button
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'tasks'
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -1044,7 +1027,7 @@ const TasksContent = ({ user }: { user: any }) => {
                 All Tasks
               </button>
               <button
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'categories'
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -1054,7 +1037,7 @@ const TasksContent = ({ user }: { user: any }) => {
                 Category
               </button>
               <button
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'completed'
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -1064,7 +1047,7 @@ const TasksContent = ({ user }: { user: any }) => {
                 Completed
               </button>
               <button
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'assigned'
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -1074,9 +1057,25 @@ const TasksContent = ({ user }: { user: any }) => {
                 Assigned to Me
               </button>
             </div>
-            
-            {/* Filters on the right */}
-            <div className="flex items-center gap-4">
+            {/* Filters + Search + Add Task (compact, same sizing as Decks) */}
+            <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
+              {/* List view toggle – only when showing task list (not categories) */}
+              {activeTab !== 'categories' && (
+                <HeaderTooltip label={taskListViewMode === 'compact' ? 'Comfortable list' : 'Compact list'}>
+                  <button
+                    type="button"
+                    onClick={() => setTaskListViewMode((m) => (m === 'compact' ? 'comfortable' : 'compact'))}
+                    className={`flex items-center justify-center h-7 px-2.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                      taskListViewMode === 'compact'
+                        ? 'border-indigo-400 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-300 dark:border-indigo-400 dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:text-white dark:focus:ring-indigo-500'
+                        : 'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                    }`}
+                    aria-label={taskListViewMode === 'compact' ? 'Switch to comfortable list' : 'Switch to compact list'}
+                  >
+                    <LayoutList size={14} className={taskListViewMode === 'compact' ? 'text-white' : 'text-gray-400'} />
+                  </button>
+                </HeaderTooltip>
+              )}
               <TaskFilters
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
@@ -1099,6 +1098,27 @@ const TasksContent = ({ user }: { user: any }) => {
                   setSortDirection('asc');
                 }}
               />
+              <div className="relative w-full sm:w-48">
+                <Search size={14} className="absolute left-2 top-1.5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search tasks..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full pl-7 pr-2 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingTask(undefined);
+                  setIsFormOpen(true);
+                }}
+                className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+              >
+                <Plus size={14} className="mr-1.5" />
+                Add Task
+              </button>
             </div>
           </div>
 
@@ -1214,7 +1234,7 @@ const TasksContent = ({ user }: { user: any }) => {
                                 setEditingTask(undefined);
                                 setIsFormOpen(true);
                               }}
-                              compact={true}
+                              compact={taskListViewMode === 'compact'}
                             />
                           </div>
                         </div>
@@ -1271,6 +1291,7 @@ const TasksContent = ({ user }: { user: any }) => {
                     setEditingTask(undefined);
                     setIsFormOpen(true);
                   }}
+                  compact={taskListViewMode === 'compact'}
                 />
                 
                 {/* Pagination Controls */}

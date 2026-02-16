@@ -93,6 +93,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
     const routeTitles: { [key: string]: string } = {
       '/': 'Home',
       '/notes': 'Notebooks',
+      '/notebooks': 'Notebooks',
       '/tasks': 'Tasks',
       '/decks': 'Flashcards',
       '/progress': 'Progress',
@@ -105,7 +106,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
       '/settings': 'Settings',
       '/profile': 'Profile',
     };
-    if (location.pathname.startsWith('/notes')) return 'Notebooks';
+    if (location.pathname.startsWith('/notes') || location.pathname.startsWith('/notebooks')) return 'Notebooks';
     return routeTitles[location.pathname] || 'ProdActivity';
   };
 
@@ -283,7 +284,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
               </button>
               <button
                 onClick={() => {
-                  navigate('/notes');
+                  navigate('/notebooks');
                   setMobileMenuOpen(false);
                 }}
                 className="w-full text-left px-4 py-3 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"

@@ -11,6 +11,9 @@ import {
   MessagesList,
   MessageInput,
   ProfileView,
+  CreateGroupChatModal,
+  AddMembersToGroupModal,
+  GroupInfoPanel,
   type ChatRoom,
   type User,
   type Message,
@@ -20,7 +23,7 @@ import {
 
 const Chat = () => {
   const { isCollapsed } = useNavbar();
-  const { userId } = useParams<{ userId?: string }>();
+  const { userId, roomId } = useParams<{ userId?: string; roomId?: string }>();
   const location = useLocation();
   const navigate = useNavigate();
   const [user, setUser] = useState<any | null>(null);
@@ -35,6 +38,8 @@ const Chat = () => {
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
+  const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+  const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -101,13 +106,14 @@ const Chat = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, user?.id]);
 
+  // Only clear and refetch messages when the room *id* changes, not when selectedRoom is replaced with a new object ref (e.g. after fetchChatRooms)
   useEffect(() => {
-    if (selectedRoom?.id) {
+    const roomId = selectedRoom?.id;
+    if (roomId) {
       setMessages([]);
-      fetchMessages(selectedRoom.id);
-      const unsubscribe = subscribeToMessages(selectedRoom.id);
-      markAsRead(selectedRoom.id);
-      
+      fetchMessages(roomId);
+      const unsubscribe = subscribeToMessages(roomId);
+      markAsRead(roomId);
       return () => {
         if (unsubscribe) {
           unsubscribe();
@@ -121,7 +127,7 @@ const Chat = () => {
       setMessages([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRoom]);
+  }, [selectedRoom?.id]);
 
   useEffect(() => {
     scrollToBottom();
@@ -199,6 +205,8 @@ const Chat = () => {
           name: roomName,
           room_type: room.room_type,
           created_at: room.created_at,
+          created_by: room.created_by ?? undefined,
+          avatar_url: room.avatar_url ?? undefined,
           last_message: lastMessage ? {
             content: lastMessage.content,
             created_at: lastMessage.created_at,
@@ -504,6 +512,137 @@ const Chat = () => {
     }
   };
 
+  const createGroupChat = async (name: string, memberIds: string[]) => {
+    if (!user?.id) return;
+    const currentUserId = String(user.id);
+    try {
+      const { data: newRoom, error: roomError } = await supabase
+        .from('chat_rooms')
+        .insert({
+          room_type: 'group',
+          name: name.trim(),
+          created_by: currentUserId,
+        })
+        .select()
+        .single();
+      if (roomError) throw roomError;
+      const participants = [{ room_id: newRoom.id, user_id: currentUserId }, ...memberIds.map((user_id) => ({ room_id: newRoom.id, user_id }))];
+      const { error: participantsError } = await supabase.from('room_participants').insert(participants);
+      if (participantsError) throw participantsError;
+      await fetchChatRooms();
+      const { data: participantUsers } = await supabase
+        .from('profiles')
+        .select('id, username, email, avatar')
+        .in('id', [currentUserId, ...memberIds]);
+      const processedUsers = (participantUsers || []).map((u: any) => ({
+        ...u,
+        id: String(u.id),
+        avatar: getAvatarUrl(u.avatar),
+      }));
+      const chatRoom: ChatRoom = {
+        id: newRoom.id,
+        name: newRoom.name || name,
+        room_type: 'group',
+        created_at: newRoom.created_at,
+        created_by: newRoom.created_by ?? currentUserId,
+        participants: processedUsers,
+      };
+      setSelectedRoom(chatRoom);
+      setActiveView('groups');
+      navigate(`/chat/group/${chatRoom.id}`, { replace: true });
+      setToast({ message: 'Group created', type: 'success' });
+    } catch (error: any) {
+      console.error('Error creating group:', error);
+      setToast({ message: error?.message || 'Failed to create group', type: 'error' });
+      throw error;
+    }
+  };
+
+  const refreshSelectedRoomParticipants = async () => {
+    if (!selectedRoom?.id || !user?.id) return;
+    const { data: participants } = await supabase
+      .from('room_participants')
+      .select('user_id')
+      .eq('room_id', selectedRoom.id);
+    const ids = (participants || []).map((p: any) => String(p.user_id));
+    if (ids.length === 0) return;
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, username, email, avatar')
+      .in('id', ids);
+    const processed = (profiles || []).map((p: any) => ({
+      ...p,
+      id: String(p.id),
+      avatar: getAvatarUrl(p.avatar),
+    }));
+    setSelectedRoom((prev) => (prev ? { ...prev, participants: processed } : null));
+    await fetchChatRooms();
+  };
+
+  // Updates group name and/or avatar. Requires chat_rooms.avatar_url column for photo (run: ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS avatar_url TEXT;)
+  const updateGroupRoom = async (id: string, updates: { name?: string; avatar_url?: string | null }) => {
+    try {
+      const { error } = await supabase
+        .from('chat_rooms')
+        .update(updates)
+        .eq('id', id);
+      if (error) throw error;
+      setSelectedRoom((prev) => {
+        if (!prev || prev.id !== id) return prev;
+        return { ...prev, ...updates };
+      });
+      await fetchChatRooms();
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to update group';
+      setToast({ message: msg, type: 'error' });
+      throw err;
+    }
+  };
+
+  const uploadGroupPhoto = async (id: string, file: File): Promise<string | null> => {
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const path = `group_avatars/${id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('chat_attachments')
+        .upload(path, file, { cacheControl: '3600', upsert: true });
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from('chat_attachments').getPublicUrl(path);
+      return data?.publicUrl ?? null;
+    } catch (err: any) {
+      const msg = err?.message || 'Failed to upload photo';
+      setToast({ message: msg, type: 'error' });
+      throw err;
+    }
+  };
+
+  const removeGroupMember = async (roomId: string, userId: string) => {
+    if (!user?.id || !selectedRoom) return;
+    const currentUserId = String(user.id);
+    const createdBy = selectedRoom.created_by ?? null;
+    if (!createdBy || String(createdBy) !== currentUserId) {
+      setToast({ message: 'Only the group owner can remove members', type: 'error' });
+      return;
+    }
+    if (userId === currentUserId) {
+      setToast({ message: 'You cannot remove yourself', type: 'error' });
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from('room_participants')
+        .delete()
+        .eq('room_id', roomId)
+        .eq('user_id', userId);
+      if (error) throw error;
+      await refreshSelectedRoomParticipants();
+      setToast({ message: 'Member removed', type: 'success' });
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Failed to remove member', type: 'error' });
+      throw err;
+    }
+  };
+
   const createOrGetDirectRoom = async (otherUserId: string) => {
     if (!user?.id) return null;
 
@@ -645,27 +784,31 @@ const Chat = () => {
     if (!room) {
       setSelectedRoom(null);
       setViewingProfile(null);
-      if (userId) {
-        navigate('/chat', { replace: true });
-      }
+      navigate('/chat', { replace: true });
       return;
     }
-    
     setSelectedRoom(room);
     setViewingProfile(null);
-    // Update URL if it's a direct chat
     if (room.room_type === 'direct' && user?.id) {
       const otherParticipant = room.participants?.find(p => String(p.id) !== String(user.id));
       if (otherParticipant) {
         navigate(`/chat/${otherParticipant.id}`, { replace: true });
       }
     } else {
-      // For group chats, navigate to base chat
-      if (userId) {
-        navigate('/chat', { replace: true });
-      }
+      navigate(`/chat/group/${room.id}`, { replace: true });
     }
   };
+
+  // When URL has /chat/group/:roomId, select that group room (avoid replacing same room with new ref so messages don't clear)
+  useEffect(() => {
+    if (!roomId || !user?.id) return;
+    const existing = chatRooms.find((r) => r.id === roomId && r.room_type === 'group');
+    if (existing) {
+      setSelectedRoom((prev) => (prev?.id === existing.id ? prev : existing));
+      setActiveView('groups');
+      setViewingProfile(null);
+    }
+  }, [roomId, user?.id, chatRooms]);
 
   // Handle URL parameter to automatically start/open chat with user (e.g. from profile page Message button)
   useEffect(() => {
@@ -715,10 +858,10 @@ const Chat = () => {
 
   // Clear URL when room is cleared
   useEffect(() => {
-    if (selectedRoom === null && userId) {
+    if (selectedRoom === null && (userId || roomId)) {
       navigate('/chat', { replace: true });
     }
-  }, [selectedRoom, userId]);
+  }, [selectedRoom, userId, roomId]);
 
   const uploadAttachments = async (attachments: Attachment[]): Promise<Attachment[]> => {
     if (!attachments || attachments.length === 0) return [];
@@ -1102,12 +1245,17 @@ const Chat = () => {
             onViewChange={setActiveView}
             onSearchChange={setSearchTerm}
             onRoomSelect={handleRoomSelect}
+            onCreateGroupClick={() => setShowCreateGroupModal(true)}
           />
 
-          <div className="flex-1 flex flex-col transition-opacity duration-200 h-full">
+          <div className="flex-1 flex flex-col transition-opacity duration-200 h-full min-w-0">
             {selectedRoom ? (
               <>
-                <ChatHeader room={selectedRoom} currentUserId={String(user.id)} />
+                <ChatHeader
+                  room={selectedRoom}
+                  currentUserId={String(user.id)}
+                  onAddMembers={selectedRoom.room_type === 'group' ? () => setShowAddMembersModal(true) : undefined}
+                />
                 
                 <MessagesList
                   messages={messages}
@@ -1144,9 +1292,46 @@ const Chat = () => {
               </div>
             )}
           </div>
+
+          {selectedRoom?.room_type === 'group' && (
+            <GroupInfoPanel
+              room={selectedRoom}
+              currentUserId={String(user.id)}
+              createdBy={selectedRoom.created_by}
+              onUpdateRoom={async (updates) => {
+                await updateGroupRoom(selectedRoom.id, updates);
+              }}
+              onPhotoChange={async (file) => uploadGroupPhoto(selectedRoom.id, file)}
+              onAddMembers={() => setShowAddMembersModal(true)}
+              onRemoveMember={
+                selectedRoom.created_by && String(selectedRoom.created_by) === String(user.id)
+                  ? (userId) => removeGroupMember(selectedRoom.id, userId)
+                  : undefined
+              }
+            />
+          )}
         </div>
       </div>
 
+      {showCreateGroupModal && (
+        <CreateGroupChatModal
+          isOpen={showCreateGroupModal}
+          onClose={() => setShowCreateGroupModal(false)}
+          currentUserId={String(user.id)}
+          onCreateGroup={createGroupChat}
+        />
+      )}
+      {showAddMembersModal && selectedRoom && selectedRoom.room_type === 'group' && (
+        <AddMembersToGroupModal
+          isOpen={showAddMembersModal}
+          onClose={() => setShowAddMembersModal(false)}
+          roomId={selectedRoom.id}
+          roomName={selectedRoom.name || 'Group'}
+          currentUserId={String(user.id)}
+          currentParticipantIds={(selectedRoom.participants || []).map((p) => String(p.id))}
+          onAdded={refreshSelectedRoomParticipants}
+        />
+      )}
       {toast && (
         <Toast
           message={toast.message}

@@ -143,7 +143,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     { path: "/chat", name: "Find Friends", icon: <Users size={18} />, isFindFriends: true },
     { path: "/chat", name: "Messages", icon: <MessageCircle size={18} /> },
     { path: "/progress", name: "Progress", icon: <BarChart2 size={18} /> },
-    { path: "/notes", name: "Notebooks", icon: <FileText size={18} /> },
+    { path: "/notebooks", name: "Notebooks", icon: <FileText size={18} /> },
     { path: "/decks", name: "Flashcards", icon: <Layers size={18} /> },
     { path: "/tasks", name: "Tasks", icon: <CheckSquare size={18} /> },
   ];

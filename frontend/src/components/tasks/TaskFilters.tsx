@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { Task } from '../../types/task';
 
 interface TaskFiltersProps {
@@ -15,14 +16,32 @@ interface TaskFiltersProps {
   onSortFieldChange?: (value: 'dueDate' | 'priority' | 'title') => void;
   sortDirection?: 'asc' | 'desc';
   onSortDirectionChange?: (value: 'asc' | 'desc') => void;
-  onResetFilters?: () => void; // New prop
+  onResetFilters?: () => void;
 }
 
+const PRIORITY_OPTIONS: { value: Task['priority'] | 'all'; label: string }[] = [
+  { value: 'all', label: 'All Priorities' },
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+];
+
+const SORT_OPTIONS: { value: 'dueDate' | 'priority' | 'title'; label: string }[] = [
+  { value: 'dueDate', label: 'Due Date' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'title', label: 'Title' },
+];
+
+const compactButton =
+  'h-7 px-2.5 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040]';
+
+const dropdownTrigger =
+  'flex items-center justify-center gap-1 h-7 pl-2.5 pr-2 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors';
+
+const dropdownPanel = 'absolute left-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 py-1';
+const dropdownItem = 'w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap';
+
 const TaskFilters: React.FC<TaskFiltersProps> = ({
-  searchTerm,
-  onSearchChange,
-  filterCompleted,
-  onFilterCompletedChange,
   filterPriority,
   onFilterPriorityChange,
   filterCategory = 'all',
@@ -34,72 +53,121 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
   onSortDirectionChange,
   onResetFilters,
 }) => {
+  const [priorityOpen, setPriorityOpen] = useState(false);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const priorityRef = useRef<HTMLDivElement>(null);
+  const categoryRef = useRef<HTMLDivElement>(null);
+  const sortRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (priorityRef.current && !priorityRef.current.contains(e.target as Node)) setPriorityOpen(false);
+      if (categoryRef.current && !categoryRef.current.contains(e.target as Node)) setCategoryOpen(false);
+      if (sortRef.current && !sortRef.current.contains(e.target as Node)) setSortOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
-    <div className="flex flex-wrap gap-3 items-center">
-        {/* Priority filter */}
-        <select
-          className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-          value={filterPriority}
-          onChange={(e) => onFilterPriorityChange(e.target.value as Task['priority'] | 'all')}
+    <div className="flex flex-wrap gap-2 items-center">
+      {/* Priority dropdown */}
+      <div className="relative" ref={priorityRef}>
+        <button
+          type="button"
+          onClick={() => { setPriorityOpen((o) => !o); setCategoryOpen(false); setSortOpen(false); }}
+          className={dropdownTrigger}
+          aria-expanded={priorityOpen}
         >
-          <option value="all">All Priorities</option>
-          <option value="low">Low</option>
-          <option value="medium">Medium</option>
-          <option value="high">High</option>
-        </select>
-        
-        {/* Category filter */}
-        {onFilterCategoryChange && categories.length > 0 && (
-          <select
-            className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            value={filterCategory}
-            onChange={(e) => onFilterCategoryChange(e.target.value)}
-          >
-            <option value="all">All Categories</option>
-            {categories.map((category) => (
-              <option key={category} value={category}>
-                {category}
-              </option>
+          {PRIORITY_OPTIONS.find((o) => o.value === filterPriority)?.label ?? 'All Priorities'}
+          <ChevronDown size={12} className={`text-gray-500 dark:text-gray-400 transition-transform ${priorityOpen ? 'rotate-180' : ''}`} />
+        </button>
+        {priorityOpen && (
+          <div className={dropdownPanel}>
+            {PRIORITY_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => { onFilterPriorityChange(opt.value); setPriorityOpen(false); }}
+                className={dropdownItem}
+              >
+                {opt.label}
+              </button>
             ))}
-          </select>
+          </div>
         )}
-        
-        {/* Sort by field */}
-        {onSortFieldChange && (
-          <select
-            className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white py-2 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-            value={sortField}
-            onChange={(e) => onSortFieldChange(e.target.value as 'dueDate' | 'priority' | 'title')}
-          >
-            <option value="dueDate">Sort by Due Date</option>
-            <option value="priority">Sort by Priority</option>
-            <option value="title">Sort by Title</option>
-          </select>
-        )}
-        
-        {/* Sort direction */}
-        {onSortDirectionChange && (
+      </div>
+
+      {/* Category dropdown */}
+      {onFilterCategoryChange && categories.length > 0 && (
+        <div className="relative" ref={categoryRef}>
           <button
             type="button"
-            onClick={() => onSortDirectionChange(sortDirection === 'asc' ? 'desc' : 'asc')}
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white text-sm hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            title={`Sort ${sortDirection === 'asc' ? 'Ascending' : 'Descending'}`}
+            onClick={() => { setCategoryOpen((o) => !o); setPriorityOpen(false); setSortOpen(false); }}
+            className={dropdownTrigger}
+            aria-expanded={categoryOpen}
           >
-            {sortDirection === 'asc' ? '↑' : '↓'}
+            {filterCategory === 'all' ? 'All Categories' : filterCategory}
+            <ChevronDown size={12} className={`text-gray-500 dark:text-gray-400 transition-transform ${categoryOpen ? 'rotate-180' : ''}`} />
           </button>
-        )}
-        
-        {/* Reset Filters Button */}
-        {onResetFilters && (
+          {categoryOpen && (
+            <div className={`${dropdownPanel} max-h-56 overflow-y-auto`}>
+              <button type="button" onClick={() => { onFilterCategoryChange('all'); setCategoryOpen(false); }} className={dropdownItem}>
+                All Categories
+              </button>
+              {categories.map((cat) => (
+                <button key={cat} type="button" onClick={() => { onFilterCategoryChange(cat); setCategoryOpen(false); }} className={dropdownItem}>
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sort dropdown */}
+      {onSortFieldChange && (
+        <div className="relative" ref={sortRef}>
           <button
             type="button"
-            className="ml-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-200 text-sm hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition"
-            onClick={onResetFilters}
-            title="Reset all filters"
+            onClick={() => { setSortOpen((o) => !o); setPriorityOpen(false); setCategoryOpen(false); }}
+            className={dropdownTrigger}
+            aria-expanded={sortOpen}
           >
-            Reset Filters
+            {SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? 'Due Date'}
+            <ChevronDown size={12} className={`text-gray-500 dark:text-gray-400 transition-transform ${sortOpen ? 'rotate-180' : ''}`} />
           </button>
-        )}
+          {sortOpen && (
+            <div className={dropdownPanel}>
+              {SORT_OPTIONS.map((opt) => (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => { onSortFieldChange(opt.value); setSortOpen(false); }}
+                  className={dropdownItem}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sort direction */}
+      {onSortDirectionChange && (
+        <button type="button" onClick={() => onSortDirectionChange(sortDirection === 'asc' ? 'desc' : 'asc')} className={compactButton} title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}>
+          {sortDirection === 'asc' ? '↑' : '↓'}
+        </button>
+      )}
+
+      {/* Reset Filters */}
+      {onResetFilters && (
+        <button type="button" className={compactButton} onClick={onResetFilters} title="Reset all filters">
+          Reset
+        </button>
+      )}
     </div>
   );
 };

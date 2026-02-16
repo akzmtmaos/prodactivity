@@ -214,6 +214,14 @@ function App() {
               }
             />
             <Route
+              path="/chat/group/:roomId"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Chat />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/chat/:userId?"
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
@@ -235,8 +243,38 @@ function App() {
                 )
               }
             />
+            {/* /notes redirects to /notebooks (default) */}
+            <Route path="/notes" element={<Navigate to="/notebooks" replace />} />
+            {/* Notebooks list (default view): /notebooks */}
             <Route
-              path="/notes"
+              path="/notebooks"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Notes />
+                </PrivateRoute>
+              }
+            />
+            {/* Single notebook: /notebooks/{notebookId} */}
+            <Route
+              path="/notebooks/:notebookId"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Notes />
+                </PrivateRoute>
+              }
+            />
+            {/* Note document: /notebooks/{notebookId}/note/{noteId} */}
+            <Route
+              path="/notebooks/:notebookId/note/:noteId"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Notes />
+                </PrivateRoute>
+              }
+            />
+            {/* Legacy: old /notes/notebooks/... URLs still work (same component) */}
+            <Route
+              path="/notes/notebooks"
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
                   <Notes />
@@ -252,6 +290,14 @@ function App() {
               }
             />
             <Route
+              path="/notes/notebooks/:notebookId/note/:noteId"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Notes />
+                </PrivateRoute>
+              }
+            />
+            <Route
               path="/notes/notebooks/:notebookId/notes/:noteId"
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
@@ -259,7 +305,15 @@ function App() {
                 </PrivateRoute>
               }
             />
-            {/* Legacy route for backward compatibility */}
+            <Route
+              path="/notes/notebooks/:notebookId/:noteId"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Notes />
+                </PrivateRoute>
+              }
+            />
+            {/* Legacy: /notes/:id (single note id) */}
             <Route
               path="/notes/:id"
               element={

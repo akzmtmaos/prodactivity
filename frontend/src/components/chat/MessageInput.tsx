@@ -53,12 +53,17 @@ const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, []);
 
-  // Auto-resize textarea
+  // Auto-resize textarea: single-line height (32px) when empty, grow up to 96px when typing
+  const LINE_HEIGHT_PX = 32;
+  const MAX_HEIGHT_PX = 96;
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
       textarea.style.height = 'auto';
-      textarea.style.height = `${Math.min(textarea.scrollHeight, 128)}px`; // Max 128px
+      const h = !newMessage.trim()
+        ? LINE_HEIGHT_PX
+        : Math.min(textarea.scrollHeight, MAX_HEIGHT_PX);
+      textarea.style.height = `${h}px`;
     }
   }, [newMessage]);
 
@@ -215,8 +220,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="p-4">
-        <div className="flex gap-2 items-end">
+      <form onSubmit={handleSubmit} className="px-2 py-2">
+        <div className="flex gap-1 items-center">
           {/* File Input (hidden) */}
           <input
             ref={fileInputRef}
@@ -227,18 +232,18 @@ const MessageInput: React.FC<MessageInputProps> = ({
             className="hidden"
           />
 
-          {/* Attachment Button */}
+          {/* Attachment Button - h-8 for a bit more presence */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
             disabled={isSendingMessage}
-            className="p-2 text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="h-8 w-8 flex-shrink-0 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Attach file or image"
           >
-            <Paperclip size={20} />
+            <Paperclip size={18} />
           </button>
 
-          {/* Text Input */}
+          {/* Text Input - h-8 min height, equal padding */}
           <textarea
             ref={textareaRef}
             value={newMessage}
@@ -246,8 +251,8 @@ const MessageInput: React.FC<MessageInputProps> = ({
             placeholder={isDragging ? "Drop files here..." : "Type a message..."}
             disabled={isSendingMessage}
             rows={1}
-            className="flex-1 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed resize-none max-h-32 overflow-y-auto"
-            style={{ minHeight: '40px', height: 'auto' }}
+            className="flex-1 min-h-[32px] min-w-0 px-2 py-2 text-xs leading-4 border border-gray-200 dark:border-[#333333] rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white dark:bg-[#252525] text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed resize-none max-h-24 overflow-y-auto scrollbar-hide box-border"
+            style={{ height: '32px' }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
@@ -256,13 +261,13 @@ const MessageInput: React.FC<MessageInputProps> = ({
             }}
           />
 
-          {/* Send Button */}
+          {/* Send Button - h-8 to match field and attach */}
           <button
             type="submit"
             disabled={(!newMessage.trim() && attachments.length === 0) || isSendingMessage}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+            className="h-8 px-3 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1"
           >
-            <Send size={18} />
+            <Send size={16} />
             Send
           </button>
         </div>

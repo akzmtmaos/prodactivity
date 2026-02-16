@@ -143,14 +143,14 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
 
   const handleSourceClick = () => {
     if (reviewer.source_note && reviewer.source_note_notebook_id) {
-      navigate(`/notes/notebooks/${reviewer.source_note_notebook_id}/notes/${reviewer.source_note}`);
+      navigate(`/notebooks/${reviewer.source_note_notebook_id}/note/${reviewer.source_note}`);
       onClose();
     } else if (reviewer.source_note) {
       // Fallback: go to notes page if notebook ID not available
-      navigate('/notes');
+      navigate('/notebooks');
       onClose();
     } else if (reviewer.source_notebook) {
-      navigate(`/notes?notebook=${reviewer.source_notebook}`);
+      navigate(`/notebooks?notebook=${reviewer.source_notebook}`);
       onClose();
     }
   };

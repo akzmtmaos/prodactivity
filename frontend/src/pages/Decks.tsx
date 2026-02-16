@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, BookOpen, TrendingUp, Clock, Target, FileText, ChevronDown, LayoutList, Play } from 'lucide-react';
+import { Plus, Search, BookOpen, TrendingUp, Clock, Target, FileText, ChevronDown, LayoutList, Play, X } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
 import Pagination from '../components/common/Pagination';
@@ -96,7 +97,22 @@ const Decks = () => {
   const [deckFilterOpen, setDeckFilterOpen] = useState(false);
   const deckSortRef = useRef<HTMLDivElement | null>(null);
   const deckFilterRef = useRef<HTMLDivElement | null>(null);
-  const [deckListViewMode, setDeckListViewMode] = useState<'comfortable' | 'compact'>('comfortable');
+  const [deckListViewMode, setDeckListViewMode] = useState<'comfortable' | 'compact'>(() => {
+    try {
+      const saved = localStorage.getItem('prodactivity-decks-list-view');
+      return saved === 'compact' ? 'compact' : 'comfortable';
+    } catch {
+      return 'comfortable';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('prodactivity-decks-list-view', deckListViewMode);
+    } catch {
+      // ignore
+    }
+  }, [deckListViewMode]);
 
   // Notes -> Flashcards conversion modal state
 interface Notebook {
@@ -142,6 +158,41 @@ interface NoteItem {
   const ARCHIVED_DECKS_CACHE_KEY = 'cachedArchivedDecksV1';
 
   const [modalSelectedNotebookId, setModalSelectedNotebookId] = useState<number | null>(null);
+  const [convertNotebookDropdownOpen, setConvertNotebookDropdownOpen] = useState(false);
+  const [convertNotebookDropdownPosition, setConvertNotebookDropdownPosition] = useState<{
+    top: number;
+    bottom: number;
+    left: number;
+    width: number;
+    openUpward?: boolean;
+    maxHeight: number;
+  } | null>(null);
+  const convertNotebookDropdownRef = useRef<HTMLDivElement>(null);
+  const convertNotebookPortalRef = useRef<HTMLDivElement>(null);
+  const convertModalBodyRef = useRef<HTMLDivElement>(null);
+
+  const DROPDOWN_MAX_HEIGHT = 224; // max-h-56
+  const VIEWPORT_PADDING = 16;
+
+  const updateConvertNotebookDropdownPosition = () => {
+    const el = convertNotebookDropdownRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const spaceBelow = window.innerHeight - rect.bottom - VIEWPORT_PADDING;
+    const spaceAbove = rect.top - VIEWPORT_PADDING;
+    const openUpward = spaceBelow < Math.min(DROPDOWN_MAX_HEIGHT, 180) && spaceAbove > spaceBelow;
+    const maxHeight = openUpward
+      ? Math.min(DROPDOWN_MAX_HEIGHT, spaceAbove)
+      : Math.min(DROPDOWN_MAX_HEIGHT, spaceBelow);
+    setConvertNotebookDropdownPosition({
+      top: rect.top,
+      bottom: rect.bottom,
+      left: rect.left,
+      width: rect.width,
+      openUpward,
+      maxHeight: Math.max(120, maxHeight),
+    });
+  };
   const [previewCount, setPreviewCount] = useState<number>(0);
   const [aiPreviewCards, setAiPreviewCards] = useState<FlashcardData[]>([]);
   const [showAiPreview, setShowAiPreview] = useState<boolean>(false);
@@ -233,6 +284,35 @@ interface NoteItem {
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
   }, [deckSortOpen, deckFilterOpen]);
+
+  useEffect(() => {
+    if (!showConvertModal || !convertNotebookDropdownOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as Node;
+      const inTrigger = convertNotebookDropdownRef.current?.contains(target);
+      const inPortal = convertNotebookPortalRef.current?.contains(target);
+      if (!inTrigger && !inPortal) setConvertNotebookDropdownOpen(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showConvertModal, convertNotebookDropdownOpen]);
+
+  useEffect(() => {
+    if (!convertNotebookDropdownOpen || !showConvertModal) {
+      setConvertNotebookDropdownPosition(null);
+      return;
+    }
+    updateConvertNotebookDropdownPosition();
+    const onScrollOrResize = () => updateConvertNotebookDropdownPosition();
+    window.addEventListener('resize', onScrollOrResize);
+    const body = convertModalBodyRef.current;
+    body?.addEventListener('scroll', onScrollOrResize);
+    return () => {
+      window.removeEventListener('resize', onScrollOrResize);
+      body?.removeEventListener('scroll', onScrollOrResize);
+      setConvertNotebookDropdownPosition(null);
+    };
+  }, [convertNotebookDropdownOpen, showConvertModal]);
 
   const handleToggleNoteSelection = (noteId: number) => {
     setSelectedNoteIds(prev => {
@@ -1172,14 +1252,18 @@ interface NoteItem {
                             mode === 'compact' ? 'comfortable' : 'compact'
                           )
                         }
-                        className="flex items-center justify-center h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                        className={`flex items-center justify-center h-7 px-2.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                          deckListViewMode === 'compact'
+                            ? 'border-indigo-400 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-300 dark:border-indigo-400 dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:text-white dark:focus:ring-indigo-500'
+                            : 'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                        }`}
                         aria-label={
                           deckListViewMode === 'compact'
                             ? 'Switch to comfortable list'
                             : 'Switch to compact list'
                         }
                       >
-                        <LayoutList size={14} className="text-gray-400" />
+                        <LayoutList size={14} className={deckListViewMode === 'compact' ? 'text-white' : 'text-gray-400'} />
                       </button>
                     </HeaderTooltip>
                     {/* Sort – icon-only dropdown (Recent/Name/Progress) */}
@@ -1552,133 +1636,155 @@ interface NoteItem {
           </div>
         </div>
       )}
-      {/* Convert Notes Modal */}
+      {/* Convert Notes Modal – AI-Powered Flashcard Generation (same style as Create Notebook / Document Settings) */}
       {showConvertModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          {/* Backdrop */}
-          <div className="fixed inset-0 bg-black/40 dark:bg-black/60 transition-opacity" aria-hidden="true" onClick={() => setShowConvertModal(false)}></div>
-          <div className="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0 relative z-10">
-            <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-            <div className="inline-block align-bottom bg-white dark:bg-gray-800 rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-3xl sm:w-full relative z-10">
-              <div className="bg-white dark:bg-gray-800 px-6 pt-6 pb-4 sm:p-6 sm:pb-4">
-                <div className="sm:flex sm:items-start">
-                  <div className="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-emerald-100 dark:bg-emerald-900/20 sm:mx-0 sm:h-10 sm:w-10">
-                    <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <div className="mt-3 text-left sm:mt-0 sm:ml-4 sm:text-left w-full">
-                    <h3 className="text-lg leading-6 font-medium text-gray-900 dark:text-white">🤖 AI-Powered Flashcard Generation</h3>
-                    <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Select notes and let DeepSeek-R1 intelligently convert them into high-quality flashcards.</p>
-                    <div className="mt-4 space-y-4">
-                      {/* Notebook selector */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Notebook</label>
-                        <div className="flex items-center gap-2">
-                          <select
-                            disabled={loadingNotes}
-                            value={modalSelectedNotebookId ?? ''}
-                            onChange={(e) => { const id = Number(e.target.value); setModalSelectedNotebookId(Number.isNaN(id) ? null : id); setSelectedNoteIds(new Set()); }}
-                            className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                          >
-                            {notebooks.length === 0 && <option value="">{loadingNotes ? 'Loading...' : 'No notebooks found'}</option>}
-                            {notebooks.map(nb => (
-                              <option key={nb.id} value={nb.id}>{nb.name}</option>
-                            ))}
-                          </select>
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/40 dark:bg-black/60" onClick={() => setShowConvertModal(false)} aria-hidden />
+          <div
+            className="relative bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col mx-4 border border-gray-200 dark:border-[#333333]"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
+              <div className="flex items-center gap-2">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                  <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">AI-Powered Flashcard Generation</h2>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Select notes and let DeepSeek-R1 convert them into flashcards.</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowConvertModal(false)}
+                className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
+                aria-label="Close"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div ref={convertModalBodyRef} className="px-4 py-3 space-y-4 overflow-y-auto">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Deck Name</label>
+                <input
+                  type="text"
+                  value={deckName}
+                  onChange={(e) => setDeckName(e.target.value)}
+                  placeholder="Enter a name for your flashcard deck"
+                  className="w-full px-2.5 py-1.5 text-sm border border-gray-200 dark:border-[#333333] rounded-md bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Notebook</label>
+                <div className="flex items-center gap-2">
+                  <div className="relative flex-1 min-w-0" ref={convertNotebookDropdownRef}>
+                    <button
+                      type="button"
+                      disabled={loadingNotes}
+                      onClick={() => !loadingNotes && notebooks.length > 0 && setConvertNotebookDropdownOpen((o) => !o)}
+                      className="w-full flex items-center justify-between gap-1 h-8 pl-2.5 pr-2 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-emerald-500 focus:border-emerald-500 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                      aria-expanded={convertNotebookDropdownOpen}
+                    >
+                      <span className="truncate">
+                        {loadingNotes ? 'Loading...' : notebooks.length === 0 ? 'No notebooks found' : (modalSelectedNotebookId != null ? notebooks.find(nb => nb.id === modalSelectedNotebookId)?.name : 'Select notebook') ?? 'Select notebook'}
+                      </span>
+                      {notebooks.length > 0 && !loadingNotes && (
+                        <ChevronDown size={14} className={`flex-shrink-0 text-gray-500 dark:text-gray-400 transition-transform ${convertNotebookDropdownOpen ? 'rotate-180' : ''}`} />
+                      )}
+                    </button>
+                    {convertNotebookDropdownOpen && notebooks.length > 0 && convertNotebookDropdownPosition && createPortal(
+                      <div
+                        ref={convertNotebookPortalRef}
+                        className="fixed overflow-y-auto bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg py-1"
+                        style={{
+                          zIndex: 9999,
+                          top: convertNotebookDropdownPosition.openUpward ? undefined : convertNotebookDropdownPosition.bottom + 4,
+                          bottom: convertNotebookDropdownPosition.openUpward ? window.innerHeight - convertNotebookDropdownPosition.top + 4 : undefined,
+                          left: convertNotebookDropdownPosition.left,
+                          width: convertNotebookDropdownPosition.width,
+                          minWidth: convertNotebookDropdownPosition.width,
+                          maxHeight: convertNotebookDropdownPosition.maxHeight,
+                        }}
+                      >
+                        {notebooks.map((nb) => (
                           <button
-                            onClick={() => ensureNotebooksLoaded()}
-                            className="px-3 py-2 text-sm bg-gray-100 dark:bg-gray-700 rounded border border-gray-200 dark:border-gray-600"
+                            key={nb.id}
                             type="button"
+                            onClick={() => { setModalSelectedNotebookId(nb.id); setSelectedNoteIds(new Set()); setConvertNotebookDropdownOpen(false); }}
+                            className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap truncate"
                           >
-                            Refresh
+                            {nb.name}
                           </button>
-                        </div>
-                      </div>
-                      {/* Notes list */}
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Notes</label>
-                          <div className="flex items-center gap-2 text-sm">
-                            <label className="inline-flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                checked={modalSelectedNotebookId != null && (notesByNotebook[modalSelectedNotebookId]?.length || 0) > 0 && (notesByNotebook[modalSelectedNotebookId] || []).every(n => selectedNoteIds.has(n.id))}
-                                onChange={(e) => handleSelectAllNotes(e.target.checked)}
-                              />
-                              <span className="text-gray-700 dark:text-gray-300">Select all</span>
-                            </label>
-                          </div>
-                        </div>
-                        <div className="max-h-60 overflow-auto rounded border border-gray-200 dark:border-gray-700">
-                          {loadingNotes && (
-                            <div className="p-4 text-sm text-gray-500 dark:text-gray-400">Loading notes...</div>
-                          )}
-                          {!loadingNotes && modalSelectedNotebookId != null && (notesByNotebook[modalSelectedNotebookId]?.length || 0) === 0 && (
-                            <div className="p-4 text-sm text-gray-500 dark:text-gray-400">No notes in this notebook.</div>
-                          )}
-                          {!loadingNotes && modalSelectedNotebookId != null && (notesByNotebook[modalSelectedNotebookId]?.length || 0) > 0 && (
-                            <ul className="divide-y divide-gray-200 dark:divide-gray-700">
-                              {(notesByNotebook[modalSelectedNotebookId] || []).map(note => (
-                                <li key={note.id} className="flex items-start gap-3 p-2">
-                                  <input
-                                    type="checkbox"
-                                    className="mt-1"
-                                    checked={selectedNoteIds.has(note.id)}
-                                    onChange={() => handleToggleNoteSelection(note.id)}
-                                  />
-                                  <div>
-                                    <div className="text-sm font-medium text-gray-900 dark:text-white">{note.title}</div>
-                                    <div className="text-xs text-gray-500 dark:text-gray-400 truncate max-w-xl">{truncateHtmlContent(note.content || '', 140)}</div>
-                                  </div>
-                                </li>
-                              ))}
-                            </ul>
-                          )}
-                        </div>
-                      </div>
-                      {/* Deck name */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Deck Name</label>
-                        <input
-                          type="text"
-                          value={deckName}
-                          onChange={(e) => setDeckName(e.target.value)}
-                          placeholder="Enter a name for your flashcard deck"
-                          className="w-full px-3 py-2 border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                        />
-                        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                          🤖 DeepSeek-R1 will intelligently analyze your notes and create high-quality flashcards automatically.
-                        </p>
-                      </div>
-                    </div>
+                        ))}
+                      </div>,
+                      document.body
+                    )}
                   </div>
                 </div>
               </div>
-              <div className="bg-gray-50 dark:bg-gray-700 px-6 py-4 sm:px-6 sm:flex sm:flex-row-reverse">
-                <button
-                  type="button"
-                  disabled={loadingNotes || aiLoading}
-                  onClick={convertSelectedNotes}
-                  className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-emerald-600 text-base font-medium text-white hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 sm:ml-3 sm:w-auto sm:text-sm disabled:opacity-60"
-                >
-                  {loadingNotes ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      AI Generating...
-                    </>
-                  ) : (
-                    <>
-                      🤖 Generate Flashcards
-                    </>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-medium text-gray-700 dark:text-gray-400">Notes</label>
+                  <label className="inline-flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400">
+                    <input
+                      type="checkbox"
+                      checked={modalSelectedNotebookId != null && (notesByNotebook[modalSelectedNotebookId]?.length || 0) > 0 && (notesByNotebook[modalSelectedNotebookId] || []).every(n => selectedNoteIds.has(n.id))}
+                      onChange={(e) => handleSelectAllNotes(e.target.checked)}
+                    />
+                    Select all
+                  </label>
+                </div>
+                <div className="max-h-48 overflow-auto rounded-md border border-gray-200 dark:border-[#333333]">
+                  {loadingNotes && (
+                    <div className="p-3 text-xs text-gray-500 dark:text-gray-400">Loading notes...</div>
                   )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowConvertModal(false)}
-                  className="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 dark:border-gray-600 shadow-sm px-4 py-2 bg-white dark:bg-gray-800 text-base font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-300 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm"
-                >
-                  Cancel
-                </button>
+                  {!loadingNotes && modalSelectedNotebookId != null && (notesByNotebook[modalSelectedNotebookId]?.length || 0) === 0 && (
+                    <div className="p-3 text-xs text-gray-500 dark:text-gray-400">No notes in this notebook.</div>
+                  )}
+                  {!loadingNotes && modalSelectedNotebookId != null && (notesByNotebook[modalSelectedNotebookId]?.length || 0) > 0 && (
+                    <ul className="divide-y divide-gray-200 dark:divide-[#333333]">
+                      {(notesByNotebook[modalSelectedNotebookId] || []).map(note => (
+                        <li key={note.id} className="flex items-start gap-2 p-2">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5"
+                            checked={selectedNoteIds.has(note.id)}
+                            onChange={() => handleToggleNoteSelection(note.id)}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{note.title}</div>
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">{truncateHtmlContent(note.content || '', 120)}</div>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-[#333333] flex justify-end gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setShowConvertModal(false)}
+                className="px-2.5 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] rounded-md font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={loadingNotes || aiLoading}
+                onClick={convertSelectedNotes}
+                className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-60 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+              >
+                {loadingNotes || aiLoading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent" />
+                    AI Generating...
+                  </>
+                ) : (
+                  'Generate Flashcards'
+                )}
+              </button>
             </div>
           </div>
         </div>

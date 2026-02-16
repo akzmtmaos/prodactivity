@@ -145,8 +145,37 @@ const Notes = () => {
   const [noteDateEnd, setNoteDateEnd] = useState<string>('');
   const [notebookDateStart, setNotebookDateStart] = useState<string>('');
   const [notebookDateEnd, setNotebookDateEnd] = useState<string>('');
-  const [notebookListViewMode, setNotebookListViewMode] = useState<'compact' | 'comfortable'>('comfortable');
-  const [noteListViewMode, setNoteListViewMode] = useState<'compact' | 'comfortable'>('comfortable');
+  const [notebookListViewMode, setNotebookListViewMode] = useState<'compact' | 'comfortable'>(() => {
+    try {
+      const saved = localStorage.getItem('prodactivity-notes-notebook-list-view');
+      return saved === 'compact' ? 'compact' : 'comfortable';
+    } catch {
+      return 'comfortable';
+    }
+  });
+  const [noteListViewMode, setNoteListViewMode] = useState<'compact' | 'comfortable'>(() => {
+    try {
+      const saved = localStorage.getItem('prodactivity-notes-note-list-view');
+      return saved === 'compact' ? 'compact' : 'comfortable';
+    } catch {
+      return 'comfortable';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('prodactivity-notes-notebook-list-view', notebookListViewMode);
+    } catch {
+      // ignore
+    }
+  }, [notebookListViewMode]);
+  useEffect(() => {
+    try {
+      localStorage.setItem('prodactivity-notes-note-list-view', noteListViewMode);
+    } catch {
+      // ignore
+    }
+  }, [noteListViewMode]);
 
   // Add tab state
   const [activeTab, setActiveTab] = useState<'notes' | 'logs' | 'archived'>('notes');
@@ -586,7 +615,7 @@ const Notes = () => {
     setCurrentView('notes');
     
     // Update URL to reflect notebook selection (but don't rely on URL parsing for state)
-    navigate(`/notes/notebooks/${notebook.id}`, { replace: true });
+    navigate(`/notebooks/${notebook.id}`, { replace: true });
   };
 
   // Back button handler to return to notebooks view
@@ -605,7 +634,7 @@ const Notes = () => {
     localStorage.removeItem('lastSelectedNotebookId');
     
     // Update URL to return to main notes page
-    navigate('/notes');
+    navigate('/notebooks');
     
     // Set view to notebooks AFTER navigation
     setCurrentView('notebooks');
@@ -967,10 +996,10 @@ const Notes = () => {
     
     // Update URL with notebook and note ID
     if (selectedNotebook) {
-      navigate(`/notes/notebooks/${selectedNotebook.id}/notes/${note.id}`);
+      navigate(`/notebooks/${selectedNotebook.id}/note/${note.id}`);
     } else {
       // Fallback: navigate to main notes page if no notebook selected
-      navigate('/notes');
+      navigate('/notebooks');
     }
     
     // Update last_visited timestamp
@@ -1060,9 +1089,9 @@ const Notes = () => {
         setNoteEditorNote(null);
         // Navigate back to notes list
         if (selectedNotebook) {
-          navigate(`/notes/notebooks/${selectedNotebook.id}`);
+          navigate(`/notebooks/${selectedNotebook.id}`);
         } else {
-          navigate('/notes');
+          navigate('/notebooks');
         }
       }
       
@@ -1121,10 +1150,10 @@ const Notes = () => {
         if (!closeAfterSave) {
           // Update URL to include the new note ID with notebook context
           if (selectedNotebook) {
-            navigate(`/notes/notebooks/${selectedNotebook.id}/notes/${response.data.id}`);
+            navigate(`/notebooks/${selectedNotebook.id}/note/${response.data.id}`);
           } else {
             // Fallback: navigate to main notes page if no notebook selected
-            navigate('/notes');
+            navigate('/notebooks');
           }
         }
         
@@ -1206,9 +1235,9 @@ const Notes = () => {
     
     // Navigate back to the appropriate view
     if (selectedNotebook) {
-      navigate(`/notes/notebooks/${selectedNotebook.id}`);
+      navigate(`/notebooks/${selectedNotebook.id}`);
     } else {
-      navigate('/notes');
+      navigate('/notebooks');
     }
     
     // Reset flags after navigation
@@ -1539,7 +1568,7 @@ const Notes = () => {
         // Don't redirect - let the URL stay as is, user might want to retry
         // Only redirect if it's a 404 or permission error
         if (axios.isAxiosError(error) && error.response?.status === 404) {
-          navigate('/notes');
+          navigate('/notebooks');
         }
       }
     };
@@ -3309,7 +3338,7 @@ const Notes = () => {
             setIsNewNoteEditor(false);
             setShowNoteEditor(true);
             // Update URL to reflect the note being opened
-            navigate(`/notes/notebooks/${notebook.id}/notes/${note.id}`);
+            navigate(`/notebooks/${notebook.id}/note/${note.id}`);
           }
           setShowImportantItemsPanel(false);
         }}
@@ -3319,7 +3348,7 @@ const Notes = () => {
           setCurrentView('notes');
           setSelectedForBulk([]); // Clear selection when selecting a different notebook
           // Update URL to reflect the notebook being selected
-          navigate(`/notes/notebooks/${notebook.id}`);
+          navigate(`/notebooks/${notebook.id}`);
           setShowImportantItemsPanel(false);
         }}
       />

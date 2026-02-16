@@ -248,7 +248,7 @@ const Home = () => {
           type: 'system' as const,
           title: 'Notes',
           description: 'View and manage all your notes',
-          url: '/notes',
+          url: '/notebooks',
           icon: <FileText className="w-4 h-4" />,
           category: 'System'
         },
@@ -755,7 +755,7 @@ const Home = () => {
       // Store the note ID in localStorage to be picked up by Notes component
       localStorage.setItem('openNoteId', noteId.toString());
       // Navigate to notes page - the Notes component will handle opening the note
-      navigate('/notes');
+      navigate('/notebooks');
       
       // Dispatch event to notify that a note has been updated
       window.dispatchEvent(new Event('noteUpdated'));
@@ -773,7 +773,7 @@ const Home = () => {
       }
       // Still navigate to the note even if the visit update fails
       localStorage.setItem('openNoteId', noteId.toString());
-      navigate('/notes');
+      navigate('/notebooks');
     }
   };
 
@@ -1114,7 +1114,7 @@ const Home = () => {
             </div>
             <div 
               className="bg-white/90 dark:bg-[#252525] backdrop-blur-md overflow-hidden rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group border border-gray-200 dark:border-[#333333] dark:hover:border-[#404040]"
-              onClick={() => navigate('/notes')}
+              onClick={() => navigate('/notebooks')}
             >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
                 <div className="flex items-center">
@@ -1154,7 +1154,7 @@ const Home = () => {
               </h2>
               <div className="flex items-center space-x-4">
                 <button 
-                  onClick={() => navigate('/notes')}
+                  onClick={() => navigate('/notebooks')}
                   className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium transition-colors hover:text-indigo-700 dark:hover:text-indigo-300"
                 >
                   View All Notes
@@ -1218,7 +1218,7 @@ const Home = () => {
                 ) : (
                   <div 
                     className="w-full bg-white dark:bg-[#252525] rounded-lg shadow-sm p-4 text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border border-gray-200 dark:border-[#333333]"
-                    onClick={() => navigate('/notes')}
+                    onClick={() => navigate('/notebooks')}
                   >
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <BookOpen size={16} className="text-gray-400 dark:text-gray-500" />
@@ -1263,7 +1263,7 @@ const Home = () => {
                 ) : (
                   <div 
                     className="col-span-full bg-white dark:bg-[#252525] rounded-lg shadow-sm p-4 text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border border-gray-200 dark:border-[#333333]"
-                    onClick={() => navigate('/notes')}
+                    onClick={() => navigate('/notebooks')}
                   >
                     <div className="flex flex-col items-center justify-center space-y-2">
                       <BookOpen size={16} className="text-gray-400 dark:text-gray-500" />

@@ -168,11 +168,11 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
                 </button>
               </HeaderTooltip>
               {notebookFilterOpen && (
-                <div className="absolute left-0 top-full mt-1 min-w-[88px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 p-2">
+                <div className="absolute left-0 top-full mt-1 min-w-[100px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 py-1">
                   <button
                     type="button"
                     onClick={() => { setNotebookFilterType?.('name'); setNotebookFilterOpen(false); }}
-                    className="w-full px-3 py-2.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors flex items-center gap-2.5 whitespace-nowrap"
+                    className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors flex items-center gap-2 whitespace-nowrap"
                   >
                     <Clock size={12} className="text-gray-400 flex-shrink-0" />
                     By name
@@ -180,7 +180,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
                   <button
                     type="button"
                     onClick={() => { setNotebookFilterType?.('date'); setNotebookFilterOpen(false); }}
-                    className="w-full px-3 py-2.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors flex items-center gap-2.5 whitespace-nowrap"
+                    className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors flex items-center gap-2 whitespace-nowrap"
                   >
                     <Clock size={12} className="text-gray-400 flex-shrink-0" />
                     By date
@@ -193,10 +193,14 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
               <button
                 type="button"
                 onClick={() => setNotebookListViewMode?.(notebookListViewMode === 'compact' ? 'comfortable' : 'compact')}
-                className="flex items-center justify-center h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                className={`flex items-center justify-center h-7 px-2.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  notebookListViewMode === 'compact'
+                    ? 'border-indigo-400 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-300 dark:border-indigo-400 dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:text-white dark:focus:ring-indigo-500'
+                    : 'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                }`}
                 aria-label={notebookListViewMode === 'compact' ? 'Switch to Comfortable view' : 'Switch to Compact view'}
               >
-                <LayoutList size={14} className="text-gray-400" />
+                <LayoutList size={14} className={notebookListViewMode === 'compact' ? 'text-white' : 'text-gray-400'} />
               </button>
             </HeaderTooltip>
             {/* Date Range (if date filter is selected) */}
@@ -321,14 +325,14 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
                 </button>
               </HeaderTooltip>
               {notesFilterOpen && (
-                <div className="absolute left-0 top-full mt-1 min-w-[88px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 p-2">
-                  <button type="button" onClick={() => { setFilterType?.('title'); setNotesFilterOpen(false); }} className="w-full px-3 py-2.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors flex items-center gap-2.5 whitespace-nowrap">
+                <div className="absolute left-0 top-full mt-1 min-w-[100px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 py-1">
+                  <button type="button" onClick={() => { setFilterType?.('title'); setNotesFilterOpen(false); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors flex items-center gap-2 whitespace-nowrap">
                     <Clock size={12} className="text-gray-400 flex-shrink-0" /> Title
                   </button>
-                  <button type="button" onClick={() => { setFilterType?.('content'); setNotesFilterOpen(false); }} className="w-full px-3 py-2.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors flex items-center gap-2.5 whitespace-nowrap">
+                  <button type="button" onClick={() => { setFilterType?.('content'); setNotesFilterOpen(false); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors flex items-center gap-2 whitespace-nowrap">
                     <Clock size={12} className="text-gray-400 flex-shrink-0" /> Content
                   </button>
-                  <button type="button" onClick={() => { setFilterType?.('date'); setNotesFilterOpen(false); }} className="w-full px-3 py-2.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors flex items-center gap-2.5 whitespace-nowrap">
+                  <button type="button" onClick={() => { setFilterType?.('date'); setNotesFilterOpen(false); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors flex items-center gap-2 whitespace-nowrap">
                     <Clock size={12} className="text-gray-400 flex-shrink-0" /> Date
                   </button>
                 </div>
@@ -360,10 +364,14 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
               <button
                 type="button"
                 onClick={() => setNoteListViewMode?.(noteListViewMode === 'compact' ? 'comfortable' : 'compact')}
-                className="flex items-center justify-center h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                className={`flex items-center justify-center h-7 px-2.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                  noteListViewMode === 'compact'
+                    ? 'border-indigo-400 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-300 dark:border-indigo-400 dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:text-white dark:focus:ring-indigo-500'
+                    : 'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                }`}
                 aria-label={noteListViewMode === 'compact' ? 'Switch to Comfortable view' : 'Switch to Compact view'}
               >
-                <LayoutList size={14} className="text-gray-400" />
+                <LayoutList size={14} className={noteListViewMode === 'compact' ? 'text-white' : 'text-gray-400'} />
               </button>
             </HeaderTooltip>
             {/* Sort */}

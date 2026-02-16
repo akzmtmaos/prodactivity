@@ -10,6 +10,8 @@ export interface ChatRoom {
   name: string | null;
   room_type: 'direct' | 'group';
   created_at: string;
+  created_by?: string | null;
+  avatar_url?: string | null;
   last_message?: {
     content: string;
     created_at: string;

@@ -193,7 +193,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
           type: 'system' as const,
           title: 'Notes',
           description: 'View and manage all your notes',
-          url: '/notes',
+          url: '/notebooks',
           icon: <FileText className="w-4 h-4" />,
           category: 'System'
         },

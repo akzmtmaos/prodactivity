@@ -134,7 +134,7 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
         navigate('/tasks');
         break;
       case 'note_reminder':
-        navigate('/notes');
+        navigate('/notebooks');
         break;
       case 'study_reminder':
         navigate('/study-timer');

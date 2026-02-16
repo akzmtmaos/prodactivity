@@ -1,11 +1,11 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { Task, Subtask } from '../../types/task';
 import AddSubtaskModal from './AddSubtaskModal';
 import TaskActivityModal from './TaskActivityModal';
 import ShareModal from '../collaboration/ShareModal';
 import AssignTaskModal from '../collaboration/AssignTaskModal';
-import { Share2, UserCheck, Users } from 'lucide-react';
+import { Share2, UserCheck, Users, Settings, Pencil, Plus } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface TaskItemProps {
@@ -14,6 +14,7 @@ interface TaskItemProps {
   onEdit: (task: Task) => void;
   onDelete: (id: number) => void;
   onTaskCompleted?: (completedTask: any) => void;
+  compact?: boolean;
 }
 
 const priorityColors: Record<string, string> = {
@@ -22,7 +23,7 @@ const priorityColors: Record<string, string> = {
   low: 'bg-green-500',
 };
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete, onTaskCompleted }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete, onTaskCompleted, compact = false }) => {
   // Function to check if task is overdue
   const isOverdue = () => {
     if (task.completed) return false; // Don't show late for completed tasks
@@ -67,6 +68,8 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
   };
   const [isSubtasksOpen, setIsSubtasksOpen] = useState(false);
   const [isAddSubtaskOpen, setIsAddSubtaskOpen] = useState(false);
+  const [isGearOpen, setIsGearOpen] = useState(false);
+  const gearRef = useRef<HTMLDivElement>(null);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
@@ -75,6 +78,19 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
   const [assignmentStatus, setAssignmentStatus] = useState<string | null>(null);
   const [isAssignedToMe, setIsAssignedToMe] = useState(false);
   const [collaborativeProgress, setCollaborativeProgress] = useState<{ total: number; completed: number } | null>(null);
+
+  // Close gear dropdown on outside click
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (gearRef.current && !gearRef.current.contains(e.target as Node)) {
+        setIsGearOpen(false);
+      }
+    };
+    if (isGearOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [isGearOpen]);
 
   const totalSubtasks = useMemo(() => localSubtasks.length, [localSubtasks]);
   const completedSubtasks = useMemo(() => localSubtasks.filter(s => s.completed).length, [localSubtasks]);
@@ -386,26 +402,56 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
     }
   };
 
+  const handleCardClick = () => {
+    setIsSubtasksOpen(prev => !prev);
+  };
+
   return (
     <>
-      <div className={`group p-4 mb-3 rounded-lg shadow-sm transition hover:shadow-md w-full ${
-        isOverdue() 
-          ? 'bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-800' 
-          : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700'
-      }`}>
-        {/* Task row */}
-        <div className="flex items-center gap-4">
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleCardClick}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(); } }}
+        className={`group rounded-lg shadow-sm transition hover:shadow-md w-full cursor-pointer ${
+          compact ? 'py-2 px-3 mb-1.5' : 'p-4 mb-3'
+        } ${
+          isOverdue()
+            ? 'bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-800'
+            : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700'
+        }`}
+      >
+        {/* Task row – clicks on checkbox or action buttons do not toggle subtasks */}
+        <div className={`flex items-center ${compact ? 'gap-2' : 'gap-4'}`}>
           {/* Priority color bar */}
-          <div className={`w-1.5 h-10 rounded-full mr-2 ${priorityColors[task.priority] || 'bg-gray-300'}`}></div>
+          <div className={`${compact ? 'w-1 h-6' : 'w-1.5 h-10'} rounded-full flex-shrink-0 ${priorityColors[task.priority] || 'bg-gray-300'}`}></div>
           {/* Checkbox */}
           <input
             type="checkbox"
-            className="h-5 w-5 text-indigo-600 focus:ring-indigo-200 focus:ring-2 border-gray-400 rounded-full cursor-pointer mr-2 bg-transparent checked:bg-indigo-600 checked:border-indigo-600 transition"
+            className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-indigo-600 focus:ring-indigo-200 focus:ring-2 border-gray-400 rounded-full cursor-pointer flex-shrink-0 bg-transparent checked:bg-indigo-600 checked:border-indigo-600 transition`
+            }
             checked={task.completed}
             onChange={handleToggleComplete}
+            onClick={e => e.stopPropagation()}
           />
           {/* Task main info */}
           <div className="flex-1 min-w-0">
+            {compact ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-sm font-medium truncate ${task.completed ? 'text-gray-400 line-through' : 'text-gray-800 dark:text-white'}`}>{task.title}</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">Due: {new Date(task.dueDate).toLocaleDateString()}</span>
+                <span className={`text-xs font-medium flex-shrink-0 ${
+                  task.priority === 'high' ? 'text-red-500' : task.priority === 'medium' ? 'text-yellow-500' : 'text-green-500'
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full mr-0.5 inline-block align-middle ${priorityColors[task.priority] || 'bg-gray-300'}`}></span>
+                  {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                </span>
+                {isOverdue() && (
+                  <span className="text-xs text-red-600 dark:text-red-400 flex-shrink-0">Late</span>
+                )}
+              </div>
+            ) : (
+              <>
             <div className={`text-base font-semibold ${task.completed ? 'text-gray-400 line-through' : 'text-gray-800 dark:text-white'}`}>{task.title}</div>
             
             {/* Activity/Evidence requirement indicator */}
@@ -524,10 +570,12 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                 </>
               )}
             </div>
+          </>
+            )}
           </div>
-          {/* Action icons */}
-          <div className="flex items-center gap-2">
-            {isAssignedToMe && (
+          {/* Action icons – stop propagation so clicking doesn't toggle subtasks */}
+          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+            {!compact && isAssignedToMe && (
               <div className="flex items-center gap-2">
                 {assignmentStatus === 'pending' && (
                   <button
@@ -537,17 +585,13 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                         const userData = localStorage.getItem('user');
                         if (!userData) return;
                         const currentUser = JSON.parse(userData);
-                        
                         await supabase
                           .from('task_assignments')
                           .update({ status: 'accepted' })
                           .eq('task_id', task.id)
                           .eq('assigned_to', currentUser.id);
-                        
                         fetchCollaborators();
-                        window.dispatchEvent(new CustomEvent('assignmentUpdated', { 
-                          detail: { taskId: task.id, status: 'accepted' } 
-                        }));
+                        window.dispatchEvent(new CustomEvent('assignmentUpdated', { detail: { taskId: task.id, status: 'accepted' } }));
                       } catch (err) {
                         console.error('Error accepting assignment:', err);
                       }
@@ -566,13 +610,11 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                           const userData = localStorage.getItem('user');
                           if (!userData) return;
                           const currentUser = JSON.parse(userData);
-                          
                           await supabase
                             .from('task_assignments')
                             .update({ status: 'in_progress' })
                             .eq('task_id', task.id)
                             .eq('assigned_to', currentUser.id);
-                          
                           fetchCollaborators();
                         } catch (err) {
                           console.error('Error updating assignment:', err);
@@ -589,20 +631,13 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                           const userData = localStorage.getItem('user');
                           if (!userData) return;
                           const currentUser = JSON.parse(userData);
-                          
                           await supabase
                             .from('task_assignments')
-                            .update({ 
-                              status: 'completed',
-                              completed_at: new Date().toISOString()
-                            })
+                            .update({ status: 'completed', completed_at: new Date().toISOString() })
                             .eq('task_id', task.id)
                             .eq('assigned_to', currentUser.id);
-                          
                           fetchCollaborators();
-                          window.dispatchEvent(new CustomEvent('assignmentUpdated', { 
-                            detail: { taskId: task.id, status: 'completed' } 
-                          }));
+                          window.dispatchEvent(new CustomEvent('assignmentUpdated', { detail: { taskId: task.id, status: 'completed' } }));
                         } catch (err) {
                           console.error('Error completing assignment:', err);
                         }
@@ -621,20 +656,13 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                         const userData = localStorage.getItem('user');
                         if (!userData) return;
                         const currentUser = JSON.parse(userData);
-                        
                         await supabase
                           .from('task_assignments')
-                          .update({ 
-                            status: 'completed',
-                            completed_at: new Date().toISOString()
-                          })
+                          .update({ status: 'completed', completed_at: new Date().toISOString() })
                           .eq('task_id', task.id)
                           .eq('assigned_to', currentUser.id);
-                        
                         fetchCollaborators();
-                        window.dispatchEvent(new CustomEvent('assignmentUpdated', { 
-                          detail: { taskId: task.id, status: 'completed' } 
-                        }));
+                        window.dispatchEvent(new CustomEvent('assignmentUpdated', { detail: { taskId: task.id, status: 'completed' } }));
                       } catch (err) {
                         console.error('Error completing assignment:', err);
                       }
@@ -646,39 +674,53 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                 )}
               </div>
             )}
-            <button
-              className="relative p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-              onClick={() => setIsSubtasksOpen(prev => !prev)}
-              title="Show subtasks"
-            >
-              <svg className="h-5 w-5 text-gray-600 dark:text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h10M4 18h6" />
-              </svg>
-              {totalSubtasks > 0 && (
-                <span className="absolute -top-1 -right-1 text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-600 text-white">
-                  {completedSubtasks}/{totalSubtasks}
-                </span>
+            {/* Subtask count badge (no button – expand by clicking card) */}
+            {totalSubtasks > 0 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-medium">
+                {completedSubtasks}/{totalSubtasks}
+              </span>
+            )}
+            {/* Gear menu: Edit Task, Add Subtask */}
+            <div className="relative" ref={gearRef}>
+              <button
+                type="button"
+                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                onClick={(e) => { e.stopPropagation(); setIsGearOpen(prev => !prev); }}
+                title="Task options"
+                aria-expanded={isGearOpen}
+              >
+                <Settings size={18} className="text-gray-500 dark:text-gray-400" />
+              </button>
+              {isGearOpen && (
+                <div className="absolute right-0 top-full mt-1 min-w-[160px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] flex items-center gap-2"
+                    onClick={() => {
+                      setIsGearOpen(false);
+                      onEdit(task);
+                    }}
+                  >
+                    <Pencil size={14} />
+                    Edit Task
+                  </button>
+                  <button
+                    type="button"
+                    className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] flex items-center gap-2"
+                    onClick={() => {
+                      setIsGearOpen(false);
+                      setIsAddSubtaskOpen(true);
+                      setIsSubtasksOpen(true);
+                    }}
+                  >
+                    <Plus size={14} />
+                    Add Subtask
+                  </button>
+                </div>
               )}
-            </button>
+            </div>
             <button
-              className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700"
-              onClick={() => setIsAddSubtaskOpen(true)}
-              title="Add subtask"
-            >
-              <svg className="h-5 w-5 text-indigo-600" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-              </svg>
-            </button>
-            <button
-              className="p-2 rounded hover:bg-indigo-100 dark:hover:bg-gray-700"
-              onClick={() => onEdit(task)}
-              title="Edit"
-            >
-              <svg className="h-5 w-5 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536M9 13l6-6m2 2l-6 6m-2 2h2v2a2 2 0 002 2h2a2 2 0 002-2v-2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2v-2a2 2 0 00-2-2h-2a2 2 0 00-2 2v2H7a2 2 0 00-2 2v2a2 2 0 002 2h2z" />
-              </svg>
-            </button>
-            <button
+              type="button"
               className="p-2 rounded hover:bg-red-100 dark:hover:bg-red-900"
               onClick={() => onDelete(task.id)}
               title="Delete"
@@ -690,9 +732,9 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
           </div>
         </div>
 
-        {/* Enhanced Subtasks Section */}
+        {/* Enhanced Subtasks Section – click inside does not close */}
         {isSubtasksOpen && (
-          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+          <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700" onClick={e => e.stopPropagation()}>
             {/* Subtask Header with Progress */}
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-3">

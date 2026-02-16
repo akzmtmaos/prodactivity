@@ -211,10 +211,10 @@ const SharedItemsPanel: React.FC = () => {
 
     switch (item.item_type) {
       case 'notebook':
-        navigate(`/notes/notebooks/${item.item_id}`);
+        navigate(`/notebooks/${item.item_id}`);
         break;
       case 'note':
-        navigate(`/notes/notebooks/${item.item_id}/notes/${item.item_id}`);
+        navigate(`/notebooks/${item.item_id}/note/${item.item_id}`);
         break;
       case 'reviewer':
         navigate(`/reviewer/r`);

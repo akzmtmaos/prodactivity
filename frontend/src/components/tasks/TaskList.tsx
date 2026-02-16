@@ -59,7 +59,7 @@ const TaskList: React.FC<TaskListProps> = ({
   // Render as a card list inside a fixed, scrollable container
   return (
     <div className={`${compact ? '' : 'h-[calc(100vh-8rem)]'} overflow-y-auto rounded-lg bg-gray-50 dark:bg-gray-800 p-2 scrollbar-thin scrollbar-thumb-gray-200 dark:scrollbar-thumb-indigo-700 scrollbar-track-gray-100 dark:scrollbar-track-gray-900 border border-gray-100 dark:border-gray-700`}>
-      <div className="flex flex-col gap-1">
+      <div className={`flex flex-col ${compact ? 'gap-0.5' : 'gap-1'}`}>
         {tasks.map((task) => (
           <TaskItem
             key={task.id}
@@ -68,6 +68,7 @@ const TaskList: React.FC<TaskListProps> = ({
             onEdit={onEdit}
             onDelete={onDelete}
             onTaskCompleted={onTaskCompleted}
+            compact={compact}
           />
         ))}
       </div>

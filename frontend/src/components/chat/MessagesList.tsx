@@ -22,7 +22,7 @@ const MessagesList: React.FC<MessagesListProps> = ({
     return (
       <div
         ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+        className="flex-1 overflow-y-auto scrollbar-hide p-4 space-y-4 relative"
       >
         <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
           <div className="text-center">
@@ -38,7 +38,7 @@ const MessagesList: React.FC<MessagesListProps> = ({
   return (
     <div
       ref={messagesContainerRef}
-      className="flex-1 overflow-y-auto p-4 space-y-4 relative"
+      className="flex-1 overflow-y-auto scrollbar-hide p-4 space-y-4 relative"
     >
       {messages.map((message, index) => {
         const prevMessage = index > 0 ? messages[index - 1] : null;
