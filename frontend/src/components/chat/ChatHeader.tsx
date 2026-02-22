@@ -30,33 +30,33 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ room, currentUserId, onAddMembe
   }, [menuOpen]);
 
   return (
-    <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800">
+    <div className="min-h-[78px] px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between bg-white dark:bg-gray-800">
       <div className="flex items-center gap-3">
         {displayAvatar ? (
           <img
             src={displayAvatar}
             alt={room.name || ''}
-            className="w-10 h-10 rounded-full"
+            className="w-9 h-9 rounded-full object-cover"
             onError={(e) => {
               (e.target as HTMLImageElement).style.display = 'none';
             }}
           />
         ) : (
-          <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
             {room.room_type === 'direct' ? (
-              <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
+              <span className="text-indigo-600 dark:text-indigo-400 font-semibold text-sm">
                 {room.name?.charAt(0).toUpperCase()}
               </span>
             ) : (
-              <Users className="text-indigo-600 dark:text-indigo-400" size={18} />
+              <Users className="text-indigo-600 dark:text-indigo-400" size={16} />
             )}
           </div>
         )}
-        <div>
-          <h2 className="font-semibold text-gray-900 dark:text-white">
+        <div className="min-w-0">
+          <h2 className="font-semibold text-sm text-gray-900 dark:text-white truncate">
             {room.name || 'Chat'}
           </h2>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {room.room_type === 'direct'
               ? 'Direct message'
               : `${room.participants?.length || 0} participants`
@@ -68,10 +68,10 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ room, currentUserId, onAddMembe
         <button
           type="button"
           onClick={() => setMenuOpen((o) => !o)}
-          className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
+          className="p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg"
           aria-expanded={menuOpen}
         >
-          <MoreVertical className="text-gray-600 dark:text-gray-400" size={20} />
+          <MoreVertical className="text-gray-600 dark:text-gray-400" size={18} />
         </button>
         {menuOpen && (
           <div className="absolute right-0 top-full mt-1 min-w-[160px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">

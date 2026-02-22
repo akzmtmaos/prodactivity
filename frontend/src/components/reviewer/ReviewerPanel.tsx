@@ -896,7 +896,7 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       {/* Header (compact, like Tasks) */}
       <div className="bg-transparent dark:bg-transparent">
         <div className="mb-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
             Reviewer
             <HelpButton 
               content={

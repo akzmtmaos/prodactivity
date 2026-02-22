@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { format, isValid } from 'date-fns';
 import { ScheduleEvent, PastEvent } from '../../types/schedule';
-import { Repeat } from 'lucide-react';
+import { Repeat, X } from 'lucide-react';
 import ReactDOM from 'react-dom';
 
 interface AddEventModalProps {
@@ -169,53 +169,64 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
 
   if (!isOpen) return null;
 
+  const inputBase = 'block w-full px-2.5 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 bg-white dark:bg-[#252525] text-gray-900 dark:text-white';
+  const inputError = 'border-red-500 dark:border-red-500';
+  const inputNormal = 'border-gray-300 dark:border-[#333333]';
+
   return ReactDOM.createPortal(
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl mx-4">
-        <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            {recurringEvent ? (
-              <span className="flex items-center gap-2">
-                <Repeat className="h-5 w-5 text-purple-500" />
-                Recur Event: {recurringEvent.title}
-              </span>
-            ) : (
-              'Add New Event'
+    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50" onClick={onClose}>
+      <div
+        className="bg-white dark:bg-[#1e1e1e] rounded-lg shadow-xl w-full max-w-2xl mx-4 border border-gray-200 dark:border-[#333333] max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-200 dark:border-[#333333] flex-shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white flex items-center gap-2 truncate">
+              {recurringEvent ? (
+                <>
+                  <Repeat className="h-4 w-4 text-purple-500 flex-shrink-0" />
+                  <span className="truncate">Recur: {recurringEvent.title}</span>
+                </>
+              ) : (
+                'Add New Event'
+              )}
+            </h2>
+            {recurringEvent && (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Based on previous event</p>
             )}
-          </h2>
-          {recurringEvent && (
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-              Creating a new event based on previous event details
-            </p>
-          )}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d] flex-shrink-0"
+            aria-label="Close"
+          >
+            <X size={18} />
+          </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <form onSubmit={handleSubmit} className="px-4 py-3 overflow-y-auto flex-1 min-h-0">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Title</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Title</label>
               <input
                 type="text"
                 value={newEvent.title}
                 onChange={(e) => {
-                  setNewEvent({...newEvent, title: e.target.value});
-                  setErrors({...errors, title: undefined});
+                  setNewEvent({ ...newEvent, title: e.target.value });
+                  setErrors({ ...errors, title: undefined });
                 }}
-                className={`mt-1 block w-full p-2 border ${
-                  errors.title ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
+                className={`${inputBase} ${errors.title ? inputError : inputNormal}`}
                 required
               />
-              {errors.title && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.title}</p>
-              )}
+              {errors.title && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.title}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Category</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Category</label>
               <select
                 value={newEvent.category}
-                onChange={(e) => setNewEvent({...newEvent, category: e.target.value as any})}
-                className="mt-1 block w-full p-2.5 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                onChange={(e) => setNewEvent({ ...newEvent, category: e.target.value as any })}
+                className={`${inputBase} ${inputNormal}`}
               >
                 <option value="study">Study</option>
                 <option value="assignment">Assignment</option>
@@ -225,95 +236,79 @@ const AddEventModal: React.FC<AddEventModalProps> = ({ isOpen, onClose, onAddEve
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Date</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Start Date</label>
               <input
                 type="date"
                 value={newEvent.date ? format(new Date(newEvent.date), 'yyyy-MM-dd') : ''}
                 onChange={handleDateChange}
-                className={`mt-1 block w-full p-2 border ${
-                  errors.date ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
+                className={`${inputBase} ${errors.date ? inputError : inputNormal}`}
                 required
                 min={format(new Date(), 'yyyy-MM-dd')}
               />
-              {errors.date && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.date}</p>
-              )}
+              {errors.date && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.date}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">End Date</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">End Date</label>
               <input
                 type="date"
                 value={newEvent.endDate ? format(new Date(newEvent.endDate), 'yyyy-MM-dd') : ''}
                 onChange={handleEndDateChange}
-                className={`mt-1 block w-full p-2 border ${
-                  errors.endDate ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
+                className={`${inputBase} ${errors.endDate ? inputError : inputNormal}`}
                 required
                 min={format(new Date(), 'yyyy-MM-dd')}
               />
-              {errors.endDate && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.endDate}</p>
-              )}
+              {errors.endDate && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.endDate}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Start Time</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Start Time</label>
               <input
                 type="time"
                 value={newEvent.startTime}
                 onChange={(e) => {
-                  setNewEvent({...newEvent, startTime: e.target.value});
-                  setErrors({...errors, startTime: undefined});
+                  setNewEvent({ ...newEvent, startTime: e.target.value });
+                  setErrors({ ...errors, startTime: undefined });
                 }}
-                className={`mt-1 block w-full p-2 border ${
-                  errors.startTime ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
+                className={`${inputBase} ${errors.startTime ? inputError : inputNormal}`}
                 required
               />
-              {errors.startTime && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.startTime}</p>
-              )}
+              {errors.startTime && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.startTime}</p>}
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">End Time</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">End Time</label>
               <input
                 type="time"
                 value={newEvent.endTime}
                 onChange={(e) => {
-                  setNewEvent({...newEvent, endTime: e.target.value});
-                  setErrors({...errors, endTime: undefined});
+                  setNewEvent({ ...newEvent, endTime: e.target.value });
+                  setErrors({ ...errors, endTime: undefined });
                 }}
-                className={`mt-1 block w-full p-2 border ${
-                  errors.endTime ? 'border-red-500' : 'border-gray-300'
-                } rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500`}
+                className={`${inputBase} ${errors.endTime ? inputError : inputNormal}`}
                 required
               />
-              {errors.endTime && (
-                <p className="mt-1 text-sm text-red-600 dark:text-red-400">{errors.endTime}</p>
-              )}
+              {errors.endTime && <p className="mt-1 text-xs text-red-500 dark:text-red-400">{errors.endTime}</p>}
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+              <label className="block text-xs font-medium text-gray-700 dark:text-gray-400 mb-1">Description</label>
               <textarea
                 value={newEvent.description}
-                onChange={(e) => setNewEvent({...newEvent, description: e.target.value})}
-                className="mt-1 block w-full p-2 border border-gray-300 rounded-md shadow-sm bg-white dark:bg-gray-700 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-indigo-500 focus:border-indigo-500"
-                rows={3}
+                onChange={(e) => setNewEvent({ ...newEvent, description: e.target.value })}
+                className={`${inputBase} ${inputNormal} resize-none`}
+                rows={2}
               />
             </div>
           </div>
 
-          <div className="mt-6 flex justify-end space-x-3">
+          <div className="mt-4 flex justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 bg-gray-200 text-gray-800 dark:bg-gray-700 dark:text-gray-200 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+              className="px-2.5 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] rounded-md transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+              className="px-2.5 py-1.5 text-xs font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors"
             >
               Save Event
             </button>

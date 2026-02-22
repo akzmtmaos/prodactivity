@@ -95,7 +95,7 @@ const Calendar: React.FC<CalendarProps> = ({
   const renderWeeklyView = () => (
     <>
       {/* Days of the week */}
-      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
+      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-[#333333]">
         {weekDays.map((day, index) => {
           const dayEvents = getEventsForDate(day.date);
           const hasEvents = dayEvents.length > 0;
@@ -162,7 +162,7 @@ const Calendar: React.FC<CalendarProps> = ({
         {weekDays.map((day, dayIndex) => (
           <div 
             key={dayIndex} 
-            className={`border-r border-b border-gray-200 dark:border-gray-700 p-2 h-full overflow-y-auto ${
+            className={`border-r border-b border-gray-200 dark:border-[#333333] p-2 h-full overflow-y-auto ${
               day.isWeekend 
                 ? 'bg-blue-50 dark:bg-blue-900/10 border-l border-blue-200 dark:border-blue-800' 
                 : ''
@@ -232,7 +232,7 @@ const Calendar: React.FC<CalendarProps> = ({
     return (
       <>
         {/* Days of the week header */}
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-gray-700">
+        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-[#333333]">
           {weekDayNames.map((dayName, index) => {
             const isWeekend = index === 0 || index === 6; // Sunday (0) or Saturday (6)
             return (
@@ -255,7 +255,7 @@ const Calendar: React.FC<CalendarProps> = ({
           {allMonthDays.map((day, index) => {
             if (!day) {
               return (
-                <div key={`empty-${index}`} className="border-r border-b border-gray-200 dark:border-gray-700 p-2 bg-gray-50 dark:bg-gray-900/50"></div>
+                <div key={`empty-${index}`} className="border-r border-b border-gray-200 dark:border-[#333333] p-2 bg-gray-50 dark:bg-gray-900/50"></div>
               );
             }
 
@@ -269,7 +269,7 @@ const Calendar: React.FC<CalendarProps> = ({
             return (
               <div 
                 key={day.toISOString()} 
-                className={`border-r border-b border-gray-200 dark:border-gray-700 p-2 min-h-[100px] overflow-y-auto ${
+                className={`border-r border-b border-gray-200 dark:border-[#333333] p-2 min-h-[100px] overflow-y-auto ${
                   !isCurrentMonth 
                     ? 'bg-gray-50 dark:bg-gray-900/30' 
                     : isWeekend 
@@ -356,59 +356,58 @@ const Calendar: React.FC<CalendarProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md overflow-hidden">
+    <div className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] overflow-hidden">
       {/* Calendar header */}
-      <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
+      <div className="px-4 py-3 border-b border-gray-200 dark:border-[#333333] flex justify-between items-center flex-wrap gap-2">
+        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
           {view === 'weekly' 
             ? format(weekDays[0].date, 'MMMM yyyy')
             : format(currentDate, 'MMMM yyyy')
           }
         </h2>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center gap-2 flex-wrap">
           {/* View Toggle */}
-          <div className="flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 rounded-lg p-1">
+          <div className="flex items-center bg-gray-100 dark:bg-[#252525] rounded-lg p-0.5 border border-gray-200 dark:border-[#333333]">
             <button
               onClick={() => setView('weekly')}
-              className={`px-3 py-1 text-sm font-medium rounded transition-colors ${
+              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors ${
                 view === 'weekly'
-                  ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-[#2d2d2d] text-indigo-600 dark:text-indigo-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Week
             </button>
             <button
               onClick={() => setView('monthly')}
-              className={`px-3 py-1 text-sm font-medium rounded transition-colors ${
+              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors ${
                 view === 'monthly'
-                  ? 'bg-white dark:bg-gray-600 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'
+                  ? 'bg-white dark:bg-[#2d2d2d] text-indigo-600 dark:text-indigo-400 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
               }`}
             >
               Month
             </button>
           </div>
-          
-          {/* Navigation buttons */}
-          <div className="flex space-x-2">
+          {/* Navigation */}
+          <div className="flex items-center gap-1">
             <button
               onClick={() => onDateChange(view === 'weekly' ? addDays(currentDate, -7) : subMonths(currentDate, 1))}
-              className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+              className="h-7 px-2 text-xs font-medium rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300"
             >
-              &larr; {view === 'weekly' ? 'Previous Week' : 'Previous Month'}
+              &larr;
             </button>
             <button
               onClick={() => onDateChange(new Date())}
-              className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+              className="h-7 px-2.5 text-xs font-medium rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300"
             >
               Today
             </button>
             <button
               onClick={() => onDateChange(view === 'weekly' ? addDays(currentDate, 7) : addMonths(currentDate, 1))}
-              className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+              className="h-7 px-2 text-xs font-medium rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300"
             >
-              {view === 'weekly' ? 'Next Week' : 'Next Month'} &rarr;
+              &rarr;
             </button>
           </div>
         </div>

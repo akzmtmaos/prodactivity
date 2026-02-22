@@ -64,10 +64,10 @@ const PastEvents: React.FC<PastEventsProps> = ({
 
   if (pastEvents.length === 0) {
     return (
-      <div className="text-center py-12">
-        <FileText className="mx-auto h-12 w-12 text-gray-400" />
+      <div className="text-center py-10">
+        <FileText className="mx-auto h-10 w-10 text-gray-400 dark:text-gray-500" />
         <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No past events</h3>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
           Past events will appear here once they're completed or archived.
         </p>
       </div>
@@ -75,7 +75,7 @@ const PastEvents: React.FC<PastEventsProps> = ({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {paginatedEvents.map((event) => {
         const status = getCompletionStatus(event);
         const isExpanded = expandedId === event.id;
@@ -83,9 +83,8 @@ const PastEvents: React.FC<PastEventsProps> = ({
         return (
           <div
             key={event.id}
-            className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 hover:border-indigo-300 dark:hover:border-indigo-600 transition-all duration-200 shadow-sm hover:shadow"
+            className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] hover:border-gray-300 dark:hover:border-[#404040] transition-colors"
           >
-            {/* Compact Card Header */}
             <div className="p-3">
               <div className="flex items-start justify-between gap-3">
                 {/* Left side - Main content */}
@@ -156,17 +155,17 @@ const PastEvents: React.FC<PastEventsProps> = ({
                   {onRecurEvent && (
                     <button
                       onClick={() => onRecurEvent(event)}
-                      className="px-2 py-1.5 text-xs font-medium text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 dark:text-purple-400 rounded-md transition-colors flex items-center gap-1"
+                      className="h-7 px-2 text-xs font-medium text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 dark:text-purple-400 rounded-md transition-colors flex items-center gap-1"
                       title="Create a recurring event with same details"
                     >
-                      <Repeat className="h-3.5 w-3.5" />
+                      <Repeat size={12} />
                       <span className="hidden sm:inline">Recur</span>
                     </button>
                   )}
                   {onMarkCompleted && (
                     <button
                       onClick={() => onMarkCompleted(event.id, !event.completedAt)}
-                      className={`px-2 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                      className={`h-7 px-2 text-xs font-medium rounded-md transition-colors ${
                         event.completedAt
                           ? 'text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400'
                           : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 dark:text-green-400'
@@ -178,7 +177,7 @@ const PastEvents: React.FC<PastEventsProps> = ({
                   )}
                   <button
                     onClick={() => onViewEvent(event)}
-                    className="px-2 py-1.5 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 dark:text-indigo-400 rounded-md transition-colors"
+                    className="h-7 px-2 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 dark:text-indigo-400 rounded-md transition-colors"
                   >
                     View
                   </button>

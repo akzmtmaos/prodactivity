@@ -82,7 +82,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
         <ChatList
           rooms={filteredChatRooms}
           selectedRoom={selectedRoom}
