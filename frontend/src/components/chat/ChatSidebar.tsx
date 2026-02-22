@@ -28,54 +28,54 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 }) => {
   return (
     <div className="w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-      {/* Tabs */}
+      {/* Tabs – compact (same as Decks/Reviewer) */}
       <div className="flex border-b border-gray-200 dark:border-gray-700">
         <button
           onClick={() => {
             onViewChange('chats');
             onRoomSelect(null);
           }}
-          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeView === 'chats'
-              ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+              ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20'
+              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
           }`}
         >
-          <MessageCircle className="inline-block mr-2" size={16} />
-          Chat
+          <MessageCircle size={14} />
+          Chats
         </button>
         <button
           onClick={() => onViewChange('groups')}
-          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+          className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
             activeView === 'groups'
-              ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
+              ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20'
+              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
           }`}
         >
-          <Users className="inline-block mr-2" size={16} />
-          Groups
+          <Users size={14} />
+          Group
         </button>
       </div>
 
-      {/* Search + New group (when Groups tab) */}
-      <div className="p-3 border-b border-gray-200 dark:border-gray-700 space-y-2">
+      {/* Search + New group – compact (h-7, text-xs like refined modals) */}
+      <div className="px-3 py-2 border-b border-gray-200 dark:border-gray-700 space-y-2">
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" size={14} />
           <input
             type="text"
             placeholder={activeView === 'chats' ? 'Search chats...' : 'Search groups...'}
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            className="w-full h-7 pl-8 pr-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 dark:focus:ring-indigo-500"
           />
         </div>
         {activeView === 'groups' && onCreateGroupClick && (
           <button
             type="button"
             onClick={onCreateGroupClick}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium rounded-lg border border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-transparent hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
+            className="w-full flex items-center justify-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 text-indigo-600 dark:text-indigo-400 bg-white dark:bg-transparent hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors"
           >
-            <Plus size={16} />
+            <Plus size={14} />
             New group
           </button>
         )}

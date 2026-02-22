@@ -27,6 +27,7 @@ import ReviewerDocument from './ReviewerDocument';
 import { useNavigate } from 'react-router-dom';
 import ReviewerCard from './ReviewerCard';
 import Toast from '../../components/common/Toast';
+import Pagination from '../common/Pagination';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import GenerateModal from './GenerateModal';
 import InteractiveQuiz from './InteractiveQuiz';
@@ -953,6 +954,21 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                 className="w-full h-7 pl-8 pr-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040]"
               />
             </div>
+            {/* Pagination – next to search (same style as dtrack-region-ix / Trash) */}
+            {!loading && activeTab === 'reviewer' && totalPagesReviewer > 1 && (
+              <Pagination
+                currentPage={currentPageReviewer}
+                totalPages={totalPagesReviewer}
+                onPageChange={setCurrentPageReviewer}
+              />
+            )}
+            {!loading && activeTab === 'quiz' && totalPagesQuiz > 1 && (
+              <Pagination
+                currentPage={currentPageQuiz}
+                totalPages={totalPagesQuiz}
+                onPageChange={setCurrentPageQuiz}
+              />
+            )}
             {/* Filter dropdown (custom, same style as TaskFilters/Notes) */}
             <div className="relative" ref={filterRef}>
               <button
@@ -963,9 +979,6 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
                 title="Filter"
               >
                 <Filter size={14} className="text-gray-500 dark:text-gray-400" />
-                <span className="max-w-[100px] truncate">
-                  {filterType === 'all' ? 'All' : filterType === 'favorites' ? 'Favorites' : filterType === 'notebook' ? 'Notebook' : 'Note'}
-                </span>
                 <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${filterOpen ? 'rotate-180' : ''}`} />
               </button>
               {filterOpen && (
@@ -1015,9 +1028,9 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
         </div>
       </div>
 
-      {/* List content in card (same as Tasks: bg card + p-2, compact spacing) */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden border border-gray-200 dark:border-gray-700">
-        <div className="overflow-auto max-h-[calc(100vh-16rem)] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-gray-100 dark:scrollbar-track-gray-800 p-2">
+      {/* List content – no outer card, like Notebook compact list */}
+      <div className="flex-1 overflow-hidden">
+        <div className="overflow-auto max-h-[calc(100vh-16rem)] scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 scrollbar-track-gray-100 dark:scrollbar-track-gray-800 p-1">
         {activeTab === 'reviewer' ? (
           <>
             {/* Create Form */}
@@ -1234,137 +1247,6 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           )
         )}
       </div>
-
-      {/* Pagination Controls - Outside Scrollable Area - Only show when not loading */}
-      {!loading && activeTab === 'reviewer' && totalPagesReviewer > 1 && (
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-700 dark:text-gray-300">
-              Showing {startIndexReviewer + 1} to {Math.min(endIndexReviewer, filteredReviewers.length)} of {filteredReviewers.length} results
-          </div>
-            <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setCurrentPageReviewer(prev => Math.max(1, prev - 1))}
-              disabled={currentPageReviewer === 1}
-                className={`px-3 py-1 text-sm font-medium rounded-md ${
-                  currentPageReviewer === 1
-                    ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-            >
-                Previous
-            </button>
-              
-              {/* Page numbers */}
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: Math.min(5, totalPagesReviewer) }, (_, i) => {
-                  let pageNum: number;
-                  if (totalPagesReviewer <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPageReviewer <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPageReviewer >= totalPagesReviewer - 2) {
-                    pageNum = totalPagesReviewer - 4 + i;
-                  } else {
-                    pageNum = currentPageReviewer - 2 + i;
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPageReviewer(pageNum)}
-                      className={`px-3 py-1 text-sm font-medium rounded-md ${
-                        currentPageReviewer === pageNum
-                          ? 'bg-indigo-600 text-white'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              
-            <button
-              onClick={() => setCurrentPageReviewer(prev => Math.min(totalPagesReviewer, prev + 1))}
-              disabled={currentPageReviewer === totalPagesReviewer}
-                className={`px-3 py-1 text-sm font-medium rounded-md ${
-                  currentPageReviewer === totalPagesReviewer
-                    ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-            >
-                Next
-            </button>
-            </div>
-          </div>
-        </div>
-      )}
-      
-      {!loading && activeTab === 'quiz' && totalPagesQuiz > 1 && (
-        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-700 dark:text-gray-300">
-              Showing {startIndexQuiz + 1} to {Math.min(endIndexQuiz, filteredQuizzes.length)} of {filteredQuizzes.length} results
-          </div>
-            <div className="flex items-center space-x-2">
-            <button
-              onClick={() => setCurrentPageQuiz(prev => Math.max(1, prev - 1))}
-              disabled={currentPageQuiz === 1}
-                className={`px-3 py-1 text-sm font-medium rounded-md ${
-                  currentPageQuiz === 1
-                    ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-            >
-                Previous
-            </button>
-              
-              {/* Page numbers */}
-              <div className="flex items-center space-x-1">
-                {Array.from({ length: Math.min(5, totalPagesQuiz) }, (_, i) => {
-                  let pageNum: number;
-                  if (totalPagesQuiz <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPageQuiz <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPageQuiz >= totalPagesQuiz - 2) {
-                    pageNum = totalPagesQuiz - 4 + i;
-                  } else {
-                    pageNum = currentPageQuiz - 2 + i;
-                  }
-                  
-                  return (
-                    <button
-                      key={pageNum}
-                      onClick={() => setCurrentPageQuiz(pageNum)}
-                      className={`px-3 py-1 text-sm font-medium rounded-md ${
-                        currentPageQuiz === pageNum
-                          ? 'bg-indigo-600 text-white'
-                          : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-              </div>
-              
-            <button
-              onClick={() => setCurrentPageQuiz(prev => Math.min(totalPagesQuiz, prev + 1))}
-              disabled={currentPageQuiz === totalPagesQuiz}
-                className={`px-3 py-1 text-sm font-medium rounded-md ${
-                  currentPageQuiz === totalPagesQuiz
-                    ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                }`}
-            >
-                Next
-            </button>
-            </div>
-          </div>
-        </div>
-      )}
       </div>
       {toast && (
         <Toast

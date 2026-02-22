@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { generateUserReport } from '../utils/reportGenerator';
 import Toast from '../components/common/Toast';
+import { getAvatarUrl } from '../components/chat/utils';
 
 interface Achievement {
   id: string;
@@ -478,6 +479,8 @@ const Profile: React.FC = () => {
     return (first + last).toUpperCase() || 'U';
   };
 
+  const profileAvatarUrl = getAvatarUrl(user?.avatar);
+
   const joinedLabel = (() => {
     const raw =
       user?.date_joined ||
@@ -680,8 +683,8 @@ const Profile: React.FC = () => {
         <div className="p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-6">
-              {user?.avatar ? (
-                <img src={user.avatar} alt="avatar" className="w-24 h-24 rounded-full object-cover border-4 border-indigo-200 dark:border-indigo-800" />
+              {profileAvatarUrl ? (
+                <img src={profileAvatarUrl} alt="avatar" className="w-24 h-24 rounded-full object-cover border-4 border-indigo-200 dark:border-indigo-800" />
               ) : (
                 <span className="w-24 h-24 flex items-center justify-center rounded-full bg-indigo-600 text-white text-3xl font-bold border-4 border-indigo-200 dark:border-indigo-800">
                   {getInitials(user?.displayName || user?.username)}

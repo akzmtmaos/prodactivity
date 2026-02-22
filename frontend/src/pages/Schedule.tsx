@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { Plus } from 'lucide-react';
 import { isValid } from 'date-fns';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
@@ -324,83 +325,80 @@ const Schedule = () => {
 
   return (
     <PageLayout>
-      <div className="flex h-full">
-        <div className="flex-1 space-y-6">
-          {/* Header section */}
-          <div className="mb-8 flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
-                Schedule
-                <HelpButton 
-                  content={
-                    <div>
-                      <p className="font-semibold mb-2">Schedule Management</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• <strong>Add Events:</strong> Create one-time events with details</li>
-                        <li>• <strong>Calendar View:</strong> Visual monthly calendar display</li>
-                        <li>• <strong>Upcoming Events:</strong> See what's coming next</li>
-                        <li>• <strong>Past Events:</strong> Review completed activities</li>
-                        <li>• <strong>Recur Events:</strong> Quickly recreate past events using the "Recur" button</li>
-                        <li>• <strong>Event Details:</strong> Add time, category, and descriptions</li>
-                        <li>• <strong>Delete:</strong> Remove events as needed</li>
-                      </ul>
-                    </div>
-                  } 
-                  title="Schedule Help" 
-                />
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-                Here's your upcoming schedule.
-              </p>
-            </div>
-            <div className="flex space-x-3">
+      <div className="flex h-full flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0">
+          {/* Header – title + subtitle only */}
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+              Schedule
+              <HelpButton 
+                content={
+                  <div>
+                    <p className="font-semibold mb-2">Schedule Management</p>
+                    <ul className="space-y-1 text-xs">
+                      <li>• <strong>Add Events:</strong> Create one-time events with details</li>
+                      <li>• <strong>Calendar View:</strong> Visual monthly calendar display</li>
+                      <li>• <strong>Upcoming Events:</strong> See what's coming next</li>
+                      <li>• <strong>Past Events:</strong> Review completed activities</li>
+                      <li>• <strong>Recur Events:</strong> Quickly recreate past events using the "Recur" button</li>
+                      <li>• <strong>Event Details:</strong> Add time, category, and descriptions</li>
+                      <li>• <strong>Delete:</strong> Remove events as needed</li>
+                    </ul>
+                  </div>
+                } 
+                title="Schedule Help" 
+              />
+            </h1>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              Here's your upcoming schedule.
+            </p>
+          </div>
+
+          {/* Tab row – tabs left, Add Event right (compact, like Decks/Trash) */}
+          <div className="flex flex-col min-h-0 flex-1">
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2 gap-4 flex-wrap">
+              <div className="flex space-x-4">
+                <button
+                  onClick={() => setActiveTab('calendar')}
+                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                    activeTab === 'calendar'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  Calendar
+                </button>
+                <button
+                  onClick={() => setActiveTab('upcoming')}
+                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                    activeTab === 'upcoming'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  Upcoming Events
+                </button>
+                <button
+                  onClick={() => setActiveTab('past')}
+                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                    activeTab === 'past'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  Past Events
+                </button>
+              </div>
               <button
-                onClick={() => {
-                  setRecurringEvent(null);
-                  setShowAddEvent(true);
-                }}
-                className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition"
+                type="button"
+                onClick={() => { setRecurringEvent(null); setShowAddEvent(true); }}
+                className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
               >
+                <Plus size={14} />
                 Add Event
               </button>
             </div>
-          </div>
-
-          {/* Tabs styled like Settings */}
-          <div>
-            <div className="flex space-x-4 border-b border-gray-200 dark:border-gray-700 mb-8">
-              <button
-                onClick={() => setActiveTab('calendar')}
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'calendar'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                Calendar
-              </button>
-              <button
-                onClick={() => setActiveTab('upcoming')}
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'upcoming'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                Upcoming Events
-              </button>
-              <button
-                onClick={() => setActiveTab('past')}
-                className={`px-4 py-2 font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'past'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                Past Events
-              </button>
-            </div>
-            <div className="mt-4 flex-1 overflow-auto">
+            <div className="flex-1 min-h-0 overflow-auto mt-2">
               {/* Tab content */}
               {activeTab === 'calendar' && (
                 <Calendar
@@ -427,7 +425,7 @@ const Schedule = () => {
                     itemsPerPage={pastEventsPerPage}
                   />
                   {pastEvents.length > pastEventsPerPage && (
-                    <div className="mt-6">
+                    <div className="mt-4">
                       <Pagination
                         currentPage={pastEventsCurrentPage}
                         totalPages={Math.ceil(pastEvents.length / pastEventsPerPage)}

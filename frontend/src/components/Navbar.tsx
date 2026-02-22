@@ -104,6 +104,8 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     return (parts[0][0] + parts[1][0]).toUpperCase();
   };
 
+  const userAvatarUrl = getAvatarUrl(user?.avatar);
+
   // Find Friends search - debounced
   useEffect(() => {
     if (findFriendsQuery.trim().length < 2) {
@@ -137,25 +139,26 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     navigate(`/profile/${encodeURIComponent(username)}`);
   };
 
+  const iconSize = 16;
   // Primary navigation items (most important) - Find Friends is rendered separately above Messages on desktop
   const primaryNavItems = [
-    { path: "/", name: "Home", icon: <Home size={18} /> },
-    { path: "/chat", name: "Find Friends", icon: <Users size={18} />, isFindFriends: true },
-    { path: "/chat", name: "Messages", icon: <MessageCircle size={18} /> },
-    { path: "/progress", name: "Progress", icon: <BarChart2 size={18} /> },
-    { path: "/notebooks", name: "Notebooks", icon: <FileText size={18} /> },
-    { path: "/decks", name: "Flashcards", icon: <Layers size={18} /> },
-    { path: "/tasks", name: "Tasks", icon: <CheckSquare size={18} /> },
+    { path: "/", name: "Home", icon: <Home size={iconSize} /> },
+    { path: "/chat", name: "Find Friends", icon: <Users size={iconSize} />, isFindFriends: true },
+    { path: "/chat", name: "Messages", icon: <MessageCircle size={iconSize} /> },
+    { path: "/progress", name: "Progress", icon: <BarChart2 size={iconSize} /> },
+    { path: "/notebooks", name: "Notebooks", icon: <FileText size={iconSize} /> },
+    { path: "/decks", name: "Flashcards", icon: <Layers size={iconSize} /> },
+    { path: "/tasks", name: "Tasks", icon: <CheckSquare size={iconSize} /> },
   ];
 
   // Secondary navigation items (less frequently used)
   const secondaryNavItems = [
-    { path: "/reviewer/r", name: "Reviewer", icon: <Brain size={18} /> },
-    { path: "/schedule", name: "Schedule", icon: <Calendar size={18} /> },
-    { path: "/study-timer", name: "Study Timer", icon: <Clock size={18} /> },
-    { path: "/notifications", name: "Notifications", icon: <Bell size={18} /> },
-    { path: "/trash", name: "Trash", icon: <Trash2 size={18} /> },
-    { path: "/settings", name: "Settings", icon: <Settings size={18} /> },
+    { path: "/reviewer/r", name: "Reviewer", icon: <Brain size={iconSize} /> },
+    { path: "/schedule", name: "Schedule", icon: <Calendar size={iconSize} /> },
+    { path: "/study-timer", name: "Study Timer", icon: <Clock size={iconSize} /> },
+    { path: "/notifications", name: "Notifications", icon: <Bell size={iconSize} /> },
+    { path: "/trash", name: "Trash", icon: <Trash2 size={iconSize} /> },
+    { path: "/settings", name: "Settings", icon: <Settings size={iconSize} /> },
   ];
 
   const allNavItems = [...primaryNavItems, ...secondaryNavItems];
@@ -165,12 +168,12 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
       {/* Vertical Navbar for Desktop - Supabase Style */}
       <aside
         className={`hidden md:flex fixed inset-y-0 left-0 z-30 flex-col transition-[margin,width] duration-300 bg-white dark:bg-[#1c1c1c] border-r border-gray-200 dark:border-[#333333] h-screen
-          ${isCollapsed ? 'w-14' : 'w-48'}
+          ${isCollapsed ? 'w-12' : 'w-44'}
         `}
       >
-        {/* App logo/name - Supabase style (bare P, no dark strip in light mode) */}
+        {/* Logo – same height as header (h-12) so the divider aligns with header bottom border */}
         <div 
-          className="flex items-center justify-center h-12 px-0 border-b border-gray-200 dark:border-[#333333] cursor-pointer flex-shrink-0 bg-white dark:bg-[#1c1c1c]"
+          className="flex items-center justify-center h-12 px-2 border-b border-gray-200 dark:border-[#333333] cursor-pointer flex-shrink-0 bg-white dark:bg-[#1c1c1c]"
           onClick={() => {
             if (isCollapsed) {
               setIsCollapsed(false);
@@ -178,79 +181,75 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
             navigate('/');
           }}
           >
-          <span className="text-lg font-semibold tracking-tight text-indigo-600 dark:text-indigo-400 leading-none">
+          <span className="text-sm font-semibold tracking-tight text-indigo-600 dark:text-indigo-400 leading-none">
             P
           </span>
         </div>
 
-        {/* Navigation links - Supabase style */}
-        <nav className="flex-1 overflow-y-auto py-3">
-          {/* Primary Navigation - Find Friends & Messages above Progress */}
+        {/* Navigation – compact, Supabase-like */}
+        <nav className="flex-1 overflow-y-auto py-2">
           <div className="px-2">
-            <ul className="space-y-1">
-              {/* Home */}
+            <ul className="space-y-0.5">
               <li>
                 <Link
                   to="/"
-                  className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
                     ${location.pathname === '/' 
-                      ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" 
-                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                    ${isCollapsed ? 'justify-center' : ''}`}
+                      ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                      : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                    ${isCollapsed ? 'justify-center px-2' : ''}`}
                   title={isCollapsed ? 'Home' : undefined}
                 >
-                  <span className={`flex-shrink-0 ${location.pathname === '/' ? 'text-indigo-600 dark:text-indigo-400' : ''}`}>
-                    <Home size={18} />
+                  <span className="flex-shrink-0">
+                    <Home size={iconSize} />
                   </span>
                   {!isCollapsed && <span className="truncate">Home</span>}
                 </Link>
               </li>
-              {/* Find Friends - opens sliding panel */}
               <li>
                 <button
                   onClick={() => setShowFindFriendsPanel(true)}
-                  className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800
-                    ${isCollapsed ? 'justify-center' : ''}`}
+                  className={`w-full flex items-center gap-1.5 px-3 py-2 text-xs rounded-md transition-all text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800
+                    ${isCollapsed ? 'justify-center px-2' : ''}`}
                   title={isCollapsed ? 'Find Friends' : undefined}
                 >
                   <span className="flex-shrink-0">
-                    <Users size={18} />
+                    <Users size={iconSize} />
                   </span>
                   {!isCollapsed && <span className="truncate">Find Friends</span>}
                 </button>
               </li>
-              {/* Messages */}
               <li>
                 <Link
                   to="/chat"
-                  className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
                     ${location.pathname === '/chat' 
-                      ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" 
-                      : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                    ${isCollapsed ? 'justify-center' : ''}`}
+                      ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                      : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                    ${isCollapsed ? 'justify-center px-2' : ''}`}
                   title={isCollapsed ? 'Messages' : undefined}
                 >
-                  <span className={`flex-shrink-0 ${location.pathname === '/chat' ? 'text-indigo-600 dark:text-indigo-400' : ''}`}>
-                    <MessageCircle size={18} />
+                  <span className="flex-shrink-0">
+                    <MessageCircle size={iconSize} />
                   </span>
                   {!isCollapsed && <span className="truncate">Messages</span>}
                 </Link>
               </li>
-              {/* Progress, Notebooks, Flashcards, Tasks */}
-              {primaryNavItems.filter(item => item.path !== '/' && item.path !== '/chat' && !(item as any).isFindFriends).map((item) => {
+              {/* Progress only (first divider goes after this) */}
+              {primaryNavItems.filter(item => item.path !== '/' && item.path !== '/chat' && !(item as any).isFindFriends).slice(0, 1).map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
                   <li key={item.path}>
                     <Link
                       to={item.path}
-                      className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
                         ${isActive 
-                          ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" 
-                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                        ${isCollapsed ? 'justify-center' : ''}`}
+                          ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                          : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                        ${isCollapsed ? 'justify-center px-2' : ''}`}
                       title={isCollapsed ? item.name : undefined}
                     >
-                      <span className={`flex-shrink-0 ${isActive ? 'text-indigo-600 dark:text-indigo-400' : ''}`}>
+                      <span className="flex-shrink-0">
                         {item.icon}
                       </span>
                       {!isCollapsed && (
@@ -263,35 +262,94 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
             </ul>
           </div>
 
-          {/* Divider */}
+          {/* Divider: after Progress, before Notebooks */}
           {!isCollapsed && (
-            <div className="px-4 py-2">
+            <div className="px-3 py-1.5">
               <div className="h-px bg-gray-200 dark:bg-gray-800" />
             </div>
           )}
 
-          {/* Secondary Navigation */}
-          <div className="px-2 mt-2">
-            <ul className="space-y-1">
-              {secondaryNavItems.map((item) => {
+          <div className="px-2 mt-0">
+            <ul className="space-y-0.5">
+              {/* Notebooks, Flashcards, Tasks */}
+              {primaryNavItems.filter(item => item.path !== '/' && item.path !== '/chat' && !(item as any).isFindFriends).slice(1).map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
                   <li key={item.path}>
                     <Link
                       to={item.path}
-                      className={`flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all relative
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
                         ${isActive 
-                          ? "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400" 
-                          : "text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                        ${isCollapsed ? 'justify-center' : ''}`}
+                          ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                          : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                        ${isCollapsed ? 'justify-center px-2' : ''}`}
                       title={isCollapsed ? item.name : undefined}
                     >
-                      <span className={`flex-shrink-0 ${isActive ? 'text-indigo-600 dark:text-indigo-400' : ''}`}>
+                      <span className="flex-shrink-0">
+                        {item.icon}
+                      </span>
+                      {!isCollapsed && (
+                        <span className="truncate">{item.name}</span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+              {/* Reviewer, Schedule, Study Timer (no divider above) */}
+              {secondaryNavItems.slice(0, 3).map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <li key={item.path}>
+                    <Link
+                      to={item.path}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all relative
+                        ${isActive 
+                          ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                          : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                        ${isCollapsed ? 'justify-center px-2' : ''}`}
+                      title={isCollapsed ? item.name : undefined}
+                    >
+                      <span className="flex-shrink-0">
+                        {item.icon}
+                      </span>
+                      {!isCollapsed && (
+                        <span className="truncate flex-1">{item.name}</span>
+                      )}
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          {/* Divider: after Study Timer, before Notifications */}
+          {!isCollapsed && (
+            <div className="px-3 py-1.5">
+              <div className="h-px bg-gray-200 dark:bg-gray-800" />
+            </div>
+          )}
+
+          <div className="px-2 mt-0">
+            <ul className="space-y-0.5">
+              {secondaryNavItems.slice(3).map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <li key={item.path}>
+                    <Link
+                      to={item.path}
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all relative
+                        ${isActive 
+                          ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                          : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                        ${isCollapsed ? 'justify-center px-2' : ''}`}
+                      title={isCollapsed ? item.name : undefined}
+                    >
+                      <span className="flex-shrink-0">
                         {item.name === 'Notifications' ? (
                           <div className="relative">
-                            <Bell size={18} />
+                            <Bell size={iconSize} />
                             {unreadCount > 0 && (
-                              <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full border border-white dark:border-[#1c1c1c]"></span>
+                              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-white dark:border-[#1c1c1c]"></span>
                             )}
                           </div>
                         ) : (
@@ -302,7 +360,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                         <span className="truncate flex-1">
                           {item.name}
                           {item.name === 'Notifications' && unreadCount > 0 && (
-                            <span className="ml-2 px-1.5 py-0.5 text-xs font-medium bg-red-500 text-white rounded-full">
+                            <span className="ml-1.5 px-1 py-0.5 text-[10px] font-medium bg-red-500 text-white rounded">
                               {unreadCount > 9 ? '9+' : unreadCount}
                             </span>
                           )}
@@ -441,8 +499,8 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                   onClick={() => navigate('/profile')}
                   className="flex items-center w-full px-4 py-3 text-base font-medium rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
                 >
-                  {user?.avatar ? (
-                    <img src={user.avatar} alt="avatar" className="w-8 h-8 rounded-full object-cover" />
+                  {userAvatarUrl ? (
+                    <img src={userAvatarUrl} alt="avatar" className="w-8 h-8 rounded-full object-cover" />
                   ) : (
                     <span className="w-8 h-8 flex items-center justify-center rounded-full bg-indigo-500 text-white font-bold text-lg">
                       {getInitials(user?.displayName || user?.username || "U")}

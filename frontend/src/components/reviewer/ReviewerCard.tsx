@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
-import { Star, StarOff, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy, Edit, MoreVertical, FileText, File } from 'lucide-react';
+import { Star, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy, Edit, MoreVertical, FileText, File } from 'lucide-react';
 import { truncateHtmlContent } from '../../utils/htmlUtils';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosConfig';
@@ -274,11 +274,11 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
           {showFavorite && onFavorite && (
             <button
               onClick={e => { e.stopPropagation(); onFavorite(reviewer.id); }}
-              className="p-1.5 text-gray-400 hover:text-yellow-500 transition-colors rounded-md hover:bg-gray-100 dark:hover:bg-[#333333]"
-              title={reviewer.is_favorite ? "Remove from favorites" : "Add to favorites"}
-              aria-label={reviewer.is_favorite ? "Remove from favorites" : "Add to favorites"}
+              className={`p-1 rounded ${reviewer.is_favorite ? 'text-yellow-500' : 'text-gray-500 hover:text-yellow-600'}`}
+              title={reviewer.is_favorite ? 'Unfavorite' : 'Favorite'}
+              aria-label={reviewer.is_favorite ? 'Unfavorite' : 'Favorite'}
             >
-              {reviewer.is_favorite ? <Star size={14} className="text-yellow-500 fill-current" /> : <StarOff size={14} />}
+              <Star size={12} fill={reviewer.is_favorite ? 'currentColor' : 'none'} />
             </button>
           )}
           <div className="relative">

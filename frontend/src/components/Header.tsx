@@ -7,6 +7,7 @@ import { useNavbar } from '../context/NavbarContext';
 import GlobalSearchModal from './common/GlobalSearchModal';
 import HelpModal from './common/HelpModal';
 import HeaderTooltip from './common/HeaderTooltip';
+import { getAvatarUrl } from './chat/utils';
 
 interface HeaderProps {
   pageTitle?: string;
@@ -113,7 +114,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
   return (
     <header 
       className={`fixed top-0 right-0 z-20 h-12 bg-white dark:bg-[#1c1c1c] border-b border-gray-200 dark:border-[#333333] transition-all duration-300 ${
-        isCollapsed ? 'md:left-14' : 'md:left-48'
+        isCollapsed ? 'md:left-12' : 'md:left-44'
       } left-0`}
     >
       <div className="h-full flex items-center justify-between px-3 md:px-4">
@@ -204,17 +205,20 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
               onClick={() => setShowUserMenu(!showUserMenu)}
               className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
             >
-              {user?.avatar ? (
-                <img
-                  src={user.avatar}
-                  alt="avatar"
-                  className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-700"
-                />
-              ) : (
+              {(() => {
+                const avatarUrl = getAvatarUrl(user?.avatar);
+                return avatarUrl ? (
+                  <img
+                    src={avatarUrl}
+                    alt="avatar"
+                    className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-700"
+                  />
+                ) : (
                 <div className="w-8 h-8 rounded-full bg-indigo-500 text-white font-medium text-sm flex items-center justify-center">
                   {getInitials(user?.displayName || user?.username || "U")}
                 </div>
-              )}
+              );
+              })()}
             </button>
 
             {/* User Dropdown Menu */}

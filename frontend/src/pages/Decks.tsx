@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, BookOpen, TrendingUp, Clock, Target, FileText, ChevronDown, LayoutList, Play, X } from 'lucide-react';
+import { Plus, Search, BookOpen, TrendingUp, Clock, Target, FileText, ChevronDown, LayoutList, Play, X, Pencil, Trash2, Filter } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import HelpButton from '../components/HelpButton';
 import Pagination from '../components/common/Pagination';
@@ -1266,107 +1266,75 @@ interface NoteItem {
                         <LayoutList size={14} className={deckListViewMode === 'compact' ? 'text-white' : 'text-gray-400'} />
                       </button>
                     </HeaderTooltip>
-                    {/* Sort – icon-only dropdown (Recent/Name/Progress) */}
+                    {/* Sort dropdown – Reviewer-style: icon + label + chevron */}
                     <div className="relative" ref={deckSortRef}>
-                      <HeaderTooltip label={sortBy === 'recent' ? 'Recent' : sortBy === 'name' ? 'Name' : 'Progress'}>
-                        <button
-                          type="button"
-                          onClick={() => setDeckSortOpen((o) => !o)}
-                          className="flex items-center justify-center gap-0.5 h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
-                          aria-label="Sort decks"
-                          aria-expanded={deckSortOpen}
-                        >
-                          <Clock size={14} className="text-gray-400" />
-                          <ChevronDown
-                            size={10}
-                            className={`text-gray-500 dark:text-gray-400 transition-transform ${deckSortOpen ? 'rotate-180' : ''}`}
-                          />
-                        </button>
-                      </HeaderTooltip>
+                      <button
+                        type="button"
+                        onClick={() => setDeckSortOpen((o) => !o)}
+                        className="flex items-center justify-center gap-1 h-7 pl-2.5 pr-2 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                        aria-label="Sort decks"
+                        aria-expanded={deckSortOpen}
+                        title="Sort"
+                      >
+                        <Clock size={14} className="text-gray-500 dark:text-gray-400" />
+                        <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${deckSortOpen ? 'rotate-180' : ''}`} />
+                      </button>
                       {deckSortOpen && (
-                        <div className="absolute right-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 p-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSortBy('recent');
-                              setDeckSortOpen(false);
-                            }}
-                            className="w-full px-3 py-2.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
-                          >
-                            Recent
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSortBy('name');
-                              setDeckSortOpen(false);
-                            }}
-                            className="w-full px-3 py-2.5 mt-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
-                          >
-                            Name
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSortBy('progress');
-                              setDeckSortOpen(false);
-                            }}
-                            className="w-full px-3 py-2.5 mt-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
-                          >
-                            Progress
-                          </button>
+                        <div className="absolute right-0 top-full mt-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
+                          {[
+                            { value: 'recent' as const, label: 'Recent' },
+                            { value: 'name' as const, label: 'Name' },
+                            { value: 'progress' as const, label: 'Progress' },
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => { setSortBy(opt.value); setDeckSortOpen(false); }}
+                              className={`w-full px-2.5 py-1.5 text-left text-xs rounded-md transition-colors ${
+                                sortBy === opt.value
+                                  ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
-                    {/* Filter – icon-only dropdown (All/Studied/New decks) */}
+                    {/* Filter dropdown – Reviewer-style: icon + label + chevron (All / Studied / New) */}
                     <div className="relative" ref={deckFilterRef}>
-                      <HeaderTooltip label={filterBy === 'all' ? 'All decks' : filterBy === 'studied' ? 'Studied decks' : 'New decks'}>
-                        <button
-                          type="button"
-                          onClick={() => setDeckFilterOpen((o) => !o)}
-                          className="flex items-center justify-center gap-0.5 h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
-                          aria-label="Filter decks"
-                          aria-expanded={deckFilterOpen}
-                        >
-                          <Target size={14} className="text-gray-400" />
-                          <ChevronDown
-                            size={10}
-                            className={`text-gray-500 dark:text-gray-400 transition-transform ${deckFilterOpen ? 'rotate-180' : ''}`}
-                          />
-                        </button>
-                      </HeaderTooltip>
+                      <button
+                        type="button"
+                        onClick={() => setDeckFilterOpen((o) => !o)}
+                        className="flex items-center justify-center gap-1 h-7 pl-2.5 pr-2 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                        aria-label="Filter decks"
+                        aria-expanded={deckFilterOpen}
+                        title="Filter"
+                      >
+                        <Filter size={14} className="text-gray-500 dark:text-gray-400" />
+                        <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${deckFilterOpen ? 'rotate-180' : ''}`} />
+                      </button>
                       {deckFilterOpen && (
-                        <div className="absolute right-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 p-2">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFilterBy('all');
-                              setDeckFilterOpen(false);
-                            }}
-                            className="w-full px-3 py-2.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
-                          >
-                            All decks
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFilterBy('studied');
-                              setDeckFilterOpen(false);
-                            }}
-                            className="w-full px-3 py-2.5 mt-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
-                          >
-                            Studied decks
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFilterBy('new');
-                              setDeckFilterOpen(false);
-                            }}
-                            className="w-full px-3 py-2.5 mt-1 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap"
-                          >
-                            New decks
-                          </button>
+                        <div className="absolute right-0 top-full mt-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
+                          {[
+                            { value: 'all' as const, label: 'All' },
+                            { value: 'studied' as const, label: 'Studied' },
+                            { value: 'new' as const, label: 'New' },
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => { setFilterBy(opt.value); setDeckFilterOpen(false); }}
+                              className={`w-full px-2.5 py-1.5 text-left text-xs rounded-md transition-colors ${
+                                filterBy === opt.value
+                                  ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
                         </div>
                       )}
                     </div>
@@ -1499,6 +1467,24 @@ interface NoteItem {
                             <TrendingUp size={12} />
                             <span>Quiz</span>
                           </button>
+                          <HeaderTooltip label="Edit deck">
+                            <button
+                              onClick={() => handleEdit(deck.id)}
+                              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-center"
+                              aria-label="Edit deck"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                          </HeaderTooltip>
+                          <HeaderTooltip label="Delete deck">
+                            <button
+                              onClick={() => handleDelete(deck.id)}
+                              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:border-red-300 dark:hover:border-red-800 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center"
+                              aria-label="Delete deck"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </HeaderTooltip>
                         </div>
                       </div>
                     ))}
@@ -1885,6 +1871,24 @@ interface NoteItem {
                               <TrendingUp size={12} />
                               <span>Quiz</span>
                             </button>
+                            <HeaderTooltip label="Edit deck">
+                              <button
+                                onClick={() => handleEdit(deck.id)}
+                                className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-center"
+                                aria-label="Edit deck"
+                              >
+                                <Pencil size={12} />
+                              </button>
+                            </HeaderTooltip>
+                            <HeaderTooltip label="Delete deck">
+                              <button
+                                onClick={() => handleDelete(deck.id)}
+                                className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:border-red-300 dark:hover:border-red-800 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center"
+                                aria-label="Delete deck"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </HeaderTooltip>
                           </div>
                         </div>
                       ))}
