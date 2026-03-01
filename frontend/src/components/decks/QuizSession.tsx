@@ -15,7 +15,10 @@ interface QuizSessionProps {
   flashcards: FlashcardData[];
   onClose: () => void;
   onComplete: (results: QuizResults) => void;
-  deckId?: string; // Add deckId prop
+  deckId?: string;
+  /** When set, quiz is part of a group quiz; results are submitted and "View Group Results" is shown */
+  groupQuizId?: string;
+  onViewGroupResults?: (groupQuizId: string) => void;
 }
 
 interface QuizResults {
@@ -30,7 +33,9 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   flashcards,
   onClose,
   onComplete,
-  deckId // Add deckId prop
+  deckId,
+  groupQuizId,
+  onViewGroupResults
 }) => {
   // ALL HOOKS MUST BE CALLED FIRST, BEFORE ANY CONDITIONAL LOGIC
   const { isCollapsed } = useNavbar();
@@ -154,13 +159,27 @@ const QuizSession: React.FC<QuizSessionProps> = ({
       timeSpent
     };
 
-    // POST QuizSession to backend
+    let quizSessionId: number | undefined;
     if (deckId) {
-      await axiosInstance.post('/decks/quizzes/sessions/', {
+      const sessionRes = await axiosInstance.post('/decks/quizzes/sessions/', {
         deck: deckId,
         score: quizResults.score,
         completed_at: new Date().toISOString()
       });
+      quizSessionId = sessionRes.data?.id;
+    }
+
+    if (groupQuizId) {
+      try {
+        await axiosInstance.post(`/decks/group-quizzes/${groupQuizId}/complete/`, {
+          score: quizResults.score,
+          total_questions: quizResults.totalQuestions,
+          correct_answers: quizResults.correctAnswers,
+          quiz_session_id: quizSessionId ?? undefined
+        });
+      } catch (err) {
+        console.error('Failed to submit group quiz result:', err);
+      }
     }
 
     setQuizComplete(true);
@@ -270,24 +289,34 @@ const QuizSession: React.FC<QuizSessionProps> = ({
               </div>
             </div>
 
-            <button
-              onClick={() => {
-                const quizResults: QuizResults = {
-                  totalQuestions: shuffledFlashcards.length,
-                  correctAnswers: Object.entries(answers).filter(
-                    ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
-                  ).length,
-                  score: Math.round((Object.entries(answers).filter(
-                    ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
-                  ).length / shuffledFlashcards.length) * 100),
-                  timeSpent: Math.round((Date.now() - startTime) / 1000 / 60)
-                };
-                onComplete(quizResults);
-              }}
-              className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
-            >
-              Back to Decks
-            </button>
+            <div className="flex flex-wrap gap-3 justify-center">
+              {groupQuizId && onViewGroupResults && (
+                <button
+                  onClick={() => onViewGroupResults(groupQuizId)}
+                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+                >
+                  View Group Results
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  const quizResults: QuizResults = {
+                    totalQuestions: shuffledFlashcards.length,
+                    correctAnswers: Object.entries(answers).filter(
+                      ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
+                    ).length,
+                    score: Math.round((Object.entries(answers).filter(
+                      ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
+                    ).length / shuffledFlashcards.length) * 100),
+                    timeSpent: Math.round((Date.now() - startTime) / 1000 / 60)
+                  };
+                  onComplete(quizResults);
+                }}
+                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-colors"
+              >
+                Back to Decks
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -8,11 +8,12 @@ interface TaskListProps {
   onEdit: (task: Task) => void;
   onDelete: (id: number) => void;
   onTaskCompleted?: (completedTask: any) => void;
+  onCreateGroupTask?: (task: Task) => void;
   sortField: 'dueDate' | 'priority' | 'title';
   sortDirection: 'asc' | 'desc';
   onSort: (field: 'dueDate' | 'priority' | 'title') => void;
-  onAddTask?: () => void; // New prop for Add Task button
-  compact?: boolean; // New prop for compact layout
+  onAddTask?: () => void;
+  compact?: boolean;
 }
 
 const TaskList: React.FC<TaskListProps> = ({
@@ -21,6 +22,7 @@ const TaskList: React.FC<TaskListProps> = ({
   onEdit,
   onDelete,
   onTaskCompleted,
+  onCreateGroupTask,
   sortField,
   sortDirection,
   onSort,
@@ -68,6 +70,7 @@ const TaskList: React.FC<TaskListProps> = ({
             onEdit={onEdit}
             onDelete={onDelete}
             onTaskCompleted={onTaskCompleted}
+            onCreateGroupTask={onCreateGroupTask}
             compact={compact}
           />
         ))}

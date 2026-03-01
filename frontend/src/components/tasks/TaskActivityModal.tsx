@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import { X } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
 interface TaskActivityModalProps {
@@ -147,85 +147,83 @@ const TaskActivityModal: React.FC<TaskActivityModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-            Complete Task with Evidence
-          </h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] shadow-xl mx-4 max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header – compact */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Complete Task with Evidence</h2>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            aria-label="Close"
           >
-            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
+            <X size={18} />
           </button>
         </div>
 
-        <p className="text-gray-600 dark:text-gray-400 mb-6">
-          Provide evidence of your work to complete "<span className="font-medium">{taskTitle}</span>". The task will be automatically marked as complete once evidence is submitted.
-        </p>
+        {/* Content – compact */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Provide evidence for &quot;<span className="font-medium text-gray-700 dark:text-gray-300">{taskTitle}</span>&quot;. The task will be marked complete once submitted.
+          </p>
 
-        {/* Error display */}
-        {error && (
-          <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md">
-            <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-          </div>
-        )}
+          {error && (
+            <div className="p-2 rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+              <p className="text-xs text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
 
-        {/* Evidence Upload Section */}
-        <div className="space-y-6">
-          {/* File Upload */}
-          <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Upload Evidence File</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              Screenshots, documents, or any file that proves your work (max 10MB)
-            </p>
+          {/* File upload */}
+          <div className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] p-3">
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Upload evidence file</label>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Screenshots, documents, etc. (max 10MB)</p>
             <input
               type="file"
               onChange={handleFileChange}
               accept="image/*,.pdf,.doc,.docx,.txt"
-              className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+              className="block w-full text-xs text-gray-500 dark:text-gray-400 file:mr-2 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:bg-indigo-50 file:text-indigo-700 dark:file:bg-indigo-900/20 dark:file:text-indigo-300 hover:file:bg-indigo-100 dark:hover:file:bg-indigo-900/30"
             />
             {evidenceFile && (
-              <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                Selected: {evidenceFile.name}
-              </p>
+              <p className="text-xs text-green-600 dark:text-green-400 mt-1.5">Selected: {evidenceFile.name}</p>
             )}
           </div>
 
-          {/* Evidence Description */}
-          <div className="p-4 border border-gray-200 dark:border-gray-600 rounded-lg">
-            <h3 className="font-medium text-gray-900 dark:text-white mb-2">Evidence Description</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
-              Provide a detailed description of what you accomplished (at least 20 characters)
-            </p>
+          {/* Description */}
+          <div>
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Evidence description</label>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1.5">Describe what you accomplished (at least 20 characters)</p>
             <textarea
               value={evidenceDescription}
               onChange={(e) => setEvidenceDescription(e.target.value)}
-              placeholder="Describe the evidence of your work, what you accomplished, or provide links to your work..."
-              rows={4}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white resize-none mb-3"
+              placeholder="Describe the evidence, what you accomplished, or provide links..."
+              rows={3}
+              className="w-full px-2.5 py-1.5 text-sm rounded-md border border-gray-300 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none resize-none"
             />
           </div>
+        </div>
 
-          {/* Submit Button */}
-          <div className="flex gap-3">
-                         <button
-               onClick={handleEvidenceUpload}
-               disabled={loading || (!evidenceFile && !evidenceDescription.trim())}
-               className="flex-1 bg-indigo-600 text-white py-3 px-4 rounded-md hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-             >
-               {loading ? 'Completing Task...' : 'Complete Task'}
-             </button>
-            <button
-              onClick={onClose}
-              className="px-6 py-3 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              Cancel
-            </button>
-          </div>
+        {/* Footer – compact */}
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-2.5 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 bg-white dark:bg-[#252525] hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-50"
+            disabled={loading}
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleEvidenceUpload}
+            disabled={loading || (!evidenceFile && !evidenceDescription.trim())}
+            className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? 'Completing...' : 'Complete Task'}
+          </button>
         </div>
       </div>
     </div>

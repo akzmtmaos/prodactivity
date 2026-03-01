@@ -132,147 +132,132 @@ const CreateGroupTaskModal: React.FC<CreateGroupTaskModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <Users className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              Create Group Task
-            </h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={onClose}>
+      <div
+        className="w-full max-w-lg rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] shadow-xl max-h-[90vh] overflow-hidden flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header – compact */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex items-center gap-2">
+            <Users size={18} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Create Group Task</h2>
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+            aria-label="Close"
           >
-            <X className="w-6 h-6" />
+            <X size={18} />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Task Info */}
-          <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-lg p-4">
-            <p className="text-sm text-gray-600 dark:text-gray-400">Task:</p>
-            <p className="font-semibold text-gray-900 dark:text-white">{taskTitle}</p>
+        {/* Content – compact */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          {/* Task info */}
+          <div className="rounded-lg border border-gray-200 dark:border-[#333333] bg-indigo-50/50 dark:bg-indigo-900/10 px-3 py-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400">Task</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">{taskTitle}</p>
           </div>
 
           {/* Title */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Group Task Title *
-            </label>
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Group Task Title *</label>
             <input
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+              className="w-full px-2.5 py-1.5 text-sm rounded-md border border-gray-300 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
               placeholder="Enter group task title"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Description (Optional)
-            </label>
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Description (optional)</label>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              rows={3}
-              className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-              placeholder="Add a description for this group task"
+              rows={2}
+              className="w-full px-2.5 py-1.5 text-sm rounded-md border border-gray-300 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none resize-none"
+              placeholder="Add a description"
             />
           </div>
 
-          {/* User Selection */}
+          {/* Participants */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Select Participants
-            </label>
-            
-            {/* Search */}
-            <div className="relative mb-4">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Select participants</label>
+            <div className="relative mb-2">
+              <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                className="w-full pl-8 pr-2.5 py-1.5 text-sm rounded-md border border-gray-300 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
                 placeholder="Search users..."
               />
             </div>
-
-            {/* User List */}
-            <div className="border border-gray-300 dark:border-gray-600 rounded-lg max-h-64 overflow-y-auto">
+            <div className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] max-h-48 overflow-y-auto">
               {filteredUsers.length === 0 ? (
-                <div className="p-4 text-center text-gray-500 dark:text-gray-400">
-                  No users found
-                </div>
+                <div className="px-3 py-4 text-center text-xs text-gray-500 dark:text-gray-400">No users found</div>
               ) : (
                 filteredUsers.map((user) => (
                   <button
                     key={user.id}
+                    type="button"
                     onClick={() => handleUserToggle(user.id)}
-                    className={`w-full flex items-center justify-between p-3 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
+                    className={`w-full flex items-center justify-between gap-2 min-h-[52px] px-3 py-2.5 rounded-lg border-b border-gray-100 dark:border-[#333333] last:border-b-0 transition-colors ${
                       selectedUsers.includes(user.id)
                         ? 'bg-indigo-50 dark:bg-indigo-900/20'
-                        : ''
+                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center shrink-0">
                         {user.avatar ? (
-                          <img
-                            src={user.avatar}
-                            alt={user.username}
-                            className="w-10 h-10 rounded-full"
-                          />
+                          <img src={user.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
                         ) : (
-                          <span className="text-indigo-600 dark:text-indigo-400 font-medium">
+                          <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
                             {user.username.charAt(0).toUpperCase()}
                           </span>
                         )}
                       </div>
-                      <div className="text-left">
-                        <p className="font-medium text-gray-900 dark:text-white">
-                          {user.username}
-                        </p>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          {user.email}
-                        </p>
+                      <div className="text-left min-w-0">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{user.username}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
                       </div>
                     </div>
                     {selectedUsers.includes(user.id) && (
-                      <Check className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+                      <Check size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
                     )}
                   </button>
                 ))
               )}
             </div>
-
             {selectedUsers.length > 0 && (
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
                 {selectedUsers.length} participant{selectedUsers.length !== 1 ? 's' : ''} selected
               </p>
             )}
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="flex items-center justify-end space-x-3 p-6 border-t border-gray-200 dark:border-gray-700">
+        {/* Footer – compact */}
+        <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
           <button
+            type="button"
             onClick={onClose}
-            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+            className="px-2.5 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 bg-white dark:bg-[#252525] hover:bg-gray-50 dark:hover:bg-gray-700/50 disabled:opacity-50"
             disabled={loading}
           >
             Cancel
           </button>
           <button
+            type="button"
             onClick={handleCreate}
             disabled={loading || !title.trim()}
-            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Creating...' : 'Create Group Task'}
           </button>

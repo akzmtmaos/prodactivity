@@ -514,13 +514,15 @@ const UserProfile: React.FC = () => {
                       </>
                     )}
                   </button>
-                  <button
-                    onClick={handleStartChat}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                  >
-                    <MessageCircle size={18} />
-                    Message
-                  </button>
+                  {isFollowing && (
+                    <button
+                      onClick={handleStartChat}
+                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
+                    >
+                      <MessageCircle size={18} />
+                      Message
+                    </button>
+                  )}
                 </div>
               )}
             </div>

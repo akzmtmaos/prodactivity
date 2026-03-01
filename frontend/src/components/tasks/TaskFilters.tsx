@@ -71,7 +71,7 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
   }, []);
 
   return (
-    <div className="flex flex-wrap gap-2 items-center">
+    <div className="flex flex-nowrap gap-2 items-center">
       {/* Priority dropdown */}
       <div className="relative" ref={priorityRef}>
         <button
@@ -79,8 +79,12 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
           onClick={() => { setPriorityOpen((o) => !o); setCategoryOpen(false); setSortOpen(false); }}
           className={dropdownTrigger}
           aria-expanded={priorityOpen}
+          title={PRIORITY_OPTIONS.find((o) => o.value === filterPriority)?.label ?? 'Priority'}
         >
-          {PRIORITY_OPTIONS.find((o) => o.value === filterPriority)?.label ?? 'All Priorities'}
+          <Flag size={14} className="text-gray-500 dark:text-gray-400" />
+          {filterPriority !== 'all' ? (
+            <span>{PRIORITY_OPTIONS.find((o) => o.value === filterPriority)?.label}</span>
+          ) : null}
           <ChevronDown size={12} className={`text-gray-500 dark:text-gray-400 transition-transform ${priorityOpen ? 'rotate-180' : ''}`} />
         </button>
         {priorityOpen && (
@@ -107,8 +111,10 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
             onClick={() => { setCategoryOpen((o) => !o); setPriorityOpen(false); setSortOpen(false); }}
             className={dropdownTrigger}
             aria-expanded={categoryOpen}
+            title={filterCategory === 'all' ? 'Category' : filterCategory}
           >
-            {filterCategory === 'all' ? 'All Categories' : filterCategory}
+            <ListOrdered size={14} className="text-gray-500 dark:text-gray-400" />
+            {filterCategory !== 'all' ? <span>{filterCategory}</span> : null}
             <ChevronDown size={12} className={`text-gray-500 dark:text-gray-400 transition-transform ${categoryOpen ? 'rotate-180' : ''}`} />
           </button>
           {categoryOpen && (

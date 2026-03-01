@@ -151,14 +151,13 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
     { path: "/tasks", name: "Tasks", icon: <CheckSquare size={iconSize} /> },
   ];
 
-  // Secondary navigation items (less frequently used)
+  // Secondary navigation items (less frequently used). Settings is rendered in the bottom section.
   const secondaryNavItems = [
     { path: "/reviewer/r", name: "Reviewer", icon: <Brain size={iconSize} /> },
     { path: "/schedule", name: "Schedule", icon: <Calendar size={iconSize} /> },
     { path: "/study-timer", name: "Study Timer", icon: <Clock size={iconSize} /> },
     { path: "/notifications", name: "Notifications", icon: <Bell size={iconSize} /> },
     { path: "/trash", name: "Trash", icon: <Trash2 size={iconSize} /> },
-    { path: "/settings", name: "Settings", icon: <Settings size={iconSize} /> },
   ];
 
   const allNavItems = [...primaryNavItems, ...secondaryNavItems];
@@ -172,7 +171,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         `}
       >
         {/* Logo – same height as header (h-12) so the divider aligns with header bottom border */}
-        <div 
+        <div
           className="flex items-center justify-center h-12 px-2 border-b border-gray-200 dark:border-[#333333] cursor-pointer flex-shrink-0 bg-white dark:bg-[#1c1c1c]"
           onClick={() => {
             if (isCollapsed) {
@@ -374,6 +373,25 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
           </div>
         </nav>
 
+        {/* Bottom: Settings (fixed at bottom of sidebar) */}
+        <div className="flex-shrink-0 border-t border-gray-200 dark:border-[#333333] py-2">
+          <div className="px-2">
+            <Link
+              to="/settings"
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
+                ${location.pathname === '/settings'
+                  ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm"
+                  : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                ${isCollapsed ? 'justify-center px-2' : ''}`}
+              title={isCollapsed ? 'Settings' : undefined}
+            >
+              <span className="flex-shrink-0">
+                <Settings size={iconSize} />
+              </span>
+              {!isCollapsed && <span className="truncate">Settings</span>}
+            </Link>
+          </div>
+        </div>
       </aside>
 
 
@@ -491,6 +509,21 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                 </ul>
               </div>
             </nav>
+
+            {/* Bottom: Settings + Profile */}
+            <div className="border-t border-gray-200 dark:border-gray-700">
+              <Link
+                to="/settings"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center px-4 py-3 text-base font-medium transition-colors
+                  ${location.pathname === '/settings'
+                    ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200"
+                    : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+              >
+                <Settings size={20} className="mr-3 shrink-0" />
+                Settings
+              </Link>
+            </div>
 
             {/* Profile / User Section */}
             <div className="p-4 border-t border-gray-200 dark:border-gray-700">

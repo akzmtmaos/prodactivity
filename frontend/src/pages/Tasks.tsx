@@ -1,8 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, FolderOpen, Tag } from 'lucide-react';
+import { Plus, Search, FolderOpen, Tag, Users } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
-import HelpButton from '../components/HelpButton';
 import TaskList from '../components/tasks/TaskList';
 import TaskForm from '../components/tasks/TaskForm';
 import TaskFilters from '../components/tasks/TaskFilters';
@@ -11,8 +10,11 @@ import { Task } from '../types/task';
 import { getXpForTask } from '../utils/xpUtils';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
+import CreateGroupTaskModal from '../components/collaboration/CreateGroupTaskModal';
+import GroupTaskResultsModal from '../components/collaboration/GroupTaskResultsModal';
 import { RealtimeProvider, useRealtime } from '../context/RealtimeContext';
 import { supabase } from '../lib/supabase';
+import axiosInstance from '../utils/axiosConfig';
 // import { getTimezoneOffset } from '../utils/dateUtils';
 
 // API_BASE_URL not needed; tasks use Supabase directly
@@ -80,9 +82,18 @@ const TasksContent = ({ user }: { user: any }) => {
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
 
   // State for tabs
-  const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed' | 'assigned'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed' | 'assigned' | 'groupTasks'>('tasks');
   // State for pre-selected category when adding task from category tab
   const [selectedCategory, setSelectedCategory] = useState<string>('');
+
+  // Group tasks state
+  const [groupTasks, setGroupTasks] = useState<any[]>([]);
+  const [loadingGroupTasks, setLoadingGroupTasks] = useState(false);
+  const [showCreateGroupTask, setShowCreateGroupTask] = useState(false);
+  const [selectedTaskForGroupTask, setSelectedTaskForGroupTask] = useState<Task | null>(null);
+  const [showGroupTaskResults, setShowGroupTaskResults] = useState(false);
+  const [selectedGroupTaskIdForResults, setSelectedGroupTaskIdForResults] = useState<string | null>(null);
+  const [showTaskPickerForGroupTask, setShowTaskPickerForGroupTask] = useState(false);
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -120,6 +131,58 @@ const TasksContent = ({ user }: { user: any }) => {
     fetchTasks();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  // Fetch group tasks when Group Tasks tab is active
+  useEffect(() => {
+    if (activeTab !== 'groupTasks') return;
+    const fetchGroupTasks = async () => {
+      setLoadingGroupTasks(true);
+      try {
+        const res = await axiosInstance.get('/group-tasks/');
+        setGroupTasks(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        setGroupTasks([]);
+      } finally {
+        setLoadingGroupTasks(false);
+      }
+    };
+    fetchGroupTasks();
+  }, [activeTab]);
+
+  const handleCreateGroupTask = (task: Task) => {
+    setSelectedTaskForGroupTask(task);
+    setShowCreateGroupTask(true);
+  };
+
+  const handleAcceptDeclineGroupTask = async (groupTaskId: string, accept: boolean) => {
+    try {
+      await axiosInstance.post(`/group-tasks/${groupTaskId}/participants/`, { action: accept ? 'accept' : 'decline' });
+      setGroupTasks(prev => prev.filter(g => g.id !== groupTaskId));
+      if (activeTab === 'groupTasks') {
+        const res = await axiosInstance.get('/group-tasks/');
+        setGroupTasks(Array.isArray(res.data) ? res.data : []);
+      }
+    } catch (e) {
+      console.error(e);
+      showToast(accept ? 'Failed to accept' : 'Failed to decline', 'error');
+    }
+  };
+
+  const handleMarkGroupTaskComplete = async (gt: any) => {
+    try {
+      await axiosInstance.post(`/group-tasks/${gt.id}/complete/`);
+      const res = await axiosInstance.get('/group-tasks/');
+      setGroupTasks(Array.isArray(res.data) ? res.data : []);
+      showToast('Task marked complete. Team XP will be awarded when everyone completes!', 'success');
+    } catch (e: any) {
+      showToast(e.response?.data?.error || 'Failed to mark complete', 'error');
+    }
+  };
+
+  const handleViewGroupTaskResults = (id: string) => {
+    setSelectedGroupTaskIdForResults(id);
+    setShowGroupTaskResults(true);
+  };
 
   // Show toast notification
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -961,25 +1024,8 @@ const TasksContent = ({ user }: { user: any }) => {
         <div className="max-w-7xl mx-auto">
           {/* Header – title only; Search + Add Task moved to filter row below */}
           <div className="mb-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2 flex items-center">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
               Tasks
-              <HelpButton
-                content={
-                  <div>
-                    <p className="font-semibold mb-2">Task Management</p>
-                    <ul className="space-y-1 text-xs">
-                      <li>• <strong>Create Tasks:</strong> Add new tasks with due dates and priorities</li>
-                      <li>• <strong>Priority Levels:</strong> High, Medium, Low priority tasks</li>
-                      <li>• <strong>Due Dates:</strong> Set deadlines and track overdue tasks</li>
-                      <li>• <strong>Subtasks:</strong> Break down complex tasks into smaller parts</li>
-                      <li>• <strong>Time Tracking:</strong> Log time spent on tasks</li>
-                      <li>• <strong>Evidence Upload:</strong> Attach files as proof of completion</li>
-                      <li>• <strong>Archive/Delete:</strong> Organize completed and old tasks</li>
-                    </ul>
-                  </div>
-                }
-                title="Tasks Help"
-              />
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Manage and track your tasks
@@ -995,11 +1041,11 @@ const TasksContent = ({ user }: { user: any }) => {
             dueTodayCount={taskStats.due_today}
           />
 
-          {/* Tabs + Filters row (same style as Decks: compact tabs, filters + search + Add Task on right) */}
-          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-4 gap-4 flex-wrap">
-            <div className="flex space-x-4">
+          {/* Tabs + Filters row: single line, tabs scroll horizontally if needed */}
+          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-4 gap-2 min-w-0 flex-nowrap">
+            <div className="flex items-center gap-0 min-w-0 overflow-x-auto overflow-y-hidden scrollbar-thin" style={{ scrollbarWidth: 'thin' }}>
               <button
-                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'tasks'
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -1009,7 +1055,7 @@ const TasksContent = ({ user }: { user: any }) => {
                 All Tasks
               </button>
               <button
-                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'categories'
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -1019,7 +1065,7 @@ const TasksContent = ({ user }: { user: any }) => {
                 Category
               </button>
               <button
-                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'completed'
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
@@ -1029,18 +1075,28 @@ const TasksContent = ({ user }: { user: any }) => {
                 Completed
               </button>
               <button
-                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px focus:outline-none ${
                   activeTab === 'assigned'
                     ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
                     : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
                 }`}
                 onClick={() => setActiveTab('assigned')}
               >
-                Assigned to Me
+                Assigned
+              </button>
+              <button
+                className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px focus:outline-none ${
+                  activeTab === 'groupTasks'
+                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                }`}
+                onClick={() => setActiveTab('groupTasks')}
+              >
+                Group
               </button>
             </div>
-            {/* Filters + Search + Add Task (compact, same sizing as Decks) */}
-            <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
+            {/* Filters + Search + Add Task: no wrap so row stays single line */}
+            <div className="flex items-center gap-2 justify-end flex-shrink-0 min-w-0">
               <TaskFilters
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
@@ -1073,6 +1129,16 @@ const TasksContent = ({ user }: { user: any }) => {
                   className="w-full pl-7 pr-2 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                 />
               </div>
+              {activeTab === 'groupTasks' && (
+                <button
+                  type="button"
+                  onClick={() => setShowTaskPickerForGroupTask(true)}
+                  className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                >
+                  <Users size={14} className="mr-1.5" />
+                  Group
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => {
@@ -1118,9 +1184,172 @@ const TasksContent = ({ user }: { user: any }) => {
              />
            )}
 
+          {showCreateGroupTask && selectedTaskForGroupTask && (
+            <CreateGroupTaskModal
+              isOpen={showCreateGroupTask}
+              onClose={() => {
+                setShowCreateGroupTask(false);
+                setSelectedTaskForGroupTask(null);
+              }}
+              taskId={selectedTaskForGroupTask.id}
+              taskTitle={selectedTaskForGroupTask.title}
+              onCreateSuccess={() => {
+                setShowCreateGroupTask(false);
+                setSelectedTaskForGroupTask(null);
+                setActiveTab('groupTasks');
+                axiosInstance.get('/group-tasks/').then(res => setGroupTasks(Array.isArray(res.data) ? res.data : [])).catch(() => setGroupTasks([]));
+              }}
+            />
+          )}
+          {showGroupTaskResults && selectedGroupTaskIdForResults && (
+            <GroupTaskResultsModal
+              isOpen={showGroupTaskResults}
+              onClose={() => {
+                setShowGroupTaskResults(false);
+                setSelectedGroupTaskIdForResults(null);
+              }}
+              groupTaskId={selectedGroupTaskIdForResults}
+            />
+          )}
+
+          {/* Task picker modal: choose which task to turn into a group task */}
+          {showTaskPickerForGroupTask && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowTaskPickerForGroupTask(false)}>
+              <div
+                className="w-full max-w-md rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] shadow-xl mx-4 max-h-[70vh] flex flex-col"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Create group task</h2>
+                  <button
+                    type="button"
+                    onClick={() => setShowTaskPickerForGroupTask(false)}
+                    className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    aria-label="Close"
+                  >
+                    <span className="text-lg leading-none">×</span>
+                  </button>
+                </div>
+                <p className="px-4 pt-2 text-xs text-gray-500 dark:text-gray-400">Choose a task to invite others to complete together.</p>
+                <div className="p-4 overflow-y-auto flex-1">
+                  {tasks.length === 0 ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">You don’t have any tasks yet. Add a task first, then create a group task.</p>
+                  ) : (
+                    <ul className="space-y-1">
+                      {tasks.filter((t) => !t.completed).map((task) => (
+                        <li key={task.id}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowTaskPickerForGroupTask(false);
+                              setSelectedTaskForGroupTask(task);
+                              setShowCreateGroupTask(true);
+                            }}
+                            className="w-full text-left px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] hover:bg-gray-50 dark:hover:bg-gray-700/50 text-sm font-medium text-gray-900 dark:text-white"
+                          >
+                            {task.title}
+                          </button>
+                        </li>
+                      ))}
+                      {tasks.filter((t) => !t.completed).length === 0 && tasks.length > 0 && (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">All your tasks are completed. Add a new task to create a group task.</p>
+                      )}
+                    </ul>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Tasks list */}
           <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-            {loading ? (
+            {activeTab === 'groupTasks' ? (
+              <div className="p-4">
+                {loadingGroupTasks ? (
+                  <div className="flex justify-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent" />
+                  </div>
+                ) : groupTasks.length === 0 ? (
+                  <div className="text-center py-12 rounded-lg border border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#1e1e1e]">
+                    <FolderOpen size={40} className="mx-auto text-gray-400 mb-3" />
+                    <p className="text-sm text-gray-600 dark:text-gray-400">No group tasks yet.</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 mb-4">Pick a task below to invite others and earn team XP.</p>
+                    <button
+                      type="button"
+                      onClick={() => setShowTaskPickerForGroupTask(true)}
+                      className="inline-flex items-center h-8 px-4 text-sm font-medium rounded-lg border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700"
+                    >
+                      <Users size={16} className="mr-2" />
+                      Create group task
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {groupTasks.map((gt: any) => {
+                      const userData = localStorage.getItem('user');
+                      const currentUserId = userData ? (JSON.parse(userData)?.id ?? JSON.parse(userData)?.pk) : null;
+                      const myPart = (gt.participants || []).find((p: any) => p.user_id === currentUserId || p.user_id === parseInt(currentUserId, 10));
+                      const myStatus = myPart?.status ?? 'invited';
+                      return (
+                        <div
+                          key={gt.id}
+                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] px-3 py-2.5 min-h-[52px]"
+                        >
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{gt.title}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {gt.task_title} · by {gt.created_by_username} · {gt.participant_count} participant{gt.participant_count !== 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className={`text-xs px-2 py-0.5 rounded-md ${
+                              myStatus === 'completed' ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300' :
+                              myStatus === 'accepted' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' :
+                              myStatus === 'declined' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' :
+                              'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                            }`}>
+                              {myStatus}
+                            </span>
+                            {myStatus === 'invited' && (
+                              <>
+                                <button
+                                  onClick={() => handleAcceptDeclineGroupTask(String(gt.id), true)}
+                                  className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  onClick={() => handleAcceptDeclineGroupTask(String(gt.id), false)}
+                                  className="h-7 px-3 text-xs font-medium rounded-lg border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                >
+                                  Decline
+                                </button>
+                              </>
+                            )}
+                            {myStatus === 'accepted' && gt.status === 'active' && (
+                              <button
+                                onClick={() => handleMarkGroupTaskComplete(gt)}
+                                className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                              >
+                                Mark complete
+                              </button>
+                            )}
+                            {(myStatus === 'completed' || gt.status === 'completed') && (
+                              <button
+                                onClick={() => handleViewGroupTaskResults(String(gt.id))}
+                                className="h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                              >
+                                View Results
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : loading ? (
               <div className="p-6 text-center">
                 <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
                 <p className="mt-2 text-gray-500 dark:text-gray-400">Loading tasks...</p>
@@ -1187,6 +1416,7 @@ const TasksContent = ({ user }: { user: any }) => {
                               }}
                               onDelete={handleDeleteClick}
                               onTaskCompleted={handleTaskCompleted}
+                              onCreateGroupTask={handleCreateGroupTask}
                               sortField={sortField}
                               sortDirection={sortDirection}
                               onSort={handleSort}
@@ -1244,6 +1474,7 @@ const TasksContent = ({ user }: { user: any }) => {
                   }}
                   onDelete={handleDeleteClick}
                   onTaskCompleted={handleTaskCompleted}
+                  onCreateGroupTask={handleCreateGroupTask}
                   sortField={sortField}
                   sortDirection={sortDirection}
                   onSort={handleSort}

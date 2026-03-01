@@ -14,6 +14,7 @@ interface TaskItemProps {
   onEdit: (task: Task) => void;
   onDelete: (id: number) => void;
   onTaskCompleted?: (completedTask: any) => void;
+  onCreateGroupTask?: (task: Task) => void;
   compact?: boolean;
 }
 
@@ -23,7 +24,7 @@ const priorityColors: Record<string, string> = {
   low: 'bg-green-500',
 };
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete, onTaskCompleted, compact = false }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete, onTaskCompleted, onCreateGroupTask, compact = false }) => {
   // Function to check if task is overdue
   const isOverdue = () => {
     if (task.completed) return false; // Don't show late for completed tasks
@@ -716,6 +717,19 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                     <Plus size={14} />
                     Add Subtask
                   </button>
+                  {onCreateGroupTask && (
+                    <button
+                      type="button"
+                      className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] flex items-center gap-2"
+                      onClick={() => {
+                        setIsGearOpen(false);
+                        onCreateGroupTask(task);
+                      }}
+                    >
+                      <Users size={14} />
+                      Create group task
+                    </button>
+                  )}
                 </div>
               )}
             </div>

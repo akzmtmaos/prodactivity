@@ -19,7 +19,6 @@ import {
   Share2,
   ChevronDown
 } from 'lucide-react';
-import HelpButton from '../HelpButton';
 import axiosInstance from '../../utils/axiosConfig';
 import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
@@ -896,25 +895,8 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
       {/* Header (compact, like Tasks) */}
       <div className="bg-transparent dark:bg-transparent">
         <div className="mb-4">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Reviewer
-            <HelpButton 
-              content={
-                <div>
-                  <p className="font-semibold mb-2">Reviewer & Study Materials</p>
-                  <ul className="space-y-1 text-xs">
-                    <li>• <strong>Generate Reviewers:</strong> Create study materials from your notes</li>
-                    <li>• <strong>AI-Powered:</strong> Intelligent content generation and summarization</li>
-                    <li>• <strong>Multiple Formats:</strong> Questions, summaries, and study guides</li>
-                    <li>• <strong>Source Tracking:</strong> See which notes were used to create reviewers</li>
-                    <li>• <strong>Favorites:</strong> Mark important reviewers for quick access</li>
-                    <li>• <strong>Tags:</strong> Organize reviewers by topic or subject</li>
-                    <li>• <strong>Export:</strong> Download reviewers for offline study</li>
-                  </ul>
-                </div>
-              } 
-              title="Reviewer Help" 
-            />
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Generate study materials from your notes</p>
         </div>

@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Plus, Search, BookOpen, TrendingUp, Clock, Target, FileText, ChevronDown, LayoutList, Play, X, Pencil, Trash2, Filter } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
-import HelpButton from '../components/HelpButton';
 import Pagination from '../components/common/Pagination';
 import DeckCard from '../components/decks/DeckCard';
 import CreateDeckModal from '../components/decks/CreateDeckModal';
@@ -14,6 +13,8 @@ import ManageFlashcards from '../components/decks/ManageFlashcardModal';
 import StudySession from '../components/decks/StudySession';
 import SubDeckModal from '../components/decks/SubDeckModal';
 import QuizSession from '../components/decks/QuizSession';
+import CreateGroupQuizModal from '../components/collaboration/CreateGroupQuizModal';
+import GroupQuizResultsModal from '../components/collaboration/GroupQuizResultsModal';
 import Toast from '../components/common/Toast';
 import type { SubDeck } from '../components/decks/SubDeckModal';
 import { truncateHtmlContent } from '../utils/htmlUtils';
@@ -87,7 +88,14 @@ const Decks = () => {
   const [showNoFlashcardsModal, setShowNoFlashcardsModal] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [activeTab, setActiveTab] = useState<'decks' | 'archived' | 'stats'>('decks');
+  const [activeTab, setActiveTab] = useState<'decks' | 'archived' | 'stats' | 'groupQuizzes'>('decks');
+  const [groupQuizzes, setGroupQuizzes] = useState<any[]>([]);
+  const [loadingGroupQuizzes, setLoadingGroupQuizzes] = useState(false);
+  const [showCreateGroupQuiz, setShowCreateGroupQuiz] = useState(false);
+  const [selectedDeckForGroupQuiz, setSelectedDeckForGroupQuiz] = useState<Deck | null>(null);
+  const [showGroupQuizResults, setShowGroupQuizResults] = useState(false);
+  const [selectedGroupQuizIdForResults, setSelectedGroupQuizIdForResults] = useState<string | null>(null);
+  const [activeGroupQuizId, setActiveGroupQuizId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [currentArchivedPage, setCurrentArchivedPage] = useState<number>(1);
   const PAGE_SIZE = 12;
@@ -105,6 +113,11 @@ const Decks = () => {
       return 'comfortable';
     }
   });
+
+  // Bulk delete decks (Delete Section) – same pattern as Notebooks
+  const [showBulkDeleteDecksModal, setShowBulkDeleteDecksModal] = useState(false);
+  const [selectedDecksForDelete, setSelectedDecksForDelete] = useState<string[]>([]);
+  const [bulkDeleteDecksLoading, setBulkDeleteDecksLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -540,6 +553,91 @@ interface NoteItem {
     fetchDecks();
   }, []);
 
+  useEffect(() => {
+    if (activeTab !== 'groupQuizzes') return;
+    const fetchGroupQuizzes = async () => {
+      setLoadingGroupQuizzes(true);
+      try {
+        const res = await axiosInstance.get('/decks/group-quizzes/');
+        setGroupQuizzes(Array.isArray(res.data) ? res.data : []);
+      } catch {
+        setGroupQuizzes([]);
+      } finally {
+        setLoadingGroupQuizzes(false);
+      }
+    };
+    fetchGroupQuizzes();
+  }, [activeTab]);
+
+  const handleCreateGroupQuiz = (deckId: string) => {
+    const deck = decks.find(d => d.id === deckId);
+    if (deck) {
+      setSelectedDeckForGroupQuiz(deck);
+      setShowCreateGroupQuiz(true);
+    }
+  };
+
+  const handleAcceptDeclineGroupQuiz = async (groupQuizId: string, accept: boolean) => {
+    try {
+      await axiosInstance.post(`/decks/group-quizzes/${groupQuizId}/participants/`, { action: accept ? 'accept' : 'decline' });
+      setGroupQuizzes(prev => prev.filter(g => g.id !== groupQuizId));
+      if (activeTab === 'groupQuizzes') {
+        const res = await axiosInstance.get('/decks/group-quizzes/');
+        setGroupQuizzes(Array.isArray(res.data) ? res.data : []);
+      }
+    } catch (e) {
+      console.error(e);
+      setToast({ message: accept ? 'Failed to accept' : 'Failed to decline', type: 'error' });
+    }
+  };
+
+  const handleTakeGroupQuiz = async (gq: any) => {
+    const deckId = gq.deck_id?.toString() ?? gq.deck_id;
+    let deck = decks.find((d: Deck) => d.id === deckId) || archivedDecks.find((d: Deck) => d.id === deckId);
+    if (!deck) {
+      try {
+        const res = await axiosInstance.get(`/decks/decks/${deckId}/`);
+        const d = res.data;
+        deck = {
+          id: d.id.toString(),
+          title: d.title,
+          flashcardCount: d.flashcard_count ?? (d.flashcards?.length ?? 0),
+          progress: d.progress ?? 0,
+          created_at: d.created_at,
+          updated_at: d.updated_at,
+          createdAt: d.created_at,
+          flashcards: (d.flashcards || []).map((fc: any) => ({
+            id: fc.id?.toString(),
+            question: fc.front,
+            answer: fc.back,
+            front: fc.front,
+            back: fc.back,
+            difficulty: fc.difficulty
+          })),
+          subDecks: d.sub_decks || [],
+          is_deleted: false,
+          is_archived: !!d.is_archived,
+          archived_at: d.archived_at
+        };
+      } catch (err) {
+        setToast({ message: 'Could not load deck', type: 'error' });
+        return;
+      }
+    }
+    if (deck.flashcardCount === 0) {
+      setShowNoFlashcardsModal(true);
+      return;
+    }
+    setSelectedDeck(deck);
+    setActiveGroupQuizId(String(gq.id));
+    setShowQuizSession(true);
+  };
+
+  const handleViewGroupQuizResults = (id: string) => {
+    setSelectedGroupQuizIdForResults(id);
+    setShowGroupQuizResults(true);
+  };
+
   const handleCreateDeck = async (deckData: { title: string }) => {
     try {
       const token = localStorage.getItem('accessToken');
@@ -599,6 +697,41 @@ interface NoteItem {
     } catch (error) {
       alert('Error deleting deck.');
       setToast({ message: 'Failed to delete deck.', type: 'error' });
+    }
+  };
+
+  // Bulk delete decks (Delete Section) – moves selected decks to Trash
+  const handleBulkDeleteDecks = async (deckIds: string[]) => {
+    if (deckIds.length === 0) return;
+    setBulkDeleteDecksLoading(true);
+    try {
+      const token = localStorage.getItem('accessToken');
+      const results = await Promise.allSettled(
+        deckIds.map((id) =>
+          fetch(`${API_BASE_URL}/decks/decks/${id}/`, {
+            method: 'DELETE',
+            headers: { Authorization: token ? `Bearer ${token}` : '' },
+          })
+        )
+      );
+      const failed = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && !r.value.ok));
+      const successCount = deckIds.length - failed.length;
+      setDecks((prev) => prev.filter((d) => !deckIds.includes(d.id)));
+      setArchivedDecks((prev) => prev.filter((d) => !deckIds.includes(d.id)));
+      setSelectedDecksForDelete([]);
+      setShowBulkDeleteDecksModal(false);
+      if (failed.length === 0) {
+        setToast({ message: `${successCount} deck${successCount !== 1 ? 's' : ''} moved to Trash.`, type: 'success' });
+      } else {
+        setToast({
+          message: `${successCount} deleted; ${failed.length} failed.`,
+          type: 'error',
+        });
+      }
+    } catch (error) {
+      setToast({ message: 'Failed to delete decks.', type: 'error' });
+    } finally {
+      setBulkDeleteDecksLoading(false);
     }
   };
 
@@ -1088,9 +1221,12 @@ interface NoteItem {
               back: f.back || f.answer,
               difficulty: f.difficulty
             }))}
+          groupQuizId={activeGroupQuizId ?? undefined}
+          onViewGroupResults={handleViewGroupQuizResults}
           onClose={() => {
             setShowQuizSession(false);
             setSelectedDeck(null);
+            setActiveGroupQuizId(null);
           }}
           onComplete={async (results) => {
             // Refetch deck from backend for updated progress
@@ -1114,7 +1250,41 @@ interface NoteItem {
             }
             setShowQuizSession(false);
             setSelectedDeck(null);
+            setActiveGroupQuizId(null);
           }}
+        />
+      )}
+      {showCreateGroupQuiz && selectedDeckForGroupQuiz && (
+        <CreateGroupQuizModal
+          isOpen={showCreateGroupQuiz}
+          onClose={() => {
+            setShowCreateGroupQuiz(false);
+            setSelectedDeckForGroupQuiz(null);
+          }}
+          deckId={selectedDeckForGroupQuiz.id}
+          deckTitle={selectedDeckForGroupQuiz.title}
+          onCreateSuccess={() => {
+            setActiveTab('groupQuizzes');
+            const fetchGq = async () => {
+              try {
+                const res = await axiosInstance.get('/decks/group-quizzes/');
+                setGroupQuizzes(Array.isArray(res.data) ? res.data : []);
+              } catch {
+                setGroupQuizzes([]);
+              }
+            };
+            fetchGq();
+          }}
+        />
+      )}
+      {showGroupQuizResults && selectedGroupQuizIdForResults && (
+        <GroupQuizResultsModal
+          isOpen={showGroupQuizResults}
+          onClose={() => {
+            setShowGroupQuizResults(false);
+            setSelectedGroupQuizIdForResults(null);
+          }}
+          groupQuizId={selectedGroupQuizIdForResults}
         />
       )}
       {showManageModal && selectedDeck && (
@@ -1154,6 +1324,30 @@ interface NoteItem {
                 : deck
             ));
           }}
+          onBulkDeleteFlashcards={(ids) => {
+            if (!selectedDeck) return;
+            const idSet = new Set(ids);
+            setDecks(prev =>
+              prev.map(deck =>
+                deck.id === selectedDeck.id
+                  ? (() => {
+                      const newFlashcards = deck.flashcards.filter((f) => !idSet.has(f.id));
+                      return {
+                        ...deck,
+                        flashcards: newFlashcards,
+                        flashcardCount: newFlashcards.length,
+                        updated_at: new Date().toISOString(),
+                      };
+                    })()
+                  : deck
+              )
+            );
+            setSelectedDeck((prev) => {
+              if (!prev || prev.id !== selectedDeck.id) return prev;
+              const newFlashcards = prev.flashcards.filter((f) => !idSet.has(f.id));
+              return { ...prev, flashcards: newFlashcards, flashcardCount: newFlashcards.length };
+            });
+          }}
         />
       )}
       <PageLayout>
@@ -1161,25 +1355,8 @@ interface NoteItem {
           {/* Header */}
           <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
                 Flashcards
-                <HelpButton 
-                  content={
-                    <div>
-                      <p className="font-semibold mb-2">Flashcards & Study</p>
-                      <ul className="space-y-1 text-xs">
-                        <li>• <strong>Create Decks:</strong> Organize flashcards by topic</li>
-                        <li>• <strong>Study Modes:</strong> Practice, Quiz, and Review sessions</li>
-                        <li>• <strong>Spaced Repetition:</strong> Cards appear based on difficulty</li>
-                        <li>• <strong>Progress Tracking:</strong> Monitor your learning progress</li>
-                        <li>• <strong>Import from Notes:</strong> Convert notes to flashcards</li>
-                        <li>• <strong>Sub-decks:</strong> Organize cards into smaller groups</li>
-                        <li>• <strong>Statistics:</strong> View detailed study analytics</li>
-                      </ul>
-            </div>
-                  } 
-                  title="Flashcards Help" 
-                />
               </h1>
               <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
                 Ready to learn something new today?
@@ -1223,10 +1400,20 @@ interface NoteItem {
                 >
                   Stats
                 </button>
+                <button
+                  onClick={() => setActiveTab('groupQuizzes')}
+                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
+                    activeTab === 'groupQuizzes'
+                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
+                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  }`}
+                >
+                  Group Quizzes
+                </button>
               </div>
               {/* Pagination / Filters / Actions on right (compact) */}
               <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
-                {activeTab !== 'stats' && (
+                {activeTab !== 'stats' && activeTab !== 'groupQuizzes' && (
                   <>
                     {/* Pagination */}
                     {activeTab === 'decks' && (
@@ -1338,6 +1525,22 @@ interface NoteItem {
                         </div>
                       )}
                     </div>
+                    {/* Delete Section (bulk delete decks) – same as Notebooks */}
+                    {(activeTab === 'decks' ? filteredDecks.length : filteredArchivedDecks.length) > 0 && (
+                      <HeaderTooltip label="Delete decks">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedDecksForDelete([]);
+                            setShowBulkDeleteDecksModal(true);
+                          }}
+                          className="px-2 h-7 text-xs border border-red-200 dark:border-red-700 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center"
+                          aria-label="Delete decks"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </HeaderTooltip>
+                    )}
                     {/* Search Field */}
                     <div className="relative w-full sm:w-48">
                       <Search size={14} className="absolute left-2 top-1.5 text-gray-400" />
@@ -1390,6 +1593,7 @@ interface NoteItem {
                           onOpen={handleOpenDeck}
                           onArchive={handleArchive}
                           onResetProgress={handleResetProgress}
+                          onCreateGroupQuiz={handleCreateGroupQuiz}
                         />
                         {/* Subdecks display - click to open deck and view subdeck */}
                         {deck.subDecks && deck.subDecks.length > 0 && (
@@ -1550,6 +1754,120 @@ interface NoteItem {
                     setSelectedDeck(null);
           }}
         />
+      )}
+      {/* Bulk Delete Decks Modal (Delete Section) – same pattern as Notebooks */}
+      {showBulkDeleteDecksModal && (
+        <div className="fixed inset-0 z-[100] overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black/40 dark:bg-black/60"
+            onClick={() => {
+              if (!bulkDeleteDecksLoading) {
+                setShowBulkDeleteDecksModal(false);
+                setSelectedDecksForDelete([]);
+              }
+            }}
+          />
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div
+              className="relative flex flex-col bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl border border-gray-200 dark:border-[#333333] max-w-4xl w-full min-h-[36rem] max-h-[90vh] overflow-hidden z-[101]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-[#333333] flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Delete Decks</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!bulkDeleteDecksLoading) {
+                      setShowBulkDeleteDecksModal(false);
+                      setSelectedDecksForDelete([]);
+                    }
+                  }}
+                  className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
+                  disabled={bulkDeleteDecksLoading}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 py-3">
+                <p className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Select decks to delete. They will be moved to Trash and can be restored from there.
+                </p>
+                {selectedDecksForDelete.length > 0 && (
+                  <p className="flex-shrink-0 mb-2 text-xs text-red-600 dark:text-red-400">
+                    {selectedDecksForDelete.length} deck{selectedDecksForDelete.length !== 1 ? 's' : ''} selected for deletion
+                  </p>
+                )}
+                <div className="flex-1 min-h-0 overflow-y-auto border border-gray-200 dark:border-[#333333] rounded-md">
+                  {(activeTab === 'decks' ? filteredDecks : filteredArchivedDecks).map((deck) => (
+                    <div
+                      key={deck.id}
+                      className="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border-b border-gray-100 dark:border-[#333333] last:border-b-0"
+                    >
+                      <input
+                        type="checkbox"
+                        id={`deck-bulk-${deck.id}`}
+                        checked={selectedDecksForDelete.includes(deck.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedDecksForDelete((prev) => [...prev, deck.id]);
+                          } else {
+                            setSelectedDecksForDelete((prev) => prev.filter((id) => id !== deck.id));
+                          }
+                        }}
+                        disabled={bulkDeleteDecksLoading}
+                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                      />
+                      <label
+                        htmlFor={`deck-bulk-${deck.id}`}
+                        className="ml-4 flex items-center flex-1 cursor-pointer"
+                      >
+                        <div className="w-8 h-8 rounded-lg mr-4 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
+                          <BookOpen size={16} className="text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {deck.title}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400">
+                            {deck.flashcardCount} card{deck.flashcardCount !== 1 ? 's' : ''}
+                            {deck.lastStudied
+                              ? ` • Last studied ${new Date(deck.lastStudied).toLocaleDateString()}`
+                              : ''}
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex-shrink-0 px-4 py-2.5 border-t border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#252525] rounded-b-md flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!bulkDeleteDecksLoading) {
+                      setShowBulkDeleteDecksModal(false);
+                      setSelectedDecksForDelete([]);
+                    }
+                  }}
+                  disabled={bulkDeleteDecksLoading}
+                  className="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBulkDeleteDecks(selectedDecksForDelete)}
+                  disabled={selectedDecksForDelete.length === 0 || bulkDeleteDecksLoading}
+                  className="px-2.5 py-1.5 text-xs rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {bulkDeleteDecksLoading
+                    ? 'Deleting…'
+                    : `Delete${selectedDecksForDelete.length > 0 ? ` (${selectedDecksForDelete.length})` : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
               {showStatsModal && selectedDeck && selectedDeckStats && (
                 <DeckStatsModal
@@ -1794,6 +2112,7 @@ interface NoteItem {
                             onViewStats={handleViewStats}
                             onOpen={handleOpenDeck}
                             onArchive={handleArchive}
+                            onCreateGroupQuiz={handleCreateGroupQuiz}
                           />
                           {/* Subdecks display - click to open deck and view subdeck */}
                           {deck.subDecks && deck.subDecks.length > 0 && (
@@ -1907,6 +2226,85 @@ interface NoteItem {
                       : 'Try adjusting your search or filter criteria.'
                     }
                   </p>
+                </div>
+              )}
+            </div>
+          )}
+          {activeTab === 'groupQuizzes' && (
+            <div className="mt-4">
+              {loadingGroupQuizzes ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent" />
+                </div>
+              ) : groupQuizzes.length === 0 ? (
+                <div className="text-center py-12 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e]">
+                  <Target size={40} className="mx-auto text-gray-400 mb-3" />
+                  <p className="text-sm text-gray-600 dark:text-gray-400">No group quizzes yet.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Create one from a deck: open the deck menu → &quot;Create group quiz&quot;.</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {groupQuizzes.map((gq: any) => {
+                    const userData = localStorage.getItem('user');
+                    const currentUserId = userData ? (JSON.parse(userData)?.id ?? JSON.parse(userData)?.pk) : null;
+                    const myPart = (gq.participants || []).find((p: any) => p.user_id === currentUserId || p.user_id === parseInt(currentUserId, 10));
+                    const myStatus = myPart?.status ?? 'invited';
+                    return (
+                      <div
+                        key={gq.id}
+                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] px-3 py-2.5 min-h-[52px]"
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{gq.title}</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            {gq.deck_title} · by {gq.created_by_username} · {gq.participant_count} participant{gq.participant_count !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`text-xs px-2 py-0.5 rounded-md ${
+                            myStatus === 'completed' ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300' :
+                            myStatus === 'accepted' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' :
+                            myStatus === 'declined' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' :
+                            'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                          }`}>
+                            {myStatus}
+                          </span>
+                          {myStatus === 'invited' && (
+                            <>
+                              <button
+                                onClick={() => handleAcceptDeclineGroupQuiz(String(gq.id), true)}
+                                className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                              >
+                                Accept
+                              </button>
+                              <button
+                                onClick={() => handleAcceptDeclineGroupQuiz(String(gq.id), false)}
+                                className="h-7 px-3 text-xs font-medium rounded-lg border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                              >
+                                Decline
+                              </button>
+                            </>
+                          )}
+                          {myStatus === 'accepted' && gq.status === 'active' && (
+                            <button
+                              onClick={() => handleTakeGroupQuiz(gq)}
+                              className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                            >
+                              Take Quiz
+                            </button>
+                          )}
+                          {myStatus === 'completed' || gq.status === 'completed' ? (
+                            <button
+                              onClick={() => handleViewGroupQuizResults(String(gq.id))}
+                              className="h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
+                            >
+                              View Results
+                            </button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

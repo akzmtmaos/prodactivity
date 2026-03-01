@@ -20,6 +20,7 @@ import {
   type Attachment,
   getAvatarUrl,
 } from '../components/chat';
+import type { FriendItem } from '../components/chat/FriendsList';
 
 const Chat = () => {
   const { isCollapsed } = useNavbar();
@@ -28,7 +29,8 @@ const Chat = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<'chats' | 'groups'>('chats');
+  const [activeView, setActiveView] = useState<'chats' | 'friends' | 'groups'>('chats');
+  const [followingList, setFollowingList] = useState<FriendItem[]>([]);
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -76,7 +78,7 @@ const Chat = () => {
   useEffect(() => {
     if (user?.id) {
       fetchChatRooms();
-      // Don't fetch all users by default - only fetch when searching
+      fetchFollowing();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -230,6 +232,26 @@ const Chat = () => {
       setToast({ message: 'Failed to load chats', type: 'error' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchFollowing = async () => {
+    try {
+      const res = await axiosInstance.get('/following/');
+      const list = res.data?.following || [];
+      setFollowingList(
+        list.map((item: any) => ({
+          id: item.id,
+          username: item.username,
+          avatar: item.avatar,
+          school: item.school,
+          course: item.course,
+          bio: item.bio,
+        }))
+      );
+    } catch (err) {
+      console.error('Error fetching following:', err);
+      setFollowingList([]);
     }
   };
 
@@ -1228,6 +1250,15 @@ const Chat = () => {
       return name.includes(search) || participantNames.includes(search);
     });
 
+  const filteredFriends = followingList.filter((friend) => {
+    const search = searchTerm.toLowerCase().trim();
+    if (!search) return true;
+    const username = friend.username?.toLowerCase() || '';
+    const school = friend.school?.toLowerCase() || '';
+    const course = friend.course?.toLowerCase() || '';
+    return username.includes(search) || school.includes(search) || course.includes(search);
+  });
+
   if (!user) {
     return null;
   }
@@ -1240,11 +1271,13 @@ const Chat = () => {
             activeView={activeView}
             searchTerm={searchTerm}
             filteredChatRooms={filteredChatRooms}
+            filteredFriends={filteredFriends}
             selectedRoom={selectedRoom}
             currentUserId={String(user.id)}
             onViewChange={setActiveView}
             onSearchChange={setSearchTerm}
             onRoomSelect={handleRoomSelect}
+            onFriendSelect={(username) => handleStartChat(username)}
             onCreateGroupClick={() => setShowCreateGroupModal(true)}
           />
 

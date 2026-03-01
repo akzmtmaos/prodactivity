@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, BookOpen, Plus, Edit2, Trash2, ChevronRight, Play, HelpCircle, ChevronLeft, FileText } from 'lucide-react';
+import { ArrowLeft, BookOpen, Plus, Edit2, Trash2, ChevronRight, Play, HelpCircle, ChevronLeft, FileText, X } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import Pagination from '../components/common/Pagination';
 import CreateDeckModal from '../components/decks/CreateDeckModal';
@@ -85,6 +85,11 @@ const DeckDetails: React.FC = () => {
   const [selectedSubdeck, setSelectedSubdeck] = useState<Subdeck | null>(null);
   const [selectedFlashcard, setSelectedFlashcard] = useState<Flashcard | null>(null);
   const [activeTab, setActiveTab] = useState<'subdecks' | 'flashcards'>('subdecks');
+
+  // Bulk delete flashcards (multiple items) – same as Decks list delete
+  const [showBulkDeleteFlashcardsModal, setShowBulkDeleteFlashcardsModal] = useState(false);
+  const [selectedFlashcardIdsForDelete, setSelectedFlashcardIdsForDelete] = useState<string[]>([]);
+  const [bulkDeleteFlashcardsLoading, setBulkDeleteFlashcardsLoading] = useState(false);
   
   // Import notes modal state
   const [showImportModal, setShowImportModal] = useState(false);
@@ -373,6 +378,30 @@ const DeckDetails: React.FC = () => {
     } catch (error) {
       console.error('Error deleting flashcard:', error);
       alert('Error deleting flashcard. Please try again.');
+    }
+  };
+
+  // Bulk delete flashcards (multiple items) – from Deck Details Flashcards tab
+  const handleBulkDeleteFlashcards = async (flashcardIds: string[]) => {
+    if (!deck || flashcardIds.length === 0) return;
+    setBulkDeleteFlashcardsLoading(true);
+    try {
+      await Promise.all(
+        flashcardIds.map((fcId) => axiosInstance.delete(`/decks/flashcards/${fcId}/`))
+      );
+      const idSet = new Set(flashcardIds);
+      setDeck({
+        ...deck,
+        flashcards: deck.flashcards.filter((card) => !idSet.has(card.id)),
+        flashcardCount: deck.flashcardCount - flashcardIds.length,
+      });
+      setSelectedFlashcardIdsForDelete([]);
+      setShowBulkDeleteFlashcardsModal(false);
+    } catch (error) {
+      console.error('Error bulk deleting flashcards:', error);
+      alert('Error deleting some flashcards. Please try again.');
+    } finally {
+      setBulkDeleteFlashcardsLoading(false);
     }
   };
 
@@ -687,6 +716,21 @@ const DeckDetails: React.FC = () => {
               )}
               {activeTab === 'flashcards' && (
                 <>
+                  {deck.flashcards.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedFlashcardIdsForDelete([]);
+                        setShowBulkDeleteFlashcardsModal(true);
+                      }}
+                      className="flex items-center justify-center h-7 px-2.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                      aria-label="Delete multiple flashcards"
+                      title="Delete multiple flashcards"
+                    >
+                      <Trash2 size={14} className="mr-1.5" />
+                      Delete
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setShowImportModal(true)}
@@ -1088,6 +1132,110 @@ const DeckDetails: React.FC = () => {
             setShowStudySession(false);
           }}
         />
+      )}
+
+      {/* Bulk Delete Flashcards Modal – multiple flashcard items inside this deck */}
+      {showBulkDeleteFlashcardsModal && deck && (
+        <div className="fixed inset-0 z-[100] overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black/40 dark:bg-black/60"
+            onClick={() => {
+              if (!bulkDeleteFlashcardsLoading) {
+                setShowBulkDeleteFlashcardsModal(false);
+                setSelectedFlashcardIdsForDelete([]);
+              }
+            }}
+          />
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div
+              className="relative flex flex-col bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl border border-gray-200 dark:border-[#333333] max-w-2xl w-full max-h-[85vh] overflow-hidden z-[101]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-[#333333] flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Delete Flashcards</h3>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!bulkDeleteFlashcardsLoading) {
+                      setShowBulkDeleteFlashcardsModal(false);
+                      setSelectedFlashcardIdsForDelete([]);
+                    }
+                  }}
+                  className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
+                  disabled={bulkDeleteFlashcardsLoading}
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 py-3">
+                <p className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Select flashcards to delete. This cannot be undone.
+                </p>
+                {selectedFlashcardIdsForDelete.length > 0 && (
+                  <p className="flex-shrink-0 mb-2 text-xs text-red-600 dark:text-red-400">
+                    {selectedFlashcardIdsForDelete.length} card{selectedFlashcardIdsForDelete.length !== 1 ? 's' : ''} selected for deletion
+                  </p>
+                )}
+                <div className="flex-1 min-h-0 overflow-y-auto border border-gray-200 dark:border-[#333333] rounded-md">
+                  {deck.flashcards.map((fc) => (
+                    <div
+                      key={fc.id}
+                      className="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border-b border-gray-100 dark:border-[#333333] last:border-b-0"
+                    >
+                      <input
+                        type="checkbox"
+                        id={`bulk-fc-${fc.id}`}
+                        checked={selectedFlashcardIdsForDelete.includes(fc.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedFlashcardIdsForDelete((prev) => [...prev, fc.id]);
+                          } else {
+                            setSelectedFlashcardIdsForDelete((prev) => prev.filter((id) => id !== fc.id));
+                          }
+                        }}
+                        disabled={bulkDeleteFlashcardsLoading}
+                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                      />
+                      <label htmlFor={`bulk-fc-${fc.id}`} className="ml-4 flex-1 cursor-pointer min-w-0">
+                        <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                          {fc.question || fc.front || '(No question)'}
+                        </div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 truncate mt-0.5">
+                          {fc.answer || fc.back || '(No answer)'}
+                        </div>
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="flex-shrink-0 px-4 py-2.5 border-t border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#252525] rounded-b-md flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!bulkDeleteFlashcardsLoading) {
+                      setShowBulkDeleteFlashcardsModal(false);
+                      setSelectedFlashcardIdsForDelete([]);
+                    }
+                  }}
+                  disabled={bulkDeleteFlashcardsLoading}
+                  className="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleBulkDeleteFlashcards(selectedFlashcardIdsForDelete)}
+                  disabled={selectedFlashcardIdsForDelete.length === 0 || bulkDeleteFlashcardsLoading}
+                  className="px-2.5 py-1.5 text-xs rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {bulkDeleteFlashcardsLoading
+                    ? 'Deleting…'
+                    : `Delete${selectedFlashcardIdsForDelete.length > 0 ? ` (${selectedFlashcardIdsForDelete.length})` : ''}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Import Notes Modal */}

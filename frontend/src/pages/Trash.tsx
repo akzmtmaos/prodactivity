@@ -1,7 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageLayout from '../components/PageLayout';
-import HelpButton from '../components/HelpButton';
 import TrashList from '../components/trash/TrashList';
 import Toast from '../components/common/Toast';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
@@ -574,25 +573,8 @@ const Trash = () => {
       <div className="space-y-6">
         {/* Header – title + subtitle only (actions in tab row) */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             Trash
-            <HelpButton 
-              content={
-                <div>
-                  <p className="font-semibold mb-2">Trash Management</p>
-                  <ul className="space-y-1 text-xs">
-                    <li>• <strong>Deleted Items:</strong> View all deleted tasks, notes, decks, and notebooks</li>
-                    <li>• <strong>Restore:</strong> Bring back accidentally deleted items</li>
-                    <li>• <strong>Permanent Delete:</strong> Completely remove items from system</li>
-                    <li>• <strong>Search:</strong> Find specific deleted items quickly</li>
-                    <li>• <strong>Filter by Type:</strong> View tasks, notes, decks, or notebooks separately</li>
-                    <li>• <strong>Auto-cleanup:</strong> Items are automatically purged after 30 days</li>
-                    <li>• <strong>Bulk Actions:</strong> Restore or delete multiple items at once</li>
-                  </ul>
-                </div>
-              } 
-              title="Trash Help" 
-            />
           </h1>
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
             View and restore deleted items

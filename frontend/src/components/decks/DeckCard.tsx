@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Edit, Trash2, BarChart2, Play, HelpCircle, MoreVertical, RotateCcw } from 'lucide-react';
+import { BookOpen, Edit, Trash2, BarChart2, Play, HelpCircle, MoreVertical, RotateCcw, Users } from 'lucide-react';
 
 interface Deck {
   id: string;
@@ -26,9 +26,10 @@ interface DeckCardProps {
   onViewStats: (deckId: string) => void;
   onOpen: (deckId: string) => void;
   onArchive?: (deckId: string) => void;
-  onResetProgress?: (deckId: string) => void; // New prop for resetting progress
-  isSubDeck?: boolean; // New prop to identify if this is a SubDeck
-  onEditSubDeck?: (deck: Deck) => void; // New prop for editing SubDecks
+  onResetProgress?: (deckId: string) => void;
+  onCreateGroupQuiz?: (deckId: string) => void;
+  isSubDeck?: boolean;
+  onEditSubDeck?: (deck: Deck) => void;
 }
 
 const DeckCard: React.FC<DeckCardProps> = ({
@@ -41,6 +42,7 @@ const DeckCard: React.FC<DeckCardProps> = ({
   onOpen,
   onArchive,
   onResetProgress,
+  onCreateGroupQuiz,
   isSubDeck = false,
   onEditSubDeck
 }) => {
@@ -181,6 +183,18 @@ const DeckCard: React.FC<DeckCardProps> = ({
                   <BarChart2 size={16} className="mr-3" />
                   View Stats
                 </button>
+                {onCreateGroupQuiz && !isSubDeck && (
+                  <button
+                    onClick={() => {
+                      onCreateGroupQuiz(deck.id);
+                      setShowMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center transition-colors"
+                  >
+                    <Users size={16} className="mr-3" />
+                    Create group quiz
+                  </button>
+                )}
                 {onArchive && (
                   <button
                     onClick={() => {

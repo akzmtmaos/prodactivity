@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Plus } from 'lucide-react';
 import { isValid } from 'date-fns';
 import PageLayout from '../components/PageLayout';
-import HelpButton from '../components/HelpButton';
 import Calendar from '../components/schedules/Calendar';
 import UpcomingEvents from '../components/schedules/UpcomingEvents';
 import PastEvents from '../components/schedules/PastEvents';
@@ -329,25 +328,8 @@ const Schedule = () => {
         <div className="flex-1 flex flex-col min-h-0">
           {/* Header – title + subtitle only */}
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
               Schedule
-              <HelpButton 
-                content={
-                  <div>
-                    <p className="font-semibold mb-2">Schedule Management</p>
-                    <ul className="space-y-1 text-xs">
-                      <li>• <strong>Add Events:</strong> Create one-time events with details</li>
-                      <li>• <strong>Calendar View:</strong> Visual monthly calendar display</li>
-                      <li>• <strong>Upcoming Events:</strong> See what's coming next</li>
-                      <li>• <strong>Past Events:</strong> Review completed activities</li>
-                      <li>• <strong>Recur Events:</strong> Quickly recreate past events using the "Recur" button</li>
-                      <li>• <strong>Event Details:</strong> Add time, category, and descriptions</li>
-                      <li>• <strong>Delete:</strong> Remove events as needed</li>
-                    </ul>
-                  </div>
-                } 
-                title="Schedule Help" 
-              />
             </h1>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Here's your upcoming schedule.
