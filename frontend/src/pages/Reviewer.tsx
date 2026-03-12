@@ -139,29 +139,29 @@ const Reviewer = () => {
 
   return (
     <PageLayout>
-      <div className="flex h-full">
-        <div className="flex-1 space-y-4">
-          <div className="max-w-7xl mx-auto">
+      <div className="flex h-full flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 max-w-7xl mx-auto w-full">
+          {/* Document-style view when a reviewer is open; otherwise list panel */}
+          {reviewerId && reviewerId !== 'q' && reviewerId !== 'r' && modalReviewer ? (
+            <ReviewerDocument reviewer={modalReviewer} onClose={() => navigate('/reviewer/r')} />
+          ) : (
             <ReviewerPanel notes={notes} notebooks={notebooks} activeTab={activeTab} setActiveTab={setActiveTab} />
-          </div>
+          )}
         </div>
       </div>
       {reviewerId && reviewerId !== 'q' && reviewerId !== 'r' && !modalReviewer && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
-          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-lg w-full max-w-2xl p-6 relative flex flex-col max-h-[80vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
+          <div className="bg-white dark:bg-gray-900 rounded-lg shadow-xl w-full max-w-md mx-4 p-6 border border-gray-200 dark:border-gray-700">
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">Reviewer not found</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Could not load the reviewer. It may not exist or you may not have access.</p>
             <button
-              className="absolute top-4 right-4 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 text-2xl font-bold focus:outline-none"
               onClick={() => navigate('/reviewer/r')}
+              className="px-3 py-1.5 text-sm font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700"
             >
-              ×
+              Back to list
             </button>
-            <h2 className="text-2xl font-bold mb-4 text-gray-900 dark:text-white">Reviewer Not Found</h2>
-            <div className="p-4 text-gray-700 dark:text-gray-300">Could not load the reviewer. It may not exist or you may not have access.</div>
           </div>
         </div>
-      )}
-      {reviewerId && reviewerId !== 'q' && reviewerId !== 'r' && modalReviewer && (
-        <ReviewerDocument reviewer={modalReviewer} onClose={() => navigate('/reviewer/r')} />
       )}
     </PageLayout>
   );

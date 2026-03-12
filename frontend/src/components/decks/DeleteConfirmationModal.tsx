@@ -39,49 +39,41 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
           </button>
         </div>
 
-        {/* Content */}
+        {/* Content – icon only in header */}
         <div className="p-4">
-          <div className="flex items-center mb-4">
-            <div className="w-8 h-8 bg-red-100 dark:bg-red-900/20 rounded-full flex items-center justify-center mr-3">
-              <Trash2 size={16} className="text-red-600 dark:text-red-400" />
-            </div>
-            <div className="text-left">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">
-                Are you sure?
-              </h3>
-              <p className="text-gray-600 dark:text-gray-400 text-sm m-0">
-                Delete <span className="font-medium">"{deckTitle}"</span>? This cannot be undone.
-              </p>
-            </div>
-          </div>
-
-          {/* Actions */}
-          <div className="flex space-x-2">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={loading}
-              className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onConfirm}
-              disabled={loading}
-              className={`flex-1 px-2 py-1 bg-red-600 text-white rounded font-medium text-sm flex items-center justify-center transition-colors ${
-                loading
-                  ? 'opacity-50 cursor-not-allowed'
-                  : 'hover:bg-red-700'
-              }`}
-            >
-              {loading ? (
-                <span className="inline-block animate-spin mr-1 h-3 w-3 border-2 border-white border-t-transparent rounded-full"></span>
-              ) : (
-                <Trash2 size={14} className="mr-1" />
-              )}
-              {loading ? 'Deleting...' : 'Delete'}
-            </button>
-          </div>
+          <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">
+            Are you sure?
+          </h3>
+          <p className="text-gray-600 dark:text-gray-400 text-sm m-0">
+            Delete <span className="font-medium">"{deckTitle}"</span>? This cannot be undone.
+          </p>
+        </div>
+        {/* Footer with line */}
+        <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={loading}
+            className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={loading}
+            className={`flex-1 px-2 py-1 bg-red-600 text-white rounded font-medium text-sm flex items-center justify-center gap-1 transition-colors ${
+              loading
+                ? 'opacity-50 cursor-not-allowed'
+                : 'hover:bg-red-700'
+            }`}
+          >
+            {loading ? (
+              <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Trash2 size={14} />
+            )}
+            {loading ? 'Deleting...' : 'Delete'}
+          </button>
         </div>
       </div>
     </div>

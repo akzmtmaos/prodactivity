@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, FolderOpen, Tag, Users } from 'lucide-react';
+import { Plus, Search, FolderOpen, Tag, Users, X, Trash2, AlertTriangle } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import TaskList from '../components/tasks/TaskList';
 import TaskForm from '../components/tasks/TaskForm';
@@ -8,7 +8,6 @@ import TaskFilters from '../components/tasks/TaskFilters';
 import TaskSummary from '../components/tasks/TaskSummary';
 import { Task } from '../types/task';
 import { getXpForTask } from '../utils/xpUtils';
-import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
 import CreateGroupTaskModal from '../components/collaboration/CreateGroupTaskModal';
 import GroupTaskResultsModal from '../components/collaboration/GroupTaskResultsModal';
@@ -77,9 +76,9 @@ const TasksContent = ({ user }: { user: any }) => {
   const [filterCategory, setFilterCategory] = useState<string>('all');
   const [searchTerm, setSearchTerm] = useState('');
 
-  // State for delete confirmation modal
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
+  const [deleteTaskLoading, setDeleteTaskLoading] = useState(false);
 
   // State for tabs
   const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed' | 'assigned' | 'groupTasks'>('tasks');
@@ -372,9 +371,13 @@ const TasksContent = ({ user }: { user: any }) => {
           baseQuery = baseQuery.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
         }
         
-        // Apply sorting
-        const orderingField = sortField === 'dueDate' ? 'due_date' : sortField;
-        baseQuery = baseQuery.order(orderingField, { ascending: sortDirection === 'asc' });
+        // Apply sorting: Completed tab by completion date (newest at top); others by user sort
+        if (activeTab === 'completed') {
+          baseQuery = baseQuery.order('completed_at', { ascending: false });
+        } else {
+          const orderingField = sortField === 'dueDate' ? 'due_date' : sortField;
+          baseQuery = baseQuery.order(orderingField, { ascending: sortDirection === 'asc' });
+        }
         
         return baseQuery;
       };
@@ -602,31 +605,24 @@ const TasksContent = ({ user }: { user: any }) => {
     setDeleteModalOpen(true);
   };
 
-  // Confirm deletion in Supabase
   const confirmDeleteTask = async () => {
     if (deleteTaskId === null) return;
+    setDeleteTaskLoading(true);
     try {
-      console.log('Deleting task from Supabase:', deleteTaskId);
-      
       const { error } = await supabase
         .from('tasks')
-        .update({ 
+        .update({
           is_deleted: true,
           deleted_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })
         .eq('id', deleteTaskId);
-      
+
       if (error) {
-        console.error('Supabase error:', error);
         setError(`Failed to delete task: ${error.message}`);
         setDeleteModalOpen(false);
         return;
       }
-      
-      console.log('Task deleted successfully in Supabase');
-      
-      // Refetch tasks and stats to ensure consistency with current pagination, filtering, and sorting
       await fetchTasks();
       await fetchTaskStats();
       setDeleteTaskId(null);
@@ -636,6 +632,8 @@ const TasksContent = ({ user }: { user: any }) => {
       console.error('Error deleting task from Supabase:', err);
       setError('Failed to delete task. Please try again.');
       setDeleteModalOpen(false);
+    } finally {
+      setDeleteTaskLoading(false);
     }
   };
 
@@ -1555,16 +1553,57 @@ const TasksContent = ({ user }: { user: any }) => {
           </div>
         </div>
       </div>
-      {/* Delete Confirmation Modal */}
-      <DeleteConfirmationModal
-        isOpen={deleteModalOpen}
-        onClose={() => { setDeleteModalOpen(false); setDeleteTaskId(null); }}
-        onConfirm={confirmDeleteTask}
-        title="Delete Task"
-        message="Are you sure you want to delete this task? This action cannot be undone."
-        confirmLabel="Delete"
-        cancelLabel="Cancel"
-             />
+      {/* Delete Task confirmation – refined UI (icon in header only, like Deck/Notebook) */}
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-xs mx-4">
+            <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center">
+                <div className="p-1 bg-red-100 dark:bg-red-900/20 rounded-lg mr-2">
+                  <AlertTriangle size={16} className="text-red-600 dark:text-red-400" />
+                </div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Delete Task</h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => { setDeleteModalOpen(false); setDeleteTaskId(null); }}
+                className="p-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-4">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">Are you sure?</h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm m-0">
+                Delete <span className="font-medium">"{tasks.find(t => t.id === deleteTaskId)?.title ?? 'this task'}"</span>? This cannot be undone.
+              </p>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+              <button
+                type="button"
+                onClick={() => { setDeleteModalOpen(false); setDeleteTaskId(null); }}
+                disabled={deleteTaskLoading}
+                className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={confirmDeleteTask}
+                disabled={deleteTaskLoading}
+                className="flex-1 px-2 py-1 bg-red-600 text-white rounded font-medium text-sm flex items-center justify-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-700"
+              >
+                {deleteTaskLoading ? (
+                  <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Trash2 size={14} />
+                )}
+                {deleteTaskLoading ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
        
       {toast && (
         <Toast

@@ -7,7 +7,6 @@ import CreateDeckModal from '../components/decks/CreateDeckModal';
 import DeleteConfirmationModal from '../components/decks/DeleteConfirmationModal';
 import EditDeckModal from '../components/decks/EditDeckModal';
 import DeckStatsModal from '../components/decks/DeckStatsModal';
-import StudySession from '../components/decks/StudySession';
 import DeckCard from '../components/decks/DeckCard';
 import { truncateHtmlContent } from '../utils/htmlUtils';
 import { API_BASE_URL } from '../config/api';
@@ -81,7 +80,6 @@ const DeckDetails: React.FC = () => {
   const FLASHCARD_PAGE_SIZE = 10;
   const [showEditModal, setShowEditModal] = useState(false);
   const [showStatsModal, setShowStatsModal] = useState(false);
-  const [showStudySession, setShowStudySession] = useState(false);
   const [selectedSubdeck, setSelectedSubdeck] = useState<Subdeck | null>(null);
   const [selectedFlashcard, setSelectedFlashcard] = useState<Flashcard | null>(null);
   const [activeTab, setActiveTab] = useState<'subdecks' | 'flashcards'>('subdecks');
@@ -434,7 +432,7 @@ const DeckDetails: React.FC = () => {
 
   const handlePractice = () => {
     if (deck) {
-      setShowStudySession(true);
+      navigate(`/decks/${deck.id}/practice`);
     }
   };
 
@@ -723,12 +721,11 @@ const DeckDetails: React.FC = () => {
                         setSelectedFlashcardIdsForDelete([]);
                         setShowBulkDeleteFlashcardsModal(true);
                       }}
-                      className="flex items-center justify-center h-7 px-2.5 text-xs font-medium rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                      className="flex items-center justify-center h-7 w-7 text-xs font-medium rounded-lg border border-red-200 dark:border-red-700 bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
                       aria-label="Delete multiple flashcards"
                       title="Delete multiple flashcards"
                     >
-                      <Trash2 size={14} className="mr-1.5" />
-                      Delete
+                      <Trash2 size={14} />
                     </button>
                   )}
                   <button
@@ -1046,20 +1043,20 @@ const DeckDetails: React.FC = () => {
                               )}
                               <button
                                 onClick={() => handleStartEdit(card)}
-                                className="p-1.5 text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-[#333333] rounded-lg transition-colors"
+                                className="p-1.5 h-7 w-7 text-gray-500 dark:text-gray-300 rounded-md border border-gray-300 dark:border-gray-600 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-[#333333] transition-colors flex items-center justify-center"
                                 aria-label="Edit"
                               >
-                                <Edit2 size={16} />
+                                <Edit2 size={14} />
                               </button>
                               <button
                                 onClick={() => {
                                   setSelectedFlashcard(card);
                                   setShowDeleteModal(true);
                                 }}
-                                className="p-1.5 text-gray-400 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-[#333333] rounded-lg transition-colors"
+                                className="p-1.5 h-7 w-7 text-gray-500 dark:text-gray-300 rounded-md border border-gray-300 dark:border-gray-600 hover:text-red-600 dark:hover:text-red-400 hover:bg-gray-100 dark:hover:bg-[#333333] transition-colors flex items-center justify-center"
                                 aria-label="Delete"
                               >
-                                <Trash2 size={16} />
+                                <Trash2 size={14} />
                               </button>
                             </div>
                           </div>
@@ -1113,23 +1110,6 @@ const DeckDetails: React.FC = () => {
             } else if (selectedFlashcard) {
               handleDeleteFlashcard(selectedFlashcard.id);
             }
-          }}
-        />
-      )}
-
-      {showStudySession && (
-        <StudySession
-          deckTitle={deck.title}
-          flashcards={deck.flashcards.map(fc => ({
-            id: fc.id,
-            front: fc.front || fc.question,
-            back: fc.back || fc.answer,
-            difficulty: fc.difficulty
-          }))}
-          onClose={() => setShowStudySession(false)}
-          onComplete={(results) => {
-            console.log('Study session completed:', results);
-            setShowStudySession(false);
           }}
         />
       )}

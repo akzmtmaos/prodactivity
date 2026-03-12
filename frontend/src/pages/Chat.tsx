@@ -47,7 +47,10 @@ const Chat = () => {
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const selectedRoomRef = useRef<ChatRoom | null>(null);
   const userRef = useRef<any | null>(null);
-  
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const POLL_INTERVAL_MS = 4000;
+
   // Keep refs in sync with state
   useEffect(() => {
     selectedRoomRef.current = selectedRoom;
@@ -108,25 +111,35 @@ const Chat = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search, user?.id]);
 
-  // Only clear and refetch messages when the room *id* changes, not when selectedRoom is replaced with a new object ref (e.g. after fetchChatRooms)
+  // Only clear and refetch messages when the room *id* changes; subscribe to realtime + polling fallback so messages update without refresh
   useEffect(() => {
     const roomId = selectedRoom?.id;
     if (roomId) {
       setMessages([]);
       fetchMessages(roomId);
       const unsubscribe = subscribeToMessages(roomId);
+
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = setInterval(pollMessages, POLL_INTERVAL_MS);
+
       markAsRead(roomId);
       return () => {
-        if (unsubscribe) {
-          unsubscribe();
-        }
+        if (unsubscribe) unsubscribe();
         if (subscriptionRef.current) {
           supabase.removeChannel(subscriptionRef.current);
           subscriptionRef.current = null;
         }
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
       };
     } else {
       setMessages([]);
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedRoom?.id]);
@@ -255,86 +268,72 @@ const Chat = () => {
     }
   };
 
-  const fetchMessages = async (roomId: string) => {
-    try {
-      const { data: messagesData, error } = await supabase
-        .from('messages')
-        .select('*')
-        .eq('room_id', roomId)
-        .eq('is_deleted', false)
-        .order('created_at', { ascending: true });
+  const getMessagesForRoom = useCallback(async (roomId: string, room: ChatRoom | null): Promise<Message[]> => {
+    const { data: messagesData, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('room_id', roomId)
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: true });
 
-      if (error) {
-        console.error('Error fetching messages:', error);
-        return;
-      }
-
-      const senderIds = Array.from(new Set(messagesData?.map((m: any) => String(m.sender_id)) || []));
-      
-      if (senderIds.length > 0) {
-        const { data: senders, error: sendersError } = await supabase
-          .from('profiles')
-          .select('id, username, email, avatar')
-          .in('id', senderIds);
-
-        if (sendersError) {
-          console.error('Error fetching senders:', sendersError);
-        }
-
-        const processedSenders = (senders || []).map((s: any) => ({
-          ...s,
-          id: String(s.id),
-          avatar: getAvatarUrl(s.avatar)
-        }));
-
-        const participantMap = new Map<string, User>();
-        if (selectedRoom?.participants) {
-          selectedRoom.participants.forEach(p => {
-            participantMap.set(String(p.id), {
-              ...p,
-              avatar: getAvatarUrl(p.avatar)
-            });
-          });
-        }
-
-        const messagesWithSenders = (messagesData || []).map((msg: any) => {
-          const senderId = String(msg.sender_id);
-          let sender = processedSenders?.find((s: User) => String(s.id) === senderId);
-          
-          if (!sender) {
-            const participant = participantMap.get(senderId);
-            if (participant) {
-              sender = participant;
-            }
-          }
-          
-          // Parse attachments from content
-          const { text, attachments } = parseAttachmentsFromContent(msg.content || '');
-          
-          console.log('📥 Fetched message:', { 
-            msgId: msg.id, 
-            hasAttachments: !!attachments, 
-            attachmentCount: attachments?.length || 0,
-            contentPreview: msg.content?.substring(0, 100)
-          });
-          
-          return {
-            ...msg,
-            sender_id: senderId,
-            content: text,
-            attachments: attachments || undefined,
-            sender: sender || undefined
-          };
-        });
-
-        setMessages(messagesWithSenders);
-      } else {
-        setMessages(messagesData || []);
-      }
-    } catch (error) {
+    if (error) {
       console.error('Error fetching messages:', error);
+      return [];
     }
-  };
+
+    const senderIds = Array.from(new Set(messagesData?.map((m: any) => String(m.sender_id)) || []));
+    if (senderIds.length === 0) return (messagesData || []) as Message[];
+
+    const { data: senders, error: sendersError } = await supabase
+      .from('profiles')
+      .select('id, username, email, avatar')
+      .in('id', senderIds);
+
+    if (sendersError) console.error('Error fetching senders:', sendersError);
+
+    const processedSenders = (senders || []).map((s: any) => ({
+      ...s,
+      id: String(s.id),
+      avatar: getAvatarUrl(s.avatar)
+    }));
+
+    const participantMap = new Map<string, User>();
+    if (room?.participants) {
+      room.participants.forEach(p => {
+        participantMap.set(String(p.id), { ...p, avatar: getAvatarUrl(p.avatar) });
+      });
+    }
+
+    return (messagesData || []).map((msg: any) => {
+      const senderId = String(msg.sender_id);
+      let sender = processedSenders?.find((s: User) => String(s.id) === senderId);
+      if (!sender) sender = participantMap.get(senderId);
+      const { text, attachments } = parseAttachmentsFromContent(msg.content || '');
+      return {
+        ...msg,
+        sender_id: senderId,
+        content: text,
+        attachments: attachments || undefined,
+        sender: sender || undefined
+      };
+    });
+  }, []);
+
+  const fetchMessages = useCallback(async (roomId: string) => {
+    const room = selectedRoomRef.current;
+    const list = await getMessagesForRoom(roomId, room);
+    setMessages(list);
+  }, [getMessagesForRoom]);
+
+  const pollMessages = useCallback(async () => {
+    const room = selectedRoomRef.current;
+    if (!room?.id) return;
+    const list = await getMessagesForRoom(room.id, room);
+    setMessages(prev => {
+      const optimistic = prev.filter(m => m.status === 'sending');
+      return optimistic.length ? [...list, ...optimistic] : list;
+    });
+  }, [getMessagesForRoom]);
 
   const subscribeToMessages = useCallback((roomId: string) => {
     if (subscriptionRef.current) {
@@ -747,7 +746,10 @@ const Chat = () => {
     }
   };
 
-  const handleStartChat = async (otherUser: User | string) => {
+  const handleStartChat = async (
+    otherUser: User | string,
+    options?: { keepView?: boolean }
+  ) => {
     let targetUser: User;
     
     if (typeof otherUser === 'string') {
@@ -791,7 +793,9 @@ const Chat = () => {
           participants: [processedUser]
         };
         setSelectedRoom(chatRoom);
-        setActiveView('chats');
+        if (!options?.keepView) {
+          setActiveView('chats');
+        }
         // Update URL to include userId
         navigate(`/chat/${targetUser.id}`, { replace: true });
       }
@@ -1277,7 +1281,7 @@ const Chat = () => {
             onViewChange={setActiveView}
             onSearchChange={setSearchTerm}
             onRoomSelect={handleRoomSelect}
-            onFriendSelect={(username) => handleStartChat(username)}
+            onFriendSelect={(username) => handleStartChat(username, { keepView: true })}
             onCreateGroupClick={() => setShowCreateGroupModal(true)}
           />
 

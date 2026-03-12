@@ -1072,7 +1072,7 @@ const Home = () => {
           {/* Dynamic Stats grid - more compact */}
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4 mb-6">
             <div 
-              className="bg-white/90 dark:bg-[#252525] backdrop-blur-md overflow-hidden rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group border border-gray-200 dark:border-[#333333] dark:hover:border-[#404040]"
+              className="bg-white dark:bg-[#252525] overflow-hidden rounded-lg border border-gray-300 dark:border-[#3a3a3a] cursor-pointer group hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors transition-transform duration-150 transform hover:-translate-y-0.5"
               onClick={() => navigate('/study-timer')}
             >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
@@ -1097,7 +1097,7 @@ const Home = () => {
               </div>
             </div>
             <div 
-              className="bg-white/90 dark:bg-[#252525] backdrop-blur-md overflow-hidden rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group border border-gray-200 dark:border-[#333333] dark:hover:border-[#404040]"
+              className="bg-white dark:bg-[#252525] overflow-hidden rounded-lg border border-gray-300 dark:border-[#3a3a3a] cursor-pointer group hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors transition-transform duration-150 transform hover:-translate-y-0.5"
               onClick={() => navigate('/tasks')}
             >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
@@ -1113,7 +1113,7 @@ const Home = () => {
               </div>
             </div>
             <div 
-              className="bg-white/90 dark:bg-[#252525] backdrop-blur-md overflow-hidden rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group border border-gray-200 dark:border-[#333333] dark:hover:border-[#404040]"
+              className="bg-white dark:bg-[#252525] overflow-hidden rounded-lg border border-gray-300 dark:border-[#3a3a3a] cursor-pointer group hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors transition-transform duration-150 transform hover:-translate-y-0.5"
               onClick={() => navigate('/notebooks')}
             >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
@@ -1129,7 +1129,7 @@ const Home = () => {
               </div>
             </div>
             <div 
-              className="bg-white/90 dark:bg-[#252525] backdrop-blur-md overflow-hidden rounded-lg shadow-lg transition-all duration-200 hover:shadow-xl hover:scale-105 cursor-pointer group border border-gray-200 dark:border-[#333333] dark:hover:border-[#404040]"
+              className="bg-white dark:bg-[#252525] overflow-hidden rounded-lg border border-gray-300 dark:border-[#3a3a3a] cursor-pointer group hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors transition-transform duration-150 transform hover:-translate-y-0.5"
               onClick={() => navigate('/schedule')}
             >
               <div className="px-3 py-4 sm:px-4 sm:py-5 lg:p-6">
@@ -1191,7 +1191,7 @@ const Home = () => {
                       className="flex-shrink-0 w-1/4 px-1"
                     >
                       <div 
-                        className="bg-white/90 dark:bg-[#252525] backdrop-blur-md border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group overflow-hidden dark:hover:border-[#404040]"
+                        className="bg-white dark:bg-[#252525] border border-gray-300 dark:border-[#3a3a3a] rounded-lg cursor-pointer aspect-square flex flex-col min-w-[100px] group overflow-hidden hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors duration-150"
                         onClick={() => handleOpenNote(note.id)}
                       >
                         <div className="p-2 flex-1 flex flex-col items-center justify-center text-center overflow-hidden w-full">
@@ -1217,7 +1217,7 @@ const Home = () => {
                   ))
                 ) : (
                   <div 
-                    className="w-full bg-white dark:bg-[#252525] rounded-lg shadow-sm p-4 text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border border-gray-200 dark:border-[#333333]"
+                    className="w-full bg-white dark:bg-[#252525] rounded-lg p-4 text-center cursor-pointer border border-gray-300 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors duration-150"
                     onClick={() => navigate('/notebooks')}
                   >
                     <div className="flex flex-col items-center justify-center space-y-2">
@@ -1237,7 +1237,7 @@ const Home = () => {
                   recentNotes.slice(0, 8).map((note) => (
                     <div 
                       key={note.id} 
-                      className="bg-white/90 dark:bg-[#252525] backdrop-blur-md border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200 cursor-pointer aspect-square flex flex-col min-w-[100px] group overflow-hidden dark:hover:border-[#404040]"
+                      className="bg-white dark:bg-[#252525] border border-gray-300 dark:border-[#3a3a3a] rounded-lg cursor-pointer aspect-square flex flex-col min-w-[100px] group overflow-hidden hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors duration-150"
                       onClick={() => handleOpenNote(note.id)}
                     >
                       <div className="p-2 flex-1 flex flex-col items-center justify-center text-center overflow-hidden w-full">
@@ -1262,7 +1262,7 @@ const Home = () => {
                   ))
                 ) : (
                   <div 
-                    className="col-span-full bg-white dark:bg-[#252525] rounded-lg shadow-sm p-4 text-center cursor-pointer transition-all duration-200 hover:shadow-md hover:scale-[1.02] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border border-gray-200 dark:border-[#333333]"
+                    className="col-span-full bg-white dark:bg-[#252525] rounded-lg p-4 text-center cursor-pointer border border-gray-300 dark:border-[#3a3a3a] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors duration-150"
                     onClick={() => navigate('/notebooks')}
                   >
                     <div className="flex flex-col items-center justify-center space-y-2">
@@ -1300,7 +1300,14 @@ const Home = () => {
             {/* Tasks section (left) */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Pending Tasks</h2>
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Pending Tasks
+                  {tasks.length > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center rounded-full border border-gray-300 dark:border-[#3a3a3a] bg-white dark:bg-[#252525] px-2 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">
+                      {tasks.length}
+                    </span>
+                  )}
+                </h2>
                 <button 
                   onClick={() => navigate('/tasks')}
                   className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium transition-colors hover:text-indigo-700 dark:hover:text-indigo-300"
@@ -1308,20 +1315,31 @@ const Home = () => {
                   View Tasks
                 </button>
               </div>
-              <div className="h-96 bg-gray-100 dark:bg-[#252525] rounded-lg shadow flex flex-col p-4 border border-gray-200 dark:border-[#333333]">
-                <div className="flex-1 overflow-y-auto overflow-x-hidden">
+              <div className="h-96 bg-white dark:bg-[#252525] rounded-lg flex flex-col border border-gray-300 dark:border-[#3a3a3a]">
+                <div className="flex items-center justify-between px-3 py-2 text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wide bg-gray-50/80 dark:bg-[#1b1b1b]">
+                  <span>Task</span>
+                  <span>Due</span>
+                </div>
+                <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1">
                   {tasksLoading ? (
                     <div className="text-gray-500 dark:text-gray-400">Loading tasks...</div>
                   ) : tasks.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-2">
+                    <div className="divide-y divide-gray-100 dark:divide-[#2d2d2d]">
                       {tasks.map((task) => (
                         <div 
                           key={task.id} 
-                          className="bg-white dark:bg-[#1e1e1e] rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px] cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border border-transparent dark:border-[#333333] hover:border-gray-200 dark:hover:border-[#404040]"
+                          className={`px-2 py-2.5 flex items-start justify-between gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors duration-150 border-l-2 ${
+                            task.priority === 'high'
+                              ? 'border-l-red-400'
+                              : task.priority === 'medium'
+                              ? 'border-l-yellow-300'
+                              : 'border-l-green-400'
+                          }`}
                           onClick={() => navigate('/tasks')}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${
                               task.priority === 'high'
                                 ? 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-400'
                                 : task.priority === 'medium'
@@ -1329,27 +1347,26 @@ const Home = () => {
                                 : 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-400'
                             }`}>
                               {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                            </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                              {format(new Date(task.dueDate), 'MMM d')}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
-                            {task.title}
-                          </div>
-                          <div className="mt-1 flex flex-wrap gap-1">
-                            {task.task_category && (
-                              <span className={`text-xs rounded px-1.5 py-0.5 ${getCategoryColor(task.task_category).bg} ${getCategoryColor(task.task_category).text}`}>
-                                {task.task_category}
                               </span>
-                            )}
+                              {task.task_category && (
+                                <span className={`text-[11px] rounded px-1.5 py-0.5 ${getCategoryColor(task.task_category).bg} ${getCategoryColor(task.task_category).text}`}>
+                                  {task.task_category}
+                                </span>
+                              )}
+                            </div>
+                            <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
+                              {task.title}
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 ml-2">
+                            {format(new Date(task.dueDate), 'MMM d')}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div 
-                      className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400 cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border border-transparent dark:border-[#333333]"
+                      className="rounded-md px-3 py-6 text-center text-gray-500 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors duration-150"
                       onClick={() => navigate('/tasks')}
                     >
                       <div className="flex flex-col items-center space-y-2">
@@ -1366,7 +1383,14 @@ const Home = () => {
             {/* Schedule section (right) */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">Upcoming Events</h2>
+                <h2 className="text-xl font-semibold text-gray-800 dark:text-white">
+                  Upcoming Events
+                  {events.length > 0 && (
+                    <span className="ml-2 inline-flex items-center justify-center rounded-full border border-gray-300 dark:border-[#3a3a3a] bg-white dark:bg-[#252525] px-2 py-0.5 text-xs font-medium text-purple-600 dark:text-purple-400">
+                      {events.length}
+                    </span>
+                  )}
+                </h2>
                 <button 
                   onClick={() => navigate('/schedule')}
                   className="text-indigo-600 dark:text-indigo-400 text-sm hover:underline font-medium transition-colors hover:text-indigo-700 dark:hover:text-indigo-300"
@@ -1374,48 +1398,55 @@ const Home = () => {
                   View Schedule
                 </button>
               </div>
-              <div className="h-96 bg-gray-100 dark:bg-[#252525] rounded-lg shadow flex flex-col p-4 border border-gray-200 dark:border-[#333333]">
-                <div className="flex-1 overflow-y-auto overflow-x-hidden">
+              <div className="h-96 bg-white dark:bg-[#252525] rounded-lg flex flex-col border border-gray-300 dark:border-[#3a3a3a]">
+                <div className="flex items-center justify-between px-3 py-2 text-[11px] text-gray-500 dark:text-gray-400 uppercase tracking-wide bg-gray-50/80 dark:bg-[#1b1b1b]">
+                  <span>Event</span>
+                  <span>When</span>
+                </div>
+                <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 py-1">
                   {events.length > 0 ? (
-                    <div className="grid grid-cols-1 gap-2">
+                    <div className="divide-y divide-gray-100 dark:divide-[#2d2d2d]">
                       {events.map((event) => (
                         <div 
                           key={event.id} 
-                          className="bg-white dark:bg-[#1e1e1e] rounded-lg shadow-sm p-3 flex flex-col justify-between min-h-[90px] cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border border-transparent dark:border-[#333333] hover:border-gray-200 dark:hover:border-[#404040]"
+                          className="px-2 py-2.5 flex items-start justify-between gap-3 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors duration-150 border-l-2 border-l-indigo-300 dark:border-l-indigo-500/70"
                           onClick={() => navigate('/schedule')}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
-                              event.category === 'study'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-400'
-                                : event.category === 'assignment'
-                                ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-400'
-                                : event.category === 'exam'
-                                ? 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-400'
-                                : event.category === 'meeting'
-                                ? 'bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-400'
-                                : 'bg-gray-100 text-gray-800 dark:bg-gray-500/20 dark:text-gray-400'
-                            }`}>
-                              {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
-                            </span>
-                            <span className="text-xs text-gray-500 dark:text-gray-400 ml-2">
-                              {format(new Date(event.date), 'MMM d')}, {event.startTime} - {event.endTime}
-                            </span>
-                          </div>
-                          <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white line-clamp-2">
-                            {event.title}
-                          </div>
-                          {event.description && (
-                            <div className="mt-1 text-xs text-gray-500 dark:text-gray-400 line-clamp-2">
-                              {event.description.length > 40 ? `${event.description.substring(0, 40)}...` : event.description}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                                event.category === 'study'
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-500/20 dark:text-blue-400'
+                                  : event.category === 'assignment'
+                                  ? 'bg-green-100 text-green-800 dark:bg-green-500/20 dark:text-green-400'
+                                  : event.category === 'exam'
+                                  ? 'bg-red-100 text-red-800 dark:bg-red-500/20 dark:text-red-400'
+                                  : event.category === 'meeting'
+                                  ? 'bg-purple-100 text-purple-800 dark:bg-purple-500/20 dark:text-purple-400'
+                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-500/20 dark:text-gray-400'
+                              }`}>
+                                {event.category.charAt(0).toUpperCase() + event.category.slice(1)}
+                              </span>
+                              {event.description && (
+                                <span className="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-1">
+                                  {event.description.length > 32 ? `${event.description.substring(0, 32)}...` : event.description}
+                                </span>
+                              )}
                             </div>
-                          )}
+                            <div className="mt-1 text-sm font-medium text-gray-900 dark:text-white line-clamp-1">
+                              {event.title}
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 ml-2 text-right">
+                            <div>{format(new Date(event.date), 'MMM d')}</div>
+                            <div>{event.startTime}–{event.endTime}</div>
+                          </div>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div 
-                      className="rounded-lg shadow-sm p-4 text-center text-gray-500 dark:text-gray-400 cursor-pointer transition-all duration-200 hover:shadow-md hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border border-transparent dark:border-[#333333]"
+                      className="rounded-md px-3 py-6 text-center text-gray-500 dark:text-gray-400 cursor-pointer hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors duration-150"
                       onClick={() => navigate('/schedule')}
                     >
                       <div className="flex flex-col items-center space-y-2">

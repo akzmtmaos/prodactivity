@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
-import { Star, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy, Edit, MoreVertical, FileText, File } from 'lucide-react';
+import { Star, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy, Edit, Settings, FileText, File } from 'lucide-react';
 import { truncateHtmlContent } from '../../utils/htmlUtils';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosConfig';
@@ -274,7 +274,9 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
           {showFavorite && onFavorite && (
             <button
               onClick={e => { e.stopPropagation(); onFavorite(reviewer.id); }}
-              className={`p-1 rounded ${reviewer.is_favorite ? 'text-yellow-500' : 'text-gray-500 hover:text-yellow-600'}`}
+              className={`p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors ${
+                reviewer.is_favorite ? 'text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20' : 'text-gray-500 hover:text-yellow-600 hover:bg-gray-100 dark:hover:bg-gray-700'
+              }`}
               title={reviewer.is_favorite ? 'Unfavorite' : 'Favorite'}
               aria-label={reviewer.is_favorite ? 'Unfavorite' : 'Favorite'}
             >
@@ -285,11 +287,11 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
             <button
               ref={buttonRef}
               onClick={e => { e.stopPropagation(); setShowMenu(!showMenu); }}
-              className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#333333] transition-colors"
-              title="More options"
-              aria-label="More options"
+              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
+              title="Options"
+              aria-label="Options"
             >
-              <MoreVertical size={14} />
+              <Settings size={14} />
             </button>
             
             {/* Dropdown Menu - Rendered as Portal */}

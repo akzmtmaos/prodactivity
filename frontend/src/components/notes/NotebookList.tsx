@@ -1,7 +1,6 @@
 // frontend/src/components/NotebookList.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { Plus, Edit, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette, Star, Search, Share2, Settings } from 'lucide-react';
-import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
+import { Plus, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette, Star, Search, Share2, Settings, AlertTriangle, Pencil } from 'lucide-react';
 import CreateNotebookModal from './CreateNotebookModal';
 import EditNotebookModal from './EditNotebookModal';
 import ShareModal from '../collaboration/ShareModal';
@@ -164,29 +163,36 @@ const NotebookList: React.FC<NotebookListProps> = ({
         <Book className={`flex-shrink-0 ${selected ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400'}`} size={18} />
         <span className={`font-medium truncate flex-1 min-w-0 text-sm ${selected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-800 dark:text-gray-200'}`}>{notebook.name}</span>
         <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{notebook.notes_count} {notebook.notes_count === 1 ? 'note' : 'notes'}</span>
-        <div className="flex items-center gap-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
           {onToggleFavorite && !notebook.is_archived && (
-            <button onClick={() => onToggleFavorite(notebook.id)} className={`p-1 rounded ${notebook.is_favorite ? 'text-yellow-500' : 'text-gray-500 hover:text-yellow-600'}`} title={notebook.is_favorite ? 'Unfavorite' : 'Favorite'}>
+            <button
+              onClick={() => onToggleFavorite(notebook.id)}
+              className={`p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors ${
+                notebook.is_favorite
+                  ? 'text-yellow-500 hover:text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20'
+                  : 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30'
+              }`}
+              title={notebook.is_favorite ? 'Unfavorite' : 'Favorite'}
+            >
               <Star size={12} fill={notebook.is_favorite ? 'currentColor' : 'none'} />
             </button>
           )}
           <div className="relative" ref={openOptionsNotebookId === notebook.id ? compactOptionsMenuRef : undefined}>
             <button
               onClick={(e) => { e.stopPropagation(); setOpenOptionsNotebookId((id) => (id === notebook.id ? null : notebook.id)); }}
-              className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
-              title="Options"
+              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
               aria-label="Notebook options"
             >
               <Settings size={14} />
             </button>
             {openOptionsNotebookId === notebook.id && (
               <div className="absolute right-0 top-full mt-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
-                <button onClick={() => { setNotebookToEdit(notebook); setShowEditModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                  <Edit size={12} /> Edit
-                </button>
-                <button onClick={() => { onColorChange(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                  <Palette size={12} /> Color
-                </button>
+                  <button onClick={() => { setNotebookToEdit(notebook); setShowEditModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                    <Pencil size={12} /> Edit
+                  </button>
+                  <button onClick={() => { onColorChange(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                    <Palette size={12} /> Color
+                  </button>
                 {!notebook.is_archived && (
                   <button onClick={() => { setNotebookToShare(notebook); setShowShareModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
                     <Share2 size={12} /> Share
@@ -201,11 +207,11 @@ const NotebookList: React.FC<NotebookListProps> = ({
                     <Archive size={12} /> Archive
                   </button>
                 )}
-                <button onClick={() => { setNotebookToDelete(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-md mx-0.5">
-                  <Trash2 size={12} /> Delete
-                </button>
-              </div>
-            )}
+                  <button onClick={() => { setNotebookToDelete(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-md mx-0.5">
+                    <Trash2 size={12} /> Delete
+                  </button>
+                </div>
+              )}
           </div>
         </div>
       </div>
@@ -266,8 +272,16 @@ const NotebookList: React.FC<NotebookListProps> = ({
                 <div className="h-16 flex items-center justify-center flex-shrink-0" style={{ backgroundColor: notebook.color }}>
                   <Book className={`${selectedNotebook?.id === notebook.id ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400'}`} size={24} />
                 </div>
-                <div className={`font-semibold text-lg mb-auto p-4 pb-2 truncate ${selectedNotebook?.id === notebook.id ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-800 dark:text-gray-200'}`}>
-                  {notebook.name}
+                <div className="flex-1 flex items-center px-4">
+                  <div
+                    className={`font-semibold text-lg truncate ${
+                      selectedNotebook?.id === notebook.id
+                        ? 'text-indigo-700 dark:text-indigo-300'
+                        : 'text-gray-800 dark:text-gray-200'
+                    }`}
+                  >
+                    {notebook.name}
+                  </div>
                 </div>
                 <div className="flex items-center justify-between px-4 pb-4 pt-2 border-t border-gray-200 dark:border-gray-600 flex-shrink-0">
                   <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -277,9 +291,9 @@ const NotebookList: React.FC<NotebookListProps> = ({
                     {onToggleFavorite && !notebook.is_archived && (
                       <button
                         onClick={() => onToggleFavorite(notebook.id)}
-                        className={`p-1.5 rounded transition-colors ${
+                        className={`p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors ${
                           notebook.is_favorite
-                            ? 'text-yellow-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30'
+                            ? 'text-yellow-500 hover:text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20'
                             : 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30'
                         }`}
                         title={notebook.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
@@ -293,39 +307,38 @@ const NotebookList: React.FC<NotebookListProps> = ({
                           e.stopPropagation();
                           setOpenOptionsNotebookId((id) => (id === notebook.id ? null : notebook.id));
                         }}
-                        className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded transition-colors"
-                        title="Options"
+                        className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
                         aria-label="Notebook options"
                       >
                         <Settings size={14} />
                       </button>
-                      {openOptionsNotebookId === notebook.id && (
-                        <div className="absolute right-0 bottom-full mb-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
-                          <button onClick={() => { setNotebookToEdit(notebook); setShowEditModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                            <Edit size={12} /> Edit
-                          </button>
-                          <button onClick={() => { onColorChange(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                            <Palette size={12} /> Color
-                          </button>
-                          {!notebook.is_archived && (
-                            <button onClick={() => { setNotebookToShare(notebook); setShowShareModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                              <Share2 size={12} /> Share
+                        {openOptionsNotebookId === notebook.id && (
+                          <div className="absolute right-0 bottom-full mb-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
+                            <button onClick={() => { setNotebookToEdit(notebook); setShowEditModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                              <Pencil size={12} /> Edit
                             </button>
-                          )}
-                          {notebook.is_archived ? (
-                            <button onClick={() => { onArchiveNotebook(notebook.id, false); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                              <RotateCcw size={12} /> Unarchive
+                            <button onClick={() => { onColorChange(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                              <Palette size={12} /> Color
                             </button>
-                          ) : (
-                            <button onClick={() => { onArchiveNotebook(notebook.id, true); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                              <Archive size={12} /> Archive
+                            {!notebook.is_archived && (
+                              <button onClick={() => { setNotebookToShare(notebook); setShowShareModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                                <Share2 size={12} /> Share
+                              </button>
+                            )}
+                            {notebook.is_archived ? (
+                              <button onClick={() => { onArchiveNotebook(notebook.id, false); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                                <RotateCcw size={12} /> Unarchive
+                              </button>
+                            ) : (
+                              <button onClick={() => { onArchiveNotebook(notebook.id, true); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                                <Archive size={12} /> Archive
+                              </button>
+                            )}
+                            <button onClick={() => { setNotebookToDelete(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-md mx-0.5">
+                              <Trash2 size={12} /> Delete
                             </button>
-                          )}
-                          <button onClick={() => { setNotebookToDelete(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-md mx-0.5">
-                            <Trash2 size={12} /> Delete
-                          </button>
-                        </div>
-                      )}
+                          </div>
+                        )}
                     </div>
                   </div>
                 </div>
@@ -335,18 +348,52 @@ const NotebookList: React.FC<NotebookListProps> = ({
         ))}
       </div>
 
-      <DeleteConfirmationModal
-        isOpen={!!notebookToDelete}
-        onClose={() => setNotebookToDelete(null)}
-        onConfirm={() => {
-          if (notebookToDelete) {
-            onDeleteNotebook(notebookToDelete.id);
-            setNotebookToDelete(null);
-          }
-        }}
-        title="Delete Notebook"
-        message={`Are you sure you want to delete "${notebookToDelete?.name}"? This will also delete all notes in this notebook.`}
-      />
+      {/* Delete Notebook confirmation – same UI as Deck’s Delete Deck (icon in header only) */}
+      {notebookToDelete && (
+        <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50" style={{ margin: 0, padding: 0 }}>
+          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-xs z-[51]">
+            <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
+              <div className="flex items-center">
+                <div className="p-1 bg-red-100 dark:bg-red-900/20 rounded-lg mr-2">
+                  <AlertTriangle size={16} className="text-red-600 dark:text-red-400" />
+                </div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Delete Notebook</h2>
+              </div>
+              <button
+                onClick={() => setNotebookToDelete(null)}
+                className="p-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="p-4">
+              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">Are you sure?</h3>
+              <p className="text-gray-600 dark:text-gray-400 text-sm m-0">
+                Delete <span className="font-medium">"{notebookToDelete.name}"</span>? This will also delete all notes in this notebook.
+              </p>
+            </div>
+            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setNotebookToDelete(null)}
+                className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium text-sm transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  onDeleteNotebook(notebookToDelete.id);
+                  setNotebookToDelete(null);
+                }}
+                className="flex-1 px-2 py-1 bg-red-600 text-white rounded font-medium text-sm flex items-center justify-center gap-1 hover:bg-red-700 transition-colors"
+              >
+                <Trash2 size={14} />
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Notebook Modal */}
       {showCreateNotebookModal && (

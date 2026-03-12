@@ -1,7 +1,7 @@
 // frontend/src/components/NoteItem.tsx
 import React from 'react';
 import ReactDOM from 'react-dom';
-import { Edit, Trash2, MoreVertical, Archive, RotateCcw, AlertTriangle, Share2 } from 'lucide-react';
+import { Edit, Trash2, MoreVertical, Archive, RotateCcw, Share2 } from 'lucide-react';
 import EditTitleModal from './EditTitleModal';
 import ShareModal from '../collaboration/ShareModal';
 import axiosInstance from '../../utils/axiosConfig';
@@ -233,14 +233,14 @@ const NoteItem: React.FC<NoteItemProps> = ({ note, onEdit, onEditTitle, onDelete
             </span>
           </div>
         </div>
-        <div className="relative" ref={menuRef}>
+        <div className="relative flex-shrink-0" ref={menuRef} onClick={(e) => e.stopPropagation()}>
           <button
             ref={buttonRef}
             onClick={(e) => { e.stopPropagation(); setShowMenu((v) => !v); }}
-            className="p-2 text-gray-500 hover:text-gray-700"
-            title="More"
+            className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
+            aria-label="Note options"
           >
-            <MoreVertical size={16} className="text-gray-500 dark:text-gray-300" />
+            <MoreVertical size={14} className="text-gray-500 dark:text-gray-300" />
           </button>
           {showMenu && ReactDOM.createPortal(
             <div 

@@ -1,9 +1,10 @@
 // frontend/src/components/NotesList.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { Plus, ChevronRight, FileText, BookOpen, Trash2, Archive, RotateCcw, Edit, Settings } from 'lucide-react';
+import { Plus, ChevronRight, FileText, BookOpen, Trash2, Archive, RotateCcw, Settings, Pencil, Share2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import NoteItem from './NoteItem';
 import NoteForm from './NoteForm';
+import ShareModal from '../collaboration/ShareModal';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
 
 interface Notebook {
@@ -90,8 +91,9 @@ const NotesList: React.FC<NotesListProps> = ({
   selectedForBulk = [],
   listViewMode = 'comfortable',
 }) => {
-  // Local selection UI removed; bulk delete handled via notebook header modal
   const [openOptionsNoteId, setOpenOptionsNoteId] = useState<number | null>(null);
+  const [noteToShare, setNoteToShare] = useState<Note | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
   const optionsMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -164,8 +166,7 @@ const NotesList: React.FC<NotesListProps> = ({
                 <div className="relative flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" ref={openOptionsNoteId === note.id ? optionsMenuRef : undefined} onClick={(e) => e.stopPropagation()}>
                   <button
                     onClick={(e) => { e.stopPropagation(); setOpenOptionsNoteId((id) => (id === note.id ? null : note.id)); }}
-                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-600 rounded"
-                    title="Options"
+                    className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
                     aria-label="Note options"
                   >
                     <Settings size={14} />
@@ -173,8 +174,13 @@ const NotesList: React.FC<NotesListProps> = ({
                   {openOptionsNoteId === note.id && (
                     <div className="absolute right-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
                       <button onClick={() => { onEditNote(note); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                        <Edit size={12} /> Edit
+                        <Pencil size={12} /> Edit
                       </button>
+                      {!note.is_archived && (
+                        <button onClick={() => { setNoteToShare(note); setShowShareModal(true); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                          <Share2 size={12} /> Share
+                        </button>
+                      )}
                       <button onClick={() => { onArchiveNote(note.id, !note.is_archived); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
                         {note.is_archived ? <><RotateCcw size={12} /> Unarchive</> : <><Archive size={12} /> Archive</>}
                       </button>
@@ -206,6 +212,17 @@ const NotesList: React.FC<NotesListProps> = ({
           )}
         </div>
       </div>
+
+      {/* Share note modal (compact list and for consistency) */}
+      {noteToShare && (
+        <ShareModal
+          isOpen={showShareModal}
+          onClose={() => { setShowShareModal(false); setNoteToShare(null); }}
+          itemType="note"
+          itemId={noteToShare.id}
+          itemTitle={noteToShare.title || 'Untitled'}
+        />
+      )}
     </div>
   );
 };

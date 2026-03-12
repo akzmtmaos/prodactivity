@@ -210,6 +210,18 @@ interface NoteItem {
   const [aiPreviewCards, setAiPreviewCards] = useState<FlashcardData[]>([]);
   const [showAiPreview, setShowAiPreview] = useState<boolean>(false);
 
+  // Safely read current user id for group quizzes (avoid JSON.parse crashes)
+  let currentUserIdForGroupQuizzes: number | string | null = null;
+  try {
+    const rawUser = typeof window !== 'undefined' ? window.localStorage.getItem('user') : null;
+    if (rawUser && rawUser !== 'undefined') {
+      const parsed = JSON.parse(rawUser);
+      currentUserIdForGroupQuizzes = parsed?.id ?? parsed?.pk ?? null;
+    }
+  } catch {
+    currentUserIdForGroupQuizzes = null;
+  }
+
   const getDeckProgressColor = (progress: number) => {
     if (progress >= 80) return 'bg-green-500';
     if (progress >= 50) return 'bg-yellow-500';
@@ -470,7 +482,8 @@ interface NoteItem {
         // 2) Fetch active decks with axios (short timeout, auth via interceptor)
         const activeRes = await axiosInstance.get('/decks/decks/', { timeout: 4000 });
         const activeData = activeRes.data;
-        const activeDecks = activeData.results || activeData;
+        const rawActive = activeData?.results ?? activeData;
+        const activeDecks = Array.isArray(rawActive) ? rawActive : [];
         const topLevelDecks = activeDecks.filter((deck: any) => !deck.parent).map((deck: any) => {
           return {
             id: deck.id.toString(),
@@ -509,7 +522,8 @@ interface NoteItem {
         const archivedRes = await axiosInstance.get('/decks/archived/decks/', { timeout: 4000 });
         if (archivedRes.status >= 200 && archivedRes.status < 300) {
           const archivedData = archivedRes.data;
-          const archivedDecks = archivedData.results || archivedData;
+          const rawArchived = archivedData?.results ?? archivedData;
+          const archivedDecks = Array.isArray(rawArchived) ? rawArchived : [];
           const archivedTopLevelDecks = archivedDecks.filter((deck: any) => !deck.parent).map((deck: any) => {
             return {
           id: deck.id.toString(),
@@ -1065,9 +1079,9 @@ interface NoteItem {
   };
 
   // Filter and sort decks
-  const filteredDecks = decks
+  const filteredDecks = (decks || [])
     .filter(deck => {
-      const matchesSearch = deck.title.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (deck?.title || '').toLowerCase().includes((searchTerm || '').toLowerCase());
       
       if (!matchesSearch) return false;
       
@@ -1092,9 +1106,9 @@ interface NoteItem {
     });
 
   // Filter and sort archived decks
-  const filteredArchivedDecks = archivedDecks
+  const filteredArchivedDecks = (archivedDecks || [])
     .filter(deck => {
-      const matchesSearch = deck.title.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesSearch = (deck?.title || '').toLowerCase().includes((searchTerm || '').toLowerCase());
       
       if (!matchesSearch) return false;
       
@@ -1170,8 +1184,8 @@ interface NoteItem {
       {/* Modals and overlays */}
       {showStudySession && selectedDeck && (
         <StudySession
-          deckTitle={selectedDeck.title}
-          flashcards={selectedDeck.flashcards
+          deckTitle={selectedDeck.title || 'Deck'}
+          flashcards={(selectedDeck.flashcards || [])
             .filter(f => f && f.id && (f.front || f.question) && (f.back || f.answer))
             .map(f => ({
               id: f.id,
@@ -1254,15 +1268,16 @@ interface NoteItem {
           }}
         />
       )}
-      {showCreateGroupQuiz && selectedDeckForGroupQuiz && (
+      {showCreateGroupQuiz && (
         <CreateGroupQuizModal
           isOpen={showCreateGroupQuiz}
           onClose={() => {
             setShowCreateGroupQuiz(false);
             setSelectedDeckForGroupQuiz(null);
           }}
-          deckId={selectedDeckForGroupQuiz.id}
-          deckTitle={selectedDeckForGroupQuiz.title}
+          deckId={selectedDeckForGroupQuiz?.id}
+          deckTitle={selectedDeckForGroupQuiz?.title}
+          availableDecks={Array.isArray(decks) ? decks.map((d) => ({ id: d.id, title: d?.title || 'Untitled' })) : []}
           onCreateSuccess={() => {
             setActiveTab('groupQuizzes');
             const fetchGq = async () => {
@@ -1578,7 +1593,7 @@ interface NoteItem {
           {activeTab === 'decks' && (
             <div className="space-y-6 pb-6">
               {/* Decks list/grid with scroll */}
-              <div className="max-h-[80vh] overflow-y-auto pr-1">
+              <div className="max-h-[80vh] overflow-y-auto overflow-x-hidden pr-1">
                 {deckListViewMode === 'comfortable' ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                     {pagedDecks.map((deck) => (
@@ -1650,9 +1665,17 @@ interface NoteItem {
                         <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                           {deck.flashcardCount} cards
                         </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                          {deck.progress}%
-                        </span>
+                        <div className="flex-shrink-0">
+                          <div className="relative w-28 h-3 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                            <div
+                              className={`h-full ${getDeckProgressColor(deck.progress)} transition-all`}
+                              style={{ width: `${Math.max(0, Math.min(100, deck.progress))}%` }}
+                            />
+                            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-gray-700 dark:text-gray-100">
+                              {deck.progress}%
+                            </span>
+                          </div>
+                        </div>
                         <div
                           className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
                           onClick={(e) => e.stopPropagation()}
@@ -2236,18 +2259,34 @@ interface NoteItem {
                 <div className="flex justify-center py-12">
                   <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent" />
                 </div>
-              ) : groupQuizzes.length === 0 ? (
+              ) : (groupQuizzes || []).length === 0 ? (
                 <div className="text-center py-12 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e]">
                   <Target size={40} className="mx-auto text-gray-400 mb-3" />
                   <p className="text-sm text-gray-600 dark:text-gray-400">No group quizzes yet.</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">Create one from a deck: open the deck menu → &quot;Create group quiz&quot;.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                    Create one from a deck or start from here.
+                  </p>
+                  <button
+                    onClick={() => {
+                      setSelectedDeckForGroupQuiz(null);
+                      setShowCreateGroupQuiz(true);
+                    }}
+                    className="mt-4 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                  >
+                    Create Group Quiz
+                  </button>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {groupQuizzes.map((gq: any) => {
-                    const userData = localStorage.getItem('user');
-                    const currentUserId = userData ? (JSON.parse(userData)?.id ?? JSON.parse(userData)?.pk) : null;
-                    const myPart = (gq.participants || []).find((p: any) => p.user_id === currentUserId || p.user_id === parseInt(currentUserId, 10));
+                  {(groupQuizzes || []).map((gq: any) => {
+                    const myPart = (gq.participants || []).find((p: any) => {
+                      if (currentUserIdForGroupQuizzes == null) return false;
+                      // Support numeric or string ids from backend
+                      return (
+                        p.user_id === currentUserIdForGroupQuizzes ||
+                        p.user_id === Number(currentUserIdForGroupQuizzes)
+                      );
+                    });
                     const myStatus = myPart?.status ?? 'invited';
                     return (
                       <div

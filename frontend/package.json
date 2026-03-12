@@ -6,7 +6,6 @@
     "@dnd-kit/core": "^6.3.1",
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
-    "@heroicons/react": "^2.2.0",
     "@supabase/supabase-js": "^2.57.2",
     "axios": "^1.9.0",
     "date-fns": "^4.1.0",
@@ -22,7 +21,6 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.5.1",
-    "react-scripts": "5.0.1",
     "remark-gfm": "^4.0.1",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4"
@@ -32,7 +30,7 @@
     "start": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "react-scripts test"
+    "test": "vitest run --passWithNoTests"
   },
   "eslintConfig": {
     "extends": [
@@ -67,6 +65,8 @@
     "postcss-normalize": "^9.0.0",
     "postcss-preset-env": "^9.6.0",
     "tailwindcss": "^4.1.11",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^3.2.4",
+    "jsdom": "^26.0.0"
   }
 }

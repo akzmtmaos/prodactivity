@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
-import ReactDOM from 'react-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
-import { ExternalLink, PlayCircle, BookOpen } from 'lucide-react';
+import { ExternalLink, PlayCircle, ChevronLeft } from 'lucide-react';
 import InteractiveQuiz from './InteractiveQuiz';
 
 interface Reviewer {
@@ -165,94 +164,68 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
     }).join('\n');
   };
 
-  const modal = (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60 backdrop-blur-sm p-4">
-      <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-5xl relative flex flex-col max-h-[90vh] overflow-hidden border border-gray-200 dark:border-gray-700">
-        {/* Clean Header */}
-        <div className="relative bg-white dark:bg-gray-900 px-8 py-6 border-b border-gray-200 dark:border-gray-700">
+  /* Document-style layout (like Note document): full-height panel with header, scrollable body, footer */
+  return (
+    <>
+      <div className="flex flex-col h-full min-h-0 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+        {/* Document header – back + title + actions */}
+        <div className="flex-shrink-0 flex items-center gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
           <button
-            className="absolute top-6 right-6 w-9 h-9 flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 text-2xl transition-colors focus:outline-none"
             onClick={onClose}
+            className="flex items-center gap-1.5 px-2 py-1.5 rounded-md text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-white transition-colors text-sm font-medium"
+            aria-label="Back to list"
           >
-            ×
+            <ChevronLeft size={18} />
+            Back
           </button>
-          
-          <div className="pr-12">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">{reviewer.title}</h2>
-            <div className="flex items-center gap-3 flex-wrap">
-              {(reviewer.source_note || reviewer.source_notebook) && (
-                <button
-                  onClick={handleSourceClick}
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-lg transition-colors text-sm font-medium border border-indigo-200 dark:border-indigo-800"
-                >
-                  <ExternalLink size={16} />
-                  <span>
-                    Source: {reviewer.source_note_title || reviewer.source_notebook_name || 
-                      (reviewer.source_note ? `Note #${reviewer.source_note}` : `Notebook #${reviewer.source_notebook}`)}
-                  </span>
-                </button>
-              )}
-              {isQuiz && (
-                <button
-                  onClick={() => setShowInteractiveQuiz(true)}
-                  className="inline-flex items-center gap-2 px-5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700 rounded-lg transition-all text-sm font-semibold shadow-md hover:shadow-lg"
-                >
-                  <PlayCircle size={18} />
-                  <span>Start Interactive Quiz</span>
-                </button>
-              )}
-            </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-semibold text-gray-900 dark:text-white truncate">
+              {reviewer.title}
+            </h1>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            {(reviewer.source_note || reviewer.source_notebook) && (
+              <button
+                onClick={handleSourceClick}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 rounded-md transition-colors text-xs font-medium border border-indigo-200 dark:border-indigo-800"
+              >
+                <ExternalLink size={14} />
+                <span className="hidden sm:inline">Source</span>
+              </button>
+            )}
+            {isQuiz && (
+              <button
+                onClick={() => setShowInteractiveQuiz(true)}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md transition-colors text-xs font-semibold"
+              >
+                <PlayCircle size={14} />
+                <span className="hidden sm:inline">Start Quiz</span>
+              </button>
+            )}
           </div>
         </div>
 
-        {/* Content area */}
-        <div className="overflow-y-auto flex-1 px-8 py-6 bg-gray-50 dark:bg-gray-800/50">
+        {/* Scrollable document body */}
+        <div className="flex-1 min-h-0 overflow-y-auto px-4 sm:px-6 py-4 bg-gray-50 dark:bg-gray-800/40">
           <style>{`
-            .dark .prose,
-            .dark .prose * {
-              color: white !important;
-            }
-            .dark .prose h1,
-            .dark .prose h2,
-            .dark .prose h3,
-            .dark .prose h4,
-            .dark .prose h5,
-            .dark .prose h6 {
-              color: white !important;
-            }
-            .dark .prose p,
-            .dark .prose li,
-            .dark .prose span,
-            .dark .prose div {
-              color: white !important;
-            }
-            .dark .prose code {
-              color: #818cf8 !important;
-            }
-            .dark .prose a {
-              color: #818cf8 !important;
-            }
-            .dark .prose strong {
-              color: white !important;
-            }
+            .dark .reviewer-doc-prose,
+            .dark .reviewer-doc-prose * { color: inherit; }
+            .dark .reviewer-doc-prose code { color: #818cf8 !important; }
+            .dark .reviewer-doc-prose a { color: #818cf8 !important; }
           `}</style>
-          <div className="prose prose-lg dark:prose-invert max-w-none text-gray-700 dark:text-white
+          <div className="reviewer-doc-prose prose prose-lg dark:prose-invert max-w-none text-gray-700 dark:text-white
             prose-headings:text-gray-900 dark:prose-headings:text-white prose-headings:font-bold prose-headings:tracking-tight
             prose-h3:text-xl prose-h3:mt-8 prose-h3:mb-4 prose-h3:text-indigo-900 dark:prose-h3:text-indigo-300 prose-h3:border-b prose-h3:border-gray-200 dark:prose-h3:border-gray-700 prose-h3:pb-2
             prose-p:text-gray-700 dark:prose-p:text-white prose-p:leading-relaxed prose-p:mb-4 prose-p:text-base
             prose-ul:my-4 prose-ul:space-y-2
             prose-li:text-gray-700 dark:prose-li:text-white prose-li:leading-relaxed
-            prose-strong:text-gray-900 dark:prose-strong:text-white prose-strong:font-bold prose-strong:text-indigo-700 dark:prose-strong:text-indigo-400
-            prose-code:text-indigo-600 dark:prose-code:text-indigo-400 prose-code:bg-indigo-50 dark:prose-code:bg-gray-800 prose-code:px-2 prose-code:py-1 prose-code:rounded prose-code:font-mono prose-code:text-sm prose-code:font-semibold
-            prose-pre:bg-gray-900 dark:prose-pre:bg-gray-950 prose-pre:text-gray-100 prose-pre:rounded-lg prose-pre:shadow-lg
-            prose-blockquote:border-l-4 prose-blockquote:border-indigo-400 dark:prose-blockquote:border-indigo-600 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:bg-indigo-50 dark:prose-blockquote:bg-indigo-950/20 prose-blockquote:py-2 prose-blockquote:rounded-r
-            prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline prose-a:font-medium
-            [&_*]:text-gray-700 dark:[&_*]:text-white
-            [&_p]:text-gray-700 dark:[&_p]:text-white
-            [&_li]:text-gray-700 dark:[&_li]:text-white
-            [&_span]:text-gray-700 dark:[&_span]:text-white">
+            prose-strong:text-gray-900 dark:prose-strong:text-white prose-strong:font-bold
+            prose-code:text-indigo-600 dark:prose-code:text-indigo-400 prose-code:bg-indigo-50 dark:prose-code:bg-gray-800 prose-code:px-2 prose-code:py-1 prose-code:rounded prose-code:font-mono prose-code:text-sm
+            prose-pre:bg-gray-900 dark:prose-pre:bg-gray-950 prose-pre:text-gray-100 prose-pre:rounded-lg
+            prose-blockquote:border-l-4 prose-blockquote:border-indigo-400 dark:prose-blockquote:border-indigo-600 prose-blockquote:pl-4 prose-blockquote:italic
+            prose-a:text-indigo-600 dark:prose-a:text-indigo-400 prose-a:no-underline hover:prose-a:underline">
             {isQuiz ? (
-              <div className="bg-white dark:bg-gray-900 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+              <div className="bg-white dark:bg-gray-900 rounded-lg p-4 sm:p-6 border border-gray-200 dark:border-gray-700">
                 <div className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-gray-800 dark:text-white">
                   {preprocessQuizContent(reviewer.content)}
                 </div>
@@ -263,20 +236,15 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
           </div>
         </div>
 
-        {/* Simple Footer */}
-        <div className="px-8 py-4 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700">
+        {/* Document footer */}
+        <div className="flex-shrink-0 px-4 sm:px-6 py-2.5 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900">
           <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-            <span>Created: {new Date(reviewer.created_at).toLocaleDateString()} at {new Date(reviewer.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            <span>Last updated: {new Date(reviewer.updated_at).toLocaleDateString()}</span>
+            <span>Created: {new Date(reviewer.created_at).toLocaleDateString()} · {new Date(reviewer.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            <span>Updated: {new Date(reviewer.updated_at).toLocaleDateString()}</span>
           </div>
         </div>
       </div>
-    </div>
-  );
 
-  return (
-    <>
-      {ReactDOM.createPortal(modal, document.body)}
       {showInteractiveQuiz && isQuiz && (
         <InteractiveQuiz
           quiz={reviewer}

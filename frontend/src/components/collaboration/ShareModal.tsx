@@ -19,6 +19,138 @@ interface ShareModalProps {
   onShared?: () => void;
 }
 
+// —— Subcomponents (refined, compact) ——
+
+const ShareModalHeader: React.FC<{ itemType: string; itemTitle: string; onClose: () => void }> = ({
+  itemType,
+  itemTitle,
+  onClose,
+}) => (
+  <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
+    <div className="flex items-center gap-2 min-w-0">
+      <UserPlus size={18} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
+      <div className="min-w-0">
+        <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Share {itemType}</h2>
+        <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{itemTitle}</p>
+      </div>
+    </div>
+    <button
+      type="button"
+      onClick={onClose}
+      className="p-1.5 rounded-md text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] shrink-0"
+      aria-label="Close"
+    >
+      <X size={18} />
+    </button>
+  </div>
+);
+
+const PermissionRow: React.FC<{
+  value: 'view' | 'edit' | 'comment';
+  onChange: (v: 'view' | 'edit' | 'comment') => void;
+}> = ({ value, onChange }) => (
+  <div>
+    <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Permission</label>
+    <div className="flex gap-1.5">
+      {(['view', 'edit', 'comment'] as const).map((level) => (
+        <button
+          key={level}
+          type="button"
+          onClick={() => onChange(level)}
+          className={`flex-1 px-2.5 py-1.5 text-xs rounded-md border transition-colors ${
+            value === level
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : 'bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 border-gray-300 dark:border-[#333333] hover:border-indigo-500'
+          }`}
+        >
+          {level === 'comment' ? 'Comment' : level === 'edit' ? 'Edit' : 'View'}
+        </button>
+      ))}
+    </div>
+    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+      {value === 'view' && 'Can only view'}
+      {value === 'edit' && 'Can view and edit'}
+      {value === 'comment' && 'Can view and comment'}
+    </p>
+  </div>
+);
+
+const ShareSearchInput: React.FC<{
+  value: string;
+  onChange: (v: string) => void;
+  placeholder?: string;
+}> = ({ value, onChange, placeholder = 'Search users...' }) => (
+  <div className="relative">
+    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+    <input
+      type="text"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      className="w-full pl-8 pr-2.5 py-1.5 text-sm rounded-md border border-gray-300 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+    />
+  </div>
+);
+
+const ShareUserRow: React.FC<{
+  user: User;
+  selected: boolean;
+  onToggle: () => void;
+}> = ({ user, selected, onToggle }) => (
+  <button
+    type="button"
+    onClick={onToggle}
+    className={`w-full flex items-center gap-2 min-h-[48px] px-3 py-2 rounded-lg border-b border-gray-100 dark:border-[#333333] last:border-b-0 transition-colors text-left ${
+      selected
+        ? 'bg-indigo-50 dark:bg-indigo-900/20'
+        : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
+    }`}
+  >
+    <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center shrink-0 overflow-hidden">
+      {user.avatar ? (
+        <img src={user.avatar} alt="" className="w-8 h-8 rounded-full object-cover" />
+      ) : (
+        <span className="text-xs font-medium text-indigo-600 dark:text-indigo-400">
+          {user.username.charAt(0).toUpperCase()}
+        </span>
+      )}
+    </div>
+    <div className="flex-1 min-w-0">
+      <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{user.username}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
+    </div>
+    {selected && <Check size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0" />}
+  </button>
+);
+
+const ShareModalFooter: React.FC<{
+  onClose: () => void;
+  onShare: () => void;
+  loading: boolean;
+  selectedCount: number;
+}> = ({ onClose, onShare, loading, selectedCount }) => (
+  <div className="flex items-center justify-end gap-2 px-4 py-3 border-t border-gray-200 dark:border-[#333333]">
+    <button
+      type="button"
+      onClick={onClose}
+      className="px-2.5 py-1.5 text-xs font-medium rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 bg-white dark:bg-[#252525] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] disabled:opacity-50"
+      disabled={loading}
+    >
+      Cancel
+    </button>
+    <button
+      type="button"
+      onClick={onShare}
+      disabled={loading || selectedCount === 0}
+      className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {loading ? 'Sharing...' : selectedCount > 0 ? `Share (${selectedCount})` : 'Share'}
+    </button>
+  </div>
+);
+
+// —— Main modal ——
+
 const ShareModal: React.FC<ShareModalProps> = ({
   isOpen,
   onClose,
@@ -28,7 +160,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
   onShared
 }) => {
   const [users, setUsers] = useState<User[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]); // Store all users for search
+  const [allUsers, setAllUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [permissionLevel, setPermissionLevel] = useState<'view' | 'edit' | 'comment'>('view');
@@ -38,7 +170,6 @@ const ShareModal: React.FC<ShareModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       fetchUsersWithChatRooms();
-      // Fetch already shared users
       fetchSharedUsers();
     } else {
       setSearchTerm('');
@@ -47,7 +178,6 @@ const ShareModal: React.FC<ShareModalProps> = ({
     }
   }, [isOpen, itemType, itemId]);
 
-  // Fetch users that have chat rooms with current user
   const fetchUsersWithChatRooms = async () => {
     try {
       const userData = localStorage.getItem('user');
@@ -55,8 +185,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
       const currentUser = JSON.parse(userData);
       const currentUserId = String(currentUser.id);
-      
-      // Get all chat rooms where current user is a participant
+
       const { data: participants, error: participantsError } = await supabase
         .from('room_participants')
         .select('room_id, chat_rooms!inner(*)')
@@ -67,31 +196,25 @@ const ShareModal: React.FC<ShareModalProps> = ({
         return;
       }
 
-      // Get all unique user IDs from chat rooms (excluding current user)
       const userIds = new Set<string>();
-      
       for (const participant of participants || []) {
-        const room = Array.isArray(participant.chat_rooms) 
-          ? participant.chat_rooms[0] 
+        const room = Array.isArray(participant.chat_rooms)
+          ? participant.chat_rooms[0]
           : participant.chat_rooms;
-        
+
         if (room && typeof room === 'object' && 'id' in room) {
-          // Get all participants of this room
           const { data: roomParticipants } = await supabase
             .from('room_participants')
             .select('user_id')
             .eq('room_id', room.id);
 
-          (roomParticipants || []).forEach((p: any) => {
+          (roomParticipants || []).forEach((p: { user_id: string }) => {
             const userId = String(p.user_id);
-            if (userId !== currentUserId) {
-              userIds.add(userId);
-            }
+            if (userId !== currentUserId) userIds.add(userId);
           });
         }
       }
 
-      // Fetch user profiles for these IDs
       if (userIds.size > 0) {
         const { data: usersData, error: usersError } = await supabase
           .from('profiles')
@@ -99,26 +222,18 @@ const ShareModal: React.FC<ShareModalProps> = ({
           .in('id', Array.from(userIds))
           .order('username', { ascending: true });
 
-        if (usersError) {
-          console.error('Error fetching user profiles:', usersError);
-          return;
-        }
-
-        setUsers(usersData || []);
+        if (!usersError) setUsers(usersData || []);
       } else {
         setUsers([]);
       }
 
-      // Also fetch all users for search functionality
       const { data: allUsersData, error: allUsersError } = await supabase
         .from('profiles')
         .select('id, username, email, avatar')
         .neq('id', currentUserId)
         .order('username', { ascending: true });
 
-      if (!allUsersError) {
-        setAllUsers(allUsersData || []);
-      }
+      if (!allUsersError) setAllUsers(allUsersData || []);
     } catch (error) {
       console.error('Error fetching users with chat rooms:', error);
     }
@@ -126,19 +241,11 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   const fetchSharedUsers = async () => {
     try {
-      const { data: sharedData, error } = await supabase
+      await supabase
         .from('shared_items')
         .select('shared_with, is_accepted')
         .eq('item_type', itemType)
         .eq('item_id', itemId);
-
-      if (error) {
-        console.error('Error fetching shared users:', error);
-        return;
-      }
-
-      // Don't auto-select already shared users - let user choose who to share with
-      // The shared users list is just for reference, not for pre-selection
     } catch (error) {
       console.error('Error fetching shared users:', error);
     }
@@ -146,9 +253,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   const handleUserToggle = (userId: string) => {
     setSelectedUsers(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
     );
   };
 
@@ -157,61 +262,40 @@ const ShareModal: React.FC<ShareModalProps> = ({
       const otherUserStr = String(otherUserId);
       const currentUserStr = String(currentUserId);
 
-      // Check if room already exists
-      const { data: userRooms, error: userRoomsError } = await supabase
+      const { data: userRooms } = await supabase
         .from('room_participants')
         .select('room_id, chat_rooms!inner(*)')
         .eq('user_id', currentUserStr);
 
       if (userRooms) {
         for (const userRoom of userRooms) {
-          const room = Array.isArray(userRoom.chat_rooms) 
-            ? userRoom.chat_rooms[0] 
-            : userRoom.chat_rooms;
-          
+          const room = Array.isArray(userRoom.chat_rooms) ? userRoom.chat_rooms[0] : userRoom.chat_rooms;
           if (room && typeof room === 'object' && 'room_type' in room && room.room_type === 'direct') {
             const roomId = room.id as string;
             const { data: participants } = await supabase
               .from('room_participants')
               .select('user_id')
               .eq('room_id', roomId);
-
-            const participantIds = (participants || []).map((p: any) => String(p.user_id));
-            if (participantIds.length === 2 && 
-                participantIds.includes(currentUserStr) && 
-                participantIds.includes(otherUserStr)) {
-              return room as any;
+            const participantIds = (participants || []).map((p: { user_id: string }) => String(p.user_id));
+            if (participantIds.length === 2 && participantIds.includes(currentUserStr) && participantIds.includes(otherUserStr)) {
+              return room as { id: string };
             }
           }
         }
       }
 
-      // Create new room
       const { data: newRoom, error: roomError } = await supabase
         .from('chat_rooms')
-        .insert({
-          room_type: 'direct',
-          created_by: currentUserStr
-        })
+        .insert({ room_type: 'direct', created_by: currentUserStr })
         .select()
         .single();
 
-      if (roomError) {
-        throw roomError;
-      }
+      if (roomError) throw roomError;
 
-      // Add participants
-      const { error: participantsError } = await supabase
-        .from('room_participants')
-        .insert([
-          { room_id: newRoom.id, user_id: currentUserStr },
-          { room_id: newRoom.id, user_id: otherUserStr }
-        ]);
-
-      if (participantsError) {
-        await supabase.from('chat_rooms').delete().eq('id', newRoom.id);
-        throw participantsError;
-      }
+      await supabase.from('room_participants').insert([
+        { room_id: newRoom.id, user_id: currentUserStr },
+        { room_id: newRoom.id, user_id: otherUserStr }
+      ]);
 
       return newRoom;
     } catch (error) {
@@ -220,42 +304,27 @@ const ShareModal: React.FC<ShareModalProps> = ({
     }
   };
 
-  const sendShareMessage = async (roomId: string, currentUserId: string, sharedUserId: string) => {
-    try {
-      // Create share message content with special format
-      const shareData = {
-        type: 'share',
-        itemType: itemType,
-        itemId: itemId,
-        itemTitle: itemTitle,
-        permissionLevel: permissionLevel
-      };
-      
-      const messageContent = `__SHARED_ITEM__${JSON.stringify(shareData)}`;
-
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          room_id: roomId,
-          sender_id: currentUserId,
-          content: messageContent
-        });
-
-      if (error) {
-        console.error('Error sending share message:', error);
-      }
-    } catch (error) {
-      console.error('Error sending share message:', error);
-    }
+  const sendShareMessage = async (roomId: string, currentUserId: string) => {
+    const shareData = {
+      type: 'share',
+      itemType,
+      itemId,
+      itemTitle,
+      permissionLevel
+    };
+    const messageContent = `__SHARED_ITEM__${JSON.stringify(shareData)}`;
+    await supabase.from('messages').insert({
+      room_id: roomId,
+      sender_id: currentUserId,
+      content: messageContent
+    });
   };
 
-  const sendShareEmailNotification = async (sharedUserId: string, currentUser: any) => {
+  const sendShareEmailNotification = async (sharedUserId: string, currentUser: { username?: string }) => {
     try {
-      // Import getApiBaseUrl to get the correct API URL
       const { getApiBaseUrl } = await import('../../config/api');
       const apiBaseUrl = getApiBaseUrl();
-      
-      const response = await fetch(`${apiBaseUrl}/collaboration/send-share-email/`, {
+      await fetch(`${apiBaseUrl}/collaboration/send-share-email/`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -270,10 +339,6 @@ const ShareModal: React.FC<ShareModalProps> = ({
           shared_by_username: currentUser.username || 'Someone'
         })
       });
-
-      if (!response.ok) {
-        console.error('Failed to send email notification');
-      }
     } catch (error) {
       console.error('Error sending email notification:', error);
     }
@@ -295,60 +360,45 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
       const currentUser = JSON.parse(userData);
       const currentUserId = String(currentUser.id);
-      
-      // Share with each selected user
-      const sharePromises = selectedUsers.map(async (userId) => {
-        // 1. Create share record
-        await supabase
-          .from('shared_items')
-          .upsert({
-            item_type: itemType,
-            item_id: itemId,
-            shared_by: currentUserId,
-            shared_with: userId,
-            permission_level: permissionLevel,
-            is_accepted: false
-          }, {
-            onConflict: 'item_type,item_id,shared_with'
-          });
 
-        // 2. Create/get chat room and send message
-        const room = await createOrGetDirectRoom(userId, currentUserId);
-        if (room) {
-          await sendShareMessage(room.id, currentUserId, userId);
-        }
+      await Promise.all(
+        selectedUsers.map(async (userId) => {
+          await supabase.from('shared_items').upsert(
+            {
+              item_type: itemType,
+              item_id: itemId,
+              shared_by: currentUserId,
+              shared_with: userId,
+              permission_level: permissionLevel,
+              is_accepted: false
+            },
+            { onConflict: 'item_type,item_id,shared_with' }
+          );
 
-        // 3. Send email notification
-        await sendShareEmailNotification(userId, currentUser);
+          const room = await createOrGetDirectRoom(userId, currentUserId);
+          if (room) await sendShareMessage(room.id, currentUserId);
+          await sendShareEmailNotification(userId, currentUser);
+        })
+      );
+
+      setToast({
+        message: `Shared ${itemType} with ${selectedUsers.length} user${selectedUsers.length !== 1 ? 's' : ''}`,
+        type: 'success'
       });
 
-      await Promise.all(sharePromises);
+      await supabase.from('collaboration_activities').insert(
+        selectedUsers.map(userId => ({
+          item_type: itemType,
+          item_id: itemId,
+          user_id: currentUserId,
+          activity_type: 'shared',
+          description: `Shared ${itemTitle} with user`
+        }))
+      );
 
-      setToast({ message: `Shared ${itemType} with ${selectedUsers.length} user${selectedUsers.length !== 1 ? 's' : ''}`, type: 'success' });
-      
-      // Log activity
-      await supabase
-        .from('collaboration_activities')
-        .insert(
-          selectedUsers.map(userId => ({
-            item_type: itemType,
-            item_id: itemId,
-            user_id: currentUserId,
-            activity_type: 'shared',
-            description: `Shared ${itemTitle} with user`
-          }))
-        );
-
-      // Reset selected users after sharing
       setSelectedUsers([]);
-
-      if (onShared) {
-        onShared();
-      }
-
-      setTimeout(() => {
-        onClose();
-      }, 1000);
+      if (onShared) onShared();
+      setTimeout(() => onClose(), 1000);
     } catch (error) {
       console.error('Error sharing item:', error);
       setToast({ message: 'Failed to share item', type: 'error' });
@@ -357,161 +407,78 @@ const ShareModal: React.FC<ShareModalProps> = ({
     }
   };
 
-  // Filter users: if searching, show all users; otherwise show only users with chat rooms
-  const filteredUsers = (searchTerm.trim() 
-    ? allUsers 
-    : users
-  ).filter(user =>
-    user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredUsers = (searchTerm.trim() ? allUsers : users).filter(
+    user =>
+      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-md mx-4 max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/30 rounded-lg">
-              <UserPlus className="text-indigo-600 dark:text-indigo-400" size={20} />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-gray-900 dark:text-white">Share {itemType}</h2>
-              <p className="text-sm text-gray-600 dark:text-gray-400 truncate max-w-xs">{itemTitle}</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            <X className="text-gray-500 dark:text-gray-400" size={20} />
-          </button>
-        </div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div
+        className="absolute inset-0 bg-black/40 dark:bg-black/60"
+        onClick={onClose}
+        aria-hidden
+      />
+      <div
+        className="relative bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-full max-w-md mx-4 border border-gray-200 dark:border-[#333333] max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        <ShareModalHeader itemType={itemType} itemTitle={itemTitle} onClose={onClose} />
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          {/* Permission Level */}
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+          <PermissionRow value={permissionLevel} onChange={setPermissionLevel} />
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Permission Level
-            </label>
-            <div className="flex gap-2">
-              {(['view', 'edit', 'comment'] as const).map((level) => (
-                <button
-                  key={level}
-                  onClick={() => setPermissionLevel(level)}
-                  className={`flex-1 px-4 py-2 rounded-lg border transition-colors ${
-                    permissionLevel === level
-                      ? 'bg-indigo-600 text-white border-indigo-600'
-                      : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-600 hover:border-indigo-500'
-                  }`}
-                >
-                  <span className="capitalize">{level}</span>
-                </button>
-              ))}
-            </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-              {permissionLevel === 'view' && 'Can only view'}
-              {permissionLevel === 'edit' && 'Can view and edit'}
-              {permissionLevel === 'comment' && 'Can view and comment'}
-            </p>
+            <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Select people</label>
+            <ShareSearchInput value={searchTerm} onChange={setSearchTerm} />
           </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
-            <input
-              type="text"
-              placeholder="Search users..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-all duration-200 bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
-            />
-          </div>
-
-          {/* User List */}
-          <div className="space-y-2 max-h-64 overflow-y-auto">
+          <div className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] max-h-48 overflow-y-auto">
             {!searchTerm.trim() && users.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <Users className="mx-auto h-12 w-12 mb-2 opacity-50" />
-                <p className="text-sm">No users with existing conversations</p>
-                <p className="text-xs mt-1 text-gray-400 dark:text-gray-500">Search to find other users</p>
+              <div className="px-3 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
+                <Users className="mx-auto h-10 w-10 mb-2 opacity-50" />
+                <p>No users with existing conversations</p>
+                <p className="mt-0.5">Search to find other users</p>
               </div>
             ) : filteredUsers.length === 0 ? (
-              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                <Users className="mx-auto h-12 w-12 mb-2 opacity-50" />
-                <p className="text-sm">No users found</p>
+              <div className="px-3 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
+                <Users className="mx-auto h-10 w-10 mb-2 opacity-50" />
+                <p>No users found</p>
               </div>
             ) : (
-              filteredUsers.map((user) => {
-                const isSelected = selectedUsers.includes(user.id);
-                return (
-                  <button
-                    key={user.id}
-                    onClick={() => handleUserToggle(user.id)}
-                    className={`w-full p-3 rounded-lg border transition-colors flex items-center gap-3 ${
-                      isSelected
-                        ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-500'
-                        : 'bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 hover:border-indigo-400'
-                    }`}
-                  >
-                    {user.avatar ? (
-                      <img
-                        src={user.avatar}
-                        alt={user.username}
-                        className="w-10 h-10 rounded-full"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                        <span className="text-indigo-600 dark:text-indigo-400 font-semibold">
-                          {user.username.charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex-1 text-left">
-                      <p className="font-medium text-gray-900 dark:text-white">{user.username}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{user.email}</p>
-                    </div>
-                    {isSelected && (
-                      <Check className="text-indigo-600 dark:text-indigo-400" size={20} />
-                    )}
-                  </button>
-                );
-              })
+              filteredUsers.map(user => (
+                <ShareUserRow
+                  key={user.id}
+                  user={user}
+                  selected={selectedUsers.includes(user.id)}
+                  onToggle={() => handleUserToggle(user.id)}
+                />
+              ))
             )}
           </div>
+          {selectedUsers.length > 0 && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {selectedUsers.length} selected
+            </p>
+          )}
         </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-200 dark:border-gray-700 flex items-center justify-end gap-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleShare}
-            disabled={loading || selectedUsers.length === 0}
-            className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
-          >
-            {loading ? 'Sharing...' : selectedUsers.length > 0 ? `Share (${selectedUsers.length} user${selectedUsers.length !== 1 ? 's' : ''})` : 'Share'}
-          </button>
-        </div>
+        <ShareModalFooter
+          onClose={onClose}
+          onShare={handleShare}
+          loading={loading}
+          selectedCount={selectedUsers.length}
+        />
       </div>
 
       {toast && (
-        <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
-        />
+        <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />
       )}
     </div>
   );
 };
 
 export default ShareModal;
-

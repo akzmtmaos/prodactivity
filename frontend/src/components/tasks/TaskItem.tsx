@@ -681,16 +681,16 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                 {completedSubtasks}/{totalSubtasks}
               </span>
             )}
-            {/* Gear menu: Edit Task, Add Subtask */}
+            {/* Gear menu: Edit Task, Add Subtask – border for UI consistency with notebook list */}
             <div className="relative" ref={gearRef}>
               <button
                 type="button"
-                className="p-2 rounded hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300"
+                className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
                 onClick={(e) => { e.stopPropagation(); setIsGearOpen(prev => !prev); }}
                 title="Task options"
                 aria-expanded={isGearOpen}
               >
-                <Settings size={18} className="text-gray-500 dark:text-gray-400" />
+                <Settings size={14} className="text-gray-500 dark:text-gray-400" />
               </button>
               {isGearOpen && (
                 <div className="absolute right-0 top-full mt-1 min-w-[160px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
@@ -735,11 +735,11 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
             </div>
             <button
               type="button"
-              className="p-2 rounded hover:bg-red-100 dark:hover:bg-red-900"
+              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:border-red-300 dark:hover:border-red-800 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center transition-colors"
               onClick={() => onDelete(task.id)}
               title="Delete"
             >
-              <svg className="h-5 w-5 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="h-4 w-4 text-current" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { X, Users, Search, Check } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import axiosInstance from '../../utils/axiosConfig';
@@ -26,56 +26,93 @@ const CreateGroupTaskModal: React.FC<CreateGroupTaskModalProps> = ({
   taskTitle,
   onCreateSuccess
 }) => {
-  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedUserList, setSelectedUserList] = useState<User[]>([]);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const searchTermRef = useRef(searchTerm);
+
+  useEffect(() => {
+    searchTermRef.current = searchTerm;
+  }, [searchTerm]);
 
   useEffect(() => {
     if (isOpen) {
-      fetchUsers();
       setTitle(`Group Task: ${taskTitle}`);
     } else {
       setSearchTerm('');
+      setSearchResults([]);
       setSelectedUsers([]);
+      setSelectedUserList([]);
       setTitle('');
       setDescription('');
     }
   }, [isOpen, taskId, taskTitle]);
 
-  const fetchUsers = async () => {
-    try {
-      const userData = localStorage.getItem('user');
-      if (!userData) return;
-
-      const currentUser = JSON.parse(userData);
-      
-      const { data: usersData, error } = await supabase
-        .from('profiles')
-        .select('id, username, email, avatar')
-        .neq('id', currentUser.id)
-        .order('username', { ascending: true });
-
-      if (error) {
-        console.error('Error fetching users:', error);
-        return;
-      }
-
-      setUsers(usersData || []);
-    } catch (error) {
-      console.error('Error fetching users:', error);
+  // Auto-search as user types (debounced, like Google Drive)
+  useEffect(() => {
+    const term = searchTerm.trim();
+    if (!term) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
     }
-  };
 
-  const handleUserToggle = (userId: string) => {
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const userData = localStorage.getItem('user');
+        if (!userData) {
+          setSearchLoading(false);
+          return;
+        }
+        const currentUser = JSON.parse(userData);
+        const pattern = `%${term}%`;
+
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, username, email, avatar')
+          .neq('id', currentUser.id)
+          .or(`email.ilike.${pattern},username.ilike.${pattern}`)
+          .limit(20)
+          .order('username', { ascending: true });
+
+        if (error) {
+          console.error('Error searching users:', error);
+          setSearchResults([]);
+          setSearchLoading(false);
+          return;
+        }
+
+        if (searchTermRef.current.trim() !== term) return;
+        setSearchResults((data || []) as User[]);
+      } catch (err) {
+        console.error(err);
+        if (searchTermRef.current.trim() === term) setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
+
+  const handleUserToggle = (user: User) => {
+    const id = String(user.id);
     setSelectedUsers(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
     );
+    setSelectedUserList(prev => {
+      if (prev.some(u => String(u.id) === id)) {
+        return prev.filter(u => String(u.id) !== id);
+      }
+      return [...prev, user];
+    });
   };
 
   const handleCreate = async () => {
@@ -94,8 +131,7 @@ const CreateGroupTaskModal: React.FC<CreateGroupTaskModalProps> = ({
 
       const currentUser = JSON.parse(userData);
       
-      // Convert user IDs to integers for backend
-      const participantUserIds = selectedUsers.map(id => parseInt(id));
+      const participantUserIds = selectedUserList.map(u => parseInt(u.id));
 
       const response = await axiosInstance.post('/group-tasks/', {
         task_id: taskId,
@@ -123,11 +159,6 @@ const CreateGroupTaskModal: React.FC<CreateGroupTaskModalProps> = ({
       setLoading(false);
     }
   };
-
-  const filteredUsers = users.filter(user =>
-    user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   if (!isOpen) return null;
 
@@ -185,7 +216,7 @@ const CreateGroupTaskModal: React.FC<CreateGroupTaskModalProps> = ({
             />
           </div>
 
-          {/* Participants */}
+          {/* Participants – auto-search as you type (like Google Drive), no fetch-all */}
           <div>
             <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1 block">Select participants</label>
             <div className="relative mb-2">
@@ -195,20 +226,25 @@ const CreateGroupTaskModal: React.FC<CreateGroupTaskModalProps> = ({
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-8 pr-2.5 py-1.5 text-sm rounded-md border border-gray-300 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-1 focus:ring-indigo-500 focus:outline-none"
-                placeholder="Search users..."
+                placeholder="Search by email or username..."
               />
+              {searchLoading && (
+                <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-gray-400">Searching...</span>
+              )}
             </div>
             <div className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] max-h-48 overflow-y-auto">
-              {filteredUsers.length === 0 ? (
-                <div className="px-3 py-4 text-center text-xs text-gray-500 dark:text-gray-400">No users found</div>
+              {searchResults.length === 0 && !searchLoading ? (
+                <div className="px-3 py-4 text-center text-xs text-gray-500 dark:text-gray-400">
+                  {searchTerm.trim() ? 'No users found. Try a different search.' : 'Enter email or username and click Search.'}
+                </div>
               ) : (
-                filteredUsers.map((user) => (
+                searchResults.map((user) => (
                   <button
                     key={user.id}
                     type="button"
-                    onClick={() => handleUserToggle(user.id)}
+                    onClick={() => handleUserToggle(user)}
                     className={`w-full flex items-center justify-between gap-2 min-h-[52px] px-3 py-2.5 rounded-lg border-b border-gray-100 dark:border-[#333333] last:border-b-0 transition-colors ${
-                      selectedUsers.includes(user.id)
+                      selectedUsers.includes(String(user.id))
                         ? 'bg-indigo-50 dark:bg-indigo-900/20'
                         : 'hover:bg-gray-50 dark:hover:bg-gray-700/30'
                     }`}
@@ -228,16 +264,16 @@ const CreateGroupTaskModal: React.FC<CreateGroupTaskModalProps> = ({
                         <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{user.email}</p>
                       </div>
                     </div>
-                    {selectedUsers.includes(user.id) && (
+                    {selectedUsers.includes(String(user.id)) && (
                       <Check size={16} className="text-indigo-600 dark:text-indigo-400 shrink-0" />
                     )}
                   </button>
                 ))
               )}
             </div>
-            {selectedUsers.length > 0 && (
+            {selectedUserList.length > 0 && (
               <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
-                {selectedUsers.length} participant{selectedUsers.length !== 1 ? 's' : ''} selected
+                {selectedUserList.length} participant{selectedUserList.length !== 1 ? 's' : ''} selected
               </p>
             )}
           </div>

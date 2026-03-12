@@ -4,7 +4,7 @@ import PageLayout from '../components/PageLayout';
 import TrashList from '../components/trash/TrashList';
 import Toast from '../components/common/Toast';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
-import { Trash2, ChevronDown, Search, RotateCcw } from 'lucide-react';
+import { Trash2, ChevronDown, Search, RotateCcw, X } from 'lucide-react';
 import Pagination from '../components/common/Pagination';
 import axiosInstance from '../utils/axiosConfig';
 import { API_BASE_URL } from '../config/api';
@@ -51,6 +51,8 @@ const Trash = () => {
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showDeleteSelectedModal, setShowDeleteSelectedModal] = useState(false);
   const [showRestoreSelectedModal, setShowRestoreSelectedModal] = useState(false);
+  const [restoreSelectedLoading, setRestoreSelectedLoading] = useState(false);
+  const [deleteSelectedLoading, setDeleteSelectedLoading] = useState(false);
 
   // Search state
   const [searchTerm, setSearchTerm] = useState('');
@@ -446,79 +448,89 @@ const Trash = () => {
   };
 
   const handleRestoreSelected = async () => {
-    setShowRestoreSelectedModal(false);
-    const itemsToRestore = filteredItems.filter(item => selectedItems.has(item.id));
-    
-    for (const item of itemsToRestore) {
-      let endpoint = '';
-      try {
-        if (item.type === 'task') {
-          const numericId = parseInt(item.id, 10);
-          if (!Number.isNaN(numericId)) {
-            await supabase
-              .from('tasks')
-              .update({ is_deleted: false, deleted_at: null })
-              .eq('id', numericId);
+    setRestoreSelectedLoading(true);
+    try {
+      const itemsToRestore = filteredItems.filter(item => selectedItems.has(item.id));
+      for (const item of itemsToRestore) {
+        let endpoint = '';
+        try {
+          if (item.type === 'task') {
+            const numericId = parseInt(item.id, 10);
+            if (!Number.isNaN(numericId)) {
+              await supabase
+                .from('tasks')
+                .update({ is_deleted: false, deleted_at: null })
+                .eq('id', numericId);
+            }
+          } else if (item.type === 'flashcard') {
+            const numericId = parseInt(item.id, 10);
+            if (!Number.isNaN(numericId)) {
+              await supabase
+                .from('flashcards')
+                .update({ is_deleted: false, deleted_at: null })
+                .eq('id', numericId);
+            }
+          } else {
+            if (item.type === 'note') endpoint = `/notes/${item.id}/`;
+            if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
+            if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
+            if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
+            if (item.type === 'quiz') endpoint = `/reviewers/${item.id}/`;
+            await axiosInstance.patch(endpoint, { is_deleted: false, deleted_at: null });
           }
-        } else if (item.type === 'flashcard') {
-          const numericId = parseInt(item.id, 10);
-          if (!Number.isNaN(numericId)) {
-            await supabase
-              .from('flashcards')
-              .update({ is_deleted: false, deleted_at: null })
-              .eq('id', numericId);
-          }
-        } else {
-          if (item.type === 'note') endpoint = `/notes/${item.id}/`;
-          if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
-          if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
-          if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
-          if (item.type === 'quiz') endpoint = `/reviewers/${item.id}/`; // Quiz is a reviewer with quiz tag
-          await axiosInstance.patch(endpoint, { is_deleted: false, deleted_at: null });
+        } catch (error) {
+          console.error('Failed to restore item during restore-selected operation:', error);
         }
-      } catch (error) {
-        // Continue restoring others even if one fails
-        console.error('Failed to restore item during restore-selected operation:', error);
       }
+      setToast({ message: `${itemsToRestore.length} items restored successfully!`, type: 'success' });
+      setSelectedItems(new Set());
+      setShowRestoreSelectedModal(false);
+      fetchTrash();
+    } catch (err) {
+      setToast({ message: 'Failed to restore some items.', type: 'error' });
+    } finally {
+      setRestoreSelectedLoading(false);
     }
-    setToast({ message: `${selectedItems.size} items restored successfully!`, type: 'success' });
-    setSelectedItems(new Set());
-    fetchTrash();
   };
 
   const handleDeleteSelected = async () => {
-    setShowDeleteSelectedModal(false);
-    const itemsToDelete = filteredItems.filter(item => selectedItems.has(item.id));
-    
-    for (const item of itemsToDelete) {
-      let endpoint = '';
-      try {
-        if (item.type === 'task') {
-          const numericId = parseInt(item.id, 10);
-          if (!Number.isNaN(numericId)) {
-            await supabase.from('tasks').delete().eq('id', numericId);
+    setDeleteSelectedLoading(true);
+    try {
+      const itemsToDelete = filteredItems.filter(item => selectedItems.has(item.id));
+      for (const item of itemsToDelete) {
+        let endpoint = '';
+        try {
+          if (item.type === 'task') {
+            const numericId = parseInt(item.id, 10);
+            if (!Number.isNaN(numericId)) {
+              await supabase.from('tasks').delete().eq('id', numericId);
+            }
+          } else if (item.type === 'flashcard') {
+            const numericId = parseInt(item.id, 10);
+            if (!Number.isNaN(numericId)) {
+              await supabase.from('flashcards').delete().eq('id', numericId);
+            }
+          } else {
+            if (item.type === 'note') endpoint = `/notes/${item.id}/`;
+            if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
+            if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
+            if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
+            if (item.type === 'quiz') endpoint = `/reviewers/${item.id}/`;
+            await axiosInstance.delete(endpoint);
           }
-        } else if (item.type === 'flashcard') {
-          const numericId = parseInt(item.id, 10);
-          if (!Number.isNaN(numericId)) {
-            await supabase.from('flashcards').delete().eq('id', numericId);
-          }
-        } else {
-          if (item.type === 'note') endpoint = `/notes/${item.id}/`;
-          if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
-          if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
-          if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
-          if (item.type === 'quiz') endpoint = `/reviewers/${item.id}/`; // Quiz is a reviewer with quiz tag
-          await axiosInstance.delete(endpoint);
+        } catch (error) {
+          console.error('Failed to delete item during delete-selected operation:', error);
         }
-      } catch (error) {
-        // Continue deleting others even if one fails
-        console.error('Failed to delete item during delete-selected operation:', error);
       }
+      setToast({ message: `${itemsToDelete.length} item(s) permanently deleted.`, type: 'success' });
+      setSelectedItems(new Set());
+      setShowDeleteSelectedModal(false);
+      fetchTrash();
+    } catch (err) {
+      setToast({ message: 'Failed to delete some items.', type: 'error' });
+    } finally {
+      setDeleteSelectedLoading(false);
     }
-    setToast({ message: `${selectedItems.size} item(s) permanently deleted.`, type: 'success' });
-    setSelectedItems(new Set());
-    fetchTrash();
   };
 
   // Filter quizzes from reviewers (reviewers with 'quiz' tag)
@@ -748,26 +760,137 @@ const Trash = () => {
           confirmLabel="Delete"
           cancelLabel="Cancel"
         />
-        {/* Restore Selected Confirmation Modal */}
-        <DeleteConfirmationModal
-          isOpen={showRestoreSelectedModal}
-          onClose={() => setShowRestoreSelectedModal(false)}
-          onConfirm={handleRestoreSelected}
-          title="Restore Selected Items?"
-          message={`Are you sure you want to restore ${selectedItems.size} selected item(s)? They will be moved out of Trash.`}
-          confirmLabel="Restore Selected"
-          cancelLabel="Cancel"
-        />
-        {/* Delete Selected Confirmation Modal */}
-        <DeleteConfirmationModal
-          isOpen={showDeleteSelectedModal}
-          onClose={() => setShowDeleteSelectedModal(false)}
-          onConfirm={handleDeleteSelected}
-          title="Delete Selected Items?"
-          message={`Are you sure you want to permanently delete ${selectedItems.size} selected item(s)? This action cannot be undone.`}
-          confirmLabel="Delete Selected"
-          cancelLabel="Cancel"
-        />
+        {/* Restore Selected Modal – same UI as Deck’s Delete Deck confirmation (icon header, Are you sure?, actions) */}
+        {showRestoreSelectedModal && (
+          <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-[100]" style={{ margin: 0, padding: 0 }}>
+            <div
+              className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-xs z-[101]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header – icon + title + close (like Delete Deck) */}
+              <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-center">
+                  <div className="p-1 bg-emerald-100 dark:bg-emerald-900/20 rounded-lg mr-2">
+                    <RotateCcw size={16} className="text-emerald-600 dark:text-emerald-400" />
+                  </div>
+                  <h2 className="text-base font-semibold text-gray-900 dark:text-white">Restore Items</h2>
+                </div>
+                <button
+                  onClick={() => { if (!restoreSelectedLoading) setShowRestoreSelectedModal(false); }}
+                  className="p-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+                  disabled={restoreSelectedLoading}
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              {/* Content – icon + “Are you sure?” + message (like Delete Deck) */}
+              <div className="p-4">
+                <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">Are you sure?</h3>
+                <p className="text-gray-600 dark:text-gray-400 text-sm m-0">
+                  Restore <span className="font-medium">{selectedItems.size} item{selectedItems.size !== 1 ? 's' : ''}</span>? They will be moved out of Trash.
+                </p>
+              </div>
+              <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => { if (!restoreSelectedLoading) setShowRestoreSelectedModal(false); }}
+                  disabled={restoreSelectedLoading}
+                  className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleRestoreSelected}
+                  disabled={selectedItems.size === 0 || restoreSelectedLoading}
+                  className={`flex-1 px-2 py-1 bg-emerald-600 text-white rounded font-medium text-sm flex items-center justify-center gap-1 transition-colors ${
+                    selectedItems.size === 0 || restoreSelectedLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-emerald-700'
+                  }`}
+                >
+                  {restoreSelectedLoading ? (
+                    <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <RotateCcw size={14} />
+                  )}
+                  {restoreSelectedLoading ? 'Restoring...' : 'Restore'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Selected Modal – confirmation only; selection is on the list (like Deck’s Delete Deck style) */}
+        {showDeleteSelectedModal && (
+          <div className="fixed inset-0 z-[100] overflow-y-auto">
+            <div
+              className="fixed inset-0 bg-black/40 dark:bg-black/60"
+              onClick={() => {
+                if (!deleteSelectedLoading) setShowDeleteSelectedModal(false);
+              }}
+            />
+            <div className="flex items-center justify-center min-h-screen p-4">
+              <div
+                className="relative flex flex-col bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl border border-gray-200 dark:border-[#333333] max-w-4xl w-full min-h-[36rem] max-h-[90vh] overflow-hidden z-[101]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-[#333333] flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Delete Items</h3>
+                  <button
+                    type="button"
+                    onClick={() => { if (!deleteSelectedLoading) setShowDeleteSelectedModal(false); }}
+                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
+                    disabled={deleteSelectedLoading}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 py-3">
+                  <p className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 mb-3">
+                    The following item{selectedItems.size !== 1 ? 's' : ''} will be permanently deleted. This cannot be undone.
+                  </p>
+                  {selectedItems.size > 0 && (
+                    <p className="flex-shrink-0 mb-2 text-xs text-red-600 dark:text-red-400">
+                      {selectedItems.size} item{selectedItems.size !== 1 ? 's' : ''} selected for deletion
+                    </p>
+                  )}
+                  <div className="flex-1 min-h-0 overflow-y-auto border border-gray-200 dark:border-[#333333] rounded-md">
+                    {filteredItems.filter((i) => selectedItems.has(i.id)).map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border-b border-gray-100 dark:border-[#333333] last:border-b-0"
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">{item.title}</div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 capitalize">{item.type}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex-shrink-0 px-4 py-2.5 border-t border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#252525] rounded-b-md flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => { if (!deleteSelectedLoading) setShowDeleteSelectedModal(false); }}
+                    disabled={deleteSelectedLoading}
+                    className="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleDeleteSelected}
+                    disabled={selectedItems.size === 0 || deleteSelectedLoading}
+                    className="px-2.5 py-1.5 text-xs rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {deleteSelectedLoading
+                      ? 'Deleting…'
+                      : `Delete${selectedItems.size > 0 ? ` (${selectedItems.size})` : ''}`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
       {toast && (
         <Toast

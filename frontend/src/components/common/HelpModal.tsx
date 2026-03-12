@@ -31,91 +31,234 @@ const HELP_ITEMS: HelpItem[] = [
     name: 'Home',
     icon: Home,
     description:
-      'Your dashboard. See today’s study time, incomplete tasks count, notes count, and upcoming events. Recent note activities are shown for quick access. Click any card or "View All" to go to that section.',
+      [
+        'Home metrics',
+        '- Compact cards that show today’s study time, incomplete task count, total notes, and upcoming events.',
+        '- Clicking a card opens the corresponding feature (Study Timer, Tasks, Notebooks, Schedule).',
+        '',
+        'Recent Note Activities',
+        '- Horizontal and grid views of the notes you recently opened or edited.',
+        '- Click any note tile to jump straight into that note in its notebook.',
+        '',
+        'Pending Tasks & Upcoming Events',
+        '- Two side‑by‑side panels summarizing your top tasks and nearest schedule items.',
+        '- Each row links into the full Tasks or Schedule page for deeper management.',
+      ].join('\n'),
   },
   {
     id: 'find-friends',
     name: 'Find Friends',
     icon: Users,
     description:
-      'Search for other users by username. A panel opens from the left where you can type to find people. Click a user to open their profile. From their profile you can follow them or start a message.',
+      [
+        'Search panel',
+        '- Slide‑in panel that lets you search by username.',
+        '- Shows basic profile info so you can quickly recognize classmates or teammates.',
+        '',
+        'Profile preview',
+        '- Click a result to open a richer profile view with avatar, bio, school, and course.',
+        '- From there you can follow/unfollow and navigate to chat.',
+        '',
+        'Social graph',
+        '- People you follow appear in other areas like chat, collaboration, and group quizzes.',
+      ].join('\n'),
   },
   {
     id: 'messages',
     name: 'Messages',
     icon: MessageCircle,
     description:
-      'Chat with others. Use the "Chat" tab for direct messages and the "Groups" tab for group conversations. Search and filter your chats. Start new conversations from Find Friends or from a user’s profile.',
+      [
+        'Chats list',
+        '- Shows your recent direct and group conversations, ordered by latest activity.',
+        '- Click any conversation to open the full message history.',
+        '',
+        'Conversation view',
+        '- Real‑time message stream with support for text and shared links.',
+        '- Useful for coordinating tasks, study plans, or sharing notes and decks.',
+        '',
+        'Friends integration',
+        '- New conversations are started from Find Friends or a user profile you follow.',
+      ].join('\n'),
   },
   {
     id: 'progress',
     name: 'Progress',
     icon: BarChart2,
     description:
-      'Track your productivity. View XP, level, and progress over time. See task completion stats, study time, and achievements. Use this page to review how you’re doing and stay motivated.',
+      [
+        'XP and level',
+        '- Your current level and XP earned from studying, completing tasks, and collaboration.',
+        '',
+        'Task and study metrics',
+        '- Aggregated counts of completed tasks and total study time.',
+        '- Charts or summaries that help you see whether your productivity is trending up or down.',
+        '',
+        'Trends and summaries',
+        '- Weekly and historical views of your activity so you can review how consistent you have been.',
+      ].join('\n'),
   },
   {
     id: 'notebooks',
     name: 'Notebooks',
     icon: FileText,
     description:
-      'Create and organize notebooks and notes. Each notebook can hold multiple notes. Use search and filters to find notes quickly. Create, edit, and organize your study materials here.',
+      [
+        'Notebook list',
+        '- Sidebar or grid of all your notebooks with quick actions like rename, color, share, archive, and delete.',
+        '- Lets you jump into a specific notebook context for focused writing.',
+        '',
+        'Notes list',
+        '- Shows notes within the selected notebook in compact or comfortable layouts.',
+        '- Each note row has quick actions (edit title, share, archive, move to trash).',
+        '',
+        'Note editor',
+        '- Rich‑text editor for writing and organizing your ideas.',
+        '- Notes here can later feed into Reviewers or Flashcards for active recall.',
+      ].join('\n'),
   },
   {
     id: 'flashcards',
     name: 'Flashcards',
     icon: Layers,
     description:
-      'Create decks and flashcards for studying. Build decks, add cards, and study with built-in review. Track progress per deck. Use this to memorize and review important content.',
+      [
+        'Deck list',
+        '- Main table/grid of your decks with search, sort, filters, and archived view.',
+        '- Each deck card shows title, progress, and key actions (study, manage cards, stats, group quiz).',
+        '',
+        'Deck details & study',
+        '- Manage flashcards inside a deck (add, edit, delete, bulk actions).',
+        '- Start practice or quiz sessions to review cards and update deck progress.',
+        '',
+        'Group quizzes',
+        '- Turn a deck into a challenge quiz with friends you follow.',
+        '- Create a group quiz, invite participants, and let everyone take the same deck‑based quiz.',
+      ].join('\n'),
   },
   {
     id: 'tasks',
     name: 'Tasks',
     icon: CheckSquare,
     description:
-      'Manage your to-do list. Add tasks with priority, due date, and category. Mark tasks complete to earn XP. You can also assign tasks to others and work on tasks together.',
+      [
+        'Task list',
+        '- Pending tasks grouped with priority, due date, and category labels.',
+        '- Quick actions to edit, complete, or delete tasks without leaving the list.',
+        '',
+        'Completed tab',
+        '- Shows finished tasks sorted by most recently completed.',
+        '- Useful as a “done log” so you can see what you accomplished.',
+        '',
+        'XP and categories',
+        '- Completing tasks contributes to your XP and progress stats.',
+        '- Categories help you group work by subject, project, or context.',
+      ].join('\n'),
   },
   {
     id: 'reviewer',
     name: 'Reviewer',
     icon: Brain,
     description:
-      'Use reviewers to study and quiz yourself. Create or open reviewers linked to your content. Good for structured review and self-testing.',
+      [
+        'Reviewer list',
+        '- Cards showing each reviewer with quick actions such as open, take quiz, and options.',
+        '- Indicates whether a reviewer is based on a note, notebook, or custom content.',
+        '',
+        'Reviewer document view',
+        '- Full‑page reading view for the reviewer content with a clean header and footer.',
+        '- Designed to feel like a focused study document rather than a modal overlay.',
+        '',
+        'Interactive quiz',
+        '- Generates quiz questions from the reviewer material.',
+        '- Lets you test recall and understanding directly from the same source content.',
+      ].join('\n'),
   },
   {
     id: 'schedule',
     name: 'Schedule',
     icon: Calendar,
     description:
-      'Plan your day. Create events with title, time, and category (e.g. study, assignment, exam). View upcoming events on the calendar and stay on top of deadlines.',
+      [
+        'Event list / calendar',
+        '- View events with date, time range, and category (study, assignment, exam, meeting, etc.).',
+        '- Quickly scan what is coming up in the next few days.',
+        '',
+        'Event editor',
+        '- Create new events or edit existing ones with title, description, category, and time.',
+        '- Used to block time for focused study or track important deadlines.',
+        '',
+        'Home integration',
+        '- Upcoming events also appear on the Home page and in the Home “Upcoming Events” panel.',
+      ].join('\n'),
   },
   {
     id: 'study-timer',
     name: 'Study Timer',
     icon: Clock,
     description:
-      'Track study time with a timer. Start study sessions and log how long you study. Your today’s study time is shown on the Home dashboard.',
+      [
+        'Timer controls',
+        '- Start, pause, and stop buttons for recording focused study sessions.',
+        '- Shows the current session length while you work.',
+        '',
+        'Session history',
+        '- Behind the scenes, sessions are logged and summarized per day.',
+        '- Today’s total study time is shown on the Home metrics card.',
+        '',
+        'Progress link',
+        '- Session data feeds into Progress charts so you can see long‑term trends.',
+      ].join('\n'),
   },
   {
     id: 'notifications',
     name: 'Notifications',
     icon: Bell,
     description:
-      'See your notifications in one place. Get alerts for things like new followers, task assignments, and other activity. Mark them as read as you go.',
+      [
+        'Notification list',
+        '- Stream of alerts about followers, collaboration invitations, tasks, and other key events.',
+        '- Each item indicates what happened and when.',
+        '',
+        'Quick navigation',
+        '- Many notifications can be clicked to jump to the relevant page (profile, task, deck, etc.).',
+        '',
+        'Read state',
+        '- As you open and process notifications, you can mark them as seen so the list stays manageable.',
+      ].join('\n'),
   },
   {
     id: 'trash',
     name: 'Trash',
     icon: Trash2,
     description:
-      'View trashed items (e.g. notes, notebooks). Restore items you deleted by mistake or permanently delete them to free space.',
+      [
+        'Trashed items list',
+        '- Shows notebooks, notes, and other supported items that have been soft‑deleted.',
+        '',
+        'Restore',
+        '- Bring an item back to its original location if you deleted it by accident.',
+        '',
+        'Permanent delete',
+        '- Remove items forever once you are sure they are no longer needed.',
+      ].join('\n'),
   },
   {
     id: 'settings',
     name: 'Settings',
     icon: Settings,
     description:
-      'Manage your account and app preferences. Update profile, password, and other settings. Configure how ProdActivity works for you.',
+      [
+        'Profile & account',
+        '- Edit your avatar, bio, school, course, and other basic details.',
+        '- Manage email and password when needed.',
+        '',
+        'App preferences',
+        '- Toggle theme and behavioral preferences so the interface feels right for you.',
+        '',
+        'Integration points',
+        '- Some settings control how different features (notifications, collaboration, etc.) behave across the app.',
+      ].join('\n'),
   },
 ];
 
@@ -207,9 +350,29 @@ const HelpModal: React.FC<HelpModalProps> = ({ isOpen, onClose }) => {
               })()}
               <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{selected.name}</h3>
             </div>
-            <p className="text-gray-600 dark:text-gray-400 text-sm leading-relaxed whitespace-pre-line">
-              {selected.description}
-            </p>
+            <div className="text-sm leading-relaxed text-gray-700 dark:text-gray-300 space-y-2">
+              {selected.description.split('\n').map((line, idx) => {
+                const trimmed = line.trim();
+                if (!trimmed) return null;
+                if (!trimmed.startsWith('-')) {
+                  // Mini feature heading
+                  return (
+                    <h4
+                      key={idx}
+                      className="mt-3 text-sm font-semibold text-gray-900 dark:text-white"
+                    >
+                      {trimmed}
+                    </h4>
+                  );
+                }
+                const text = trimmed.replace(/^-+\s*/, '');
+                return (
+                  <p key={idx} className="ml-4 text-sm text-gray-600 dark:text-gray-400">
+                    • {text}
+                  </p>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
