@@ -38,7 +38,10 @@ const Chat = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const [isCreatingRoom, setIsCreatingRoom] = useState(false);
+  const [openingChatWithUsername, setOpeningChatWithUsername] = useState<string | null>(null);
   const [isSendingMessage, setIsSendingMessage] = useState(false);
+  const [autoScrollEnabled, setAutoScrollEnabled] = useState(true);
+  const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
@@ -116,6 +119,7 @@ const Chat = () => {
     const roomId = selectedRoom?.id;
     if (roomId) {
       setMessages([]);
+      setIsLoadingMessages(true);
       fetchMessages(roomId);
       const unsubscribe = subscribeToMessages(roomId);
 
@@ -136,6 +140,7 @@ const Chat = () => {
       };
     } else {
       setMessages([]);
+      setIsLoadingMessages(false);
       if (pollIntervalRef.current) {
         clearInterval(pollIntervalRef.current);
         pollIntervalRef.current = null;
@@ -145,12 +150,43 @@ const Chat = () => {
   }, [selectedRoom?.id]);
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (!selectedRoom) return;
+    if (autoScrollEnabled) {
+      scrollToBottom(false);
+    }
+  }, [messages, selectedRoom?.id, autoScrollEnabled]);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (smooth: boolean) => {
+    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
   };
+
+  // Track whether user has scrolled away from bottom; if they scroll up, stop auto-scrolling
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const distanceFromBottom = scrollHeight - (scrollTop + clientHeight);
+      // Enable auto-scroll only when user is already near the bottom
+      setAutoScrollEnabled(distanceFromBottom < 48);
+    };
+
+    // Initialize based on current position
+    handleScroll();
+
+    container.addEventListener('scroll', handleScroll);
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [selectedRoom?.id]);
+
+  // Once a room is active, clear any loading label
+  useEffect(() => {
+    if (selectedRoom) {
+      setOpeningChatWithUsername(null);
+    }
+  }, [selectedRoom?.id]);
 
   const fetchChatRooms = async () => {
     if (!user?.id) {
@@ -232,13 +268,18 @@ const Chat = () => {
         };
       });
 
-      const rooms = await Promise.all(roomPromises);
+      const roomsRaw = await Promise.all(roomPromises);
+      const roomsById = new Map<string, typeof roomsRaw[0]>();
+      roomsRaw.forEach((r) => {
+        if (r?.id && !roomsById.has(r.id)) roomsById.set(r.id, r);
+      });
+      const rooms = Array.from(roomsById.values());
       rooms.sort((a, b) => {
         const aTime = a.last_message?.created_at || a.created_at;
         const bTime = b.last_message?.created_at || b.created_at;
         return new Date(bTime).getTime() - new Date(aTime).getTime();
       });
-      
+
       setChatRooms(rooms);
     } catch (error) {
       console.error('Error fetching chat rooms:', error);
@@ -323,6 +364,7 @@ const Chat = () => {
     const room = selectedRoomRef.current;
     const list = await getMessagesForRoom(roomId, room);
     setMessages(list);
+    setIsLoadingMessages(false);
   }, [getMessagesForRoom]);
 
   const pollMessages = useCallback(async () => {
@@ -750,6 +792,9 @@ const Chat = () => {
     otherUser: User | string,
     options?: { keepView?: boolean }
   ) => {
+    const displayName = typeof otherUser === 'string' ? otherUser : otherUser.username;
+    setOpeningChatWithUsername(displayName || null);
+
     let targetUser: User;
     
     if (typeof otherUser === 'string') {
@@ -765,6 +810,7 @@ const Chat = () => {
       } catch (error) {
         console.error('Error fetching user:', error);
         setToast({ message: 'Failed to start chat', type: 'error' });
+        setOpeningChatWithUsername(null);
         return;
       }
     } else {
@@ -810,15 +856,37 @@ const Chat = () => {
     if (!room) {
       setSelectedRoom(null);
       setViewingProfile(null);
+      setOpeningChatWithUsername(null);
       navigate('/chat', { replace: true });
       return;
     }
+
+    // Derive a friendly display name similar to ChatList
+    let displayName = room.name || 'Conversation';
+    if (room.room_type === 'direct' && user?.id) {
+      const otherParticipant = room.participants?.find(
+        (p) => String(p.id) !== String(user.id)
+      );
+      if (otherParticipant?.username) {
+        displayName = otherParticipant.username;
+      }
+    } else if (!room.name && room.room_type === 'group') {
+      displayName = 'Group Chat';
+    }
+
+    setOpeningChatWithUsername(displayName);
     setSelectedRoom(room);
     setViewingProfile(null);
+
+    // Navigate so URL matches the selection
     if (room.room_type === 'direct' && user?.id) {
-      const otherParticipant = room.participants?.find(p => String(p.id) !== String(user.id));
+      const otherParticipant = room.participants?.find(
+        (p) => String(p.id) !== String(user.id)
+      );
       if (otherParticipant) {
         navigate(`/chat/${otherParticipant.id}`, { replace: true });
+      } else {
+        navigate('/chat', { replace: true });
       }
     } else {
       navigate(`/chat/group/${room.id}`, { replace: true });
@@ -1244,15 +1312,50 @@ const Chat = () => {
     }
   };
 
-  const filteredChatRooms = chatRooms
-    .filter(room => activeView === 'chats' ? room.room_type === 'direct' : room.room_type === 'group')
-    .filter(room => {
-      const search = searchTerm.toLowerCase().trim();
-      if (!search) return true;
-      const name = room.name?.toLowerCase() || '';
-      const participantNames = room.participants?.map(p => p.username?.toLowerCase()).filter(Boolean).join(' ') || '';
-      return name.includes(search) || participantNames.includes(search);
+  const baseRooms = chatRooms.filter((room) =>
+    activeView === 'chats' ? room.room_type === 'direct' : room.room_type === 'group'
+  );
+
+  // For direct chats, collapse multiple rooms with the same other user into a single entry
+  let dedupedRooms = baseRooms;
+  if (activeView === 'chats' && user?.id) {
+    const currentUserId = String(user.id);
+
+    const getRoomTimestamp = (room: any) =>
+      new Date(room.last_message?.created_at || room.created_at).getTime();
+
+    const byKey = new Map<string, (typeof baseRooms)[number]>();
+
+    baseRooms.forEach((room) => {
+      if (!room) return;
+      let key = `room-${room.id}`;
+
+      if (room.room_type === 'direct' && room.participants?.length) {
+        const other = room.participants.find((p: any) => String(p.id) !== currentUserId);
+        if (other?.id) {
+          key = `direct-${other.id}`;
+        }
+      }
+
+      const existing = byKey.get(key);
+      if (!existing) {
+        byKey.set(key, room);
+      } else if (getRoomTimestamp(room) > getRoomTimestamp(existing)) {
+        byKey.set(key, room);
+      }
     });
+
+    dedupedRooms = Array.from(byKey.values());
+  }
+
+  const filteredChatRooms = dedupedRooms.filter((room) => {
+    const search = searchTerm.toLowerCase().trim();
+    if (!search) return true;
+    const name = room.name?.toLowerCase() || '';
+    const participantNames =
+      room.participants?.map((p) => p.username?.toLowerCase()).filter(Boolean).join(' ') || '';
+    return name.includes(search) || participantNames.includes(search);
+  });
 
   const filteredFriends = followingList.filter((friend) => {
     const search = searchTerm.toLowerCase().trim();
@@ -1266,6 +1369,11 @@ const Chat = () => {
   if (!user) {
     return null;
   }
+
+  const handleFriendClick = (username: string) => {
+    setViewingProfile(null);
+    handleStartChat(username, { keepView: true });
+  };
 
   return (
     <>
@@ -1281,7 +1389,7 @@ const Chat = () => {
             onViewChange={setActiveView}
             onSearchChange={setSearchTerm}
             onRoomSelect={handleRoomSelect}
-            onFriendSelect={(username) => handleStartChat(username, { keepView: true })}
+            onFriendSelect={handleFriendClick}
             onCreateGroupClick={() => setShowCreateGroupModal(true)}
           />
 
@@ -1300,6 +1408,8 @@ const Chat = () => {
                   selectedRoom={selectedRoom}
                   messagesEndRef={messagesEndRef}
                   messagesContainerRef={messagesContainerRef}
+                  isLoading={isLoadingMessages}
+                  loadingLabel={openingChatWithUsername || undefined}
                 />
 
                 <MessageInput

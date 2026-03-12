@@ -9,6 +9,8 @@ interface MessagesListProps {
   selectedRoom: ChatRoom | null;
   messagesEndRef: React.RefObject<HTMLDivElement | null>;
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
+  isLoading: boolean;
+  loadingLabel?: string;
 }
 
 const MessagesList: React.FC<MessagesListProps> = ({
@@ -17,7 +19,27 @@ const MessagesList: React.FC<MessagesListProps> = ({
   selectedRoom,
   messagesEndRef,
   messagesContainerRef,
+  isLoading,
+  loadingLabel,
 }) => {
+  if (isLoading) {
+    return (
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto scrollbar-hide p-4 space-y-4 relative"
+      >
+        <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
+          <div className="text-center">
+            <div className="mx-auto h-10 w-10 mb-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+            <p className="text-sm font-medium">
+              {loadingLabel ? `Opening chat with ${loadingLabel}` : 'Loading messages...'}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (messages.length === 0) {
     return (
       <div
