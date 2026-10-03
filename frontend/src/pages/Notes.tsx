@@ -7,6 +7,8 @@ import NotebookList from '../components/notes/NotebookList';
 import NotesList from '../components/notes/NotesList';
 import NoteEditor from '../components/notes/NoteEditor';
 import PageLayout from '../components/PageLayout';
+import NotesArchive from '../components/notes/NotesArchive';
+
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import Toast from '../components/common/Toast';
 import GlobalSearch from '../components/notes/GlobalSearch';
@@ -180,6 +182,7 @@ const Notes = () => {
   // Add tab state
   const [activeTab, setActiveTab] = useState<'notes' | 'logs' | 'archived'>('notes');
   const [activeNotebookTab, setActiveNotebookTab] = useState<'notebooks' | 'favorites' | 'archived'>('notebooks');
+  const [archivedTypeFilter, setArchivedTypeFilter] = useState<'all' | 'notebooks' | 'notes'>('all');
 
   // Add toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
@@ -2705,6 +2708,11 @@ const Notes = () => {
 
   // Add useEffect to handle tab changes
   useEffect(() => {
+    // When the notebook Archived tab is activated, also activate the note Archived tab
+    // so that archived notes are fetched and the NotesArchive component receives data.
+    if (activeNotebookTab === 'archived' && activeTab !== 'archived') {
+      setActiveTab('archived');
+    }
     if (activeNotebookTab === 'archived') {
       fetchArchivedNotebooks();
     }
@@ -3118,52 +3126,20 @@ const Notes = () => {
                     </>
                   )}
                   {activeNotebookTab === 'archived' && (
-                    <>
-                      {filteredArchivedNotebooks.length === 0 ? (
-                        <div className="flex items-center justify-center h-full">
-                          <div className="text-center">
-                            <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
-                              <Archive size={48} />
-                            </div>
-                            <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                              {archivedNotebooks.length === 0 ? 'No archived notebooks' : 'No archived notebooks found'}
-                            </h3>
-                            <p className="text-gray-500 dark:text-gray-400 mb-4">
-                              {archivedNotebooks.length === 0
-                                ? 'Archived notebooks will appear here'
-                                : 'Try adjusting your search or filter criteria.'
-                              }
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <NotebookList
-                          notebooks={filteredArchivedNotebooks}
-                          selectedNotebook={selectedNotebook}
-                          editingNotebook={editingNotebook}
-                          newNotebookName={newNotebookName}
-                          onNotebookSelect={handleNotebookSelect}
-                          onAddNotebook={handleAddNotebook}
-                          onUpdateNotebook={handleUpdateNotebook}
-                          onDeleteNotebook={handleDeleteNotebook}
-                          onStartEditingNotebook={handleStartEditingNotebook}
-                          onCancelEditingNotebook={handleCancelEditingNotebook}
-                          onNotebookNameChange={setNewNotebookName}
-                          onCreateNotebook={handleCreateNotebookDirect}
-                          onArchiveNotebook={handleArchiveNotebook}
-                          onColorChange={handleOpenColorPicker}
-                          onToggleFavorite={handleToggleFavorite}
-                          onBulkDelete={handleBulkDeleteNotebooks}
-                          showBulkDeleteButton={false}
-                          onOpenBulkDeleteModal={bulkDeleteModalRef}
-                          notebookSearchTerm={notebookSearchTerm}
-                          onNotebookSearchTermChange={setNotebookSearchTerm}
-                          totalCount={archivedNotebooks.length}
-                          showAddButton={false}
-                          listViewMode={notebookListViewMode}
-                        />
-                      )}
-                    </>
+                    <NotesArchive
+                      notebooks={filteredArchivedNotebooks}
+                      notes={filteredArchivedNotes}
+                      onArchiveNotebook={handleArchiveNotebook}
+                      onArchiveNote={handleArchiveNote}
+                      onDeleteNotebook={handleDeleteNotebook}
+                      onDeleteNote={(noteId) => {
+                        const note = archivedNotes.find((n) => n.id === noteId);
+                        if (note) handleRequestDeleteNote(note);
+                      }}
+                      onEditNotebook={handleStartEditingNotebook}
+                      activeFilter={archivedTypeFilter}
+                      setFilter={setArchivedTypeFilter}
+                    />
                   )}
                 </>
               )}
@@ -3197,57 +3173,7 @@ const Notes = () => {
                   listViewMode={noteListViewMode}
                 />
               )}
-              {currentView === 'notes' && activeTab === 'archived' && (
-                <>
-                  {filteredArchivedNotes.length === 0 ? (
-                    <div className="flex items-center justify-center h-full">
-                      <div className="text-center">
-                        <div className="flex justify-center text-gray-400 dark:text-gray-500 mb-4">
-                          <Archive size={48} />
-                        </div>
-                        <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                          {archivedNotes.length === 0 ? 'No archived notes' : 'No archived notes found'}
-                        </h3>
-                        <p className="text-gray-500 dark:text-gray-400 mb-4">
-                          {archivedNotes.length === 0
-                            ? 'Archived notes will appear here'
-                            : 'Try adjusting your search or filter criteria.'
-                          }
-                        </p>
-                      </div>
-                    </div>
-                  ) : (
-                    <NotesList
-                      selectedNotebook={selectedNotebook}
-                      notes={filteredArchivedNotes}
-                      isAddingNote={false}
-                      editingNote={null}
-                      noteTitle={newNote.title}
-                      noteContent={newNote.content}
-                      onStartAddingNote={handleStartAddingNote}
-                      onCancelAddingNote={handleCancelAddingNote}
-                      onAddNote={handleAddNote}
-                      onEditNote={handleEditNote}
-                      onCancelEditingNote={handleCancelEditingNote}
-                      onUpdateNote={handleUpdateNote}
-                      onDeleteNote={(noteId) => {
-                        const note = archivedNotes.find(n => n.id === noteId);
-                        if (note) handleRequestDeleteNote(note);
-                      }}
-                      onNoteTitleChange={(title) => setNewNote({ ...newNote, title })}
-                      onNoteContentChange={(content) => setNewNote({ ...newNote, content })}
-                      onUpdateNoteTitle={handleUpdateNoteTitle}
-                      onBulkDelete={handleBulkDeleteNotes}
-                      onArchiveNote={handleArchiveNote}
-                      onToggleImportant={handleToggleImportant}
-                      deletingNoteId={noteToDelete?.id || null}
-                      onSelectionChange={setSelectedForBulk}
-                      selectedForBulk={selectedForBulk}
-                      listViewMode={noteListViewMode}
-                    />
-                  )}
-                </>
-              )}
+
               {/* Fallback for debugging */}
               {currentView !== 'notebooks' && currentView !== 'notes' && (
                 <div className="flex items-center justify-center h-full">
