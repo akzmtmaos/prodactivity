@@ -43,5 +43,6 @@ export interface Message {
   sender?: User;
   status?: MessageStatus; // Only for client-side tracking
   attachments?: Attachment[]; // Array of attachments (images/files)
+  is_system?: boolean; // Server/room event such as member added, member removed, group renamed
 }
 

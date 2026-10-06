@@ -28,6 +28,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   const [imageGallery, setImageGallery] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const isOwnMessage = String(message.sender_id) === currentUserId;
+  const isSystemMessage = !!(message.is_system || String(message.sender_id) === 'system');
 
   // Parse shared item from message content
   const parseSharedItem = (content: string) => {
@@ -112,9 +113,18 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
+  const systemContent = isSystemMessage ? message.content : message.content;
+
   return (
     <>
-      {showDateSeparator && (
+      {isSystemMessage && (
+        <div className="flex justify-center my-3 py-1">
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-800/60 px-3 py-1 rounded-full border border-gray-200 dark:border-gray-700/60">
+            {systemContent}
+          </span>
+        </div>
+      )}
+      {showDateSeparator && !isSystemMessage && (
         <div className="flex justify-center my-4">
           <span className="text-xs text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-3 py-1 rounded-full">
             {messageDate.toLocaleDateString('en-US', {
@@ -126,7 +136,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           </span>
         </div>
       )}
-      <div className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
+      {!isSystemMessage && (
+        <div className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
         {showAvatar && !isOwnMessage && (
           <MessageAvatar 
             avatar={avatarToUse}
@@ -364,6 +375,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
           </div>
         </div>
       </div>
+      )}
 
       {/* Expanded Image Modal - rendered in portal so it appears above the header */}
       {expandedImage && imageGallery.length > 0 && createPortal(
@@ -436,4 +448,3 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 };
 
 export default MessageBubble;
-

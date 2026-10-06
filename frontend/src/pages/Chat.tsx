@@ -20,7 +20,6 @@ import {
   type Attachment,
   getAvatarUrl,
 } from '../components/chat';
-import type { FriendItem } from '../components/chat/FriendsList';
 
 const Chat = () => {
   const { isCollapsed } = useNavbar();
@@ -29,8 +28,7 @@ const Chat = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeView, setActiveView] = useState<'chats' | 'friends' | 'groups'>('chats');
-  const [followingList, setFollowingList] = useState<FriendItem[]>([]);
+  const [activeView, setActiveView] = useState<'chats' | 'groups'>('chats');
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -45,6 +43,7 @@ const Chat = () => {
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  const [pendingAddSnapshotParticipantIds, setPendingAddSnapshotParticipantIds] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -84,7 +83,6 @@ const Chat = () => {
   useEffect(() => {
     if (user?.id) {
       fetchChatRooms();
-      fetchFollowing();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
@@ -289,26 +287,6 @@ const Chat = () => {
     }
   };
 
-  const fetchFollowing = async () => {
-    try {
-      const res = await axiosInstance.get('/following/');
-      const list = res.data?.following || [];
-      setFollowingList(
-        list.map((item: any) => ({
-          id: item.id,
-          username: item.username,
-          avatar: item.avatar,
-          school: item.school,
-          course: item.course,
-          bio: item.bio,
-        }))
-      );
-    } catch (err) {
-      console.error('Error fetching following:', err);
-      setFollowingList([]);
-    }
-  };
-
   const getMessagesForRoom = useCallback(async (roomId: string, room: ChatRoom | null): Promise<Message[]> => {
     const { data: messagesData, error } = await supabase
       .from('messages')
@@ -347,15 +325,18 @@ const Chat = () => {
 
     return (messagesData || []).map((msg: any) => {
       const senderId = String(msg.sender_id);
-      let sender = processedSenders?.find((s: User) => String(s.id) === senderId);
-      if (!sender) sender = participantMap.get(senderId);
+      const isSystemRow = senderId === 'system';
       const { text, attachments } = parseAttachmentsFromContent(msg.content || '');
       return {
         ...msg,
         sender_id: senderId,
         content: text,
         attachments: attachments || undefined,
-        sender: sender || undefined
+        sender: isSystemRow
+          ? SYSTEM_SENDER
+          : (processedSenders?.find((s: User) => String(s.id) === senderId) ||
+             participantMap.get(senderId) || undefined),
+        is_system: isSystemRow || !!msg.is_system,
       };
     });
   }, []);
@@ -575,6 +556,60 @@ const Chat = () => {
     }
   };
 
+  const SYSTEM_SENDER: User = {
+    id: 'system',
+    username: 'Group',
+    email: '',
+    avatar: null,
+  };
+
+  const postGroupSystemEvent = async (
+    roomId: string,
+    text: string,
+  ): Promise<Message | null> => {
+    if (!user?.id) return null;
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .insert({
+          room_id: roomId,
+          sender_id: 'system',
+          content: text,
+          status: 'sent',
+        })
+        .select('*');
+      if (error) {
+        console.error('[system event] insert error:', error?.message || error, { roomId, text });
+        return null;
+      }
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row) {
+        console.error('[system event] no row returned after insert', { roomId, text });
+        return null;
+      }
+      return {
+        ...row,
+        id: String(row.id),
+        sender_id: String(row.sender_id),
+        content: row.content,
+        created_at: row.created_at,
+        is_edited: !!row.is_edited,
+        is_deleted: !!row.is_deleted,
+        sender: SYSTEM_SENDER,
+        status: 'sent' as const,
+        is_system: true,
+      };
+    } catch (err: any) {
+      console.error('Error posting group system event:', err);
+      return null;
+    }
+  };
+
+  const resolveParticipantDisplayName = (participant: User | undefined): string => {
+    if (!participant) return 'someone';
+    return participant.username || participant.email || 'someone';
+  };
+
   const createGroupChat = async (name: string, memberIds: string[]) => {
     if (!user?.id) return;
     const currentUserId = String(user.id);
@@ -645,16 +680,26 @@ const Chat = () => {
   // Updates group name and/or avatar. Requires chat_rooms.avatar_url column for photo (run: ALTER TABLE chat_rooms ADD COLUMN IF NOT EXISTS avatar_url TEXT;)
   const updateGroupRoom = async (id: string, updates: { name?: string; avatar_url?: string | null }) => {
     try {
+      const prevRoom = selectedRoom;
+      const previousName = prevRoom?.name ?? null;
+      const newRoomName = updates.name?.trim() || null;
+      const didRename = !!(updates.name && newRoomName !== previousName);
+
       const { error } = await supabase
         .from('chat_rooms')
         .update(updates)
         .eq('id', id);
       if (error) throw error;
+
       setSelectedRoom((prev) => {
         if (!prev || prev.id !== id) return prev;
         return { ...prev, ...updates };
       });
       await fetchChatRooms();
+
+      if (didRename && selectedRoom) {
+        await postGroupSystemEvent(selectedRoom.id, `Group renamed to ${newRoomName}`);
+      }
     } catch (err: any) {
       const msg = err?.message || 'Failed to update group';
       setToast({ message: msg, type: 'error' });
@@ -691,6 +736,12 @@ const Chat = () => {
       setToast({ message: 'You cannot remove yourself', type: 'error' });
       return;
     }
+    const removedProfile = (selectedRoom?.participants || [])
+      .find((p) => String(p.id) === userId);
+    const username = resolveParticipantDisplayName(removedProfile);
+    if (!confirm(`Remove ${username} from this group?`)) {
+      return;
+    }
     try {
       const { error } = await supabase
         .from('room_participants')
@@ -699,7 +750,15 @@ const Chat = () => {
         .eq('user_id', userId);
       if (error) throw error;
       await refreshSelectedRoomParticipants();
-      setToast({ message: 'Member removed', type: 'success' });
+      if (selectedRoom) {
+        const removedProfile = (selectedRoom.participants || [])
+          .find((p) => String(p.id) === userId);
+        const username = resolveParticipantDisplayName(removedProfile);
+        await postGroupSystemEvent(
+          selectedRoom.id,
+          `${username} was removed from the group`,
+        );
+      }
     } catch (err: any) {
       setToast({ message: err?.message || 'Failed to remove member', type: 'error' });
       throw err;
@@ -849,7 +908,6 @@ const Chat = () => {
       setIsCreatingRoom(false);
     }
   };
-
 
   // Handler for room selection that also updates URL
   const handleRoomSelect = (room: ChatRoom | null) => {
@@ -1357,23 +1415,9 @@ const Chat = () => {
     return name.includes(search) || participantNames.includes(search);
   });
 
-  const filteredFriends = followingList.filter((friend) => {
-    const search = searchTerm.toLowerCase().trim();
-    if (!search) return true;
-    const username = friend.username?.toLowerCase() || '';
-    const school = friend.school?.toLowerCase() || '';
-    const course = friend.course?.toLowerCase() || '';
-    return username.includes(search) || school.includes(search) || course.includes(search);
-  });
-
   if (!user) {
     return null;
   }
-
-  const handleFriendClick = (username: string) => {
-    setViewingProfile(null);
-    handleStartChat(username, { keepView: true });
-  };
 
   return (
     <>
@@ -1383,14 +1427,13 @@ const Chat = () => {
             activeView={activeView}
             searchTerm={searchTerm}
             filteredChatRooms={filteredChatRooms}
-            filteredFriends={filteredFriends}
             selectedRoom={selectedRoom}
             currentUserId={String(user.id)}
             onViewChange={setActiveView}
             onSearchChange={setSearchTerm}
             onRoomSelect={handleRoomSelect}
-            onFriendSelect={handleFriendClick}
             onCreateGroupClick={() => setShowCreateGroupModal(true)}
+            loading={loading}
           />
 
           <div className="flex-1 flex flex-col transition-opacity duration-200 h-full min-w-0">
@@ -1399,7 +1442,14 @@ const Chat = () => {
                 <ChatHeader
                   room={selectedRoom}
                   currentUserId={String(user.id)}
-                  onAddMembers={selectedRoom.room_type === 'group' ? () => setShowAddMembersModal(true) : undefined}
+                  onAddMembers={selectedRoom?.room_type === 'group'
+                    ? () => {
+                        setPendingAddSnapshotParticipantIds(
+                          (selectedRoom.participants || []).map((p) => String(p.id)),
+                        );
+                        setShowAddMembersModal(true);
+                      }
+                    : undefined}
                 />
                 
                 <MessagesList
@@ -1476,7 +1526,34 @@ const Chat = () => {
           roomName={selectedRoom.name || 'Group'}
           currentUserId={String(user.id)}
           currentParticipantIds={(selectedRoom.participants || []).map((p) => String(p.id))}
-          onAdded={refreshSelectedRoomParticipants}
+          onAdded={async () => {
+            await refreshSelectedRoomParticipants();
+            if (!selectedRoom) return;
+            const before = new Set(pendingAddSnapshotParticipantIds.map(String));
+            const after = new Set((selectedRoom.participants || []).map((p) => String(p.id)));
+            const addedIds = Array.from(after).filter((id) => !before.has(id));
+            setShowAddMembersModal(false);
+            setPendingAddSnapshotParticipantIds([]);
+            if (addedIds.length === 0) return;
+            const { data: addedProfiles } = await supabase
+              .from('profiles')
+              .select('id, username, email, avatar')
+              .in('id', addedIds)
+              .limit(50);
+            const profiles = Array.isArray(addedProfiles) ? addedProfiles : [];
+            for (const profile of profiles) {
+              const username = resolveParticipantDisplayName({
+                id: String(profile.id),
+                username: profile.username || '',
+                email: profile.email || '',
+                avatar: getAvatarUrl(profile.avatar),
+              });
+              await postGroupSystemEvent(
+                selectedRoom.id,
+                `${username} was added to the group`,
+              );
+            }
+          }}
         />
       )}
       {toast && (

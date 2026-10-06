@@ -64,7 +64,8 @@ const MessagesList: React.FC<MessagesListProps> = ({
     >
       {messages.map((message, index) => {
         const prevMessage = index > 0 ? messages[index - 1] : null;
-        const showAvatar = !prevMessage || String(prevMessage.sender_id) !== String(message.sender_id);
+        const isSystemMessage = !!(message.is_system || String(message.sender_id) === 'system');
+        const showAvatar = !isSystemMessage && ( !prevMessage || String(prevMessage.sender_id) !== String(message.sender_id) );
         const messageDate = new Date(message.created_at);
         const prevMessageDate = prevMessage ? new Date(prevMessage.created_at) : null;
         const showDateSeparator = !prevMessageDate || 

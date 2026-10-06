@@ -9,6 +9,7 @@ interface ChatListProps {
   currentUserId: string;
   onRoomSelect: (room: ChatRoom) => void;
   emptyStateSubtext?: string;
+  loading?: boolean;
 }
 
 const ChatList: React.FC<ChatListProps> = ({
@@ -16,8 +17,33 @@ const ChatList: React.FC<ChatListProps> = ({
   selectedRoom,
   currentUserId,
   onRoomSelect,
-  emptyStateSubtext = 'Find friends from the search bar in the sidebar',
+  emptyStateSubtext = 'No chats yet',
+  loading = false,
 }) => {
+  if (loading && rooms.length === 0) {
+    return (
+      <div
+        className="divide-y divide-gray-200 dark:divide-gray-700 px-1 py-0.5 min-w-0"
+        aria-live="polite"
+        aria-label="Loading chats"
+      >
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div
+            key={index}
+            className="flex items-center gap-3 px-3 py-2.5 min-h-[52px] animate-pulse"
+            aria-hidden="true"
+          >
+            <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-200 dark:bg-gray-700" />
+            <div className="flex-1 min-w-0 flex flex-col justify-center gap-1.5">
+              <div className="h-3 w-1/3 rounded bg-gray-200 dark:bg-gray-700" />
+              <div className="h-2.5 w-2/3 rounded bg-gray-100 dark:bg-gray-800" />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   if (rooms.length === 0) {
     return (
       <div className="divide-y divide-gray-200 dark:divide-gray-700">

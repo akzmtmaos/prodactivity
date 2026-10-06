@@ -1,42 +1,38 @@
 import React from 'react';
-import { MessageCircle, Search, Users, Plus, UserPlus } from 'lucide-react';
+import { MessageCircle, Search, Users, Plus } from 'lucide-react';
 import ChatList from './ChatList';
-import FriendsList, { type FriendItem } from './FriendsList';
 import { ChatRoom } from './types';
 
 interface ChatSidebarProps {
-  activeView: 'chats' | 'friends' | 'groups';
+  activeView: 'chats' | 'groups';
   searchTerm: string;
   filteredChatRooms: ChatRoom[];
-  filteredFriends: FriendItem[];
   selectedRoom: ChatRoom | null;
   currentUserId: string;
-  onViewChange: (view: 'chats' | 'friends' | 'groups') => void;
+  onViewChange: (view: 'chats' | 'groups') => void;
   onSearchChange: (term: string) => void;
   onRoomSelect: (room: ChatRoom | null) => void;
-  onFriendSelect: (username: string) => void;
   onCreateGroupClick?: () => void;
+  loading?: boolean;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({
   activeView,
   searchTerm,
   filteredChatRooms,
-  filteredFriends,
   selectedRoom,
   currentUserId,
   onViewChange,
   onSearchChange,
   onRoomSelect,
-  onFriendSelect,
   onCreateGroupClick,
+  loading = false,
 }) => {
-  const placeholder =
-    activeView === 'chats' ? 'Search chats...' : activeView === 'friends' ? 'Search friends...' : 'Search groups...';
+  const placeholder = activeView === 'chats' ? 'Search chats...' : 'Search groups...';
 
   return (
     <div className="w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-      {/* Tabs – Chats (1), Friends (2), Groups (3) */}
+      {/* Tabs – Chats (1), Groups (2) */}
       <div className="flex border-b border-gray-200 dark:border-gray-700">
         <button
           onClick={() => {
@@ -51,20 +47,6 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
         >
           <MessageCircle size={14} />
           Chats
-        </button>
-        <button
-          onClick={() => {
-            onViewChange('friends');
-            onRoomSelect(null);
-          }}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
-            activeView === 'friends'
-              ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20'
-              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-          }`}
-        >
-          <UserPlus size={14} />
-          Friends
         </button>
         <button
           onClick={() => onViewChange('groups')}
@@ -105,25 +87,17 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
       {/* List */}
       <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
-        {activeView === 'friends' ? (
-          <FriendsList
-            friends={filteredFriends}
-            onStartChat={onFriendSelect}
-            emptyStateSubtext="Find friends from the navbar to follow, then they’ll appear here."
-          />
-        ) : (
-          <ChatList
-            rooms={filteredChatRooms}
-            selectedRoom={selectedRoom}
-            currentUserId={currentUserId}
-            onRoomSelect={onRoomSelect}
-            emptyStateSubtext={activeView === 'groups' ? 'No group chats yet' : 'Find friends from the search bar in the sidebar'}
-          />
-        )}
+        <ChatList
+          rooms={filteredChatRooms}
+          selectedRoom={selectedRoom}
+          currentUserId={currentUserId}
+          onRoomSelect={onRoomSelect}
+          emptyStateSubtext={activeView === 'groups' ? 'No group chats yet' : 'No chats yet'}
+          loading={loading}
+        />
       </div>
     </div>
   );
 };
 
 export default ChatSidebar;
-
