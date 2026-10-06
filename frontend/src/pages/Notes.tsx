@@ -611,6 +611,10 @@ const Notes = () => {
     // Save to localStorage to preserve selection across hot reloads
     localStorage.setItem('lastSelectedNotebookId', String(notebook.id));
     
+    // Reset activeTab to 'notes' so we don't accidentally stay in the archived tab
+    // when navigating from the archive view to a notebook's notes.
+    setActiveTab('notes');
+    
     fetchNotes(notebook.id);
     setSearchTerm('');
     setSelectedForBulk([]); // Clear selection when selecting a different notebook
@@ -2712,6 +2716,10 @@ const Notes = () => {
     // so that archived notes are fetched and the NotesArchive component receives data.
     if (activeNotebookTab === 'archived' && activeTab !== 'archived') {
       setActiveTab('archived');
+    } else if (activeNotebookTab !== 'archived' && activeTab === 'archived') {
+      // Leaving the archive tab: reset activeTab so we don't accidentally show the
+      // archive search/toolbar while in the notebooks or notes view.
+      setActiveTab('notes');
     }
     if (activeNotebookTab === 'archived') {
       fetchArchivedNotebooks();
