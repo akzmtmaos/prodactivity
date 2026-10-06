@@ -11,6 +11,7 @@ interface MessagesListProps {
   messagesContainerRef: React.RefObject<HTMLDivElement | null>;
   isLoading: boolean;
   loadingLabel?: string;
+  onDeleteMessage?: (messageId: string) => void;
 }
 
 const MessagesList: React.FC<MessagesListProps> = ({
@@ -80,6 +81,7 @@ const MessagesList: React.FC<MessagesListProps> = ({
             selectedRoom={selectedRoom}
             showAvatar={showAvatar}
             showDateSeparator={showDateSeparator}
+            onDeleteMessage={onDeleteMessage}
           />
         );
       })}

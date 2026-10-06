@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import MessageAvatar from './MessageAvatar';
 import { Message, ChatRoom, User } from './types';
 import { getAvatarUrl } from './utils';
-import { File, Download, X, FileText, BookOpen, ClipboardList, CheckSquare } from 'lucide-react';
+import { File, Download, X, FileText, BookOpen, ClipboardList, CheckSquare, MoreVertical, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface MessageBubbleProps {
@@ -13,6 +13,7 @@ interface MessageBubbleProps {
   selectedRoom: ChatRoom | null;
   showAvatar: boolean;
   showDateSeparator: boolean;
+  onDeleteMessage?: (messageId: string) => void;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
@@ -25,6 +26,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
 }) => {
   const navigate = useNavigate();
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
   const [imageGallery, setImageGallery] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const isOwnMessage = String(message.sender_id) === currentUserId;
@@ -66,6 +69,17 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       document.body.classList.remove('image-modal-active');
     };
   }, [expandedImage]);
+
+  // Close more menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
+        setShowMoreMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Set image gallery when opening modal
   const handleImageClick = (url: string) => {
@@ -354,7 +368,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 )}
               </div>
             ) : null}
-          <div className="flex items-center gap-2 mt-1">
+          <div className="flex items-center gap-2 mt-1 relative">
             <span className="text-xs text-gray-500 dark:text-gray-400">
               {messageDate.toLocaleTimeString('en-US', {
                 hour: '2-digit',
@@ -371,6 +385,36 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               }`}>
                 {message.status === 'sending' ? 'Sending...' : message.status === 'failed' ? 'Failed' : 'Sent'}
               </span>
+            )}
+            {/* Triple dot action menu (own messages only) */}
+            {isOwnMessage && (
+              <div className="relative" ref={moreMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setShowMoreMenu(prev => !prev)}
+                  className="flex-shrink-0 p-1 rounded-md text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  aria-label="More options"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+                {showMoreMenu && (
+                  <div
+                    className="absolute right-0 top-full z-50 min-w-[140px] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-1 text-sm"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        if (onDeleteMessage) onDeleteMessage(message.id);
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Delete message
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </div>

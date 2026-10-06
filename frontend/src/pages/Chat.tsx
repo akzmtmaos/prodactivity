@@ -1413,6 +1413,32 @@ const Chat = () => {
     }
   };
 
+  // Delete a message (only own messages)
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!user?.id || !selectedRoom) return;
+    const currentUserId = String(user.id);
+    const msg = messages.find(m => m.id === messageId);
+    if (!msg) return;
+    // Only allow deleting own messages
+    if (String(msg.sender_id) !== currentUserId) {
+      setToast({ message: 'You can only delete your own messages', type: 'error' });
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({ is_deleted: true, content: '' })
+        .eq('id', messageId);
+      if (error) throw error;
+      // Optimistically remove from UI
+      setMessages(prev => prev.filter(m => m.id !== messageId));
+      setToast({ message: 'Message deleted', type: 'success' });
+    } catch (err: any) {
+      console.error('Error deleting message:', err);
+      setToast({ message: err?.message || 'Failed to delete message', type: 'error' });
+    }
+  };
+
   const baseRooms = chatRooms.filter((room) =>
     activeView === 'chats' ? room.room_type === 'direct' : room.room_type === 'group'
   );
@@ -1503,6 +1529,7 @@ const Chat = () => {
                   messagesContainerRef={messagesContainerRef}
                   isLoading={isLoadingMessages}
                   loadingLabel={openingChatWithUsername || undefined}
+                  onDeleteMessage={handleDeleteMessage}
                 />
 
                 <MessageInput
