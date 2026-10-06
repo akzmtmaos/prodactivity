@@ -21,6 +21,42 @@ button {
   cursor: pointer;
 }
 
+/* Hide browser scrollbar — scroll happens inside <main> */
+html, body {
+  overflow: hidden;
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  display: none;
+}
+
+/* Scrollbar styles for the inner scroll container (<main>) */
+main {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 #f1f1f1;
+}
+
+main::-webkit-scrollbar {
+  width: 8px;
+}
+
+main::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+main::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+}
+
+main::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
 /* Smooth Scroll */
 html {
   scroll-behavior: smooth;
@@ -129,7 +165,7 @@ html {
   border: 1px solid #333333;
 }
 
-/* Dark mode scrollbar */
+/* Dark mode scrollbar (global, e.g. NotesList internal scroll) */
 .dark ::-webkit-scrollbar-track {
   background: #1e1e1e;
 }
@@ -144,6 +180,24 @@ html {
 
 .dark * {
   scrollbar-color: #404040 #1e1e1e;
+}
+
+/* Dark mode scrollbar for inner scroll container (<main>) */
+.dark main {
+  scrollbar-width: thin;
+  scrollbar-color: #404040 #1e1e1e;
+}
+
+.dark main::-webkit-scrollbar-track {
+  background: #1e1e1e;
+}
+
+.dark main::-webkit-scrollbar-thumb {
+  background: #404040;
+}
+
+.dark main::-webkit-scrollbar-thumb:hover {
+  background: #525252;
 }
 
 /* ContentEditable Text Wrapping */

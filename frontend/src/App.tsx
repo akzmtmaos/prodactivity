@@ -47,10 +47,10 @@ const PrivateRoute = ({ isAuthenticated, children }: PrivateRouteProps) => {
   }
   
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
+    <div className="min-h-screen flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
       <Navbar setIsAuthenticated={() => {}} />
       <Header />
-      <main className="relative w-full">
+      <main className="flex-1 overflow-y-auto">
         {children}
       </main>
       <TimerWidget />
