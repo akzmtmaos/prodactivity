@@ -1,5 +1,6 @@
 // frontend/src/components/NotebookList.tsx
 import React, { useEffect, useRef, useState } from 'react';
+import { formatDistanceToNow } from 'date-fns';
 import { Plus, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette, Star, Search, Share2, Settings, AlertTriangle, Pencil } from 'lucide-react';
 import CreateNotebookModal from './CreateNotebookModal';
 import EditNotebookModal from './EditNotebookModal';
@@ -46,6 +47,10 @@ interface NotebookListProps {
   totalCount?: number;
   /** Discord-style list density: comfortable (default) or compact */
   listViewMode?: 'compact' | 'comfortable';
+  /** When provided, renders without the internal scroll container (parent supplies scrolling) */
+  containerClassName?: string;
+  /** When provided, renders these rows instead of `notebooks` (archive's merged All view) */
+  rows?: Notebook[];
 }
 
 const NotebookList: React.FC<NotebookListProps> = ({
@@ -71,7 +76,9 @@ const NotebookList: React.FC<NotebookListProps> = ({
   notebookSearchTerm = '',
   onNotebookSearchTermChange,
   totalCount,
-  listViewMode = 'comfortable'
+  listViewMode = 'comfortable',
+  containerClassName,
+  rows
 }) => {
   const editorRef = useRef<HTMLDivElement>(null);
   const [notebookToDelete, setNotebookToDelete] = useState<Notebook | null>(null);
@@ -132,6 +139,8 @@ const NotebookList: React.FC<NotebookListProps> = ({
   }, [openOptionsNotebookId]);
 
   const isCompact = listViewMode === 'compact';
+  // `rows` (archive merged view) takes precedence over `notebooks`
+  const displayNotebooks = rows ?? notebooks;
 
   /** One notebook per full-width row (compact list) */
   const renderCompactRow = (notebook: Notebook) => {
@@ -161,9 +170,10 @@ const NotebookList: React.FC<NotebookListProps> = ({
       >
         <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: notebook.color }} />
         <Book className={`flex-shrink-0 ${selected ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400'}`} size={18} />
+        <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 flex-shrink-0">NOTEBOOK</span>
         <span className={`font-medium truncate flex-1 min-w-0 text-sm ${selected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-800 dark:text-gray-200'}`}>{notebook.name}</span>
-        <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{notebook.notes_count} {notebook.notes_count === 1 ? 'note' : 'notes'}</span>
-        <div className="flex items-center gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
+        <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{formatDistanceToNow(new Date(notebook.archived_at ?? notebook.updated_at), { addSuffix: true })}</span>
+        <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
           {onToggleFavorite && !notebook.is_archived && (
             <button
               onClick={() => onToggleFavorite(notebook.id)}
@@ -219,13 +229,13 @@ const NotebookList: React.FC<NotebookListProps> = ({
   };
 
   return (
-    <div className="w-full h-full flex flex-col">
+    <div className={containerClassName || 'w-full h-full flex flex-col'}>
       {/* Notebooks list */}
       <div
-        className={`overflow-y-auto flex-1 ${isCompact ? 'flex flex-col gap-1' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}`}
+        className={`${!containerClassName ? 'overflow-y-auto flex-1' : ''} ${isCompact ? 'flex flex-col gap-1' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}`}
         style={isCompact ? undefined : { alignContent: 'start' }}
       >
-        {notebooks.length === 0 && (
+        {displayNotebooks.length === 0 && (
           <div className={isCompact ? 'py-8' : 'col-span-full'}>
             <div className="flex items-center justify-center h-40 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
               <div className="text-center">
@@ -235,7 +245,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
             </div>
           </div>
         )}
-        {isCompact ? notebooks.map(renderCompactRow) : notebooks.map((notebook) => (
+        {isCompact ? displayNotebooks.map(renderCompactRow) : displayNotebooks.map((notebook) => (
           <div key={notebook.id} className="group">
             {editingNotebook?.id === notebook.id ? (
               <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg min-h-[140px] w-full">
@@ -348,48 +358,64 @@ const NotebookList: React.FC<NotebookListProps> = ({
         ))}
       </div>
 
-      {/* Delete Notebook confirmation – same UI as Deck’s Delete Deck (icon in header only) */}
+      {/* Delete Notebook confirmation – matches Deck/Note/Reviewer delete modals (icon box in header, gray borders, no "Are you sure?") */}
       {notebookToDelete && (
-        <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50" style={{ margin: 0, padding: 0 }}>
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-xs z-[51]">
-            <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center">
-                <div className="p-1 bg-red-100 dark:bg-red-900/20 rounded-lg mr-2">
-                  <AlertTriangle size={16} className="text-red-600 dark:text-red-400" />
+        <div className="fixed inset-0 z-50 overflow-y-auto">
+          <div 
+            className="fixed inset-0 bg-black/30 dark:bg-black/60 transition-opacity"
+            onClick={() => setNotebookToDelete(null)}
+          />
+
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div className="relative transform overflow-hidden rounded-lg bg-white dark:bg-[#1a1a1a] text-left shadow-xl border border-gray-200 dark:border-[#2a2a2a] transition-all sm:w-full sm:max-w-md">
+              {/* Header */}
+              <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-200 dark:border-[#2a2a2a]">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FDE8E8] dark:bg-red-900/30 shrink-0">
+                    <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
+                  </div>
+                  <h2 className="text-base font-semibold leading-6 text-gray-900 dark:text-white">
+                    Delete Notebook
+                  </h2>
                 </div>
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Delete Notebook</h2>
+                <button
+                  onClick={() => setNotebookToDelete(null)}
+                  className="p-1 text-gray-400 dark:text-[#666666] hover:text-gray-600 dark:hover:text-[#888888] rounded-md hover:bg-gray-100 dark:hover:bg-[#242424] transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
               </div>
-              <button
-                onClick={() => setNotebookToDelete(null)}
-                className="p-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            <div className="p-4">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">Are you sure?</h3>
-              <p className="text-gray-600 dark:text-gray-400 text-sm m-0">
-                Delete <span className="font-medium">"{notebookToDelete.name}"</span>? This will also delete all notes in this notebook.
-              </p>
-            </div>
-            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setNotebookToDelete(null)}
-                className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium text-sm transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  onDeleteNotebook(notebookToDelete.id);
-                  setNotebookToDelete(null);
-                }}
-                className="flex-1 px-2 py-1 bg-red-600 text-white rounded font-medium text-sm flex items-center justify-center gap-1 hover:bg-red-700 transition-colors"
-              >
-                <Trash2 size={14} />
-                Delete
-              </button>
+
+              {/* Body */}
+              <div className="px-5 py-4">
+                <p className="text-sm text-gray-600 dark:text-white/80">
+                  Delete <span className="font-medium text-gray-900 dark:text-white">"{notebookToDelete.name}"</span>? This will also delete all notes in this notebook.
+                </p>
+              </div>
+
+              {/* Body divider */}
+              <div className="h-px border-t border-gray-200 dark:border-[#2a2a2a] px-5" />
+
+              {/* Footer */}
+              <div className="flex items-center justify-end gap-2 px-5 py-3">
+                <button
+                  type="button"
+                  onClick={() => setNotebookToDelete(null)}
+                  className="px-2.5 py-1.5 text-xs text-gray-700 dark:text-white border border-gray-300 dark:border-[#333333] rounded-md font-medium bg-white dark:bg-[#242424] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    onDeleteNotebook(notebookToDelete.id);
+                    setNotebookToDelete(null);
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 dark:bg-[#e60000] dark:hover:bg-[#c20000] transition-colors"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete
+                </button>
+              </div>
             </div>
           </div>
         </div>

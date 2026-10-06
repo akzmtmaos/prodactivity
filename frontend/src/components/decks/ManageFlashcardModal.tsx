@@ -97,7 +97,7 @@ const ManageFlashcards: React.FC<ManageFlashcardsProps> = ({
                 setSelectedFlashcardsForDelete([]);
                 setShowBulkDeleteModal(true);
               }}
-              className="px-2 h-7 text-xs border border-red-200 dark:border-red-700 rounded-lg bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center gap-1.5"
+              className="px-2.5 h-7 text-xs rounded-md bg-red-600 text-white hover:bg-red-700 dark:bg-[#b55353] dark:hover:bg-[#c76363] transition-colors flex items-center justify-center gap-1.5"
               aria-label="Delete multiple cards"
               title="Delete multiple cards"
             >

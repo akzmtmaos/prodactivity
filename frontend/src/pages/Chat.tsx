@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import Toast from '../components/common/Toast';
+import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import { useNavbar } from '../context/NavbarContext';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import axiosInstance from '../utils/axiosConfig';
@@ -44,6 +45,8 @@ const Chat = () => {
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
   const [pendingAddSnapshotParticipantIds, setPendingAddSnapshotParticipantIds] = useState<string[]>([]);
+  const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
+  const [pendingRemoveTarget, setPendingRemoveTarget] = useState<{ roomId: string; userId: string; username: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const messagesContainerRef = useRef<HTMLDivElement | null>(null);
   const subscriptionRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
@@ -300,21 +303,33 @@ const Chat = () => {
       return [];
     }
 
-    const senderIds = Array.from(new Set(messagesData?.map((m: any) => String(m.sender_id)) || []));
-    if (senderIds.length === 0) return (messagesData || []) as Message[];
+    const rawSenderIds = Array.from(new Set(messagesData?.map((m: any) => String(m.sender_id)) || []));
+    if (rawSenderIds.length === 0) return (messagesData || []) as Message[];
 
-    const { data: senders, error: sendersError } = await supabase
-      .from('profiles')
-      .select('id, username, email, avatar')
-      .in('id', senderIds);
+    const systemIds = rawSenderIds.filter((id) => id === 'system');
+    const integerLikeIds = rawSenderIds.filter((id) => id !== 'system' && /^-?\d+$/.test(id));
 
-    if (sendersError) console.error('Error fetching senders:', sendersError);
+    let processedSenders: Array<{ id: string; username?: string; email?: string; avatar?: string | null }> = [];
+    if (integerLikeIds.length > 0) {
+      const { data: senders, error: sendersError } = await supabase
+        .from('profiles')
+        .select('id, username, email, avatar')
+        .in('id', integerLikeIds);
 
-    const processedSenders = (senders || []).map((s: any) => ({
-      ...s,
-      id: String(s.id),
-      avatar: getAvatarUrl(s.avatar)
-    }));
+      if (sendersError) {
+        console.warn('Error fetching senders (non-fatal):', sendersError?.message || sendersError);
+      } else {
+        processedSenders = (senders || []).map((s: any) => ({
+          ...s,
+          id: String(s.id),
+          avatar: getAvatarUrl(s.avatar)
+        }));
+      }
+    }
+
+    if (systemIds.length > 0) {
+      processedSenders.push({ id: 'system', username: 'Group', email: '', avatar: null });
+    }
 
     const participantMap = new Map<string, User>();
     if (room?.participants) {
@@ -472,35 +487,42 @@ const Chat = () => {
           
           // Fetch sender details asynchronously if not available from participants
           if (!senderData) {
-            (async () => {
-              try {
-                const { data: sender } = await supabase
-                  .from('profiles')
-                  .select('id, username, email, avatar')
-                  .eq('id', newMsg.sender_id)
-                  .single();
-                
-                if (sender) {
-                  const enrichedSender = {
-                    ...sender,
-                    avatar: getAvatarUrl(sender.avatar)
-                  };
-                  
-                  setMessages(prevMsgs => {
-                    return prevMsgs.map(msg => 
-                      msg.id === newMsg.id 
-                        ? {
-                            ...msg,
-                            sender: enrichedSender
-                          }
-                        : msg
-                    );
-                  });
-                }
-              } catch (err: any) {
-                console.error('Error fetching sender details:', err);
+            const senderId = String(newMsg.sender_id ?? '');
+            if (senderId === 'system' || !/^-?\d+$/.test(senderId)) {
+              const fallbackSender = senderId === 'system' ? SYSTEM_SENDER : undefined;
+              if (fallbackSender) {
+                setMessages((prevMsgs) =>
+                  prevMsgs.map((msg) =>
+                    msg.id === newMsg.id ? { ...msg, sender: fallbackSender } : msg
+                  )
+                );
               }
-            })();
+            } else {
+              (async () => {
+                try {
+                  const { data: sender } = await supabase
+                    .from('profiles')
+                    .select('id, username, email, avatar')
+                    .eq('id', senderId)
+                    .single();
+
+                  if (sender) {
+                    const enrichedSender = {
+                      ...sender,
+                      avatar: getAvatarUrl(sender.avatar),
+                    };
+
+                    setMessages((prevMsgs) =>
+                      prevMsgs.map((msg) =>
+                        msg.id === newMsg.id ? { ...msg, sender: enrichedSender } : msg
+                      )
+                    );
+                  }
+                } catch (err: any) {
+                  console.warn('Error fetching sender details (non-fatal):', err?.message || err);
+                }
+              })();
+            }
           }
           
           markAsRead(roomId);
@@ -568,6 +590,7 @@ const Chat = () => {
     text: string,
   ): Promise<Message | null> => {
     if (!user?.id) return null;
+    console.log('[system event] posting:', { roomId, text });
     try {
       const { data, error } = await supabase
         .from('messages')
@@ -575,7 +598,6 @@ const Chat = () => {
           room_id: roomId,
           sender_id: 'system',
           content: text,
-          status: 'sent',
         })
         .select('*');
       if (error) {
@@ -587,6 +609,7 @@ const Chat = () => {
         console.error('[system event] no row returned after insert', { roomId, text });
         return null;
       }
+      console.log('[system event] posted ok:', { rowId: row.id, roomId, text });
       return {
         ...row,
         id: String(row.id),
@@ -698,7 +721,9 @@ const Chat = () => {
       await fetchChatRooms();
 
       if (didRename && selectedRoom) {
-        await postGroupSystemEvent(selectedRoom.id, `Group renamed to ${newRoomName}`);
+        console.log('[system event] rename triggering:', { roomId: selectedRoom.id, newRoomName });
+        const renamed = await postGroupSystemEvent(selectedRoom.id, `Group renamed to ${newRoomName}`);
+        console.log('[system event] rename result:', { posted: !!renamed });
       }
     } catch (err: any) {
       const msg = err?.message || 'Failed to update group';
@@ -739,9 +764,18 @@ const Chat = () => {
     const removedProfile = (selectedRoom?.participants || [])
       .find((p) => String(p.id) === userId);
     const username = resolveParticipantDisplayName(removedProfile);
-    if (!confirm(`Remove ${username} from this group?`)) {
-      return;
-    }
+
+    setPendingRemoveTarget({ roomId, userId, username });
+    setShowRemoveConfirm(true);
+  };
+
+  const handleConfirmRemoveMember = async () => {
+    const target = pendingRemoveTarget;
+    setShowRemoveConfirm(false);
+    setPendingRemoveTarget(null);
+    if (!target) return;
+
+    const { roomId, userId, username } = target;
     try {
       const { error } = await supabase
         .from('room_participants')
@@ -753,11 +787,13 @@ const Chat = () => {
       if (selectedRoom) {
         const removedProfile = (selectedRoom.participants || [])
           .find((p) => String(p.id) === userId);
-        const username = resolveParticipantDisplayName(removedProfile);
-        await postGroupSystemEvent(
+        const removedUsername = resolveParticipantDisplayName(removedProfile);
+        console.log('[system event] remove triggering:', { roomId: selectedRoom.id, removedUsername });
+        const removed = await postGroupSystemEvent(
           selectedRoom.id,
-          `${username} was removed from the group`,
+          `${removedUsername} was removed from the group`,
         );
+        console.log('[system event] remove result:', { posted: !!removed });
       }
     } catch (err: any) {
       setToast({ message: err?.message || 'Failed to remove member', type: 'error' });
@@ -951,9 +987,11 @@ const Chat = () => {
     }
   };
 
-  // When URL has /chat/group/:roomId, select that group room (avoid replacing same room with new ref so messages don't clear)
+  // When URL has /chat/group/:roomId, select that group room (avoid replacing same room with new ref so messages don't clear).
+  // Runs on mount and again whenever chatRooms is populated so a page refresh landing on /chat/group/:roomId stays in the group.
   useEffect(() => {
     if (!roomId || !user?.id) return;
+    if (!chatRooms.length) return; // wait until rooms are loaded
     const existing = chatRooms.find((r) => r.id === roomId && r.room_type === 'group');
     if (existing) {
       setSelectedRoom((prev) => (prev?.id === existing.id ? prev : existing));
@@ -962,9 +1000,13 @@ const Chat = () => {
     }
   }, [roomId, user?.id, chatRooms]);
 
-  // Handle URL parameter to automatically start/open chat with user (e.g. from profile page Message button)
+  // Handle URL parameter to automatically start/open chat with user (e.g. from profile page Message button).
+  // Waits for chatRooms to load so a page refresh on /chat/:userId can re-select the existing direct room.
   useEffect(() => {
     if (!userId || !user?.id) return;
+
+    // Defer until rooms are loaded; on a fresh refresh chatRooms starts empty.
+    if (!chatRooms.length) return;
 
     // Check if we already have this room in our list
     const existingRoom = chatRooms.find(room => {
@@ -1008,9 +1050,10 @@ const Chat = () => {
     })();
   }, [userId, user?.id, chatRooms]);
 
-  // Clear URL when room is cleared
+  // Clear URL only when there is no URL param pointing at a room and no room is selected.
+  // On a refresh we must not force-navigate back to /chat while the room-selection effects are still running.
   useEffect(() => {
-    if (selectedRoom === null && (userId || roomId)) {
+    if (selectedRoom === null && !userId && !roomId) {
       navigate('/chat', { replace: true });
     }
   }, [selectedRoom, userId, roomId]);
@@ -1499,7 +1542,9 @@ const Chat = () => {
                 await updateGroupRoom(selectedRoom.id, updates);
               }}
               onPhotoChange={async (file) => uploadGroupPhoto(selectedRoom.id, file)}
-              onAddMembers={() => setShowAddMembersModal(true)}
+              onAddMembers={() => {
+                setShowAddMembersModal(true);
+              }}
               onRemoveMember={
                 selectedRoom.created_by && String(selectedRoom.created_by) === String(user.id)
                   ? (userId) => removeGroupMember(selectedRoom.id, userId)
@@ -1526,36 +1571,45 @@ const Chat = () => {
           roomName={selectedRoom.name || 'Group'}
           currentUserId={String(user.id)}
           currentParticipantIds={(selectedRoom.participants || []).map((p) => String(p.id))}
-          onAdded={async () => {
+          onAdded={async (addedEmails) => {
+            setShowAddMembersModal(false);
             await refreshSelectedRoomParticipants();
             if (!selectedRoom) return;
-            const before = new Set(pendingAddSnapshotParticipantIds.map(String));
-            const after = new Set((selectedRoom.participants || []).map((p) => String(p.id)));
-            const addedIds = Array.from(after).filter((id) => !before.has(id));
-            setShowAddMembersModal(false);
-            setPendingAddSnapshotParticipantIds([]);
-            if (addedIds.length === 0) return;
-            const { data: addedProfiles } = await supabase
-              .from('profiles')
-              .select('id, username, email, avatar')
-              .in('id', addedIds)
-              .limit(50);
-            const profiles = Array.isArray(addedProfiles) ? addedProfiles : [];
-            for (const profile of profiles) {
-              const username = resolveParticipantDisplayName({
-                id: String(profile.id),
-                username: profile.username || '',
-                email: profile.email || '',
-                avatar: getAvatarUrl(profile.avatar),
-              });
-              await postGroupSystemEvent(
-                selectedRoom.id,
-                `${username} was added to the group`,
-              );
+            const emails = Array.isArray(addedEmails) ? addedEmails : [];
+            if (emails.length === 0) {
+              console.log('[system event] add: no emails provided');
+              return;
             }
+            const uniqueEmails = Array.from(new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean)));
+            if (uniqueEmails.length === 0) {
+              console.log('[system event] add: no valid emails');
+              return;
+            }
+            const who = uniqueEmails.length === 1
+              ? uniqueEmails[0]
+              : uniqueEmails.slice(0, -1).join(', ') + ' and ' + uniqueEmails.slice(-1);
+            console.log('[system event] add triggering:', { roomId: selectedRoom.id, who, emails: uniqueEmails });
+            const added = await postGroupSystemEvent(selectedRoom.id, `${who} was added to the group`);
+            console.log('[system event] add result:', { posted: !!added });
           }}
         />
       )}
+
+      {pendingRemoveTarget && (
+        <DeleteConfirmationModal
+          isOpen={showRemoveConfirm}
+          onClose={() => {
+            setShowRemoveConfirm(false);
+            setPendingRemoveTarget(null);
+          }}
+          onConfirm={handleConfirmRemoveMember}
+          title="Remove member"
+          message={`Remove ${pendingRemoveTarget.username} from this group?`}
+          confirmLabel="Remove member"
+          cancelLabel="Cancel"
+        />
+      )}
+
       {toast && (
         <Toast
           message={toast.message}

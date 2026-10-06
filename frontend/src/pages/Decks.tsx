@@ -2257,7 +2257,7 @@ interface NoteItem {
             <div className="mt-4">
               {loadingGroupQuizzes ? (
                 <div className="flex justify-center py-12">
-                  <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent" />
+                  <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500" />
                 </div>
               ) : (groupQuizzes || []).length === 0 ? (
                 <div className="text-center py-12 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e]">

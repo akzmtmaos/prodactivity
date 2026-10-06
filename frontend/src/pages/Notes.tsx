@@ -3207,49 +3207,65 @@ const Notes = () => {
               isSaving={isSavingNote}
             />
           )}
-          {/* Note delete (Move to Trash) confirmation – same UI as Deck’s Delete Deck (icon in header only) */}
+          {/* Note delete (Move to Trash) confirmation – matches other delete modals (icon box in header, gray borders, no "Are you sure?") */}
           {showDeleteModal && noteToDelete && (
-            <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50" style={{ margin: 0, padding: 0 }}>
-              <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-xs z-[51]">
-                <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
-                  <div className="flex items-center">
-                    <div className="p-1 bg-red-100 dark:bg-red-900/20 rounded-lg mr-2">
-                      <Trash2 size={16} className="text-red-600 dark:text-red-400" />
+            <div className="fixed inset-0 z-50 overflow-y-auto">
+              <div 
+                className="fixed inset-0 bg-black/30 dark:bg-black/60 transition-opacity"
+                onClick={() => { setShowDeleteModal(false); setNoteToDelete(null); }}
+              />
+
+              <div className="flex min-h-full items-center justify-center p-4">
+                <div className="relative transform overflow-hidden rounded-lg bg-white dark:bg-[#1a1a1a] text-left shadow-xl border border-gray-200 dark:border-[#2a2a2a] transition-all sm:w-full sm:max-w-md">
+                  {/* Header */}
+                  <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-200 dark:border-[#2a2a2a]">
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FDE8E8] dark:bg-red-900/30 shrink-0">
+                        <Trash2 className="h-4 w-4 text-red-500 dark:text-red-400" />
+                      </div>
+                      <h2 className="text-base font-semibold leading-6 text-gray-900 dark:text-white">
+                        Move to Trash?
+                      </h2>
                     </div>
-                    <h2 className="text-base font-semibold text-gray-900 dark:text-white">Move to Trash?</h2>
+                    <button
+                      onClick={() => { setShowDeleteModal(false); setNoteToDelete(null); }}
+                      className="p-1 text-gray-400 dark:text-[#666666] hover:text-gray-600 dark:hover:text-[#888888] rounded-md hover:bg-gray-100 dark:hover:bg-[#242424] transition-colors"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
                   </div>
-                  <button
-                    onClick={() => { setShowDeleteModal(false); setNoteToDelete(null); }}
-                    className="p-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-                <div className="p-4">
-                  <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">Are you sure?</h3>
-                  <p className="text-gray-600 dark:text-gray-400 text-sm m-0">
-                    Move <span className="font-medium">"{noteToDelete.title}"</span> to Trash? You can restore it later from Trash.
-                  </p>
-                </div>
-                <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setShowDeleteModal(false); setNoteToDelete(null); }}
-                    className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium text-sm transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => {
-                      handleDeleteNote(noteToDelete.id);
-                      setShowDeleteModal(false);
-                      setNoteToDelete(null);
-                    }}
-                    className="flex-1 px-2 py-1 bg-red-600 text-white rounded font-medium text-sm flex items-center justify-center gap-1 hover:bg-red-700 transition-colors"
-                  >
-                    <Trash2 size={14} />
-                    Move to Trash
-                  </button>
+
+                  {/* Body */}
+                  <div className="px-5 py-4">
+                    <p className="text-sm text-gray-600 dark:text-white/80">
+                      Move <span className="font-medium text-gray-900 dark:text-white">"{noteToDelete.title}"</span> to Trash? You can restore it later from Trash.
+                    </p>
+                  </div>
+
+                  {/* Body divider */}
+                  <div className="h-px border-t border-gray-200 dark:border-[#2a2a2a] px-5" />
+
+                  {/* Footer */}
+                  <div className="flex items-center justify-end gap-2 px-5 py-3">
+                    <button
+                      type="button"
+                      onClick={() => { setShowDeleteModal(false); setNoteToDelete(null); }}
+                      className="px-2.5 py-1.5 text-xs text-gray-700 dark:text-white border border-gray-300 dark:border-[#333333] rounded-md font-medium bg-white dark:bg-[#242424] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleDeleteNote(noteToDelete.id);
+                        setShowDeleteModal(false);
+                        setNoteToDelete(null);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 dark:bg-[#e60000] dark:hover:bg-[#c20000] transition-colors"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Move to Trash
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
