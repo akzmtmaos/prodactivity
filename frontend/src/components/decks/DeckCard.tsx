@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Edit, Trash2, BarChart2, Play, HelpCircle, MoreVertical, RotateCcw, Users, Archive } from 'lucide-react';
+import HeaderTooltip from '../common/HeaderTooltip';
 
 interface Deck {
   id: string;
@@ -31,24 +32,6 @@ interface DeckCardProps {
   isSubDeck?: boolean;
   onEditSubDeck?: (deck: Deck) => void;
 }
-
-// Deterministic, harmonious palette (violet / indigo leaning) for the deck initial avatar
-const AVATAR_COLORS = [
-  'bg-violet-600',
-  'bg-indigo-600',
-  'bg-purple-600',
-  'bg-blue-600',
-  'bg-violet-500',
-  'bg-indigo-500',
-];
-
-const getAvatarColor = (title: string) => {
-  let hash = 0;
-  for (let i = 0; i < title.length; i++) {
-    hash = (hash * 31 + title.charCodeAt(i)) >>> 0;
-  }
-  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
-};
 
 const DeckCard: React.FC<DeckCardProps> = ({
   deck,
@@ -112,9 +95,6 @@ const DeckCard: React.FC<DeckCardProps> = ({
     return 'bg-red-500';
   };
 
-  const initial = (deck.title?.trim()?.charAt(0) || 'D').toUpperCase();
-  const avatarColor = getAvatarColor(deck.title || '');
-
   // Handle edit based on whether it's a SubDeck or parent deck
   const handleEdit = () => {
     if (isSubDeck && onEditSubDeck) {
@@ -127,19 +107,12 @@ const DeckCard: React.FC<DeckCardProps> = ({
 
   return (
     <div
-      className="group bg-white dark:bg-[#252525] rounded-xl border border-gray-200 dark:border-[#333333] shadow-sm hover:shadow-lg hover:border-gray-300 dark:hover:border-[#444444] transition-all duration-200 cursor-pointer"
+      className="bg-white dark:bg-[#252525] rounded-xl border border-gray-200 dark:border-[#333333] shadow-sm hover:shadow-lg hover:border-gray-300 dark:hover:border-[#444444] transition-all duration-200 cursor-pointer"
       onClick={() => onOpen(deck.id)}
     >
       <div className="p-5">
         {/* Card Header */}
         <div className="flex items-start gap-3">
-          {/* Initial avatar */}
-          <div
-            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-white text-base font-semibold ${avatarColor}`}
-          >
-            {initial}
-          </div>
-
           <div className="flex-1 min-w-0">
             <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate leading-tight flex items-center gap-2">
               <span className="truncate">{deck.title}</span>
@@ -160,23 +133,25 @@ const DeckCard: React.FC<DeckCardProps> = ({
           </div>
 
           <div className="relative flex-shrink-0" ref={menuRef}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (menuRef.current) {
-                  const rect = menuRef.current.getBoundingClientRect();
-                  setMenuPosition({
-                    top: rect.bottom + 8,
-                    right: window.innerWidth - rect.right,
-                  });
-                }
-                setShowMenu(!showMenu);
-              }}
-              className="p-1.5 -mr-1 -mt-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-[#333333]"
-              aria-label="More actions"
-            >
-              <MoreVertical size={18} />
-            </button>
+            <HeaderTooltip label="More actions" side="bottom" fixed>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (menuRef.current) {
+                    const rect = menuRef.current.getBoundingClientRect();
+                    setMenuPosition({
+                      top: rect.bottom + 8,
+                      right: window.innerWidth - rect.right,
+                    });
+                  }
+                  setShowMenu(!showMenu);
+                }}
+                className="p-1.5 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors rounded-lg border border-gray-200 dark:border-[#333333] hover:bg-gray-100 dark:hover:bg-[#333333]"
+                aria-label="More actions"
+              >
+                <MoreVertical size={18} />
+              </button>
+            </HeaderTooltip>
 
             {/* Dropdown Menu */}
             {showMenu && (
@@ -258,17 +233,14 @@ const DeckCard: React.FC<DeckCardProps> = ({
         </div>
 
         {/* Progress */}
-        <div className="mt-4">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500 dark:text-gray-400">Progress</span>
-            <span className="font-medium text-gray-700 dark:text-gray-300">{deck.progress}%</span>
-          </div>
-          <div className="mt-2 h-1.5 w-full rounded-full bg-gray-200 dark:bg-[#333333] overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${getProgressColor(deck.progress)}`}
-              style={{ width: `${Math.max(0, Math.min(100, deck.progress))}%` }}
-            />
-          </div>
+        <div className="relative mt-4 h-5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-[#333333]">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${getProgressColor(deck.progress)}`}
+            style={{ width: `${Math.max(0, Math.min(100, deck.progress))}%` }}
+          />
+          <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-800 dark:text-white">
+            {deck.progress}%
+          </span>
         </div>
 
         {/* Action Buttons */}

@@ -98,7 +98,7 @@ const Decks = () => {
   const [activeGroupQuizId, setActiveGroupQuizId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [currentArchivedPage, setCurrentArchivedPage] = useState<number>(1);
-  const PAGE_SIZE = 12;
+  const PAGE_SIZE = 20;
 
   // Decks toolbar dropdowns (match Notes toolbar style)
   const [deckSortOpen, setDeckSortOpen] = useState(false);
@@ -678,8 +678,9 @@ interface NoteItem {
           is_deleted: false,
         is_archived: false,
       }]);
+      setToast({ message: 'Deck created successfully!', type: 'success' });
     } catch (error) {
-      alert('Error creating deck.');
+      setToast({ message: 'Failed to create deck.', type: 'error' });
     }
   };
 
@@ -693,6 +694,7 @@ interface NoteItem {
           }
         : d
     ));
+    setToast({ message: 'Deck updated successfully!', type: 'success' });
   };
 
   // This DELETE request performs a soft delete (moves deck to Trash)
@@ -709,7 +711,6 @@ interface NoteItem {
       setDecks(decks.filter(d => d.id !== deck.id));
       setToast({ message: 'Deck moved to Trash.', type: 'success' });
     } catch (error) {
-      alert('Error deleting deck.');
       setToast({ message: 'Failed to delete deck.', type: 'error' });
     }
   };
@@ -1073,8 +1074,9 @@ interface NoteItem {
         return deck;
       }));
       if (updatedDeck) setSelectedDeck(updatedDeck);
+      setToast({ message: 'Flashcard created successfully!', type: 'success' });
     } catch (error) {
-      alert('Error creating flashcard.');
+      setToast({ message: 'Failed to create flashcard.', type: 'error' });
     }
   };
 
@@ -1470,17 +1472,18 @@ interface NoteItem {
                     </HeaderTooltip>
                     {/* Sort dropdown – Reviewer-style: icon + label + chevron */}
                     <div className="relative" ref={deckSortRef}>
+                      <HeaderTooltip label="Sort decks">
                       <button
                         type="button"
                         onClick={() => setDeckSortOpen((o) => !o)}
                         className="flex items-center justify-center gap-1 h-7 pl-2.5 pr-2 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
                         aria-label="Sort decks"
                         aria-expanded={deckSortOpen}
-                        title="Sort"
                       >
                         <Clock size={14} className="text-gray-500 dark:text-gray-400" />
                         <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${deckSortOpen ? 'rotate-180' : ''}`} />
                       </button>
+                      </HeaderTooltip>
                       {deckSortOpen && (
                         <div className="absolute right-0 top-full mt-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
                           {[
@@ -1506,17 +1509,18 @@ interface NoteItem {
                     </div>
                     {/* Filter dropdown – Reviewer-style: icon + label + chevron (All / Studied / New) */}
                     <div className="relative" ref={deckFilterRef}>
+                      <HeaderTooltip label="Filter decks">
                       <button
                         type="button"
                         onClick={() => setDeckFilterOpen((o) => !o)}
                         className="flex items-center justify-center gap-1 h-7 pl-2.5 pr-2 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
                         aria-label="Filter decks"
                         aria-expanded={deckFilterOpen}
-                        title="Filter"
                       >
                         <Filter size={14} className="text-gray-500 dark:text-gray-400" />
                         <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${deckFilterOpen ? 'rotate-180' : ''}`} />
                       </button>
+                      </HeaderTooltip>
                       {deckFilterOpen && (
                         <div className="absolute right-0 top-full mt-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
                           {[
@@ -1556,6 +1560,17 @@ interface NoteItem {
                         </button>
                       </HeaderTooltip>
                     )}
+                    {/* Convert to flashcards */}
+                    <HeaderTooltip label="Convert to flashcards">
+                      <button
+                        type="button"
+                        onClick={() => setShowConvertModal(true)}
+                        className="px-2 h-7 text-xs border border-emerald-600 rounded-lg bg-white dark:bg-[#252525] text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors flex items-center justify-center"
+                        aria-label="Convert to flashcards"
+                      >
+                        <FileText size={14} />
+                      </button>
+                    </HeaderTooltip>
                     {/* Search Field */}
                     <div className="relative w-full sm:w-48">
                       <Search size={14} className="absolute left-2 top-1.5 text-gray-400" />
@@ -1567,15 +1582,8 @@ interface NoteItem {
                         className="w-full pl-7 pr-2 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
                       />
                     </div>
-                    {/* Actions: Add Deck / Convert to Flashcards */}
+                    {/* Actions: Add Deck */}
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setShowConvertModal(true)}
-                        className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-lg border border-emerald-600 text-emerald-700 dark:text-emerald-300 bg-white dark:bg-gray-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition-colors"
-                      >
-                        <FileText size={14} className="mr-1.5" />
-                        Convert
-                      </button>
                       <button
                         onClick={() => setShowCreateModal(true)}
                         className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
@@ -1963,12 +1971,12 @@ interface NoteItem {
           </div>
         </div>
       )}
-      {/* Convert Notes Modal – AI-Powered Flashcard Generation (same style as Create Notebook / Document Settings) */}
+      {/* Convert Notes Modal – AI Flashcard Generation (same style as Create Notebook / Document Settings) */}
       {showConvertModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40 dark:bg-black/60" onClick={() => setShowConvertModal(false)} aria-hidden />
           <div
-            className="relative bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col mx-4 border border-gray-200 dark:border-[#333333]"
+            className="relative bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl w-full max-w-xl max-h-[90vh] overflow-hidden flex flex-col mx-4 border border-gray-200 dark:border-[#333333]"
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
@@ -1976,10 +1984,7 @@ interface NoteItem {
                 <div className="flex-shrink-0 w-8 h-8 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
                   <FileText className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                 </div>
-                <div>
-                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">AI-Powered Flashcard Generation</h2>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">Select notes and let DeepSeek-R1 convert them into flashcards.</p>
-                </div>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">AI Flashcard Generation</h2>
               </div>
               <button
                 type="button"

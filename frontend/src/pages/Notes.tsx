@@ -1995,6 +1995,7 @@ const Notes = () => {
         return updated;
       });
       
+      setToast({ message: 'Notebook created successfully!', type: 'success' });
     } catch (error) {
       // Remove optimistic notebook on error
       setNotebooks(prev => prev.filter(nb => nb.id !== tempId));
