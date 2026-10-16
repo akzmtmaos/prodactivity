@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { BookOpen, Edit, Trash2, BarChart2, Play, HelpCircle, MoreVertical, RotateCcw, Users } from 'lucide-react';
+import { Edit, Trash2, BarChart2, Play, HelpCircle, MoreVertical, RotateCcw, Users, Archive } from 'lucide-react';
 
 interface Deck {
   id: string;
@@ -32,6 +32,24 @@ interface DeckCardProps {
   onEditSubDeck?: (deck: Deck) => void;
 }
 
+// Deterministic, harmonious palette (violet / indigo leaning) for the deck initial avatar
+const AVATAR_COLORS = [
+  'bg-violet-600',
+  'bg-indigo-600',
+  'bg-purple-600',
+  'bg-blue-600',
+  'bg-violet-500',
+  'bg-indigo-500',
+];
+
+const getAvatarColor = (title: string) => {
+  let hash = 0;
+  for (let i = 0; i < title.length; i++) {
+    hash = (hash * 31 + title.charCodeAt(i)) >>> 0;
+  }
+  return AVATAR_COLORS[hash % AVATAR_COLORS.length];
+};
+
 const DeckCard: React.FC<DeckCardProps> = ({
   deck,
   onStudy,
@@ -44,7 +62,7 @@ const DeckCard: React.FC<DeckCardProps> = ({
   onResetProgress,
   onCreateGroupQuiz,
   isSubDeck = false,
-  onEditSubDeck
+  onEditSubDeck,
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ top: 0, right: 0 });
@@ -71,7 +89,7 @@ const DeckCard: React.FC<DeckCardProps> = ({
         const rect = menuRef.current.getBoundingClientRect();
         setMenuPosition({
           top: rect.bottom + 8,
-          right: window.innerWidth - rect.right
+          right: window.innerWidth - rect.right,
         });
       }
     };
@@ -79,7 +97,7 @@ const DeckCard: React.FC<DeckCardProps> = ({
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('keydown', handleEscapeKey);
     window.addEventListener('resize', handleResize);
-    
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('keydown', handleEscapeKey);
@@ -87,20 +105,15 @@ const DeckCard: React.FC<DeckCardProps> = ({
     };
   }, [showMenu]);
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
-  };
-
   const getProgressColor = (progress: number) => {
     if (progress >= 80) return 'bg-green-500';
     if (progress >= 50) return 'bg-yellow-500';
     if (progress >= 20) return 'bg-orange-500';
     return 'bg-red-500';
   };
+
+  const initial = (deck.title?.trim()?.charAt(0) || 'D').toUpperCase();
+  const avatarColor = getAvatarColor(deck.title || '');
 
   // Handle edit based on whether it's a SubDeck or parent deck
   const handleEdit = () => {
@@ -113,23 +126,30 @@ const DeckCard: React.FC<DeckCardProps> = ({
   };
 
   return (
-    <div 
-      className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer"
+    <div
+      className="group bg-white dark:bg-[#252525] rounded-xl border border-gray-200 dark:border-[#333333] shadow-sm hover:shadow-lg hover:border-gray-300 dark:hover:border-[#444444] transition-all duration-200 cursor-pointer"
       onClick={() => onOpen(deck.id)}
     >
-      <div className="p-6">
+      <div className="p-5">
         {/* Card Header */}
-        <div className="flex justify-between items-start mb-4">
+        <div className="flex items-start gap-3">
+          {/* Initial avatar */}
+          <div
+            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg text-white text-base font-semibold ${avatarColor}`}
+          >
+            {initial}
+          </div>
+
           <div className="flex-1 min-w-0">
-            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-1 truncate">
-              {deck.title}
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate leading-tight flex items-center gap-2">
+              <span className="truncate">{deck.title}</span>
               {isSubDeck && (
-                <span className="ml-2 text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/20 px-2 py-1 rounded">
+                <span className="flex-shrink-0 text-xs font-medium text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-900/20 px-2 py-0.5 rounded">
                   SubDeck
                 </span>
               )}
             </h3>
-            <p className="text-gray-600 dark:text-gray-400 text-sm">
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">
               {deck.flashcardCount} cards
               {deck.subDecks && deck.subDecks.length > 0 && !isSubDeck && (
                 <span className="ml-2 text-indigo-600 dark:text-indigo-400">
@@ -138,6 +158,7 @@ const DeckCard: React.FC<DeckCardProps> = ({
               )}
             </p>
           </div>
+
           <div className="relative flex-shrink-0" ref={menuRef}>
             <button
               onClick={(e) => {
@@ -146,20 +167,21 @@ const DeckCard: React.FC<DeckCardProps> = ({
                   const rect = menuRef.current.getBoundingClientRect();
                   setMenuPosition({
                     top: rect.bottom + 8,
-                    right: window.innerWidth - rect.right
+                    right: window.innerWidth - rect.right,
                   });
                 }
                 setShowMenu(!showMenu);
               }}
-              className="p-2 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              className="p-1.5 -mr-1 -mt-0.5 text-gray-400 hover:text-gray-700 dark:hover:text-white transition-colors rounded-lg hover:bg-gray-100 dark:hover:bg-[#333333]"
+              aria-label="More actions"
             >
               <MoreVertical size={18} />
             </button>
-            
+
             {/* Dropdown Menu */}
             {showMenu && (
-              <div 
-                className="fixed z-[9999] w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700"
+              <div
+                className="fixed z-[9999] w-52 bg-white dark:bg-[#252525] rounded-lg shadow-xl border border-gray-200 dark:border-[#333333] py-1"
                 style={{
                   top: menuPosition.top,
                   right: menuPosition.right,
@@ -168,20 +190,20 @@ const DeckCard: React.FC<DeckCardProps> = ({
               >
                 <button
                   onClick={handleEdit}
-                  className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center transition-colors"
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors"
                 >
-                  <Edit size={16} className="mr-3" />
-                  {isSubDeck ? 'Edit SubDeck' : 'Edit Deck'}
+                  <Edit size={16} className="mr-3 text-gray-400" />
+                  {isSubDeck ? 'Edit SubDeck' : 'Edit deck'}
                 </button>
                 <button
                   onClick={() => {
                     onViewStats(deck.id);
                     setShowMenu(false);
                   }}
-                  className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center transition-colors"
+                  className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors"
                 >
-                  <BarChart2 size={16} className="mr-3" />
-                  View Stats
+                  <BarChart2 size={16} className="mr-3 text-gray-400" />
+                  View stats
                 </button>
                 {onCreateGroupQuiz && !isSubDeck && (
                   <button
@@ -189,9 +211,9 @@ const DeckCard: React.FC<DeckCardProps> = ({
                       onCreateGroupQuiz(deck.id);
                       setShowMenu(false);
                     }}
-                    className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center transition-colors"
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors"
                   >
-                    <Users size={16} className="mr-3" />
+                    <Users size={16} className="mr-3 text-gray-400" />
                     Create group quiz
                   </button>
                 )}
@@ -201,9 +223,9 @@ const DeckCard: React.FC<DeckCardProps> = ({
                       onArchive(deck.id);
                       setShowMenu(false);
                     }}
-                    className="w-full px-4 py-2 text-left text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center transition-colors"
+                    className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors"
                   >
-                    <BookOpen size={16} className="mr-3" />
+                    <Archive size={16} className="mr-3 text-gray-400" />
                     {deck.is_archived ? 'Unarchive' : 'Archive'}
                   </button>
                 )}
@@ -213,56 +235,52 @@ const DeckCard: React.FC<DeckCardProps> = ({
                       onResetProgress(deck.id);
                       setShowMenu(false);
                     }}
-                    className="w-full px-4 py-2 text-left text-orange-600 dark:text-orange-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center transition-colors"
+                    className="w-full px-4 py-2 text-left text-sm text-orange-600 dark:text-orange-400 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors"
                   >
                     <RotateCcw size={16} className="mr-3" />
                     Reset Progress
                   </button>
                 )}
-                <hr className="border-gray-200 dark:border-gray-600 my-1" />
+                <hr className="border-gray-200 dark:border-[#333333] my-1" />
                 <button
                   onClick={() => {
                     onDelete(deck.id);
                     setShowMenu(false);
                   }}
-                  className="w-full px-4 py-2 text-left text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center transition-colors"
+                  className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors"
                 >
                   <Trash2 size={16} className="mr-3" />
-                  {isSubDeck ? 'Delete SubDeck' : 'Delete Deck'}
+                  {isSubDeck ? 'Delete SubDeck' : 'Delete deck'}
                 </button>
               </div>
             )}
           </div>
         </div>
 
-        {/* Progress Bar */}
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              Progress
-            </span>
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              {deck.progress}%
-            </span>
+        {/* Progress */}
+        <div className="mt-4">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500 dark:text-gray-400">Progress</span>
+            <span className="font-medium text-gray-700 dark:text-gray-300">{deck.progress}%</span>
           </div>
-          <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+          <div className="mt-2 h-1.5 w-full rounded-full bg-gray-200 dark:bg-[#333333] overflow-hidden">
             <div
-              className={`h-2 rounded-full transition-all duration-300 ${getProgressColor(deck.progress)}`}
-              style={{ width: `${deck.progress}%` }}
-            ></div>
+              className={`h-full rounded-full transition-all duration-300 ${getProgressColor(deck.progress)}`}
+              style={{ width: `${Math.max(0, Math.min(100, deck.progress))}%` }}
+            />
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="grid grid-cols-2 gap-3">
+        <div className="mt-4 grid grid-cols-2 gap-2">
           <button
             onClick={(e) => {
               e.stopPropagation();
               onStudy(deck.id);
             }}
-            className="flex items-center justify-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
           >
-            <Play size={16} className="mr-2" />
+            <Play size={14} />
             Study
           </button>
           <button
@@ -270,9 +288,9 @@ const DeckCard: React.FC<DeckCardProps> = ({
               e.stopPropagation();
               onQuiz(deck.id);
             }}
-            className="flex items-center justify-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors"
+            className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium transition-colors"
           >
-            <HelpCircle size={16} className="mr-3" />
+            <HelpCircle size={14} />
             Quiz
           </button>
         </div>
