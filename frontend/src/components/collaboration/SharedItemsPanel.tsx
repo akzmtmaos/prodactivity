@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Share2, UserCheck, FileText, BookOpen, Brain, CheckSquare, Clock } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import TabBar from '../common/TabBar';
 import { useNavigate } from 'react-router-dom';
 
 interface SharedItem {
@@ -256,40 +257,28 @@ const SharedItemsPanel: React.FC = () => {
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-md border border-gray-200 dark:border-gray-700">
-      {/* Tabs */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700">
-        <button
-          onClick={() => setActiveTab('shared')}
-          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-            activeTab === 'shared'
-              ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-          }`}
-        >
-          <Share2 className="inline-block mr-2" size={16} />
-          Shared with Me
-          {pendingShared.length > 0 && (
-            <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-indigo-600 text-white rounded-full">
-              {pendingShared.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab('assigned')}
-          className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
-            activeTab === 'assigned'
-              ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-b-2 border-indigo-600 dark:border-indigo-400'
-              : 'text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'
-          }`}
-        >
-          <UserCheck className="inline-block mr-2" size={16} />
-          Assigned Tasks
-          {pendingAssignments.length > 0 && (
-            <span className="ml-2 px-2 py-0.5 text-xs font-medium bg-indigo-600 text-white rounded-full">
-              {pendingAssignments.length}
-            </span>
-          )}
-        </button>
+      {/* Tabs – compact pills, same as the rest of the app */}
+      <div className="border-b border-gray-200 px-3 pt-2 dark:border-gray-700">
+        <TabBar
+          bare
+          ariaLabel="Shared items"
+          value={activeTab}
+          onChange={setActiveTab}
+          items={[
+            {
+              id: 'shared',
+              label: 'Shared with Me',
+              icon: <Share2 size={14} />,
+              count: pendingShared.length > 0 ? pendingShared.length : undefined,
+            },
+            {
+              id: 'assigned',
+              label: 'Assigned Tasks',
+              icon: <UserCheck size={14} />,
+              count: pendingAssignments.length > 0 ? pendingAssignments.length : undefined,
+            },
+          ]}
+        />
       </div>
 
       {/* Content */}

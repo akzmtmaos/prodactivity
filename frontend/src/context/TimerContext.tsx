@@ -16,6 +16,8 @@ interface TimerState {
   timeLeft: number;
   elapsedTime: number; // For stopwatch mode (counts up from 0)
   sessionsCompleted: number;
+  /** True when the running break is the long one, decided when it started. */
+  breakIsLong?: boolean;
   settings: TimerSettings;
   sessionStart: Date | null;
 }
@@ -32,6 +34,10 @@ interface TimerContextType {
   setPomodoroMode: (enabled: boolean) => void;
   stopwatchMode: boolean;
   setStopwatchMode: (enabled: boolean) => void;
+  sessionTitle: string;
+  sessionTag: string;
+  setSessionTitle: (title: string) => void;
+  setSessionTag: (tag: string) => void;
   refreshSessionsCount: () => Promise<void>;
 }
 
@@ -104,6 +110,7 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         initialState.timeLeft = parsed.timeLeft || settings.studyDuration;
         initialState.elapsedTime = parsed.elapsedTime || 0; // Restore stopwatch elapsed time
         initialState.sessionsCompleted = parsed.sessionsCompleted || sessionsCompleted;
+        initialState.breakIsLong = parsed.breakIsLong || false;
         
         // If timer was active when page was closed, calculate elapsed time since last save
         if (parsed.isActive && parsed.lastSavedTime) {
@@ -136,6 +143,10 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
 
   const intervalIdRef = useRef<NodeJS.Timeout | null>(null);
   const isCompletingRef = useRef(false); // Guard to prevent duplicate completion calls
+  // Wall-clock anchor for the tick. Counting from here instead of assuming the
+  // interval fires exactly every 1000ms keeps the timer honest when the browser
+  // throttles a background tab or the main thread is busy.
+  const lastTickAtRef = useRef<number>(Date.now());
   
   // Pomodoro mode state - controls whether timer auto-switches between study and break
   const [pomodoroMode, setPomodoroModeState] = useState<boolean>(() => {
@@ -178,6 +189,20 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
     }
   };
 
+  // Optional name and subject tag for the next study block
+  const [sessionTitle, setSessionTitleState] = useState<string>(() => localStorage.getItem('studyTimerSessionTitle') || '');
+  const [sessionTag, setSessionTagState] = useState<string>(() => localStorage.getItem('studyTimerSessionTag') || '');
+
+  const setSessionTitle = (title: string) => {
+    setSessionTitleState(title);
+    localStorage.setItem('studyTimerSessionTitle', title);
+  };
+
+  const setSessionTag = (tag: string) => {
+    setSessionTagState(tag);
+    localStorage.setItem('studyTimerSessionTag', tag);
+  };
+
   // Function to refresh sessions count from backend/Supabase
   const refreshSessionsCount = async () => {
     try {
@@ -195,59 +220,54 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         return;
       }
       
-      let studySessionsCount = 0;
-      
-      // Try backend API first
+      // Union of Study sessions across both stores, deduped by start time
+      const studyStartTimes = new Set<string>();
+      let loadedFromAnySource = false;
+
       const token = localStorage.getItem('accessToken');
       if (token) {
         try {
           const response = await axiosInstance.get('/tasks/study-timer-sessions/');
-          const sessions = response.data || [];
-          studySessionsCount = sessions.filter((s: any) => s.session_type === 'Study').length;
-          
-          console.log('📊 Refreshed sessions count from backend:', studySessionsCount, 'out of', sessions.length, 'total sessions');
-          setTimerState(prev => ({
-            ...prev,
-            sessionsCompleted: studySessionsCount
-          }));
-          return;
+          const rows = response.data?.results ?? response.data ?? [];
+          const sessions = Array.isArray(rows) ? rows : [];
+          sessions
+            .filter((s: any) => s.session_type === 'Study')
+            .forEach((s: any) => studyStartTimes.add(String(s.start_time)));
+          loadedFromAnySource = true;
         } catch (apiError) {
           console.warn('Failed to load sessions from backend, trying Supabase:', apiError);
         }
       }
-      
-      // Try Supabase as fallback
+
       try {
-        // Get Supabase auth user ID (UUID) - this is what Supabase expects
         const { data: { user: supabaseAuthUser } } = await supabase.auth.getUser();
-        const supabaseUserId = supabaseAuthUser?.id;
-        
-        if (supabaseUserId) {
+        if (supabaseAuthUser?.id) {
           const { data: supabaseSessions, error } = await supabase
             .from('study_timer_sessions')
-            .select('session_type')
-            .eq('user_id', supabaseUserId) // Use Supabase auth UUID
+            .select('session_type, start_time')
+            .eq('user_id', supabaseAuthUser.id)
             .eq('session_type', 'Study');
-          
-          if (!error) {
-            // Even if sessions array is empty, we should update the counter
-            studySessionsCount = Array.isArray(supabaseSessions) ? supabaseSessions.length : 0;
-            console.log('📊 Refreshed sessions count from Supabase:', studySessionsCount);
-            setTimerState(prev => ({
-            ...prev,
-            sessionsCompleted: studySessionsCount
-          }));
-          localStorage.setItem('studyTimerSessionsCompleted', studySessionsCount.toString());
-          } else {
+
+          if (error) {
             console.warn('⚠️ Supabase query error:', error);
-            // Don't reset to 0 on error - keep current count
+          } else {
+            (supabaseSessions || []).forEach((s: any) => studyStartTimes.add(String(s.start_time)));
+            loadedFromAnySource = true;
           }
         } else {
           console.warn('⚠️ No Supabase auth user found, cannot refresh from Supabase');
         }
       } catch (supabaseErr) {
         console.warn('Failed to load sessions from Supabase:', supabaseErr);
-        // Don't reset to 0 on error - keep current count
+      }
+
+      if (loadedFromAnySource) {
+        const studySessionsCount = studyStartTimes.size;
+        setTimerState(prev => ({
+          ...prev,
+          sessionsCompleted: studySessionsCount
+        }));
+        localStorage.setItem('studyTimerSessionsCompleted', studySessionsCount.toString());
       }
     } catch (error) {
       console.error('Error refreshing sessions count:', error);
@@ -273,11 +293,12 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
       timeLeft: timerState.timeLeft,
       elapsedTime: timerState.elapsedTime || 0, // Save stopwatch elapsed time
       sessionsCompleted: timerState.sessionsCompleted,
+      breakIsLong: timerState.breakIsLong || false,
       sessionStart: timerState.sessionStart ? timerState.sessionStart.toISOString() : null,
       lastSavedTime: new Date().toISOString() // Save current timestamp for accurate elapsed time calculation
     };
     localStorage.setItem('studyTimerState', JSON.stringify(stateToSave));
-  }, [timerState.isActive, timerState.isBreak, timerState.timeLeft, timerState.sessionsCompleted, timerState.sessionStart]);
+  }, [timerState.isActive, timerState.isBreak, timerState.timeLeft, timerState.sessionsCompleted, timerState.breakIsLong, timerState.sessionStart]);
 
   // Timer logic - handles both countdown (timer) and count-up (stopwatch) modes
   useEffect(() => {
@@ -290,6 +311,7 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
     if (timerState.isActive) {
       // Reset guard when starting a new timer interval
       isCompletingRef.current = false;
+      lastTickAtRef.current = Date.now();
       
       const id = setInterval(() => {
         // Guard: Prevent duplicate completion calls (check before state update)
@@ -298,6 +320,13 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
           intervalIdRef.current = null;
           return;
         }
+
+        // Catch up on whole seconds actually elapsed, so a throttled or delayed
+        // tick doesn't stretch the session.
+        const now = Date.now();
+        const elapsedSeconds = Math.floor((now - lastTickAtRef.current) / 1000);
+        if (elapsedSeconds <= 0) return;
+        lastTickAtRef.current += elapsedSeconds * 1000;
         
         setTimerState(prev => {
           // Guard check inside state update as well
@@ -307,7 +336,7 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
           
           if (stopwatchMode) {
             // STOPWATCH MODE: Count up
-            const newElapsedTime = (prev.elapsedTime || 0) + 1;
+            const newElapsedTime = (prev.elapsedTime || 0) + elapsedSeconds;
             return { ...prev, elapsedTime: newElapsedTime };
           } else {
             // TIMER MODE: Count down
@@ -321,8 +350,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
               return { ...prev, isActive: false, timeLeft: 0 };
             }
             
-            // Decrement timer
-            const newTimeLeft = prev.timeLeft - 1;
+            // Decrement timer by the seconds that really passed
+            const newTimeLeft = prev.timeLeft - elapsedSeconds;
             
             // Check if timer should complete (reached 0 or less after decrement)
             if (newTimeLeft <= 0) {
@@ -361,7 +390,10 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         intervalIdRef.current = null;
       }
     };
-  }, [timerState.isActive, timerState.timeLeft, timerState.isBreak, stopwatchMode]); // Depend on isActive, timeLeft, isBreak, and stopwatchMode
+    // Deliberately not keyed on timeLeft: re-arming the interval on every tick
+    // added a few milliseconds of drift per second. isActive covers start/stop,
+    // isBreak covers the automatic study → break hand-off.
+  }, [timerState.isActive, timerState.isBreak, stopwatchMode]);
 
   const handleTimerComplete = (prevState: TimerState) => {
     // Play completion sound
@@ -375,14 +407,16 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
     if (prevState.sessionStart) {
       const sessionStart = prevState.sessionStart; // Store in local variable for TypeScript
       const end = new Date();
+      // The break's kind was decided when it started (see the study branch below),
+      // so label and duration match what the user actually sat through.
+      const isLongBreak = prevState.isBreak && prevState.breakIsLong === true;
+
       const duration = prevState.isBreak
-        ? (prevState.sessionsCompleted + 1 >= prevState.settings.sessionsUntilLongBreak 
-            ? prevState.settings.longBreakDuration 
-            : prevState.settings.breakDuration)
+        ? (isLongBreak ? prevState.settings.longBreakDuration : prevState.settings.breakDuration)
         : prevState.settings.studyDuration;
       
       const sessionType = prevState.isBreak
-        ? (prevState.sessionsCompleted + 1 >= prevState.settings.sessionsUntilLongBreak ? 'Long Break' : 'Break')
+        ? (isLongBreak ? 'Long Break' : 'Break')
         : 'Study';
       
       // Check for duplicates before saving
@@ -407,6 +441,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         start: sessionStart,
         end,
         duration,
+        title: sessionType === 'Study' ? sessionTitle : '',
+        subject: sessionType === 'Study' ? sessionTag : '',
       });
       localStorage.setItem('studyTimerLogs', JSON.stringify(existingLogs));
       
@@ -456,6 +492,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
           try {
             const response = await axiosInstance.post('/tasks/study-timer-sessions/', {
               session_type: sessionType,
+              title: sessionType === 'Study' ? sessionTitle : '',
+              subject: sessionType === 'Study' ? sessionTag : '',
               start_time: sessionStartISO,
               end_time: endISO,
               duration: duration,
@@ -507,6 +545,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
                     start_time: sessionStartISO,
                     end_time: endISO,
                     duration: duration,
+                    ...(sessionType === 'Study' && sessionTitle ? { title: sessionTitle } : {}),
+                    ...(sessionType === 'Study' && sessionTag ? { subject: sessionTag } : {}),
                   }])
                   .select();
                 
@@ -605,8 +645,12 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
       const newSessionsCompleted = prevState.sessionsCompleted + 1;
       
       if (pomodoroMode) {
-        // Pomodoro ON: Automatically switch to break and start it
-        const shouldTakeLongBreak = newSessionsCompleted >= prevState.settings.sessionsUntilLongBreak;
+        // Pomodoro ON: Automatically switch to break and start it.
+        // The header's cycle dots count with modulo over the lifetime session
+        // total, so a long break has to land on a multiple of the interval or
+        // the indicator and the timer disagree.
+        const cycleLength = Math.max(1, prevState.settings.sessionsUntilLongBreak);
+        const shouldTakeLongBreak = newSessionsCompleted % cycleLength === 0;
         const newTimeLeft = shouldTakeLongBreak ? prevState.settings.longBreakDuration : prevState.settings.breakDuration;
         
         // Play break start sound
@@ -628,6 +672,7 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
             ...prev,
             isActive: true,  // Automatically start the break timer
             isBreak: true,
+            breakIsLong: shouldTakeLongBreak,
             timeLeft: newTimeLeft,
             sessionsCompleted: newSessionsCompleted,
             sessionStart: new Date()
@@ -657,8 +702,13 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
           isActive: false,
           isBreak: false,
           timeLeft: prevState.settings.studyDuration,
-          sessionStart: new Date(),
-          sessionsCompleted: prevState.sessionsCompleted >= prevState.settings.sessionsUntilLongBreak ? 0 : prevState.sessionsCompleted
+          // Cleared, not stamped now: the next study block starts the clock when
+          // the user (or auto-start) actually begins it, not when the break ended.
+          sessionStart: null,
+          breakIsLong: false,
+          // No reset: the cycle position is derived from the lifetime count by
+          // modulo, exactly like the cycle dots in the header.
+          sessionsCompleted: prevState.sessionsCompleted
         });
       } else {
         // Pomodoro OFF: Just stop the timer
@@ -692,7 +742,6 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
   const saveStopwatchSession = async (elapsedSeconds: number, sessionStart: Date) => {
     if (elapsedSeconds <= 0) return; // Don't save sessions with 0 duration
     
-    const end = new Date();
     const sessionType = 'Study';
     
     try {
@@ -717,6 +766,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
         start: sessionStart,
         end: new Date(),
         duration: elapsedSeconds,
+        title: sessionTitle,
+        subject: sessionTag,
       });
       localStorage.setItem('studyTimerLogs', JSON.stringify(existingLogs));
       
@@ -750,6 +801,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
               
               const response = await axiosInstance.post('/tasks/study-timer-sessions/', {
                 session_type: sessionType,
+                title: sessionTitle,
+                subject: sessionTag,
                 start_time: sessionStartISO,
                 end_time: endISO,
                 duration: elapsedSeconds,
@@ -796,6 +849,8 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
                       start_time: sessionStartISO,
                       end_time: endISO,
                       duration: elapsedSeconds,
+                      ...(sessionTitle ? { title: sessionTitle } : {}),
+                      ...(sessionTag ? { subject: sessionTag } : {}),
                     }]);
                   
                   if (supabaseError) {
@@ -875,12 +930,25 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
   };
 
   const updateSettings = (newSettings: TimerSettings) => {
+    const clampDuration = (seconds: number) =>
+      Number.isFinite(seconds) ? Math.max(60, Math.round(seconds)) : 60;
+    const safeSettings: TimerSettings = {
+      studyDuration: clampDuration(newSettings.studyDuration),
+      breakDuration: clampDuration(newSettings.breakDuration),
+      longBreakDuration: clampDuration(newSettings.longBreakDuration),
+      sessionsUntilLongBreak: Number.isFinite(newSettings.sessionsUntilLongBreak)
+        ? Math.max(1, Math.round(newSettings.sessionsUntilLongBreak))
+        : 1,
+    };
+
     setTimerState(prev => ({
       ...prev,
-      settings: newSettings,
-      timeLeft: prev.isBreak ? prev.timeLeft : newSettings.studyDuration
+      settings: safeSettings,
+      // A block that is already running keeps its own clock; new durations
+      // apply from the next block instead of snapping to full length.
+      timeLeft: prev.isBreak || prev.isActive ? prev.timeLeft : safeSettings.studyDuration
     }));
-    localStorage.setItem('studyTimerSettings', JSON.stringify(newSettings));
+    localStorage.setItem('studyTimerSettings', JSON.stringify(safeSettings));
   };
 
   const isTimerRunning = timerState.isActive || timerState.timeLeft < timerState.settings.studyDuration;
@@ -897,6 +965,10 @@ export const TimerProvider: React.FC<TimerProviderProps> = ({ children }) => {
     setPomodoroMode,
     stopwatchMode,
     setStopwatchMode,
+    sessionTitle,
+    sessionTag,
+    setSessionTitle,
+    setSessionTag,
     refreshSessionsCount
   };
 

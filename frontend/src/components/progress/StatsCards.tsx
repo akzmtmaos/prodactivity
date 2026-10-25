@@ -131,68 +131,69 @@ const StatsCards: React.FC<StatsCardsProps> = ({ stats, todaysProductivity }) =>
 
   const currentStreak = calculateCurrentStreak();
 
+    const studyTime =
+    stats.totalStudyTime >= 60
+      ? (() => {
+          const hours = Math.floor(stats.totalStudyTime / 60);
+          const minutes = stats.totalStudyTime % 60;
+          return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+        })()
+      : `${stats.totalStudyTime}m`;
+
+  const summaryItems = [
+    {
+      label: 'Current streak',
+      value: `${currentStreak}`,
+      icon: Flame,
+      tone: 'text-orange-500 dark:text-orange-400',
+    },
+    {
+      label: 'Tasks completed',
+      value: `${stats.totalTasksCompleted}`,
+      icon: Target,
+      tone: 'text-emerald-500 dark:text-emerald-400',
+    },
+    {
+      label: 'Study time',
+      value: studyTime,
+      icon: Clock,
+      tone: 'text-blue-500 dark:text-blue-400',
+    },
+    {
+      label: 'Avg. completion',
+      value: `${stats.averageProductivity}%`,
+      icon: TrendingUp,
+      tone: 'text-violet-500 dark:text-violet-400',
+    },
+  ];
+
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* Streak Card */}
-      <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow p-4 transition-shadow hover:shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gray-100 dark:bg-[#1e1e1e] rounded-lg">
-            <Flame size={20} className="text-orange-600 dark:text-orange-400" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{currentStreak}</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Current Streak</p>
-          </div>
-        </div>
-      </div>
+    <div className="mb-4 grid grid-cols-2 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-[#2f2f2f] dark:bg-[#1e1e1e] sm:grid-cols-4">
+      {summaryItems.map((item, index) => {
+        const Icon = item.icon;
+        const borderClasses = [
+          index % 2 === 1 ? 'border-l' : '',
+          index >= 2 ? 'border-t sm:border-t-0' : '',
+          index >= 1 ? 'sm:border-l' : '',
+        ]
+          .filter(Boolean)
+          .join(' ');
 
-      {/* Tasks Completed Card */}
-      <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow p-4 transition-shadow hover:shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gray-100 dark:bg-[#1e1e1e] rounded-lg">
-            <Target size={20} className="text-green-600 dark:text-green-400" />
+        return (
+          <div
+            key={item.label}
+            className={`flex min-w-0 items-center gap-2 border-gray-200 px-3.5 py-2.5 dark:border-[#2f2f2f] ${borderClasses}`}
+          >
+            <Icon size={14} className={`flex-shrink-0 ${item.tone}`} />
+            <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">
+              {item.value}
+            </span>
+            <span className="min-w-0 truncate text-xs text-gray-500 dark:text-gray-400">
+              {item.label}
+            </span>
           </div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{stats.totalTasksCompleted}</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Tasks Completed</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Study Time Card */}
-      <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow p-4 transition-shadow hover:shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gray-100 dark:bg-[#1e1e1e] rounded-lg">
-            <Clock size={20} className="text-blue-600 dark:text-blue-400" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">
-              {stats.totalStudyTime >= 60 
-                ? (() => {
-                    const hours = Math.floor(stats.totalStudyTime / 60);
-                    const minutes = stats.totalStudyTime % 60;
-                    return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
-                  })()
-                : `${stats.totalStudyTime}m`
-              }
-            </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Study Time</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Productivity Score Card */}
-      <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow p-4 transition-shadow hover:shadow-md">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-gray-100 dark:bg-[#1e1e1e] rounded-lg">
-            <TrendingUp size={20} className="text-purple-600 dark:text-purple-400" />
-          </div>
-          <div>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">{stats.averageProductivity}%</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">Overall Productivity</p>
-          </div>
-        </div>
-      </div>
+        );
+      })}
     </div>
   );
 };

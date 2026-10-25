@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X, AtSign, AlertCircle, Check } from 'lucide-react';
+import { X, AtSign, AlertCircle, Check, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { User } from './types';
 import { getAvatarUrl } from './utils';
@@ -11,7 +11,7 @@ interface AddMembersToGroupModalProps {
   roomName: string;
   currentUserId: string;
   currentParticipantIds: string[];
-  onAdded: () => void;
+  onAdded: (addedEmails: string[]) => void;
 }
 
 interface ParsedEntry {
@@ -196,7 +196,11 @@ const AddMembersToGroupModal: React.FC<AddMembersToGroupModalProps> = ({
       }));
       const { error: insertError } = await supabase.from('room_participants').insert(toInsert);
       if (insertError) throw insertError;
-      onAdded();
+      const addedEmails = Array.from(selectedProfiles).map((userId) => {
+        const entry = entries.find((e) => e.profile && String(e.profile.id) === String(userId));
+        return entry?.email ?? '';
+      }).filter(Boolean);
+      onAdded(addedEmails);
       onClose();
     } catch (err: any) {
       setSubmissionError(err?.message || 'Failed to add members');
@@ -217,7 +221,12 @@ const AddMembersToGroupModal: React.FC<AddMembersToGroupModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Add members to {roomName || 'group'}</h2>
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 dark:bg-blue-900/30 shrink-0">
+              <Users className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+            </div>
+            <h2 className="text-base font-semibold leading-6 text-gray-900 dark:text-white">Add members to {roomName || 'group'}</h2>
+          </div>
           <button
             type="button"
             onClick={onClose}

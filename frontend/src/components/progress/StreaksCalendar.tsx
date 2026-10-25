@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface StreakDay {
   date: string;
@@ -17,15 +18,14 @@ interface StreaksCalendarProps {
   } | null;
 }
 
-const weekDays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const weekDays = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 
 function getMonthMatrix(year: number, month: number) {
   const firstDay = new Date(year, month, 1);
   const lastDay = new Date(year, month + 1, 0);
-  const matrix = [];
+  const matrix: (Date | null)[][] = [];
   let week: (Date | null)[] = [];
   let day = 1;
-  // Fill first week
   for (let i = 0; i < 7; i++) {
     if (i < firstDay.getDay()) {
       week.push(null);
@@ -34,7 +34,6 @@ function getMonthMatrix(year: number, month: number) {
     }
   }
   matrix.push(week);
-  // Fill remaining weeks
   while (day <= lastDay.getDate()) {
     week = [];
     for (let i = 0; i < 7; i++) {
@@ -49,15 +48,6 @@ function getMonthMatrix(year: number, month: number) {
   return matrix;
 }
 
-const getStreakColor = (streak: boolean, productivity?: number) => {
-  if (!streak) {
-    // Light: light gray tile; dark: darker tile so each cell is distinct from card background
-    return 'bg-gray-200 dark:bg-[#1e1e1e]';
-  }
-  // Streak day: green
-  return 'bg-green-500 dark:bg-green-500/90';
-};
-
 const monthNames = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December'
@@ -69,16 +59,6 @@ const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData, todaysPro
   const [displayedMonth, setDisplayedMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const matrix = getMonthMatrix(displayedYear, displayedMonth);
-
-  // Debug: Log streak data
-  useEffect(() => {
-    console.log('📅 StreaksCalendar received data:', streakData.length, 'days');
-    const streakDays = streakData.filter(d => d.streak);
-    console.log('📅 Streak days in calendar:', streakDays.length);
-    if (streakDays.length > 0) {
-      console.log('📅 Recent streak days:', streakDays.slice(-5));
-    }
-  }, [streakData]);
 
   const handlePrevMonth = () => {
     if (displayedMonth === 0) {
@@ -100,84 +80,79 @@ const StreaksCalendar: React.FC<StreaksCalendarProps> = ({ streakData, todaysPro
 
   return (
     <div className="w-full">
-      {/* Calendar Header (Current/Longest Streak are shown in the Level League + Streaks card above) */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="mb-2 flex items-center justify-between">
         <button
+          type="button"
           onClick={handlePrevMonth}
-          className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
-          aria-label="Previous Month"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:text-gray-400 dark:hover:bg-[#242424] dark:hover:text-gray-200"
+          aria-label="Previous month"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
+          <ChevronLeft size={14} />
         </button>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+        <span className="text-xs font-medium tabular-nums text-gray-900 dark:text-white">
           {monthNames[displayedMonth]} {displayedYear}
-        </h3>
+        </span>
         <button
+          type="button"
           onClick={handleNextMonth}
-          className="p-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-300 transition-colors"
-          aria-label="Next Month"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:text-gray-400 dark:hover:bg-[#242424] dark:hover:text-gray-200"
+          aria-label="Next month"
         >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
+          <ChevronRight size={14} />
         </button>
       </div>
 
-      {/* Week Days Header */}
-      <div className="grid grid-cols-7 gap-1 mb-2">
-        {weekDays.map(day => (
-          <div key={day} className="text-xs font-semibold text-center text-gray-500 dark:text-gray-400 py-2">
+      <div className="mb-1 grid grid-cols-7 gap-1">
+        {weekDays.map((day, index) => (
+          <div
+            key={`${day}-${index}`}
+            className="py-1 text-center text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500"
+          >
             {day}
           </div>
         ))}
       </div>
 
-      {/* Calendar Grid */}
       <div className="grid grid-cols-7 gap-1">
         {matrix.flat().map((date, index) => {
           if (!date) {
-            return <div key={index} className="h-12" />;
+            return <div key={index} className="h-8" />;
           }
-          
-          // Format date as YYYY-MM-DD without timezone issues
+
           const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
           const dayData = streakData.find(d => d.date === dateStr);
           const isToday = date.toDateString() === today.toDateString();
           const isSelected = selectedDate?.toDateString() === date.toDateString();
-          
-          // Use todaysProductivity for today if available
+
           let streak = dayData?.streak || false;
           let productivity = dayData?.productivity;
-          
+
           if (isToday && todaysProductivity) {
             streak = todaysProductivity.total_tasks > 0 && todaysProductivity.completed_tasks > 0;
             productivity = todaysProductivity.completion_rate;
           }
-          
+
           return (
-            <div
+            <button
               key={index}
-              className={`
-                h-12 rounded-lg flex items-center justify-center font-semibold text-sm cursor-pointer transition-all duration-200
-                ${getStreakColor(streak, productivity)}
-                ${isToday ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''}
-                ${isSelected ? 'ring-2 ring-orange-500 dark:ring-orange-400' : ''}
-                hover:scale-105 hover:shadow-md
-                ${streak ? 'text-white' : 'text-gray-600 dark:text-gray-400'}
-              `}
+              type="button"
               onClick={() => setSelectedDate(date)}
-              title={`${dateStr}${productivity !== undefined ? ` - ${productivity}%` : ''}${streak ? ' - Streak Day' : ''}`}
+              title={`${dateStr}${productivity !== undefined ? ` · ${productivity}%` : ''}${streak ? ' · streak day' : ''}`}
+              className={`flex h-8 items-center justify-center rounded-md text-[11px] font-medium tabular-nums transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                streak
+                  ? 'bg-green-500 text-white hover:bg-green-600 dark:bg-green-500/90 dark:hover:bg-green-500'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#262626] dark:text-gray-400 dark:hover:bg-[#2f2f2f]'
+              } ${isToday ? 'ring-2 ring-indigo-500 ring-offset-1 ring-offset-white dark:ring-indigo-400 dark:ring-offset-[#1e1e1e]' : ''} ${
+                isSelected && !isToday ? 'ring-2 ring-gray-900 dark:ring-gray-200' : ''
+              }`}
             >
               {date.getDate()}
-            </div>
+            </button>
           );
         })}
       </div>
-
     </div>
   );
 };
 
-export default StreaksCalendar; 
+export default StreaksCalendar;

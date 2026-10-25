@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import ProductivityRow from './ProductivityRow';
 import WeeklyBreakdownModal from './WeeklyBreakdownModal';
 import MonthlyBreakdownModal from './MonthlyBreakdownModal';
 import DailyBreakdownModal from './DailyBreakdownModal';
 import ProductivityLegend from './ProductivityLegend';
+import { ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import TabBar from '../common/TabBar';
 
 interface ProductivityHistoryProps {
   progressView: string;
   productivity: any;
   prodLogs: any[];
+  /** True while the list for the navigated-to period is being fetched. */
+  isLoading?: boolean;
   selectedDate: Date;
   handlePrev: () => void;
   handleNext: () => void;
@@ -24,6 +28,7 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
   progressView,
   productivity,
   prodLogs,
+  isLoading = false,
   selectedDate,
   handlePrev,
   handleNext,
@@ -51,6 +56,27 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     date: string;
     percentage: number;
   } | null>(null);
+
+  // A local Supabase query can resolve inside the same React batch as the click,
+  // so `isLoading` alone may never paint. The chevrons set `navPending` locally,
+  // which keeps the spinner up for a short minimum after every navigation.
+  const [navPending, setNavPending] = useState(false);
+  const showLoading = isLoading || navPending;
+  useEffect(() => {
+    if (isLoading || !navPending) return;
+    const timer = setTimeout(() => setNavPending(false), 350);
+    return () => clearTimeout(timer);
+  }, [isLoading, navPending]);
+
+  const goPrev = () => {
+    setNavPending(true);
+    handlePrev();
+  };
+
+  const goNext = () => {
+    setNavPending(true);
+    handleNext();
+  };
 
   const handleWeekClick = (weekStart: string, weekEnd: string, percentage: number) => {
     setSelectedWeek({ weekStart, weekEnd, percentage });
@@ -86,19 +112,10 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     // Use local date formatting to avoid timezone issues
     const selectedDateStr = selectedDate.toLocaleDateString('en-CA'); // Format as YYYY-MM-DD in local timezone
     const selectedDateData = prodLogs.find(item => item.date === selectedDateStr);
-    
-    // Debug logging
-    console.log('🔍 ProductivityHistory renderDailyView debug:');
-    console.log('  Selected date:', selectedDate);
-    console.log('  Selected date string:', selectedDateStr);
-    console.log('  Total prodLogs:', prodLogs.length);
-    console.log('  ProdLogs data:', prodLogs);
-    console.log('  Found selectedDateData:', selectedDateData);
-    
+
     // Check if selected date is today
     const today = new Date();
     const isSelectedDateToday = selectedDate.toDateString() === today.toDateString();
-    console.log('  Is selected date today?', isSelectedDateToday);
     
     return (
     <>
@@ -112,21 +129,6 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
           getProductivityColor={getProductivityColor}
           onClick={() => handleDayClick(selectedDateData.date, selectedDateData.log.completion_rate)}
         />
-      )}
-      
-      {/* If no data found for selected date and it's not today, show a message */}
-      {!selectedDateData && !isSelectedDateToday && (
-        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-8 mb-4">
-          <div className="text-center">
-            <div className="text-4xl mb-3">📅</div>
-            <p className="text-gray-500 dark:text-gray-400 mb-2 font-medium">No activity recorded for {selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}</p>
-            <p className="text-sm text-gray-400 dark:text-gray-500 mb-3">This means no tasks were created or completed on this date.</p>
-            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 mt-3">
-              <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">💡 This is normal!</p>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">Productivity data only appears when you create or complete tasks on a specific date.</p>
-            </div>
-          </div>
-        </div>
       )}
       
       {/* Historical logs - include selected date if it's not today */}
@@ -182,80 +184,38 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
             />
           );
         })}
-      
-      {/* Show message if no historical data found - only for non-today dates */}
-      {!isSelectedDateToday && prodLogs.filter(item => {
-        if (!item || !item.date) return false;
-        // Parse date properly to avoid timezone issues
-        const dayDate = new Date(item.date + 'T00:00:00.000Z');
-        if (isNaN(dayDate.getTime())) return false;
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        // dayDate is already set to midnight UTC
-        
-        // Filter by selected month and year
-        const selectedMonth = selectedDate.getMonth();
-        const selectedYear = selectedDate.getFullYear();
-        const itemMonth = dayDate.getMonth();
-        const itemYear = dayDate.getFullYear();
-        
-        const isInSelectedMonth = itemMonth === selectedMonth && itemYear === selectedYear;
-        return dayDate < today && isInSelectedMonth;
-      }).length === 0 && selectedDateData && (
-        <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-8">
-          <div className="text-center">
-            <p className="text-gray-500 dark:text-gray-400 mb-2">No historical daily data found</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">This might be because:</p>
-            <ul className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              <li>• No tasks were completed on previous days</li>
-              <li>• Data is still being processed</li>
-              <li>• API is not returning historical data</li>
-            </ul>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Total logs received: {prodLogs.length}</p>
-          </div>
-        </div>
-      )}
     </>
     );
   };
 
   const renderWeeklyView = () => {
-    console.log('🔍🔍🔍 renderWeeklyView called with:', {
-      prodLogsLength: prodLogs.length,
-      prodLogs: prodLogs
-    });
-    
     // Reverse the array to show most recent weeks first
     const reversedProdLogs = [...prodLogs].reverse();
-    
-    // DEBUG: Check for duplicates in the array
-    console.log('🔍 DETAILED Weekly rendering debug:');
-    console.log('Raw prodLogs:', JSON.stringify(prodLogs, null, 2));
-    reversedProdLogs.forEach((item, idx) => {
-      console.log(`  Week ${idx}: ${item.week_start} to ${item.week_end} = ${item.log?.completion_rate}%`);
-    });
-    
+
     // Remove duplicates based on week_start (in case aggregation created duplicates)
-    const seenWeeks = new Set();
+    const seenWeeks = new Set<string>();
     const uniqueWeeks = reversedProdLogs.filter(item => {
-      if (seenWeeks.has(item.week_start)) {
-        console.warn('⚠️ Duplicate week found and removed:', item.week_start);
-        return false;
-      }
+      if (seenWeeks.has(item.week_start)) return false;
       seenWeeks.add(item.week_start);
       return true;
     });
-    
-    console.log(`Filtered from ${reversedProdLogs.length} to ${uniqueWeeks.length} unique weeks`);
+
+    // Only show weeks that belong to the currently selected year
+    const selectedYear = selectedDate.getFullYear();
+    const weeksForYear = uniqueWeeks.filter(item => {
+      if (!item.week_start) return false;
+      const d = new Date(item.week_start + 'T00:00:00');
+      if (isNaN(d.getTime())) return false;
+      return d.getFullYear() === selectedYear;
+    });
     
     return (
     <>
-      {uniqueWeeks.map((item, idx) => {
+      {weeksForYear.map((item, idx) => {
         // Parse dates in local timezone to avoid timezone shifts
         const weekStart = item.week_start ? new Date(item.week_start + 'T00:00:00') : null;
         const weekEnd = item.week_end ? new Date(item.week_end + 'T00:00:00') : null;
         if (!weekStart || isNaN(weekStart.getTime()) || !weekEnd || isNaN(weekEnd.getTime())) {
-          console.log('Invalid week dates for item:', item);
           return null;
         }
         
@@ -265,53 +225,18 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
         const isFutureWeek = weekStart > today;
         
         return (
-          <div 
-            key={item.week_start} 
-            className={`grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-4 mb-2 transition-colors duration-200 ${
-              isFutureWeek 
-                ? 'cursor-not-allowed opacity-50' 
-                : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/50'
-            }`}
-            onClick={() => {
-              if (!isFutureWeek) {
-                handleWeekClick(item.week_start, item.week_end, item.log.completion_rate);
-              }
-            }}
-          >
-            <div className="text-left">
-              <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                {weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} - {weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                {isFutureWeek && <span className="ml-2 text-xs text-orange-500">(Future Week)</span>}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {isFutureWeek ? 'Future week - no data available' : 'Click to view daily breakdown'}
-              </div>
-            </div>
-            <div className="flex justify-center">
-              <div className="w-full max-w-lg">
-                <div className="w-full h-6 bg-gray-200 dark:bg-gray-700/60 rounded-full overflow-hidden relative">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
-                      item.log.completion_rate >= 70 ? 'bg-green-500 dark:bg-green-300' :
-                      item.log.completion_rate >= 40 ? 'bg-yellow-500 dark:bg-yellow-400' :
-                      'bg-red-500 dark:bg-red-400'
-                    }`}
-                    style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white pointer-events-none">
-                    {item.log.completion_rate % 1 === 0 ? item.log.completion_rate.toFixed(0) : item.log.completion_rate.toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className={`text-base font-bold ${getProductivityColor(item.log.status)}`}>{item.log.status}</span>
-            </div>
-          </div>
+          <ProductivityRow
+            key={item.week_start}
+            label={`${weekStart.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} – ${weekEnd.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`}
+            completionRate={item.log.completion_rate}
+            status={item.log.status}
+            isFuture={isFutureWeek}
+            getProductivityColor={getProductivityColor}
+            onClick={() => handleWeekClick(item.week_start, item.week_end, item.log.completion_rate)}
+          />
         );
       })}
-      
+
       {/* Show message if no weekly data found */}
       {prodLogs.length === 0 && (
         <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-8">
@@ -332,11 +257,6 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
   };
 
   const renderMonthlyView = () => {
-    console.log('renderMonthlyView called with:', {
-      prodLogsLength: prodLogs.length,
-      prodLogs: prodLogs
-    });
-    
     // Reverse the array to show most recent months first
     const reversedProdLogs = [...prodLogs].reverse();
     
@@ -344,7 +264,6 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     <>
       {reversedProdLogs.map((item, idx) => {
         if (!item.month || isNaN(item.month) || item.month < 1 || item.month > 12) {
-          console.log('Invalid month for item:', item);
           return null;
         }
         const monthDate = new Date(selectedDate.getFullYear(), item.month - 1, 1);
@@ -356,53 +275,18 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
         const isFutureMonth = monthDate > today;
         
         return (
-          <div 
-            key={item.month} 
-            className={`grid grid-cols-3 gap-4 items-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-4 mb-2 transition-colors duration-200 ${
-              isFutureMonth 
-                ? 'cursor-not-allowed opacity-50' 
-                : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800/50'
-            }`}
-            onClick={() => {
-              if (!isFutureMonth) {
-                handleMonthClick(item.month, selectedDate.getFullYear(), item.log.completion_rate);
-              }
-            }}
-          >
-            <div className="text-left">
-              <div className="text-sm font-semibold text-gray-900 dark:text-white">
-                {monthDate.toLocaleDateString('en-US', { month: 'long' })}
-                {isFutureMonth && <span className="ml-2 text-xs text-orange-500">(Future Month)</span>}
-              </div>
-              <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {isFutureMonth ? 'Future month - no data available' : 'Click to view daily breakdown'}
-              </div>
-            </div>
-            <div className="flex justify-center">
-              <div className="w-full max-w-lg">
-                <div className="w-full h-6 bg-gray-200 dark:bg-gray-700/60 rounded-full overflow-hidden relative">
-                  <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      item.log.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
-                      item.log.completion_rate >= 70 ? 'bg-green-500 dark:bg-green-300' :
-                      item.log.completion_rate >= 40 ? 'bg-yellow-500 dark:bg-yellow-400' :
-                      'bg-red-500 dark:bg-red-400'
-                    }`}
-                    style={{ width: `${Math.min(item.log.completion_rate, 100)}%` }}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold text-white pointer-events-none">
-                    {item.log.completion_rate % 1 === 0 ? item.log.completion_rate.toFixed(0) : item.log.completion_rate.toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            </div>
-            <div className="text-right">
-              <span className={`text-base font-bold ${getProductivityColor(item.log.status)}`}>{item.log.status}</span>
-            </div>
-          </div>
+          <ProductivityRow
+            key={item.month}
+            label={monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+            completionRate={item.log.completion_rate}
+            status={item.log.status}
+            isFuture={isFutureMonth}
+            getProductivityColor={getProductivityColor}
+            onClick={() => handleMonthClick(item.month, selectedDate.getFullYear(), item.log.completion_rate)}
+          />
         );
       })}
-      
+
       {/* Show message if no monthly data found */}
       {prodLogs.length === 0 && (
         <div className="flex items-center justify-center bg-gray-50 dark:bg-gray-900/40 rounded-lg px-6 py-8">
@@ -422,59 +306,102 @@ const ProductivityHistory: React.FC<ProductivityHistoryProps> = ({
     );
   };
 
+  // Summary stats for the current view. Periods with nothing due are left out:
+  // counting them as 0% drags the average down without saying anything.
+  const hasLogs = Array.isArray(prodLogs) && prodLogs.length > 0;
+  const ratedLogs = (prodLogs || []).filter((item) => (item.log?.total_tasks || 0) > 0);
+  const totalTasksInView = ratedLogs.reduce((sum, item) => sum + (item.log?.total_tasks || 0), 0);
+  const completedTasksInView = ratedLogs.reduce((sum, item) => sum + (item.log?.completed_tasks || 0), 0);
+  const avgRate = totalTasksInView > 0 ? (completedTasksInView / totalTasksInView) * 100 : 0;
+  const bestRate = ratedLogs.length > 0
+    ? Math.max(...ratedLogs.map((item) => item.log?.completion_rate || 0))
+    : 0;
+
   return (
     <>
-      {/* Productivity Legend - Outside Container */}
-      <ProductivityLegend getProductivityColor={getProductivityColor} />
-      
-      {/* Tabs - Below Legend */}
-      <div className="flex justify-center mb-6">
-        <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg p-1.5 shadow inline-flex">
-          <div className="flex space-x-1">
-            {tabs.map(tab => (
-              <button
-                key={tab}
-                className={`min-w-[110px] px-6 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                  progressView === tab 
-                    ? 'bg-indigo-500 dark:bg-indigo-600 text-white shadow-sm' 
-                    : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-700/50'
-                }`}
-                onClick={() => setProgressView(tab)}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        </div>
+      {/* View switcher + legend */}
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <TabBar
+          bare
+          ariaLabel="Productivity range"
+          value={progressView}
+          onChange={setProgressView}
+          items={tabs.map((tab) => ({ id: tab, label: tab }))}
+        />
+        <ProductivityLegend getProductivityColor={getProductivityColor} />
       </div>
-      
+
       <div className="w-full mb-4">
-        <div className="bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow w-full flex flex-col overflow-hidden" style={{ height: 520 }}>
-          <div className="flex items-center justify-between bg-gray-50 dark:bg-[#1e1e1e] px-6 py-4 border-b border-gray-200 dark:border-[#333333]">
-            <span className="text-lg font-semibold text-gray-900 dark:text-gray-100">Productivity Scale History</span>
-            <div className="flex items-center space-x-2">
-              <button 
-                onClick={handlePrev} 
-                className={`px-3 py-2 rounded-xl transition-all duration-200 ${isPrevDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}
-                disabled={isPrevDisabled}
-              >
-                &#60;
-              </button>
-              <span className="text-sm font-semibold text-gray-900 dark:text-gray-100 px-4 py-2 bg-white/80 dark:bg-gray-700/80 rounded-xl">{getDateDisplay()}</span>
+        <div
+          aria-busy={showLoading}
+          className="flex w-full flex-col overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-[#2f2f2f] dark:bg-[#1e1e1e]"
+          style={{ height: 460 }}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3.5 py-2.5 dark:border-[#2f2f2f]">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Productivity history
+            </span>
+            <div className="flex items-center gap-1">
               <button
-                onClick={handleNext}
-                className={`px-3 py-2 rounded-xl transition-all duration-200 ${isNextDisabled ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}
-                disabled={isNextDisabled}
+                type="button"
+                onClick={goPrev}
+                disabled={isPrevDisabled}
+                aria-label="Previous period"
+                className="flex h-6 w-6 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-400 dark:hover:bg-[#242424] dark:hover:text-gray-200"
               >
-                &#62;
+                <ChevronLeft size={14} />
+              </button>
+              <span className="min-w-[128px] text-center text-[11px] font-medium tabular-nums text-gray-900 dark:text-white">
+                {getDateDisplay()}
+              </span>
+              <button
+                type="button"
+                onClick={goNext}
+                disabled={isNextDisabled}
+                aria-label="Next period"
+                className="flex h-6 w-6 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-400 dark:hover:bg-[#242424] dark:hover:text-gray-200"
+              >
+                <ChevronRight size={14} />
               </button>
             </div>
           </div>
           {/* Scrollable list of productivity logs */}
-          <div className="flex-1 overflow-y-scroll px-6 py-4">
+          <div className="relative flex-1 overflow-hidden">
+          <div className="h-full overflow-y-auto px-3.5 py-3">
+            {hasLogs && (
+              <div className="mb-2 flex flex-wrap gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1 dark:border-[#2f2f2f]">
+                  <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{avgRate.toFixed(1)}%</span>
+                  avg
+                </span>
+                <span className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1 dark:border-[#2f2f2f]">
+                  <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{bestRate.toFixed(1)}%</span>
+                  best
+                </span>
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1 dark:border-[#2f2f2f]"
+                  title="Periods that actually had tasks due"
+                >
+                  <span className="font-semibold tabular-nums text-gray-900 dark:text-white">{ratedLogs.length}</span>
+                  with tasks
+                </span>
+              </div>
+            )}
             {progressView === 'Daily' && renderDailyView()}
             {progressView === 'Weekly' && renderWeeklyView()}
             {progressView === 'Monthly' && renderMonthlyView()}
+          </div>
+            {showLoading && (
+              <div
+                aria-live="polite"
+                className="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-white/75 backdrop-blur-[1px] dark:bg-[#1e1e1e]/80"
+              >
+                <Loader2 size={14} className="animate-spin text-indigo-500 dark:text-indigo-400" />
+                <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">
+                  Loading {getDateDisplay()}…
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>

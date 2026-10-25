@@ -3,6 +3,8 @@ import React from 'react';
 import { formatDistanceToNow } from 'date-fns';
 import { Archive as ArchiveIcon, Book } from 'lucide-react';
 
+const ARCHIVE_PER_PAGE = 20;
+
 interface Notebook {
   id: number;
   name: string;
@@ -46,6 +48,8 @@ interface ArchiveProps {
   onEditNotebook?: (notebook: Notebook | Note) => void;
   activeFilter?: 'all' | 'notebook' | 'note';
   setFilter?: (filter: 'all' | 'notebook' | 'note') => void;
+  /** Page supplied by the parent header pager */
+  currentPage?: number;
 }
 
 const NotesArchive: React.FC<ArchiveProps> = ({
@@ -58,6 +62,7 @@ const NotesArchive: React.FC<ArchiveProps> = ({
   onEditNotebook,
   activeFilter,
   setFilter,
+  currentPage = 1,
 }) => {
   // Build a flat merged stream: each row carries its type, label, title, dates, color, and handlers.
   const rows: Array<{
@@ -114,6 +119,10 @@ const NotesArchive: React.FC<ArchiveProps> = ({
       ? rows.filter((r) => r.type === 'note')
       : rows;
 
+  // Slice the merged archive stream; the parent header pager owns the page state
+  const pageStart = (Math.max(1, currentPage) - 1) * ARCHIVE_PER_PAGE;
+  const paginatedRows = filteredRows.slice(pageStart, pageStart + ARCHIVE_PER_PAGE);
+
   return (
     <div className="w-full h-full flex flex-col">
       <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60">
@@ -136,7 +145,7 @@ const NotesArchive: React.FC<ArchiveProps> = ({
           </button>
         </div>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div data-notes-scroll className="flex-1 min-h-0 overflow-y-auto">
         {filteredRows.length === 0 ? (
           <div className="flex items-center justify-center h-full py-12">
             <div className="text-center">
@@ -151,7 +160,7 @@ const NotesArchive: React.FC<ArchiveProps> = ({
           </div>
         ) : (
           <div className="space-y-1">
-            {filteredRows.map((row) => (
+            {paginatedRows.map((row) => (
               <div
                 key={row.id}
                 className="flex items-center gap-3 w-full min-w-0 h-12 px-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group"

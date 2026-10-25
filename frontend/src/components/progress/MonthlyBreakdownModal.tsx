@@ -149,10 +149,14 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
     });
   };
 
+  // Rate for the whole month is completed ÷ total. Averaging the daily
+  // percentages would let a one-task day outweigh a twenty-task day.
   const calculateAverage = () => {
     if (dailyData.length === 0) return 0;
-    const total = dailyData.reduce((sum, day) => sum + day.completion_rate, 0);
-    return total / dailyData.length;
+    const totalTasks = dailyData.reduce((sum, day) => sum + (day.total_tasks || 0), 0);
+    const completedTasks = dailyData.reduce((sum, day) => sum + (day.completed_tasks || 0), 0);
+    if (totalTasks === 0) return 0;
+    return (completedTasks / totalTasks) * 100;
   };
 
   const getMonthName = () => {
@@ -181,40 +185,40 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
 
   return createPortal(
     <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-hidden">
+      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-3xl w-full mx-4 max-h-[85vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
           <div>
-            <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-              Monthly Breakdown
+            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
+              Monthly breakdown
             </h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
+            <p className="text-xs text-gray-600 dark:text-gray-400">
               {getMonthName()}
             </p>
           </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-2xl font-bold"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl font-bold leading-none"
           >
             ×
           </button>
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[70vh]">
+        <div className="px-4 py-3 overflow-y-auto max-h-[70vh]">
           {loading && (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-gray-600 dark:text-gray-400">Loading daily breakdown...</span>
+            <div className="flex items-center justify-center py-6">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-xs text-gray-600 dark:text-gray-400">Loading daily breakdown...</span>
             </div>
           )}
 
           {error && (
-            <div className="text-center py-8">
-              <p className="text-red-600 dark:text-red-400">{error}</p>
+            <div className="text-center py-6">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
               <button
                 onClick={fetchDailyBreakdown}
-                className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="mt-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700"
               >
                 Retry
               </button>
@@ -224,20 +228,20 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
           {!loading && !error && dailyData.length > 0 && (
             <>
               {/* Summary */}
-              <div className="mb-6 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="flex items-center justify-between gap-6">
+              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <div className="flex items-center justify-between gap-4">
                   {/* Left: Monthly Average */}
                   <div className="flex-1 text-center">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Monthly Average</p>
-                    <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {monthPercentage.toFixed(2)}%
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Monthly average</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">
+                      {monthPercentage.toFixed(1)}%
                     </p>
                   </div>
                   
                   {/* Right: Productivity Scale */}
                   <div className="flex-1 text-center">
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Productivity Scale</p>
-                    <span className={`inline-block text-lg font-bold px-4 py-1.5 rounded-full ${getProductivityColor(getMonthlyStatus())}`}>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Productivity scale</p>
+                    <span className={`inline-block text-xs font-semibold px-3 py-1 rounded-full ${getProductivityColor(getMonthlyStatus())}`}>
                       {getMonthlyStatus()}
                     </span>
                   </div>
@@ -246,26 +250,26 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
 
               {/* Daily breakdown */}
               <div className="space-y-3">
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                  Daily Breakdown
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                  Daily breakdown
                 </h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2.5">
                   {dailyData.map((day, index) => (
                     <div 
                       key={day.date} 
-                      className="p-4 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
+                      className="p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
                       onClick={() => handleDateClick(day.date, day.completion_rate)}
                     >
                       <div className="flex items-center justify-between mb-2">
-                        <span className="font-medium text-gray-900 dark:text-white text-sm">
-                          {formatDate(day.date)} 👁️
+                        <span className="text-xs font-medium text-gray-900 dark:text-white">
+                          {formatDate(day.date)}
                         </span>
-                        <span className={`text-xs font-semibold ${getProductivityColor(day.status)}`}>
+                        <span className={`text-[11px] font-semibold ${getProductivityColor(day.status)}`}>
                           {day.status}
                         </span>
                       </div>
                       <div className="space-y-2">
-                        <div className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
+                        <div className="w-full h-2.5 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
                           <div
                             className={`h-full rounded-full transition-all duration-500 ${
                               day.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
@@ -277,10 +281,10 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
                           />
                         </div>
                         <div className="flex justify-between items-center">
-                          <span className="text-sm font-bold text-gray-900 dark:text-white">
-                            {day.completion_rate.toFixed(2)}%
+                          <span className="text-xs font-semibold text-gray-900 dark:text-white">
+                            {day.completion_rate.toFixed(1)}%
                           </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                          <span className="text-[11px] text-gray-500 dark:text-gray-400">
                             {day.completed_tasks}/{day.total_tasks} tasks
                           </span>
                         </div>
@@ -293,8 +297,8 @@ const MonthlyBreakdownModal: React.FC<MonthlyBreakdownModalProps> = ({
           )}
 
           {!loading && !error && dailyData.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-gray-500 dark:text-gray-400">No daily data available for this month.</p>
+            <div className="text-center py-6">
+              <p className="text-sm text-gray-500 dark:text-gray-400">No daily data available for this month.</p>
             </div>
           )}
         </div>

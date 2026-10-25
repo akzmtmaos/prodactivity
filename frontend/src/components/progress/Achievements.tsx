@@ -371,37 +371,6 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allAchievements.length]); // Run when allAchievements is defined
 
-  // Get rarity colors
-  const getRarityColor = (rarity: string) => {
-    switch (rarity) {
-      case 'common':
-        return 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50';
-      case 'rare':
-        return 'border-blue-300 dark:border-blue-600 bg-blue-50 dark:bg-blue-900/20';
-      case 'epic':
-        return 'border-purple-300 dark:border-purple-600 bg-purple-50 dark:bg-purple-900/20';
-      case 'legendary':
-        return 'border-yellow-300 dark:border-yellow-600 bg-yellow-50 dark:bg-yellow-900/20';
-      default:
-        return 'border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/50';
-    }
-  };
-
-  const getRarityTextColor = (rarity: string) => {
-    switch (rarity) {
-      case 'common':
-        return 'text-gray-600 dark:text-gray-400';
-      case 'rare':
-        return 'text-blue-600 dark:text-blue-400';
-      case 'epic':
-        return 'text-purple-600 dark:text-purple-400';
-      case 'legendary':
-        return 'text-yellow-600 dark:text-yellow-400';
-      default:
-        return 'text-gray-600 dark:text-gray-400';
-    }
-  };
-
   // Check for newly unlocked achievements and award XP
   // ONLY when stats change, NOT when level changes (to prevent infinite loop)
   useEffect(() => {
@@ -480,99 +449,109 @@ const Achievements: React.FC<AchievementsProps> = ({ stats, userLevel, longestSt
   const unlockedAchievements = allAchievements.filter(achievement => achievement.unlocked);
   const lockedAchievements = allAchievements.filter(achievement => !achievement.unlocked);
 
+  const totalAchievements = allAchievements.length;
+  const completion = totalAchievements > 0 ? (unlockedAchievements.length / totalAchievements) * 100 : 0;
+
+  const rarityDot: Record<string, string> = {
+    common: 'bg-gray-400',
+    rare: 'bg-blue-500',
+    epic: 'bg-purple-500',
+    legendary: 'bg-amber-500',
+  };
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-xl shadow-md border border-gray-200 dark:border-gray-700">
-      <div className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center">
-            <div className="p-3 bg-yellow-100 dark:bg-yellow-900/20 rounded-lg">
-              <Award size={24} className="text-yellow-600 dark:text-yellow-400" />
-            </div>
-            <h2 className="ml-4 text-xl font-semibold text-gray-900 dark:text-white">
-              Achievements
-            </h2>
-          </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
-            {unlockedAchievements.length} / {allAchievements.length} unlocked
-          </div>
+    <div className="rounded-lg border border-gray-200 bg-white dark:border-[#2f2f2f] dark:bg-[#1e1e1e]">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 px-3.5 py-2.5 dark:border-[#2f2f2f]">
+        <div className="flex items-center gap-2">
+          <Award size={14} className="text-gray-400 dark:text-gray-500" />
+          <span className="text-sm font-semibold text-gray-900 dark:text-white">Achievements</span>
         </div>
+        <span className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
+          {unlockedAchievements.length} / {totalAchievements} unlocked
+        </span>
+      </div>
+      <div className="h-1 w-full bg-gray-100 dark:bg-[#262626]">
+        <div className="h-full bg-green-500 transition-all duration-500" style={{ width: `${completion}%` }} />
+      </div>
 
-
-        {/* Unlocked Achievements */}
+      <div className="space-y-4 px-3.5 py-3">
         {unlockedAchievements.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 flex items-center">
-              <CheckCircle size={20} className="text-green-500 mr-2" />
-              Unlocked ({unlockedAchievements.length})
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <section>
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <CheckCircle size={12} className="text-green-500" />
+              Unlocked
+              <span className="tabular-nums">({unlockedAchievements.length})</span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {unlockedAchievements.map((achievement) => (
-                <div 
+                <div
                   key={achievement.id}
-                  className={`p-4 rounded-lg border-2 transition-all duration-200 hover:scale-105 ${getRarityColor(achievement.rarity)}`}
+                  className="flex gap-2.5 rounded-lg border border-gray-200 bg-gray-50/60 px-3 py-2.5 transition-colors hover:bg-gray-50 dark:border-[#2f2f2f] dark:bg-[#242424] dark:hover:bg-[#282828]"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      {achievement.icon}
-                      <h4 className="ml-2 text-sm font-medium text-gray-900 dark:text-white">
-                        {achievement.title}
-                      </h4>
-                    </div>
-                    <CheckCircle size={16} className="text-green-500" />
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md border border-gray-200 bg-white dark:border-[#333333] dark:bg-[#1e1e1e]">
+                    {achievement.icon}
                   </div>
-                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    {achievement.description}
-                  </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className={`text-xs font-medium px-2 py-1 rounded-full ${getRarityTextColor(achievement.rarity)} bg-opacity-20`}>
-                      {achievement.rarity.toUpperCase()}
-                    </span>
-                    <span className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
-                      +{getXPReward(achievement.rarity)} XP
-                    </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="truncate text-[13px] font-medium text-gray-900 dark:text-white">
+                        {achievement.title}
+                      </span>
+                      <CheckCircle size={13} className="mt-0.5 flex-shrink-0 text-green-500" />
+                    </div>
+                    <p className="mt-0.5 text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                      {achievement.description}
+                    </p>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className="flex items-center gap-1 text-[10px] uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        <span className={`h-1.5 w-1.5 rounded-full ${rarityDot[achievement.rarity]}`} />
+                        {achievement.rarity}
+                      </span>
+                      <span className="text-[10px] font-medium text-indigo-600 dark:text-indigo-400">
+                        +{getXPReward(achievement.rarity)} XP
+                      </span>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
-        {/* Locked Achievements */}
         {lockedAchievements.length > 0 && (
-          <div>
-            <h3 className="text-lg font-medium text-gray-900 dark:text-gray-100 mb-4 flex items-center">
-              <Lock size={20} className="text-gray-500 dark:text-gray-400 mr-2" />
-              Locked ({lockedAchievements.length})
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <section>
+            <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              <Lock size={12} />
+              Locked
+              <span className="tabular-nums">({lockedAchievements.length})</span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
               {lockedAchievements.map((achievement) => (
-                <div 
+                <div
                   key={achievement.id}
-                  className="p-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40 backdrop-blur-sm opacity-60"
+                  className="flex gap-2.5 rounded-lg border border-dashed border-gray-200 px-3 py-2.5 opacity-75 dark:border-[#333333]"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className="p-2 bg-gray-100 dark:bg-gray-700 rounded-lg opacity-50">
-                        {achievement.icon}
-                      </div>
-                      <h4 className="ml-3 text-sm font-medium text-gray-500 dark:text-gray-400">
-                        {achievement.title}
-                      </h4>
-                    </div>
-                    <Lock size={16} className="text-gray-400" />
+                  <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 grayscale dark:bg-[#262626]">
+                    {achievement.icon}
                   </div>
-                  <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
-                    {achievement.description}
-                  </p>
-                  <div className="mt-3">
-                    <span className="text-xs font-medium px-3 py-1 rounded-full text-gray-400 dark:text-gray-500 bg-gray-200/50 dark:bg-gray-600/50">
-                      {achievement.rarity.toUpperCase()}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="truncate text-[13px] font-medium text-gray-600 dark:text-gray-300">
+                        {achievement.title}
+                      </span>
+                      <Lock size={13} className="mt-0.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                    </div>
+                    <p className="mt-0.5 text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+                      {achievement.description}
+                    </p>
+                    <span className="mt-1.5 flex items-center gap-1 text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                      <span className={`h-1.5 w-1.5 rounded-full ${rarityDot[achievement.rarity]} opacity-60`} />
+                      {achievement.rarity} · +{getXPReward(achievement.rarity)} XP
                     </span>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
       </div>
     </div>

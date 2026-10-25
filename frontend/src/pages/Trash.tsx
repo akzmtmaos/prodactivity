@@ -6,6 +6,7 @@ import Toast from '../components/common/Toast';
 import DeleteConfirmationModal from '../components/common/DeleteConfirmationModal';
 import { Trash2, ChevronDown, Search, RotateCcw, X } from 'lucide-react';
 import Pagination from '../components/common/Pagination';
+import TabBar from '../components/common/TabBar';
 import axiosInstance from '../utils/axiosConfig';
 import { API_BASE_URL } from '../config/api';
 import { supabase } from '../lib/supabase';
@@ -13,7 +14,7 @@ import { supabase } from '../lib/supabase';
 // Define TrashItem type here for use in state
 export type TrashItem = {
   id: string;
-  type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz';
+  type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz' | 'groupQuiz';
   title: string;
   deletedAt: string;
   tags?: string[]; // Optional tags for filtering quizzes from reviewers
@@ -37,6 +38,7 @@ const Trash = () => {
   const [reviewers, setReviewers] = useState<TrashItem[]>([]);
   const [tasks, setTasks] = useState<TrashItem[]>([]);
   const [flashcards, setFlashcards] = useState<TrashItem[]>([]);
+  const [groupQuizzes, setGroupQuizzes] = useState<TrashItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>(tab && TABS.includes(tab) ? tab : 'all');
   const [selectedTypes, setSelectedTypes] = useState<Set<ItemType>>(new Set<ItemType>(['notebooks' as ItemType]));
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -45,9 +47,9 @@ const Trash = () => {
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
-  const [restoreTarget, setRestoreTarget] = useState<{ id: string; type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz'; title: string } | null>(null);
+  const [restoreTarget, setRestoreTarget] = useState<{ id: string; type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz' | 'groupQuiz'; title: string } | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz'; title: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz' | 'groupQuiz'; title: string } | null>(null);
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [showDeleteSelectedModal, setShowDeleteSelectedModal] = useState(false);
   const [showRestoreSelectedModal, setShowRestoreSelectedModal] = useState(false);
@@ -162,6 +164,23 @@ const Trash = () => {
         setNotebooks([]);
       }
 
+      // Fetch deleted group quizzes (cancelled quizzes created by this user)
+      try {
+        const groupQuizzesRes = await axiosInstance.get('/trash/group-quizzes/');
+        const groupQuizzesData = Array.isArray(groupQuizzesRes.data) ? groupQuizzesRes.data : [];
+        setGroupQuizzes(
+          groupQuizzesData.map((quiz: any) => ({
+            id: String(quiz.id),
+            type: 'groupQuiz' as const,
+            title: quiz.title || 'Untitled group quiz',
+            deletedAt: quiz.deleted_at || quiz.created_at || '',
+          }))
+        );
+      } catch (error) {
+        console.error('Failed to fetch deleted group quizzes:', error);
+        setGroupQuizzes([]);
+      }
+
       // Fetch deleted reviewers
       const reviewersRes = await axiosInstance.get('/trash/reviewers/');
       const reviewersData = reviewersRes.data;
@@ -264,7 +283,7 @@ const Trash = () => {
   useEffect(() => {
     setCurrentPage(1);
     // Don't clear selection when tab changes - keep items selected across tabs
-  }, [activeTab, selectedTypes, notes, decks, notebooks, reviewers, tasks, flashcards]);
+  }, [activeTab, selectedTypes, notes, decks, notebooks, reviewers, tasks, flashcards, groupQuizzes]);
 
   const handleTabClick = (tab: TabType) => {
     setActiveTab(tab);
@@ -290,7 +309,7 @@ const Trash = () => {
     setCurrentPage(1); // Reset to first page when type changes
   };
 
-  const handleRestore = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz') => {
+  const handleRestore = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz' | 'groupQuiz') => {
     setRestoreTarget({ id, type, title: (filteredItems.find(i => i.id === id)?.title) || '' });
     setShowRestoreModal(true);
   };
@@ -329,6 +348,9 @@ const Trash = () => {
             throw error;
           }
         }
+      } else if (type === 'groupQuiz') {
+        // POST restores a cancelled group quiz back to its previous status
+        await axiosInstance.post(`/decks/group-quizzes/${id}/`);
       } else {
         await axiosInstance.patch(endpoint, { is_deleted: false, deleted_at: null });
       }
@@ -343,7 +365,7 @@ const Trash = () => {
     }
   };
 
-  const handleDelete = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz') => {
+  const handleDelete = async (id: string, type: 'note' | 'deck' | 'notebook' | 'reviewer' | 'task' | 'flashcard' | 'quiz' | 'groupQuiz') => {
     setDeleteTarget({ id, type, title: (filteredItems.find(i => i.id === id)?.title) || '' });
     setShowDeleteModal(true);
   };
@@ -382,6 +404,9 @@ const Trash = () => {
             throw error;
           }
         }
+      } else if (type === 'groupQuiz') {
+        // ?permanent=true removes the row instead of cancelling it again
+        await axiosInstance.delete(`/decks/group-quizzes/${id}/?permanent=true`);
       } else {
         await axiosInstance.delete(endpoint);
       }
@@ -417,6 +442,7 @@ const Trash = () => {
           if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
           if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
           if (item.type === 'quiz') endpoint = `/reviewers/${item.id}/`; // Quiz is a reviewer with quiz tag
+          if (item.type === 'groupQuiz') endpoint = `/decks/group-quizzes/${item.id}/?permanent=true`;
           await axiosInstance.delete(endpoint);
         }
       } catch (error) {
@@ -470,6 +496,8 @@ const Trash = () => {
                 .update({ is_deleted: false, deleted_at: null })
                 .eq('id', numericId);
             }
+          } else if (item.type === 'groupQuiz') {
+            await axiosInstance.post(`/decks/group-quizzes/${item.id}/`);
           } else {
             if (item.type === 'note') endpoint = `/notes/${item.id}/`;
             if (item.type === 'deck') endpoint = `/decks/decks/${item.id}/`;
@@ -516,6 +544,7 @@ const Trash = () => {
             if (item.type === 'notebook') endpoint = `/notes/notebooks/${item.id}/`;
             if (item.type === 'reviewer') endpoint = `/reviewers/${item.id}/`;
             if (item.type === 'quiz') endpoint = `/reviewers/${item.id}/`;
+            if (item.type === 'groupQuiz') endpoint = `/decks/group-quizzes/${item.id}/?permanent=true`;
             await axiosInstance.delete(endpoint);
           }
         } catch (error) {
@@ -548,7 +577,7 @@ const Trash = () => {
 
   let filteredItems: TrashItem[] = [];
   if (activeTab === 'all') {
-    filteredItems = [...notes, ...decks, ...flashcards, ...notebooks, ...nonQuizReviewers, ...quizzes, ...tasks]
+    filteredItems = [...notes, ...decks, ...flashcards, ...notebooks, ...nonQuizReviewers, ...quizzes, ...groupQuizzes, ...tasks]
       .filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()))
       .sort((a, b) => new Date(b.deletedAt).getTime() - new Date(a.deletedAt).getTime());
   } else if (activeTab === 'filter') {
@@ -560,7 +589,8 @@ const Trash = () => {
     if (selectedTypes.has('flashcards')) itemsByType.push(...flashcards);
     if (selectedTypes.has('notebooks')) itemsByType.push(...notebooks);
     if (selectedTypes.has('reviewer')) itemsByType.push(...nonQuizReviewers);
-    if (selectedTypes.has('quiz')) itemsByType.push(...quizzes);
+    // Group quizzes join reviewer quizzes under the single Quiz type
+    if (selectedTypes.has('quiz')) itemsByType.push(...quizzes, ...groupQuizzes);
     if (selectedTypes.has('tasks')) itemsByType.push(...tasks);
     
     filteredItems = itemsByType
@@ -596,28 +626,16 @@ const Trash = () => {
         {/* Tab row – tabs left, search + filter + actions right (compact, like Decks) */}
         <div>
           <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2 gap-4 flex-wrap">
-            <div className="flex space-x-4">
-              <button
-                onClick={() => handleTabClick('all')}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'all'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => handleTabClick('filter')}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'filter'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                Filter by Type
-              </button>
-            </div>
+            <TabBar
+              bare
+              ariaLabel="Trash views"
+              value={activeTab}
+              onChange={handleTabClick}
+              items={[
+                { id: 'all', label: 'All' },
+                { id: 'filter', label: 'Filter by Type' },
+              ]}
+            />
 
             <div className="flex items-center gap-2 flex-wrap">
               {/* Pagination – before search */}

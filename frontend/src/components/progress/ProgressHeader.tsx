@@ -1,21 +1,21 @@
 import React from 'react';
 
 interface ProgressHeaderProps {
-  greeting: string;
-  username: string;
+  greeting?: string;
+  username?: string;
 }
 
-const ProgressHeader: React.FC<ProgressHeaderProps> = ({ greeting, username }) => {
+const ProgressHeader: React.FC<ProgressHeaderProps> = () => {
   return (
-    <div className="mb-4">
-      <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+    <div>
+      <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
         Progress
       </h1>
-      <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-        Track your productivity and achievements
+      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+        Your streak, focus time and milestones in one place.
       </p>
     </div>
   );
 };
 
-export default ProgressHeader; 
+export default ProgressHeader;

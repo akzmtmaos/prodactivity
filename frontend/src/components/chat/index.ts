@@ -9,6 +9,7 @@ export { default as MessageInput } from './MessageInput';
 export { default as ProfileView } from './ProfileView';
 export { default as CreateGroupChatModal } from './CreateGroupChatModal';
 export { default as AddMembersToGroupModal } from './AddMembersToGroupModal';
+export { default as RemoveMembersModal } from './RemoveMembersModal';
 export { default as GroupInfoPanel } from './GroupInfoPanel';
 export * from './types';
 export type { Attachment } from './types';

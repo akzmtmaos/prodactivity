@@ -1,13 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Search, Plus, Brain, Clock, Trash2, Download, Upload, ChevronDown, LayoutList, ArrowUp, ArrowDown } from 'lucide-react';
+import { Search, Plus, Brain, Clock, Trash2, Download, Upload, ChevronDown, LayoutList, ArrowUp, ArrowDown, Book, FileText } from 'lucide-react';
 import HeaderTooltip from '../common/HeaderTooltip';
+import Pagination from '../common/Pagination';
+import TabBar from '../common/TabBar';
 
 interface NotesTabsProps {
   currentView: 'notebooks' | 'notes';
-  activeTab: 'notes' | 'logs' | 'archived';
-  setActiveTab: (tab: 'notes' | 'logs' | 'archived') => void;
+  activeTab: 'notes' | 'logs';
+  setActiveTab: (tab: 'notes' | 'logs') => void;
   activeNotebookTab: 'notebooks' | 'favorites' | 'archived';
   setActiveNotebookTab: (tab: 'notebooks' | 'favorites' | 'archived') => void;
+  /** Optional click handler that also syncs the URL (e.g. /notebooks/favorites) */
+  onNotebookTabChange?: (tab: 'notebooks' | 'favorites' | 'archived') => void;
+  /** Archived tab: which archived item type to show */
+  archivedTypeFilter?: 'all' | 'notebooks' | 'notes';
+  onArchivedTypeChange?: (type: 'all' | 'notebooks' | 'notes') => void;
   // Notebook search and filter props
   notebookSearchTerm?: string;
   setNotebookSearchTerm?: (term: string) => void;
@@ -41,6 +48,8 @@ interface NotesTabsProps {
   onBulkDeleteNotebooks?: () => void;
   selectedNotebook?: any;
   notebooksCount?: number;
+  /** Total archived items (notebooks + notes) for the badge on the Archived tab */
+  archivedItemsCount?: number;
   // Note action buttons
   onBulkDeleteNotes?: () => void;
   onImportNotes?: () => void;
@@ -49,6 +58,12 @@ interface NotesTabsProps {
   isImporting?: boolean;
   isExporting?: boolean;
   notesCount?: number;
+  /** Header pager for the active list (notebooks, favorites, archive, or notes) */
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+  };
 }
 
 const NotesTabs: React.FC<NotesTabsProps> = ({
@@ -57,6 +72,9 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
   setActiveTab,
   activeNotebookTab,
   setActiveNotebookTab,
+  onNotebookTabChange,
+  archivedTypeFilter = 'all',
+  onArchivedTypeChange,
   notebookSearchTerm = '',
   setNotebookSearchTerm,
   notebookFilterType = 'name',
@@ -87,6 +105,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
   onBulkDeleteNotebooks,
   selectedNotebook,
   notebooksCount = 0,
+  archivedItemsCount = 0,
   onBulkDeleteNotes,
   onImportNotes,
   onExportNotes,
@@ -94,11 +113,14 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
   isImporting = false,
   isExporting = false,
   notesCount = 0,
+  pagination,
 }) => {
   const [notebookFilterOpen, setNotebookFilterOpen] = useState(false);
   const [notesFilterOpen, setNotesFilterOpen] = useState(false);
+  const [archivedTypeOpen, setArchivedTypeOpen] = useState(false);
   const notebookFilterRef = useRef<HTMLDivElement>(null);
   const notesFilterRef = useRef<HTMLDivElement>(null);
+  const archivedTypeRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -107,6 +129,9 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
       }
       if (notesFilterRef.current && !notesFilterRef.current.contains(e.target as Node)) {
         setNotesFilterOpen(false);
+      }
+      if (archivedTypeRef.current && !archivedTypeRef.current.contains(e.target as Node)) {
+        setArchivedTypeOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -117,42 +142,29 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
     return (
       <div>
         {/* Tabs and Filters on same line */}
-        <div className="flex items-center justify-between gap-4 flex-wrap mb-0">
-          {/* Tabs on left */}
-          <div className="flex space-x-4">
-            <button
-              onClick={() => setActiveNotebookTab('notebooks')}
-              className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeNotebookTab === 'notebooks'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Notebooks
-            </button>
-            <button
-              onClick={() => setActiveNotebookTab('favorites')}
-              className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeNotebookTab === 'favorites'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Favorites
-            </button>
-            <button
-              onClick={() => setActiveNotebookTab('archived')}
-              className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeNotebookTab === 'archived'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Archived
-            </button>
-          </div>
+        <div className="flex items-center justify-between gap-4 flex-wrap border-b border-gray-200 dark:border-[#2f2f2f] mb-2">
+          {/* Tabs on left – compact pills, same as Tasks/Decks */}
+          <TabBar
+            bare
+            ariaLabel="Notebook views"
+            value={activeNotebookTab}
+            onChange={(tab) => (onNotebookTabChange ?? setActiveNotebookTab)(tab)}
+            items={[
+              { id: 'notebooks', label: 'Notebooks' },
+              { id: 'favorites', label: 'Favorites' },
+              { id: 'archived', label: 'Archived', count: archivedItemsCount > 0 ? archivedItemsCount : undefined },
+            ]}
+          />
           {/* Filters and Buttons on right */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Pagination – header placement, same as Decks/Reviewer */}
+            {pagination && pagination.totalPages > 1 && (
+              <Pagination
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                onPageChange={pagination.onPageChange}
+              />
+            )}
             {/* Filter Type – icon-only dropdown; tooltip below on hover */}
             <div className="relative" ref={notebookFilterRef}>
               <HeaderTooltip label={notebookFilterType === 'name' ? 'Name' : 'Date'}>
@@ -188,21 +200,63 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
                 </div>
               )}
             </div>
-            {/* View mode toggle: icon only; tooltip below on hover (dtrack-style) */}
-            <HeaderTooltip label={notebookListViewMode === 'compact' ? 'Comfortable list' : 'Compact list'}>
-              <button
-                type="button"
-                onClick={() => setNotebookListViewMode?.(notebookListViewMode === 'compact' ? 'comfortable' : 'compact')}
-                className={`flex items-center justify-center h-7 px-2.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
-                  notebookListViewMode === 'compact'
-                    ? 'border-indigo-400 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-300 dark:border-indigo-400 dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:text-white dark:focus:ring-indigo-500'
-                    : 'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
-                }`}
-                aria-label={notebookListViewMode === 'compact' ? 'Switch to Comfortable view' : 'Switch to Compact view'}
-              >
-                <LayoutList size={14} className={notebookListViewMode === 'compact' ? 'text-white' : 'text-gray-400'} />
-              </button>
-            </HeaderTooltip>
+            {/* Type filter – Archived tab only: All / Notebooks / Notes */}
+            {activeNotebookTab === 'archived' && onArchivedTypeChange && (
+              <div className="relative" ref={archivedTypeRef}>
+                <HeaderTooltip label={archivedTypeFilter === 'all' ? 'All types' : archivedTypeFilter === 'notebooks' ? 'Notebooks only' : 'Notes only'}>
+                  <button
+                    type="button"
+                    onClick={() => setArchivedTypeOpen((o) => !o)}
+                    className="flex items-center justify-center gap-0.5 h-7 px-2.5 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors"
+                    aria-label="Filter archived items by type"
+                    aria-expanded={archivedTypeOpen}
+                  >
+                    <Book size={14} className="text-gray-400" />
+                    <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${archivedTypeOpen ? 'rotate-180' : ''}`} />
+                  </button>
+                </HeaderTooltip>
+                {archivedTypeOpen && (
+                  <div className="absolute left-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 py-1">
+                    {([
+                      { value: 'all', label: 'All', icon: <LayoutList size={12} className="text-gray-400 flex-shrink-0" /> },
+                      { value: 'notebooks', label: 'Notebooks', icon: <Book size={12} className="text-gray-400 flex-shrink-0" /> },
+                      { value: 'notes', label: 'Notes', icon: <FileText size={12} className="text-gray-400 flex-shrink-0" /> },
+                    ] as const).map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => { onArchivedTypeChange(opt.value); setArchivedTypeOpen(false); }}
+                        className={`w-full px-2.5 py-1.5 text-left text-xs rounded-md transition-colors flex items-center gap-2 whitespace-nowrap ${
+                          archivedTypeFilter === opt.value
+                            ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                            : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                        }`}
+                      >
+                        {opt.icon}
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* View mode toggle: icon only; tooltip below on hover (dtrack-style) – hidden in Archived (archive is always comfortable) */}
+            {activeNotebookTab !== 'archived' && (
+              <HeaderTooltip label={notebookListViewMode === 'compact' ? 'Compact list' : 'Comfortable list'}>
+                <button
+                  type="button"
+                  onClick={() => setNotebookListViewMode?.(notebookListViewMode === 'compact' ? 'comfortable' : 'compact')}
+                  className={`flex items-center justify-center h-7 px-2.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                    notebookListViewMode === 'compact'
+                      ? 'border-indigo-400 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-300 dark:border-indigo-400 dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:text-white dark:focus:ring-indigo-500'
+                      : 'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                  }`}
+                  aria-label={notebookListViewMode === 'compact' ? 'Switch to Compact view' : 'Switch to Comfortable view'}
+                >
+                  <LayoutList size={14} className={notebookListViewMode === 'compact' ? 'text-white' : 'text-gray-400'} />
+                </button>
+              </HeaderTooltip>
+            )}
             {/* Date Range (if date filter is selected) */}
             {notebookFilterType === 'date' && (notebookDateStart || notebookDateEnd) && (
               <div className="flex items-center gap-1">
@@ -257,7 +311,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
               <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
               <input
                 type="text"
-                placeholder={`Search ${activeNotebookTab}...`}
+                placeholder={`Search ${activeNotebookTab === 'notebooks' ? 'notebooks' : activeNotebookTab === 'favorites' ? 'favorites' : 'archive'}...`}
                 value={notebookSearchTerm}
                 onChange={(e) => setNotebookSearchTerm?.(e.target.value)}
                 className="w-full pl-7 pr-2.5 h-7 text-xs border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-gray-300 dark:focus:ring-[#404040] focus:border-gray-300 dark:focus:border-[#404040]"
@@ -284,32 +338,25 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
     return (
       <div>
         {/* Tabs and Filters on same line */}
-        <div className="flex items-center justify-between gap-4 flex-wrap mb-0">
-          {/* Tabs on left */}
-          <div className="flex space-x-4">
-            <button
-              onClick={() => setActiveTab('notes')}
-              className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'notes'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Notes
-            </button>
-            <button
-              onClick={() => setActiveTab('archived')}
-              className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'archived'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Archived
-            </button>
-          </div>
-          {/* Filters and Buttons on right – order: Filter, Date, Sort, Delete, Import, Export, Search, Add, Insights */}
+        <div className="flex items-center justify-between gap-4 flex-wrap border-b border-gray-200 dark:border-[#2f2f2f] mb-2">
+          {/* Tabs on left – compact pills, same as Tasks/Decks */}
+          <TabBar
+            bare
+            ariaLabel="Note views"
+            value="notes"
+            onChange={() => setActiveTab('notes')}
+            items={[{ id: 'notes', label: 'Notes' }]}
+          />
+          {/* Filters and Buttons on right – order: Pager, Filter, Date, Sort, Delete, Import, Export, Search, Add, Insights */}
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Pagination – header placement, same as Decks/Reviewer */}
+            {pagination && pagination.totalPages > 1 && (
+              <Pagination
+                currentPage={pagination.currentPage}
+                totalPages={pagination.totalPages}
+                onPageChange={pagination.onPageChange}
+              />
+            )}
             {/* Filter Type – icon-only dropdown with Clock inside (no text on trigger) */}
             <div className="relative" ref={notesFilterRef}>
               <HeaderTooltip label={filterType === 'title' ? 'Title' : filterType === 'content' ? 'Content' : 'Date'}>
@@ -360,7 +407,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
               </div>
             )}
             {/* View mode toggle – compact / comfortable (before Sort) */}
-            <HeaderTooltip label={noteListViewMode === 'compact' ? 'Comfortable list' : 'Compact list'}>
+            <HeaderTooltip label={noteListViewMode === 'compact' ? 'Compact list' : 'Comfortable list'}>
               <button
                 type="button"
                 onClick={() => setNoteListViewMode?.(noteListViewMode === 'compact' ? 'comfortable' : 'compact')}
@@ -369,7 +416,7 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
                     ? 'border-indigo-400 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-300 dark:border-indigo-400 dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:text-white dark:focus:ring-indigo-500'
                     : 'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
                 }`}
-                aria-label={noteListViewMode === 'compact' ? 'Switch to Comfortable view' : 'Switch to Compact view'}
+                aria-label={noteListViewMode === 'compact' ? 'Switch to Compact view' : 'Switch to Comfortable view'}
               >
                 <LayoutList size={14} className={noteListViewMode === 'compact' ? 'text-white' : 'text-gray-400'} />
               </button>

@@ -12,7 +12,6 @@ import {
   AlertTriangle,
   XCircle,
   Info,
-  User,
 } from 'lucide-react';
 
 export interface NotificationItemProps {
@@ -22,7 +21,7 @@ export interface NotificationItemProps {
   type: 'info' | 'success' | 'warning' | 'error';
   timestamp: Date;
   isRead: boolean;
-  notificationType: 'task_due' | 'task_completed' | 'note_reminder' | 'study_reminder' | 'schedule_reminder' | 'social_follow' | 'general';
+  notificationType: 'task_due' | 'task_completed' | 'note_reminder' | 'study_reminder' | 'schedule_reminder' | 'general';
   onMarkAsRead: (id: string) => void;
 }
 
@@ -54,11 +53,6 @@ const NotificationItem: React.FC<NotificationItemProps> = ({
   const getNotificationIcon = () => {
     // First check notification type for specific icons
     switch (notificationType) {
-      case 'social_follow':
-        return {
-          icon: <User size={24} className="text-indigo-600 dark:text-indigo-400" />,
-          bgColor: 'bg-indigo-100 dark:bg-indigo-900/20'
-        };
       case 'task_completed':
         return {
           icon: <CheckCircle size={24} className="text-green-600 dark:text-green-400" />,

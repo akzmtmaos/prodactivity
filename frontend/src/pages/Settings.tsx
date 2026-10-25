@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
-import { Moon, Sun, Bell, Shield, Lock, Trash2, Mail, User as UserIcon, Info, Clock } from 'lucide-react';
+import { Moon, Sun, Bell, Shield, Lock, Trash2, Mail, User as UserIcon, Info, Clock, Volume2, Play } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 import PageLayout from '../components/PageLayout';
 import ActivityLogs from '../components/settings/ActivityLogs';
@@ -8,6 +9,7 @@ import axiosInstance from '../utils/axiosConfig';
 import { API_BASE_URL } from '../config/api';
 import { useTimer } from '../context/TimerContext';
 import PomodoroModeToggle from '../components/studytimer/PomodoroModeToggle';
+import { areQuizSoundsEnabled, setQuizSoundsEnabled, getQuizVolume, setQuizVolume, playCorrectSound } from '../utils/quizSounds';
 
 interface UserSettings {
   theme: 'light' | 'dark' | 'system';
@@ -55,11 +57,29 @@ const StudyTimerSettings: React.FC = () => {
     }
     // Pomodoro OFF: Keep current settings, just change behavior
   };
-  
+
+  // Every field must resolve to a usable value, otherwise the timer would start
+  // with a zero-length block.
+  const isValid =
+    tempSettings.studyDuration >= 60 &&
+    tempSettings.breakDuration >= 60 &&
+    tempSettings.longBreakDuration >= 60 &&
+    tempSettings.sessionsUntilLongBreak >= 1;
+
+  const [justSaved, setJustSaved] = useState(false);
+
+  useEffect(() => {
+    if (!justSaved) return;
+    const timeout = setTimeout(() => setJustSaved(false), 2000);
+    return () => clearTimeout(timeout);
+  }, [justSaved]);
+
   const handleSave = () => {
+    if (!isValid) return;
     updateSettings(tempSettings);
+    setJustSaved(true);
   };
-  
+
   const inputClass = "w-full px-3 py-2 text-sm border border-gray-200 dark:border-[#333333] rounded-lg bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500";
   const labelClass = "block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1";
 
@@ -90,8 +110,23 @@ const StudyTimerSettings: React.FC = () => {
           <input type="number" value={tempSettings.sessionsUntilLongBreak} onChange={(e) => setTempSettings({ ...tempSettings, sessionsUntilLongBreak: parseInt(e.target.value || '0') })} className={inputClass} min={1} />
         </div>
       </div>
-      <div className="flex justify-end pt-2 border-t border-gray-200 dark:border-[#333333]">
-        <button onClick={handleSave} className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1">
+      <p className="text-xs text-gray-500 dark:text-gray-400">
+        Long break and sessions per cycle only apply while Pomodoro mode is on.
+      </p>
+      {!isValid && (
+        <p className="text-xs text-red-600 dark:text-red-400">
+          Use at least 1 minute for each duration and 1 session per cycle.
+        </p>
+      )}
+      <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-200 dark:border-[#333333]">
+        {justSaved && (
+          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Saved</span>
+        )}
+        <button
+          onClick={handleSave}
+          disabled={!isValid}
+          className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
           Save Timer Settings
         </button>
       </div>
@@ -108,11 +143,58 @@ const Settings: React.FC = () => {
     autosaveNotes: localStorage.getItem('autosaveNotes') !== 'false' // Default to true
   });
 
+  // Flashcard quiz feedback sounds share their storage with the in-quiz mute toggle
+  const [quizSoundsOn, setQuizSoundsOn] = useState(() => areQuizSoundsEnabled());
+  const [quizVolume, setQuizVolumePercent] = useState(() => Math.round(getQuizVolume() * 100));
+
   // Sync settings.theme with theme from context
   useEffect(() => {
     setSettings(prev => ({ ...prev, theme: theme }));
   }, [theme]);
-  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'logs' | 'other' | 'logout'>('profile');
+  // Allow deep links such as /settings?tab=general from the Study Timer page
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'profile' | 'general' | 'logs' | 'other' | 'logout'>(() => {
+    const tab = searchParams.get('tab');
+    return tab === 'general' || tab === 'logs' || tab === 'profile' || tab === 'logout' ? tab : 'profile';
+  });
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab === 'general' || tab === 'logs' || tab === 'profile' || tab === 'logout') {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
+
+  // When arriving from the Study Timer's "Change durations" link, bring the
+  // timer card into view instead of leaving it below the fold.
+  const timerSettingsRef = useRef<HTMLDivElement>(null);
+  const deepLinkScrolledRef = useRef(false);
+  useEffect(() => {
+    if (searchParams.get('tab') !== 'general' || activeTab !== 'general') return;
+    if (deepLinkScrolledRef.current) return;
+
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    const scrollToCard = () => {
+      const target = timerSettingsRef.current;
+      if (target) {
+        deepLinkScrolledRef.current = true;
+        // index.css sets `scroll-behavior: smooth` globally; override it just for
+        // this jump so a deep link lands on the card immediately.
+        const root = document.documentElement;
+        const previousBehavior = root.style.scrollBehavior;
+        root.style.scrollBehavior = 'auto';
+        target.scrollIntoView({ block: 'start' });
+        root.style.scrollBehavior = previousBehavior;
+        return;
+      }
+      // The General tab may still be mounting; retry briefly.
+      if (attempts++ < 25) timer = setTimeout(scrollToCard, 20);
+    };
+    scrollToCard();
+
+    return () => clearTimeout(timer);
+  }, [searchParams, activeTab]);
 
   // Profile management state
   const [profile, setProfile] = useState({
@@ -342,6 +424,19 @@ const Settings: React.FC = () => {
     if (key === 'autosaveNotes') {
       localStorage.setItem('autosaveNotes', String(value));
     }
+  };
+
+  const handleQuizSoundsToggle = () => {
+    const next = !quizSoundsOn;
+    setQuizSoundsOn(next);
+    setQuizSoundsEnabled(next);
+    // Play the correct-answer chime as confirmation when turning sound on
+    if (next) playCorrectSound();
+  };
+
+  const handleQuizVolumeChange = (value: number) => {
+    setQuizVolumePercent(value);
+    setQuizVolume(value / 100);
   };
 
 
@@ -995,8 +1090,65 @@ const Settings: React.FC = () => {
                       </div>
                     </div>
                   </div>
-                  {/* Study Timer */}
+                  {/* Flashcard Quiz Sounds */}
                   <div className="bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-[#333333] p-4">
+                    <h2 className="text-base font-semibold mb-3 flex items-center gap-2 text-gray-900 dark:text-white">
+                      <Volume2 size={18} className="text-purple-500 dark:text-purple-400" /> Sound
+                    </h2>
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-900 dark:text-white">Sounds</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Chimes for right and wrong answers, plus a fanfare when a quiz ends
+                          </p>
+                        </div>
+                        <button
+                          onClick={handleQuizSoundsToggle}
+                          role="switch"
+                          aria-checked={quizSoundsOn}
+                          aria-label="Sounds"
+                          className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${quizSoundsOn ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'}`}
+                        >
+                          <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${quizSoundsOn ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                      </div>
+                      <div className="pt-3 border-t border-gray-200 dark:border-[#333333]">
+                        <div className="flex items-center justify-between gap-4 mb-2">
+                          <label htmlFor="quiz-sound-volume" className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                            Volume
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">{quizVolume}%</span>
+                            <button
+                              type="button"
+                              onClick={() => playCorrectSound()}
+                              disabled={!quizSoundsOn || quizVolume === 0}
+                              className="inline-flex items-center gap-1 h-6 px-2 text-xs font-medium rounded-md border border-gray-200 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Play size={11} /> Preview
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          id="quiz-sound-volume"
+                          type="range"
+                          min={0}
+                          max={100}
+                          step={5}
+                          value={quizVolume}
+                          disabled={!quizSoundsOn}
+                          onChange={(e) => handleQuizVolumeChange(Number(e.target.value))}
+                          className="w-full accent-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {/* Study Timer */}
+                  <div
+                    ref={timerSettingsRef}
+                    className="bg-white dark:bg-[#1e1e1e] rounded-lg border border-gray-200 dark:border-[#333333] p-4 scroll-mt-24"
+                  >
                     <h2 className="text-base font-semibold mb-3 flex items-center gap-2 text-gray-900 dark:text-white">
                       <Clock size={18} className="text-blue-500 dark:text-blue-400" /> Study Timer Settings
                     </h2>

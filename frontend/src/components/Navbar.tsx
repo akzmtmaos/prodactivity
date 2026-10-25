@@ -4,18 +4,33 @@ import { Link, useNavigate, useLocation } from "react-router-dom";
 import { 
   Menu, X, Home, BarChart2, FileText, BookOpen, 
   CheckSquare, Calendar, Clock, Trash2, Bell, 
-  Settings, ChevronLeft, ChevronRight, Brain, Layers, MessageCircle, Search, Users
+  Settings, ChevronLeft, ChevronRight, Brain, Layers, MessageCircle
 } from "lucide-react";
 import axiosInstance from "../utils/axiosConfig";
 import { getAvatarUrl } from "./chat/utils";
 import { useNavbar } from "../context/NavbarContext";
 import NotificationBadge from "./notifications/NotificationBadge";
+import HeaderTooltip from "./common/HeaderTooltip";
 import { useEffect, useRef } from "react";
 import { useNotificationsContext } from "../context/NotificationsContext";
 
 interface NavbarProps {
   setIsAuthenticated?: (value: boolean | ((prevState: boolean) => boolean)) => void;
 }
+
+/** Wraps a nav item in the Header-style tooltip, but only when the sidebar is collapsed (icons only). */
+const NavTooltip: React.FC<{ label: string; show: boolean; children: React.ReactNode }> = ({
+  label,
+  show,
+  children,
+}) =>
+  show ? (
+    <HeaderTooltip label={label} side="right" fixed className="w-full">
+      {children}
+    </HeaderTooltip>
+  ) : (
+    <>{children}</>
+  );
 
 const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
   const navigate = useNavigate();
@@ -24,10 +39,6 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [user, setUser] = useState<any | null>(null);
-  const [findFriendsQuery, setFindFriendsQuery] = useState("");
-  const [findFriendsResults, setFindFriendsResults] = useState<Array<{ id: string; username: string; avatar: string | null }>>([]);
-  const [findFriendsSearching, setFindFriendsSearching] = useState(false);
-  const [showFindFriendsPanel, setShowFindFriendsPanel] = useState(false);
   
   // Use the notifications context for real-time unread count
   const { unreadCount } = useNotificationsContext();
@@ -106,44 +117,10 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
 
   const userAvatarUrl = getAvatarUrl(user?.avatar);
 
-  // Find Friends search - debounced
-  useEffect(() => {
-    if (findFriendsQuery.trim().length < 2) {
-      setFindFriendsResults([]);
-      return;
-    }
-    const timer = setTimeout(async () => {
-      try {
-        setFindFriendsSearching(true);
-        const response = await axiosInstance.get(`/search-users/?q=${encodeURIComponent(findFriendsQuery.trim())}`);
-        const data = response.data;
-        const users = (data.users || []).map((u: any) => ({
-          id: String(u.id),
-          username: u.username,
-          avatar: getAvatarUrl(u.avatar)
-        }));
-        setFindFriendsResults(users);
-      } catch {
-        setFindFriendsResults([]);
-      } finally {
-        setFindFriendsSearching(false);
-      }
-    }, 400);
-    return () => clearTimeout(timer);
-  }, [findFriendsQuery]);
-
-  const handleFindFriendsSelect = (_userId: string, username: string) => {
-    setFindFriendsQuery("");
-    setFindFriendsResults([]);
-    setShowFindFriendsPanel(false);
-    navigate(`/profile/${encodeURIComponent(username)}`);
-  };
-
   const iconSize = 16;
-  // Primary navigation items (most important) - Find Friends is rendered separately above Messages on desktop
+  // Primary navigation items (most important)
   const primaryNavItems = [
     { path: "/", name: "Home", icon: <Home size={iconSize} /> },
-    { path: "/chat", name: "Find Friends", icon: <Users size={iconSize} />, isFindFriends: true },
     { path: "/chat", name: "Messages", icon: <MessageCircle size={iconSize} /> },
     { path: "/progress", name: "Progress", icon: <BarChart2 size={iconSize} /> },
     { path: "/notebooks", name: "Notebooks", icon: <FileText size={iconSize} /> },
@@ -186,76 +163,63 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         </div>
 
         {/* Navigation – compact, Supabase-like */}
-        <nav className="flex-1 overflow-y-auto py-2">
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-2">
           <div className="px-2">
             <ul className="space-y-0.5">
               <li>
-                <Link
-                  to="/"
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
-                    ${location.pathname === '/' 
-                      ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
-                      : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                    ${isCollapsed ? 'justify-center px-2' : ''}`}
-                  title={isCollapsed ? 'Home' : undefined}
-                >
-                  <span className="flex-shrink-0">
-                    <Home size={iconSize} />
-                  </span>
-                  {!isCollapsed && <span className="truncate">Home</span>}
-                </Link>
-              </li>
+                <NavTooltip label="Home" show={isCollapsed}>
+                  <Link
+                    to="/"
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
+                      ${location.pathname === '/' 
+                        ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                        : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                      ${isCollapsed ? 'justify-center px-2' : ''} w-full`}
+                  >
+                    <span className="flex-shrink-0">
+                      <Home size={iconSize} />
+                    </span>
+                    {!isCollapsed && <span className="truncate">Home</span>}
+                  </Link>
+                </NavTooltip></li>
               <li>
-                <button
-                  onClick={() => setShowFindFriendsPanel(true)}
-                  className={`w-full flex items-center gap-1.5 px-3 py-2 text-xs rounded-md transition-all text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800
-                    ${isCollapsed ? 'justify-center px-2' : ''}`}
-                  title={isCollapsed ? 'Find Friends' : undefined}
-                >
-                  <span className="flex-shrink-0">
-                    <Users size={iconSize} />
-                  </span>
-                  {!isCollapsed && <span className="truncate">Find Friends</span>}
-                </button>
-              </li>
-              <li>
-                <Link
-                  to="/chat"
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
-                    ${location.pathname === '/chat' 
-                      ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
-                      : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                    ${isCollapsed ? 'justify-center px-2' : ''}`}
-                  title={isCollapsed ? 'Messages' : undefined}
-                >
-                  <span className="flex-shrink-0">
-                    <MessageCircle size={iconSize} />
-                  </span>
-                  {!isCollapsed && <span className="truncate">Messages</span>}
-                </Link>
-              </li>
+                <NavTooltip label="Messages" show={isCollapsed}>
+                  <Link
+                    to="/chat"
+                    className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
+                      ${location.pathname === '/chat' 
+                        ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                        : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                      ${isCollapsed ? 'justify-center px-2' : ''} w-full`}
+                  >
+                    <span className="flex-shrink-0">
+                      <MessageCircle size={iconSize} />
+                    </span>
+                    {!isCollapsed && <span className="truncate">Messages</span>}
+                  </Link>
+                </NavTooltip></li>
               {/* Progress only (first divider goes after this) */}
-              {primaryNavItems.filter(item => item.path !== '/' && item.path !== '/chat' && !(item as any).isFindFriends).slice(0, 1).map((item) => {
+              {primaryNavItems.filter(item => item.path !== '/' && item.path !== '/chat').slice(0, 1).map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
                   <li key={item.path}>
-                    <Link
-                      to={item.path}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
-                        ${isActive 
-                          ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
-                          : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                        ${isCollapsed ? 'justify-center px-2' : ''}`}
-                      title={isCollapsed ? item.name : undefined}
-                    >
-                      <span className="flex-shrink-0">
-                        {item.icon}
-                      </span>
-                      {!isCollapsed && (
-                        <span className="truncate">{item.name}</span>
-                      )}
-                    </Link>
-                  </li>
+                    <NavTooltip label={item.name} show={isCollapsed}>
+                      <Link
+                        to={item.path}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
+                          ${isActive 
+                            ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                            : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                          ${isCollapsed ? 'justify-center px-2' : ''} w-full`}
+                      >
+                        <span className="flex-shrink-0">
+                          {item.icon}
+                        </span>
+                        {!isCollapsed && (
+                          <span className="truncate">{item.name}</span>
+                        )}
+                      </Link>
+                    </NavTooltip></li>
                 );
               })}
             </ul>
@@ -271,27 +235,27 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
           <div className="px-2 mt-0">
             <ul className="space-y-0.5">
               {/* Notebooks, Flashcards, Tasks */}
-              {primaryNavItems.filter(item => item.path !== '/' && item.path !== '/chat' && !(item as any).isFindFriends).slice(1).map((item) => {
+              {primaryNavItems.filter(item => item.path !== '/' && item.path !== '/chat').slice(1).map((item) => {
                 const isActive = location.pathname === item.path;
                 return (
                   <li key={item.path}>
-                    <Link
-                      to={item.path}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
-                        ${isActive 
-                          ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
-                          : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                        ${isCollapsed ? 'justify-center px-2' : ''}`}
-                      title={isCollapsed ? item.name : undefined}
-                    >
-                      <span className="flex-shrink-0">
-                        {item.icon}
-                      </span>
-                      {!isCollapsed && (
-                        <span className="truncate">{item.name}</span>
-                      )}
-                    </Link>
-                  </li>
+                    <NavTooltip label={item.name} show={isCollapsed}>
+                      <Link
+                        to={item.path}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
+                          ${isActive 
+                            ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                            : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                          ${isCollapsed ? 'justify-center px-2' : ''} w-full`}
+                      >
+                        <span className="flex-shrink-0">
+                          {item.icon}
+                        </span>
+                        {!isCollapsed && (
+                          <span className="truncate">{item.name}</span>
+                        )}
+                      </Link>
+                    </NavTooltip></li>
                 );
               })}
               {/* Reviewer, Schedule, Study Timer (no divider above) */}
@@ -299,23 +263,23 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                 const isActive = location.pathname === item.path;
                 return (
                   <li key={item.path}>
-                    <Link
-                      to={item.path}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all relative
-                        ${isActive 
-                          ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
-                          : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                        ${isCollapsed ? 'justify-center px-2' : ''}`}
-                      title={isCollapsed ? item.name : undefined}
-                    >
-                      <span className="flex-shrink-0">
-                        {item.icon}
-                      </span>
-                      {!isCollapsed && (
-                        <span className="truncate flex-1">{item.name}</span>
-                      )}
-                    </Link>
-                  </li>
+                    <NavTooltip label={item.name} show={isCollapsed}>
+                      <Link
+                        to={item.path}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
+                          ${isActive 
+                            ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                            : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                          ${isCollapsed ? 'justify-center px-2' : ''} w-full`}
+                      >
+                        <span className="flex-shrink-0">
+                          {item.icon}
+                        </span>
+                        {!isCollapsed && (
+                          <span className="truncate flex-1">{item.name}</span>
+                        )}
+                      </Link>
+                    </NavTooltip></li>
                 );
               })}
             </ul>
@@ -334,39 +298,39 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                 const isActive = location.pathname === item.path;
                 return (
                   <li key={item.path}>
-                    <Link
-                      to={item.path}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all relative
-                        ${isActive 
-                          ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
-                          : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                        ${isCollapsed ? 'justify-center px-2' : ''}`}
-                      title={isCollapsed ? item.name : undefined}
-                    >
-                      <span className="flex-shrink-0">
-                        {item.name === 'Notifications' ? (
-                          <div className="relative">
-                            <Bell size={iconSize} />
-                            {unreadCount > 0 && (
-                              <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-white dark:border-[#1c1c1c]"></span>
-                            )}
-                          </div>
-                        ) : (
-                          item.icon
-                        )}
-                      </span>
-                      {!isCollapsed && (
-                        <span className="truncate flex-1">
-                          {item.name}
-                          {item.name === 'Notifications' && unreadCount > 0 && (
-                            <span className="ml-1.5 px-1 py-0.5 text-[10px] font-medium bg-red-500 text-white rounded">
-                              {unreadCount > 9 ? '9+' : unreadCount}
-                            </span>
+                    <NavTooltip label={item.name} show={isCollapsed}>
+                      <Link
+                        to={item.path}
+                        className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
+                          ${isActive 
+                            ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm" 
+                            : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                          ${isCollapsed ? 'justify-center px-2' : ''} w-full`}
+                      >
+                        <span className="flex-shrink-0">
+                          {item.name === 'Notifications' ? (
+                            <div className="relative">
+                              <Bell size={iconSize} />
+                              {unreadCount > 0 && (
+                                <span className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-white dark:border-[#1c1c1c]"></span>
+                              )}
+                            </div>
+                          ) : (
+                            item.icon
                           )}
                         </span>
-                      )}
-                    </Link>
-                  </li>
+                        {!isCollapsed && (
+                          <span className="truncate flex-1">
+                            {item.name}
+                            {item.name === 'Notifications' && unreadCount > 0 && (
+                              <span className="ml-1.5 px-1 py-0.5 text-[10px] font-medium bg-red-500 text-white rounded">
+                                {unreadCount > 9 ? '9+' : unreadCount}
+                              </span>
+                            )}
+                          </span>
+                        )}
+                      </Link>
+                    </NavTooltip></li>
                 );
               })}
             </ul>
@@ -376,20 +340,21 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         {/* Bottom: Settings (fixed at bottom of sidebar) */}
         <div className="flex-shrink-0 border-t border-gray-200 dark:border-[#333333] py-2">
           <div className="px-2">
-            <Link
-              to="/settings"
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
-                ${location.pathname === '/settings'
-                  ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm"
-                  : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
-                ${isCollapsed ? 'justify-center px-2' : ''}`}
-              title={isCollapsed ? 'Settings' : undefined}
-            >
-              <span className="flex-shrink-0">
-                <Settings size={iconSize} />
-              </span>
-              {!isCollapsed && <span className="truncate">Settings</span>}
-            </Link>
+            <NavTooltip label="Settings" show={isCollapsed}>
+              <Link
+                to="/settings"
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-md transition-all
+                  ${location.pathname === '/settings'
+                    ? "bg-gray-100 dark:bg-[#2C2C2C] text-gray-900 dark:text-white font-semibold text-sm"
+                    : "text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"}
+                  ${isCollapsed ? 'justify-center px-2' : ''} w-full`}
+              >
+                <span className="flex-shrink-0">
+                  <Settings size={iconSize} />
+                </span>
+                {!isCollapsed && <span className="truncate">Settings</span>}
+              </Link>
+            </NavTooltip>
           </div>
         </div>
       </aside>
@@ -434,39 +399,22 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
                 </h3>
                 <ul className="space-y-1">
                   {primaryNavItems.map((item, index) => (
-                    <li key={(item as any).isFindFriends ? 'find-friends' : item.path}>
-                      {(item as any).isFindFriends ? (
-                        <button
-                          onClick={() => {
-                            setMobileMenuOpen(false);
-                            setShowFindFriendsPanel(true);
-                          }}
-                          className="flex items-center w-full px-3 py-3 text-base font-medium rounded-lg transition-all duration-200 ease-in-out hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300"
-                          style={{
-                            animationDelay: `${index * 50}ms`,
-                            animation: mobileMenuOpen ? 'slideInFromRight 0.3s ease-out forwards' : 'none'
-                          }}
-                        >
-                          <span className="mr-3">{item.icon}</span>
-                          {item.name}
-                        </button>
-                      ) : (
-                        <Link
-                          to={item.path}
-                          onClick={() => setMobileMenuOpen(false)}
-                          className={`flex items-center px-3 py-3 text-base font-medium rounded-lg transition-all duration-200 ease-in-out transform hover:scale-105
-                            ${location.pathname === item.path 
-                              ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200" 
-                              : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"}`}
-                          style={{
-                            animationDelay: `${index * 50}ms`,
-                            animation: mobileMenuOpen ? 'slideInFromRight 0.3s ease-out forwards' : 'none'
-                          }}
-                        >
-                          <span className="mr-3">{item.icon}</span>
-                          {item.name}
-                        </Link>
-                      )}
+                    <li key={item.path}>
+                      <Link
+                        to={item.path}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={`flex items-center px-3 py-3 text-base font-medium rounded-lg transition-all duration-200 ease-in-out transform hover:scale-105
+                          ${location.pathname === item.path 
+                            ? "bg-indigo-50 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-200" 
+                            : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700"}`}
+                        style={{
+                          animationDelay: `${index * 50}ms`,
+                          animation: mobileMenuOpen ? 'slideInFromRight 0.3s ease-out forwards' : 'none'
+                        }}
+                      >
+                        <span className="mr-3">{item.icon}</span>
+                        {item.name}
+                      </Link>
                     </li>
                   ))}
                 </ul>
@@ -550,30 +498,19 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
       {/* Bottom Navigation for Mobile (Primary items only) */}
       <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-[#1c1c1c] shadow-lg border-t border-gray-200 dark:border-[#333333]">
         <nav className="flex justify-around items-center h-16 px-2">
-          {primaryNavItems.map((item) =>
-            (item as any).isFindFriends ? (
-              <button
-                key="find-friends"
-                onClick={() => setShowFindFriendsPanel(true)}
-                className="flex flex-col items-center justify-center flex-1 h-full min-w-0 px-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
-              >
-                <span className="mb-1">{item.icon}</span>
-                <span className="text-xs font-medium text-center truncate">{item.name}</span>
-              </button>
-            ) : (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`flex flex-col items-center justify-center flex-1 h-full min-w-0 px-2
-                  ${location.pathname === item.path 
-                    ? "text-indigo-600 dark:text-indigo-400" 
-                    : "text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"}`}
-              >
-                <span className="mb-1">{item.icon}</span>
-                <span className="text-xs font-medium text-center truncate">{item.name}</span>
-              </Link>
-            )
-          )}
+          {primaryNavItems.map((item) => (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex flex-col items-center justify-center flex-1 h-full min-w-0 px-2
+                ${location.pathname === item.path 
+                  ? "text-indigo-600 dark:text-indigo-400" 
+                  : "text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"}`}
+            >
+              <span className="mb-1">{item.icon}</span>
+              <span className="text-xs font-medium text-center truncate">{item.name}</span>
+            </Link>
+          ))}
           <button
             onClick={() => setMobileMenuOpen(true)}
             className="flex flex-col items-center justify-center flex-1 h-full min-w-0 px-2 text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400"
@@ -584,83 +521,7 @@ const Navbar = ({ setIsAuthenticated }: NavbarProps) => {
         </nav>
       </div>
 
-      {/* Find Friends - Sliding Panel from Left */}
-      <div className={`fixed inset-0 z-50 transition-opacity duration-300 ease-in-out ${showFindFriendsPanel ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}>
-        {/* Backdrop - neutral dark overlay, no blue tint */}
-        <div 
-          className="absolute inset-0 bg-black/40 dark:bg-black/60"
-          onClick={() => setShowFindFriendsPanel(false)}
-        />
-        {/* Sliding Panel */}
-        <div
-          className={`fixed top-0 left-0 h-full w-80 sm:w-96 bg-white dark:bg-[#1e1e1e] shadow-xl transform transition-transform duration-300 ease-out z-50 border-r border-gray-200 dark:border-[#333333] ${
-            showFindFriendsPanel ? 'translate-x-0' : '-translate-x-full'
-          }`}
-        >
-          <div className="flex flex-col h-full">
-            {/* Header */}
-            <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-[#333333] flex-shrink-0">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Find Friends</h2>
-              <button
-                onClick={() => setShowFindFriendsPanel(false)}
-                className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </div>
-            {/* Search */}
-            <div className="p-4 border-b border-gray-200 dark:border-[#333333] flex-shrink-0">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
-                <input
-                  type="text"
-                  placeholder="Search by username..."
-                  value={findFriendsQuery}
-                  onChange={(e) => setFindFriendsQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 text-sm rounded-lg bg-gray-100 dark:bg-[#252525] border border-gray-200 dark:border-[#333333] text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
-                  autoFocus
-                />
-                {findFriendsSearching && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
-                  </div>
-                )}
-              </div>
-            </div>
-            {/* Results */}
-            <div className="flex-1 overflow-y-auto">
-              {findFriendsQuery.trim().length < 2 ? (
-                <div className="p-6 text-center text-gray-500 dark:text-gray-400 text-sm">
-                  Type at least 2 characters to search for friends
-                </div>
-              ) : findFriendsSearching ? (
-                <div className="p-6 text-center text-gray-500 dark:text-gray-400 text-sm">Searching...</div>
-              ) : findFriendsResults.length === 0 ? (
-                <div className="p-6 text-center text-gray-500 dark:text-gray-400 text-sm">No users found</div>
-              ) : (
-                <div className="py-2">
-                  {findFriendsResults.map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => handleFindFriendsSelect(u.id, u.username)}
-                      className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-100 dark:hover:bg-[#2d2d2d] transition-colors"
-                    >
-                      {u.avatar ? (
-                        <img src={u.avatar} alt="" className="w-10 h-10 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center">
-                          <span className="text-indigo-600 dark:text-indigo-400 font-medium">{u.username.charAt(0).toUpperCase()}</span>
-                        </div>
-                      )}
-                      <span className="font-medium text-gray-900 dark:text-white">{u.username}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+
 
       {/* Logout Confirmation Modal */}
       {showLogoutModal && (

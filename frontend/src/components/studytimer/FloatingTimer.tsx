@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Pause, RotateCcw, X, Minimize2, Maximize2, Clock } from 'lucide-react';
+import { Play, Pause, RotateCcw, Minimize2, Maximize2, Clock } from 'lucide-react';
+import HeaderTooltip from '../common/HeaderTooltip';
 
 interface FloatingTimerProps {
   isActive: boolean;
@@ -8,9 +9,10 @@ interface FloatingTimerProps {
   elapsedTime?: number; // For stopwatch mode
   sessionsCompleted: number;
   stopwatchMode?: boolean; // Whether in stopwatch mode
+  sessionTitle?: string;
+  sessionTag?: string;
   onToggle: () => void;
   onReset: () => void;
-  onStop: () => void;
 }
 
 const FloatingTimer: React.FC<FloatingTimerProps> = ({
@@ -20,9 +22,10 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
   elapsedTime = 0,
   sessionsCompleted,
   stopwatchMode = false,
+  sessionTitle = '',
+  sessionTag = '',
   onToggle,
-  onReset,
-  onStop
+  onReset
 }) => {
   const [isMinimized, setIsMinimized] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
@@ -114,6 +117,7 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
         <div
           className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] shadow-lg p-2.5 cursor-move"
           onMouseDown={handleMouseDown}
+          title={!isBreak && sessionTitle.trim() ? sessionTitle.trim() : undefined}
         >
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 min-w-0">
@@ -123,20 +127,15 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
               </span>
             </div>
             <div className="flex items-center gap-0.5 shrink-0">
-              <button
-                onClick={() => setIsMinimized(false)}
-                className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
-                title="Expand timer"
-              >
-                <Maximize2 size={14} className="text-gray-600 dark:text-gray-400" />
-              </button>
-              <button
-                onClick={onStop}
-                className="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
-                title="Stop timer"
-              >
-                <X size={14} className="text-red-500" />
-              </button>
+              <HeaderTooltip label="Expand timer" side="bottom">
+                <button
+                  onClick={() => setIsMinimized(false)}
+                  className="p-1.5 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700/50 transition-colors"
+                  aria-label="Expand timer"
+                >
+                  <Maximize2 size={14} className="text-gray-600 dark:text-gray-400" />
+                </button>
+              </HeaderTooltip>
             </div>
           </div>
         </div>
@@ -151,8 +150,13 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
           >
             <div className="flex items-center gap-2 min-w-0">
               <Clock size={18} className={`shrink-0 ${stopwatchMode ? 'text-purple-500' : (isBreak ? 'text-green-500' : 'text-blue-500')}`} />
-              <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                {stopwatchMode ? 'Stopwatch' : (isBreak ? 'Break Time' : 'Study Time')}
+              <span
+                className="text-sm font-semibold text-gray-900 dark:text-white truncate"
+                title={!isBreak && sessionTitle.trim() ? sessionTitle.trim() : undefined}
+              >
+                {isBreak
+                  ? 'Break Time'
+                  : sessionTitle.trim() || (stopwatchMode ? 'Stopwatch' : 'Study Time')}
               </span>
             </div>
             <div className="flex items-center gap-0.5 shrink-0">
@@ -163,13 +167,6 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
               >
                 <Minimize2 size={16} className="text-gray-600 dark:text-gray-400" />
               </button>
-              <button
-                onClick={onStop}
-                className="p-1.5 rounded-md hover:bg-red-100 dark:hover:bg-red-900/20 transition-colors"
-                title="Stop timer"
-              >
-                <X size={18} className="text-red-500" />
-              </button>
             </div>
           </div>
 
@@ -178,8 +175,13 @@ const FloatingTimer: React.FC<FloatingTimerProps> = ({
             <div className="text-3xl font-mono font-bold text-gray-900 dark:text-white mb-1">
               {stopwatchMode ? formatTime(elapsedTime) : formatTime(timeLeft)}
             </div>
-            <div className="text-xs text-gray-500 dark:text-gray-400">
-              Session {sessionsCompleted + 1}
+            <div className="mt-1 flex items-center justify-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+              {!isBreak && sessionTag.trim() && (
+                <span className="max-w-[8rem] truncate rounded bg-gray-100 px-1.5 py-0.5 text-[10px] font-medium text-gray-600 dark:bg-[#2b2b2b] dark:text-gray-300">
+                  {sessionTag.trim()}
+                </span>
+              )}
+              <span>Session {sessionsCompleted + 1}</span>
             </div>
           </div>
 

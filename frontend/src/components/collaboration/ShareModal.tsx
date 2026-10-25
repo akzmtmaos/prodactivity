@@ -160,8 +160,10 @@ const ShareModal: React.FC<ShareModalProps> = ({
   onShared
 }) => {
   const [users, setUsers] = useState<User[]>([]);
-  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [contactsLoading, setContactsLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [permissionLevel, setPermissionLevel] = useState<'view' | 'edit' | 'comment'>('view');
   const [loading, setLoading] = useState(false);
@@ -169,8 +171,7 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
   useEffect(() => {
     if (isOpen) {
-      fetchUsersWithChatRooms();
-      fetchSharedUsers();
+      fetchContacts();
     } else {
       setSearchTerm('');
       setSelectedUsers([]);
@@ -178,7 +179,9 @@ const ShareModal: React.FC<ShareModalProps> = ({
     }
   }, [isOpen, itemType, itemId]);
 
-  const fetchUsersWithChatRooms = async () => {
+  // People you've already interacted with (share a chat room), loaded fast with 2 batched queries
+  const fetchContacts = async () => {
+    setContactsLoading(true);
     try {
       const userData = localStorage.getItem('user');
       if (!userData) return;
@@ -186,70 +189,104 @@ const ShareModal: React.FC<ShareModalProps> = ({
       const currentUser = JSON.parse(userData);
       const currentUserId = String(currentUser.id);
 
-      const { data: participants, error: participantsError } = await supabase
+      // Query 1: all rooms I'm in
+      const { data: myRooms, error: roomsError } = await supabase
         .from('room_participants')
         .select('room_id, chat_rooms!inner(*)')
         .eq('user_id', currentUserId);
 
-      if (participantsError) {
-        console.error('Error fetching chat rooms:', participantsError);
+      if (roomsError) {
+        console.error('Error fetching chat rooms:', roomsError);
+        setUsers([]);
         return;
       }
 
-      const userIds = new Set<string>();
-      for (const participant of participants || []) {
-        const room = Array.isArray(participant.chat_rooms)
-          ? participant.chat_rooms[0]
-          : participant.chat_rooms;
+      const roomIds = (myRooms || [])
+        .map((r: any) => {
+          const room = Array.isArray(r.chat_rooms) ? r.chat_rooms[0] : r.chat_rooms;
+          return room && typeof room === 'object' && 'id' in room ? room.id : null;
+        })
+        .filter(Boolean);
 
-        if (room && typeof room === 'object' && 'id' in room) {
-          const { data: roomParticipants } = await supabase
-            .from('room_participants')
-            .select('user_id')
-            .eq('room_id', room.id);
-
-          (roomParticipants || []).forEach((p: { user_id: string }) => {
-            const userId = String(p.user_id);
-            if (userId !== currentUserId) userIds.add(userId);
-          });
-        }
-      }
-
-      if (userIds.size > 0) {
-        const { data: usersData, error: usersError } = await supabase
-          .from('profiles')
-          .select('id, username, email, avatar')
-          .in('id', Array.from(userIds))
-          .order('username', { ascending: true });
-
-        if (!usersError) setUsers(usersData || []);
-      } else {
+      if (roomIds.length === 0) {
         setUsers([]);
+        return;
       }
 
-      const { data: allUsersData, error: allUsersError } = await supabase
+      // Query 2 (batched): everyone else in those rooms — no per-room round-trips
+      const { data: others, error: othersError } = await supabase
+        .from('room_participants')
+        .select('user_id')
+        .in('room_id', roomIds)
+        .neq('user_id', currentUserId);
+
+      if (othersError) {
+        console.error('Error fetching room participants:', othersError);
+        setUsers([]);
+        return;
+      }
+
+      const contactIds = Array.from(new Set((others || []).map((p: { user_id: string }) => String(p.user_id))));
+
+      if (contactIds.length === 0) {
+        setUsers([]);
+        return;
+      }
+
+      // Query 3: their profiles
+      const { data: usersData, error: usersError } = await supabase
         .from('profiles')
         .select('id, username, email, avatar')
-        .neq('id', currentUserId)
+        .in('id', contactIds)
         .order('username', { ascending: true });
 
-      if (!allUsersError) setAllUsers(allUsersData || []);
+      if (!usersError) setUsers((usersData || []) as User[]);
     } catch (error) {
-      console.error('Error fetching users with chat rooms:', error);
+      console.error('Error fetching contacts:', error);
+    } finally {
+      setContactsLoading(false);
     }
   };
 
-  const fetchSharedUsers = async () => {
-    try {
-      await supabase
-        .from('shared_items')
-        .select('shared_with, is_accepted')
-        .eq('item_type', itemType)
-        .eq('item_id', itemId);
-    } catch (error) {
-      console.error('Error fetching shared users:', error);
+  // Exact-match search straight against profiles (debounced) — works instantly, no preload needed
+  useEffect(() => {
+    if (!isOpen) return;
+    const term = searchTerm.trim();
+    if (!term) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
     }
-  };
+
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const userData = localStorage.getItem('user');
+        const currentUser = userData ? JSON.parse(userData) : {};
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, username, email, avatar')
+          .neq('id', String(currentUser.id ?? ''))
+          .or(`email.ilike.${term},username.ilike.${term}`)
+          .limit(20)
+          .order('username', { ascending: true });
+
+        if (error) {
+          console.error('Error searching users:', error);
+          setSearchResults([]);
+        } else {
+          setSearchResults((data || []) as User[]);
+        }
+      } catch (err) {
+        console.error(err);
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [isOpen, searchTerm]);
 
   const handleUserToggle = (userId: string) => {
     setSelectedUsers(prev =>
@@ -407,11 +444,9 @@ const ShareModal: React.FC<ShareModalProps> = ({
     }
   };
 
-  const filteredUsers = (searchTerm.trim() ? allUsers : users).filter(
-    user =>
-      user.username.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Searching: show live results; otherwise: show contacts immediately
+  const listToRender = searchTerm.trim() ? searchResults : users;
+  const listLoading = searchTerm.trim() ? searchLoading : contactsLoading;
 
   if (!isOpen) return null;
 
@@ -433,23 +468,35 @@ const ShareModal: React.FC<ShareModalProps> = ({
 
           <div>
             <label className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 block">Select people</label>
-            <ShareSearchInput value={searchTerm} onChange={setSearchTerm} />
+            <ShareSearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Type the full username or email..." />
           </div>
 
           <div className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] max-h-48 overflow-y-auto">
-            {!searchTerm.trim() && users.length === 0 ? (
-              <div className="px-3 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
-                <Users className="mx-auto h-10 w-10 mb-2 opacity-50" />
-                <p>No users with existing conversations</p>
-                <p className="mt-0.5">Search to find other users</p>
+            {listLoading ? (
+              <div className="animate-pulse" aria-live="polite" aria-label="Loading people">
+                {[0, 1, 2].map((i) => (
+                  <div key={i} className="flex items-center space-x-3 px-3 py-2.5">
+                    <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="h-3 w-1/3 bg-gray-200 dark:bg-gray-700 rounded" />
+                      <div className="h-2.5 w-1/2 bg-gray-100 dark:bg-gray-800 rounded" />
+                    </div>
+                  </div>
+                ))}
               </div>
-            ) : filteredUsers.length === 0 ? (
+            ) : !searchTerm.trim() && users.length === 0 ? (
               <div className="px-3 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
                 <Users className="mx-auto h-10 w-10 mb-2 opacity-50" />
-                <p>No users found</p>
+                <p>No conversations yet</p>
+                <p className="mt-0.5">Type the full username or email to find people</p>
+              </div>
+            ) : listToRender.length === 0 ? (
+              <div className="px-3 py-6 text-center text-xs text-gray-500 dark:text-gray-400">
+                <Users className="mx-auto h-10 w-10 mb-2 opacity-50" />
+                <p>No exact match. Type the full username or email.</p>
               </div>
             ) : (
-              filteredUsers.map(user => (
+              listToRender.map(user => (
                 <ShareUserRow
                   key={user.id}
                   user={user}

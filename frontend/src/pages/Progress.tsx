@@ -1,13 +1,17 @@
 import React, { useEffect, useState, useRef } from 'react';
 import PageLayout from '../components/PageLayout';
+import TabBar from '../components/common/TabBar';
 import StatsCards from '../components/progress/StatsCards';
 import StatsAnalysis from '../components/progress/StatsAnalysis';
 import ProgressHeader from '../components/progress/ProgressHeader';
 import LevelProfileCard from '../components/progress/LevelProfileCard';
 import ProgressOverview from '../components/progress/ProgressOverview';
 import ProductivityHistory from '../components/progress/ProductivityHistory';
+import ProductivityScoreCard from '../components/progress/ProductivityScoreCard';
 import Achievements from '../components/progress/Achievements';
-import { format, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths } from 'date-fns';
+import { useProgressInsights } from '../hooks/useProgressInsights';
+import { parseDateKey, toDateKey, type PeriodView } from '../utils/productivityScore';
+import { format, addDays, subDays, addWeeks, subWeeks, addMonths, subMonths, addYears, subYears } from 'date-fns';
 // import { getTodayDate } from '../utils/dateUtils';
 import { supabase } from '../lib/supabase';
 import { API_BASE_URL } from '../config/api';
@@ -31,7 +35,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
   // Use the same date logic as the rest of the app (local date string)
   const today = new Date();
   today.setHours(0, 0, 0, 0); // Reset time to start of day
-  const todayStr = today.toISOString().split('T')[0];
+  const todayStr = toDateKey(today);
   
   // Debug the date being used
   if (import.meta.env.DEV) {
@@ -47,7 +51,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
       return;
     }
     
-    const date = new Date(log.period_start);
+    const date = parseDateKey(log.period_start);
     
     // Skip invalid dates
     if (isNaN(date.getTime())) {
@@ -75,7 +79,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     const monday = new Date(date);
     monday.setDate(date.getDate() - daysSinceMonday);
     monday.setHours(0, 0, 0, 0); // Ensure midnight to avoid timezone issues
-    const weekKey = monday.toISOString().split('T')[0];
+    const weekKey = toDateKey(monday);
     
     // Debug Oct 5-8 specifically
     if (log.period_start >= '2025-10-05' && log.period_start <= '2025-10-08') {
@@ -88,15 +92,15 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     }
     
     // Skip future weeks (where Monday is in the future)
-    const mondayStr = monday.toISOString().split('T')[0];
+    const mondayStr = toDateKey(monday);
     
     // Debug Sep 23 specifically
     if (log.period_start === '2025-09-23') {
       console.log('🔄 Processing Sep 23 log:', {
-        date: date.toISOString().split('T')[0],
+        date: toDateKey(date),
         dayOfWeek: date.getDay(),
         daysSinceMonday,
-        monday: monday.toISOString().split('T')[0],
+        monday: toDateKey(monday),
         weekKey,
         completion_rate: log.completion_rate,
         todayStr,
@@ -115,7 +119,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
       // Calculate Sunday properly (avoid timezone issues)
       const sunday = new Date(monday);
       sunday.setDate(monday.getDate() + 6);
-      const sundayStr = sunday.toISOString().split('T')[0];
+      const sundayStr = toDateKey(sunday);
       
       weeklyData[weekKey] = {
         period_start: weekKey,
@@ -137,8 +141,8 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
   // Calculate completion rates and statuses for each week using daily average method
   Object.values(weeklyData).forEach((week: any) => {
     // Get all daily logs for this week to calculate daily average
-    const weekStart = new Date(week.period_start);
-    const weekEnd = new Date(week.period_end);
+    const weekStart = parseDateKey(week.period_start);
+    const weekEnd = parseDateKey(week.period_end);
     
     // Force debug for Sep 15 week and Sep 22 week
     if (week.period_start === '2025-09-15' || week.period_start === '2025-09-22') {
@@ -148,8 +152,8 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     }
     
     // Check if this is the current week (use string comparison to avoid timezone issues)
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    const weekStartStr = toDateKey(weekStart);
+    const weekEndStr = toDateKey(weekEnd);
     const isCurrentWeek = weekStartStr <= todayStr && weekEndStr >= todayStr;
     
     const dailyLogsForWeek = dailyLogs.filter(log => {
@@ -176,13 +180,13 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
         console.log(`🔄 Processing CURRENT WEEK ${week.period_start}:`, {
           weekStart: week.period_start,
           weekEnd: week.period_end,
-          today: today.toISOString().split('T')[0],
+          today: toDateKey(today),
           dailyLogsForWeek: dailyLogsForWeek.length
         });
         
         const currentDate = new Date(weekStart);
         while (currentDate <= weekEnd) {
-          const dateStr = currentDate.toISOString().split('T')[0];
+          const dateStr = toDateKey(currentDate);
           const dayLog = dailyLogsForWeek.find(log => log.period_start === dateStr);
           completionRates.push(dayLog ? (dayLog.completion_rate || 0) : 0);
           
@@ -209,7 +213,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
         // Generate completion rates for ALL days in the week, not just days with data
         const currentDate = new Date(weekStart);
         while (currentDate <= weekEnd) {
-          const dateStr = currentDate.toISOString().split('T')[0];
+          const dateStr = toDateKey(currentDate);
           const dayLog = dailyLogsForWeek.find(log => log.period_start === dateStr);
           completionRates.push(dayLog ? (dayLog.completion_rate || 0) : 0);
           
@@ -222,9 +226,11 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
         }
       }
       
-      // Calculate average of daily completion rates (same as WeeklyBreakdownModal)
+      // Period rate is completed ÷ total for the whole week. Averaging daily
+      // percentages lets a 1-task day outweigh a 20-task day.
       const totalDailyRate = completionRates.reduce((sum, rate) => sum + rate, 0);
-      week.completion_rate = Math.round(totalDailyRate / completionRates.length);
+      week.completion_rate =
+        week.total_tasks > 0 ? (week.completed_tasks / week.total_tasks) * 100 : 0;
       
       // Debug Sep 22 week calculation
       if (week.period_start === '2025-09-22') {
@@ -235,7 +241,10 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
         console.log('Calculated average:', week.completion_rate);
       }
       
-      if (week.completion_rate >= 90) {
+      if (week.total_tasks === 0) {
+        // Nothing was due, so this period says nothing about productivity.
+        week.status = 'No Tasks';
+      } else if (week.completion_rate >= 90) {
         week.status = 'Highly Productive';
       } else if (week.completion_rate >= 70) {
         week.status = 'Productive';
@@ -251,7 +260,7 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
           weekStart: week.period_start,
           weekEnd: week.period_end,
           isCurrentWeek,
-          today: today.toISOString().split('T')[0],
+          today: toDateKey(today),
           completionRates,
           average: week.completion_rate
         });
@@ -317,19 +326,19 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
   const daysSinceMonday = currentDate.getDay() === 0 ? 6 : currentDate.getDay() - 1;
   const currentWeekMonday = new Date(currentDate);
   currentWeekMonday.setDate(currentDate.getDate() - daysSinceMonday);
-  const currentWeekKey = currentWeekMonday.toISOString().split('T')[0];
+  const currentWeekKey = toDateKey(currentWeekMonday);
   
   // If current week doesn't exist in data, create it
   if (!weeklyData[currentWeekKey]) {
     console.log('🔄 Creating current week entry:', {
       currentWeekKey,
-      currentWeekMonday: currentWeekMonday.toISOString().split('T')[0],
+      currentWeekMonday: toDateKey(currentWeekMonday),
       todayStr
     });
     // Calculate Sunday properly
     const currentWeekSunday = new Date(currentWeekMonday);
     currentWeekSunday.setDate(currentWeekMonday.getDate() + 6);
-    const currentWeekSundayStr = currentWeekSunday.toISOString().split('T')[0];
+    const currentWeekSundayStr = toDateKey(currentWeekSunday);
     
     weeklyData[currentWeekKey] = {
       period_start: currentWeekKey,
@@ -346,10 +355,10 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     // FORCE RECALCULATE the current week with today's data
     console.log('🚨 FORCING RECALCULATION OF CURRENT WEEK 🚨');
     const week = weeklyData[currentWeekKey];
-    const weekStart = new Date(week.period_start);
-    const weekEnd = new Date(week.period_end);
-    const weekStartStr = weekStart.toISOString().split('T')[0];
-    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    const weekStart = parseDateKey(week.period_start);
+    const weekEnd = parseDateKey(week.period_end);
+    const weekStartStr = toDateKey(weekStart);
+    const weekEndStr = toDateKey(weekEnd);
     
     const dailyLogsForWeek = dailyLogs.filter(log => {
       const logDateStr = log.period_start;
@@ -364,22 +373,31 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     });
     
     if (dailyLogsForWeek.length > 0) {
+      // This entry was created just above with zero totals, so fill them in
+      // before deriving the week's rate from them.
+      week.total_tasks = dailyLogsForWeek.reduce((sum, log) => sum + (log.total_tasks || 0), 0);
+      week.completed_tasks = dailyLogsForWeek.reduce((sum, log) => sum + (log.completed_tasks || 0), 0);
+
       // Generate completion rates for ALL days in the week
       const completionRates = [];
       const currentDate = new Date(weekStart);
       while (currentDate <= weekEnd) {
-        const dateStr = currentDate.toISOString().split('T')[0];
+        const dateStr = toDateKey(currentDate);
         const dayLog = dailyLogsForWeek.find(log => log.period_start === dateStr);
         completionRates.push(dayLog ? (dayLog.completion_rate || 0) : 0);
         console.log(`  📅 ${dateStr}: ${dayLog ? dayLog.completion_rate + '%' : '0% (no data)'}`);
         currentDate.setDate(currentDate.getDate() + 1);
       }
       
-      // Calculate average
+      // Period rate is completed ÷ total for the week (see note above).
       const totalDailyRate = completionRates.reduce((sum, rate) => sum + rate, 0);
-      week.completion_rate = Math.round(totalDailyRate / completionRates.length);
+      week.completion_rate =
+        week.total_tasks > 0 ? (week.completed_tasks / week.total_tasks) * 100 : 0;
       
-      if (week.completion_rate >= 90) {
+      if (week.total_tasks === 0) {
+        // Nothing was due, so this period says nothing about productivity.
+        week.status = 'No Tasks';
+      } else if (week.completion_rate >= 90) {
         week.status = 'Highly Productive';
       } else if (week.completion_rate >= 70) {
         week.status = 'Productive';
@@ -403,14 +421,80 @@ function aggregateDailyToWeekly(dailyLogs: any[]) {
     });
   }
   
-  const result = Object.values(weeklyData).sort((a: any, b: any) => 
+  const weeklyArray = Object.values(weeklyData).sort((a: any, b: any) =>
     new Date(a.period_start).getTime() - new Date(b.period_start).getTime()
   );
-  
+
   if (import.meta.env.DEV) {
-    console.log('🔄 Weekly aggregation result:', result);
+    console.log('🔄 Weekly aggregation result (raw):', weeklyArray);
   }
-  
+
+  return weeklyArray;
+}
+
+// Ensure weekly history covers the full year (all Mondays) even when some weeks have no data
+function fillMissingWeeksForYear(year: number, weeklyLogs: any[]) {
+  if (!year) return weeklyLogs || [];
+
+  const logsArray = Array.isArray(weeklyLogs) ? weeklyLogs : [];
+  const map = new Map<string, any>();
+  logsArray.forEach((w: any) => {
+    if (w?.period_start) {
+      map.set(w.period_start, w);
+    }
+  });
+
+  // Use first log's user_id if available for zero-weeks
+  const sampleUserId = logsArray[0]?.user_id ?? null;
+
+  const firstDay = new Date(year, 0, 1); // Jan 1
+  let lastDay = new Date(year, 11, 31); // Dec 31
+
+  // Do not generate weeks beyond "today" for the current year
+  const today = new Date();
+  if (today.getFullYear() === year && today < lastDay) {
+    lastDay = today;
+  }
+
+  // Find first Monday on or after Jan 1
+  const firstMonday = new Date(firstDay);
+  const dayOfWeek = firstMonday.getDay(); // 0 Sun, 1 Mon, ...
+  const diffToMonday = (1 - dayOfWeek + 7) % 7; // days to add to reach Monday
+  firstMonday.setDate(firstMonday.getDate() + diffToMonday);
+
+  const cursor = new Date(firstMonday);
+  while (cursor <= lastDay) {
+    const mondayStr = toDateKey(cursor);
+    if (!map.has(mondayStr)) {
+      const sunday = new Date(cursor);
+      sunday.setDate(cursor.getDate() + 6);
+      const sundayStr = toDateKey(sunday);
+
+      map.set(mondayStr, {
+        period_start: mondayStr,
+        period_end: sundayStr,
+        period_type: 'weekly',
+        user_id: sampleUserId,
+        total_tasks: 0,
+        completed_tasks: 0,
+        completion_rate: 0,
+        status: 'No Tasks',
+        logged_at: new Date().toISOString(),
+      });
+    }
+
+    cursor.setDate(cursor.getDate() + 7); // next Monday
+  }
+
+  // Return weeks sorted by period_start ascending
+  const result = Array.from(map.values()).sort((a: any, b: any) =>
+    a.period_start < b.period_start ? -1 : a.period_start > b.period_start ? 1 : 0
+  );
+
+  if (import.meta.env.DEV) {
+    console.log('🔄 Weekly aggregation with filled weeks:', result);
+  }
+
   return result;
 }
 
@@ -430,7 +514,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
   today.setHours(0, 0, 0, 0); // Reset time to start of day
   
   dailyLogs.forEach(log => {
-    const date = new Date(log.period_start);
+    const date = parseDateKey(log.period_start);
     
     // Skip future dates
     if (date > today) {
@@ -473,20 +557,22 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
   // Calculate completion rates and statuses for each month using daily average method
   Object.values(monthlyData).forEach((month: any) => {
     // Get all daily logs for this month to calculate daily average
-    const monthStart = new Date(month.period_start);
-    const monthEnd = new Date(month.period_end);
+    const monthStart = parseDateKey(month.period_start);
+    const monthEnd = parseDateKey(month.period_end);
     
     const dailyLogsForMonth = dailyLogs.filter(log => {
-      const logDate = new Date(log.period_start);
+      const logDate = parseDateKey(log.period_start);
       return logDate >= monthStart && logDate <= monthEnd;
     });
     
     if (dailyLogsForMonth.length > 0) {
-      // Calculate average of daily completion rates (same as WeeklyBreakdownModal)
-      const totalDailyRate = dailyLogsForMonth.reduce((sum, log) => sum + (log.completion_rate || 0), 0);
-      month.completion_rate = Math.round(totalDailyRate / dailyLogsForMonth.length);
+      // Period rate is completed ÷ total for the whole month.
+      month.completion_rate =
+        month.total_tasks > 0 ? (month.completed_tasks / month.total_tasks) * 100 : 0;
       
-      if (month.completion_rate >= 90) {
+      if (month.total_tasks === 0) {
+        month.status = 'No Tasks';
+      } else if (month.completion_rate >= 90) {
         month.status = 'Highly Productive';
       } else if (month.completion_rate >= 70) {
         month.status = 'Productive';
@@ -501,7 +587,7 @@ function aggregateDailyToMonthly(dailyLogs: any[]) {
       }
     } else {
       month.completion_rate = 0;
-      month.status = 'Low Productive';
+      month.status = 'No Tasks';
     }
   });
   
@@ -550,6 +636,20 @@ const Progress = () => {
   const [activeMainTab, setActiveMainTab] = useState<'overview' | 'statistics' | 'achievements'>('overview');
 
   const MAIN_TABS = ['overview', 'statistics', 'achievements'] as const;
+
+  // The score card follows the Statistics tab's period switcher. On Overview it
+  // stays pinned to the current week so the number has a stable framing.
+  const insightsView: PeriodView =
+    activeMainTab === 'statistics' ? (progressView.toLowerCase() as PeriodView) : 'weekly';
+  const insightsDate = activeMainTab === 'statistics' ? selectedDate : new Date();
+  const insightsState = useProgressInsights({
+    view: insightsView,
+    selectedDate: insightsDate,
+    refreshKey,
+    enabled: activeMainTab !== 'achievements',
+  });
+  const insights = insightsState.data;
+
   const handleMainTabKeyDown = (e: React.KeyboardEvent) => {
     const idx = MAIN_TABS.indexOf(activeMainTab);
     if (e.key === 'ArrowRight' && idx < MAIN_TABS.length - 1) {
@@ -574,18 +674,22 @@ const Progress = () => {
     }
   }, [selectedDate]);
   
-  // Auto-set selectedDate to 2025 when switching to Weekly/Monthly tabs (where data exists)
+  // Auto-set selectedDate to the current year when switching to Weekly/Monthly tabs
   useEffect(() => {
     if (progressView === 'Weekly' || progressView === 'Monthly') {
+      const today = new Date();
+      const todayYear = today.getFullYear();
       const currentYear = selectedDate.getFullYear();
-      if (currentYear !== 2025) {
-        console.log('📅 Auto-setting selectedDate to 2025 for', progressView, 'view');
-        setSelectedDate(new Date(2025, 8, 1)); // Set to September 2025 (month 8 = September)
+      if (currentYear !== todayYear) {
+        console.log('📅 Auto-setting selectedDate to current year', todayYear, 'for', progressView, 'view');
+        setSelectedDate(today);
       }
     }
   }, [progressView]); // Remove selectedDate from dependencies to avoid infinite loop
   // Add state for productivity logs list
   const [prodLogs, setProdLogs] = useState<any[]>([]);
+  // True while the history list is fetching the period the user navigated to
+  const [prodLogsLoading, setProdLogsLoading] = useState(true);
   
   // Debug: Track prodLogs changes (only in development)
   useEffect(() => {
@@ -902,7 +1006,7 @@ const Progress = () => {
               const completedTasks = completedCount;
               const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
               
-              let status = 'Low Productive';
+              let status = totalTasks === 0 ? 'No Tasks' : 'Low Productive';
               if (completionRate >= 90) status = 'Highly Productive';
               else if (completionRate >= 70) status = 'Productive';
               else if (completionRate >= 40) status = 'Moderately Productive';
@@ -1018,7 +1122,7 @@ const Progress = () => {
           note: 'Only counting tasks completed ON TIME (on or before due date)'
         });
         
-        let status = 'Low Productive';
+        let status = totalTasks === 0 ? 'No Tasks' : 'Low Productive';
         if (completionRate >= 90) status = 'Highly Productive';
         else if (completionRate >= 70) status = 'Productive';
         else if (completionRate >= 40) status = 'Moderately Productive';
@@ -1147,7 +1251,7 @@ const Progress = () => {
           const completedTasks = completedCount;
           const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
           
-          let status = 'Low Productive';
+          let status = totalTasks === 0 ? 'No Tasks' : 'Low Productive';
           if (completionRate >= 90) status = 'Highly Productive';
           else if (completionRate >= 70) status = 'Productive';
           else if (completionRate >= 40) status = 'Moderately Productive';
@@ -1245,7 +1349,10 @@ const Progress = () => {
 
   // Fetch productivity logs for the selected period from Supabase
   useEffect(() => {
+    // Ignore a response that arrives after the user navigated somewhere else
+    let cancelled = false;
     const fetchProdLogs = async () => {
+      setProdLogsLoading(true);
       try {
         // Get current user ID
         const userData = localStorage.getItem('user');
@@ -1326,7 +1433,7 @@ const Progress = () => {
                   total_tasks: 0,
                   completed_tasks: 0,
                   completion_rate: 0,
-                  status: 'Low Productive',
+                  status: 'No Tasks',
                   logged_at: new Date().toISOString()
                 });
               }
@@ -1352,14 +1459,19 @@ const Progress = () => {
             .lte('period_start', yearEnd)
             .order('period_start', { ascending: true });
           
-          // FORCE INCLUDE TODAY'S DATA - Use the same data as Today's Productivity Scale
-          const todayStr = new Date().toLocaleDateString('en-CA');
+          // FORCE INCLUDE TODAY'S DATA for the SAME YEAR - Use the same data as Today's Productivity Scale
+          const today = new Date();
+          const todayStr = today.toLocaleDateString('en-CA');
+          const todayYear = today.getFullYear();
           console.log('🚨 FORCING TODAY\'S DATA INTO WEEKLY CALCULATION 🚨');
           console.log('Today string:', todayStr);
           console.log('TodaysProductivity state:', todaysProductivity);
           
+          // Only inject today's data when we're viewing this year
+          const shouldInjectToday = todayYear === year;
+
           // Always use todaysProductivity state if available (same as Today's Productivity Scale)
-          if (todaysProductivity) {
+          if (shouldInjectToday && todaysProductivity) {
             console.log('📊 USING TODAY\'S PRODUCTIVITY STATE FOR WEEKLY CALCULATION');
             const todayLogFromState = {
               period_start: todayStr,
@@ -1384,7 +1496,7 @@ const Progress = () => {
                 console.log('📊 ADDED today\'s data to dailyLogs for weekly calculation');
               }
             }
-          } else {
+          } else if (shouldInjectToday) {
             // Fallback: Compute today's data directly from tasks (CORRECTED: by due date)
             console.log('📊 COMPUTING TODAY\'S DATA FROM TASKS FOR WEEKLY CALCULATION');
             const [completedTodayW, pendingTodayW] = await Promise.all([
@@ -1411,7 +1523,7 @@ const Progress = () => {
               const completedTasks = completedCount;
               const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
               
-              let status = 'Low Productive';
+              let status = totalTasks === 0 ? 'No Tasks' : 'Low Productive';
               if (completionRate >= 90) status = 'Highly Productive';
               else if (completionRate >= 70) status = 'Productive';
               else if (completionRate >= 40) status = 'Moderately Productive';
@@ -1485,7 +1597,9 @@ const Progress = () => {
             
             // Aggregate daily logs into weekly data
             console.log('🚨 CALLING aggregateDailyToWeekly FUNCTION 🚨');
-            data = aggregateDailyToWeekly(dailyLogs || []);
+            const weeklyRaw = aggregateDailyToWeekly(dailyLogs || []);
+            // Fill missing weeks so the whole year (up to Dec 31) is covered
+            data = fillMissingWeeksForYear(year, weeklyRaw);
             console.log('📊 Aggregated weekly data:', data);
             // Log the specific week that should contain Sep 23
             const sep21_27Week = data.find(week => week.period_start === '2025-09-22');
@@ -1585,7 +1699,7 @@ const Progress = () => {
                 const completedTasks = completedCount;
                 const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
                 
-                let status = 'Low Productive';
+                let status = totalTasks === 0 ? 'No Tasks' : 'Low Productive';
                 if (completionRate >= 90) status = 'Highly Productive';
                 else if (completionRate >= 70) status = 'Productive';
                 else if (completionRate >= 40) status = 'Moderately Productive';
@@ -1663,7 +1777,7 @@ const Progress = () => {
               }
             };
           } else if (progressView === 'Monthly') {
-            const date = new Date(log.period_start);
+            const date = parseDateKey(log.period_start);
             return {
               month: date.getMonth() + 1, // Convert to 1-12 month format
               log: {
@@ -1702,13 +1816,18 @@ const Progress = () => {
             }
           }
         }
-        setProdLogs(transformedData);
+        if (!cancelled) setProdLogs(transformedData);
       } catch (e) {
         console.error('Error fetching productivity logs from Supabase:', e);
-        setProdLogs([]);
+        if (!cancelled) setProdLogs([]);
+      } finally {
+        if (!cancelled) setProdLogsLoading(false);
       }
     };
     fetchProdLogs();
+    return () => {
+      cancelled = true;
+    };
   }, [progressView, selectedDate, refreshKey]);
 
   // Navigation handlers
@@ -1722,12 +1841,12 @@ const Progress = () => {
       if (prevDate > today) return;
       setSelectedDate(prevDate);
     } else if (progressView === 'Weekly') {
-      prevDate = subWeeks(selectedDate, 1);
-      if (prevDate > today) return;
+      // Move back one year for weekly history
+      prevDate = subYears(selectedDate, 1);
       setSelectedDate(prevDate);
     } else if (progressView === 'Monthly') {
-      prevDate = subMonths(selectedDate, 1);
-      if (prevDate > today) return;
+      // Move back one year for monthly history
+      prevDate = subYears(selectedDate, 1);
       setSelectedDate(prevDate);
     }
   };
@@ -1740,12 +1859,12 @@ const Progress = () => {
       if (nextDate > today) return;
       setSelectedDate(nextDate);
     } else if (progressView === 'Weekly') {
-      nextDate = addWeeks(selectedDate, 1);
-      if (nextDate > today) return;
+      // Move forward one year for weekly history
+      nextDate = addYears(selectedDate, 1);
       setSelectedDate(nextDate);
     } else if (progressView === 'Monthly') {
-      nextDate = addMonths(selectedDate, 1);
-      if (nextDate > today) return;
+      // Move forward one year for monthly history
+      nextDate = addYears(selectedDate, 1);
       setSelectedDate(nextDate);
     }
   };
@@ -1758,12 +1877,12 @@ const Progress = () => {
       return nextDate > today;
     }
     if (progressView === 'Weekly') {
-      const nextDate = addWeeks(selectedDate, 1);
-      return nextDate > today;
+      const nextYearDate = addYears(selectedDate, 1);
+      return nextYearDate.getFullYear() > today.getFullYear();
     }
     if (progressView === 'Monthly') {
-      const nextDate = addMonths(selectedDate, 1);
-      return nextDate > today;
+      const nextYearDate = addYears(selectedDate, 1);
+      return nextYearDate.getFullYear() > today.getFullYear();
     }
     return false;
   })();
@@ -1780,11 +1899,11 @@ const Progress = () => {
       return prevDate < earliestAllowed;
     }
     if (progressView === 'Weekly') {
-      const prevDate = subWeeks(selectedDate, 1);
+      const prevDate = subYears(selectedDate, 1);
       return prevDate < earliestAllowed;
     }
     if (progressView === 'Monthly') {
-      const prevDate = subMonths(selectedDate, 1);
+      const prevDate = subYears(selectedDate, 1);
       return prevDate < earliestAllowed;
     }
     return false;
@@ -1865,19 +1984,10 @@ const Progress = () => {
 
   return (
     <PageLayout>
-      <div className="min-h-screen flex flex-col relative">
-        {/* Background – same approach as Home for consistency */}
-        <div className="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
-          <div className="absolute inset-0 bg-white dark:bg-gray-900" />
-          <div className="absolute -top-20 -left-20 w-80 h-80 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/30 rounded-full opacity-60" />
-          <div className="absolute -top-40 -right-40 w-96 h-96 bg-gradient-to-bl from-blue-900/20 to-blue-800/20 dark:from-blue-800/30 dark:to-blue-700/30 rounded-full opacity-70" />
-          <div className="absolute -bottom-20 -left-20 w-72 h-72 bg-gradient-to-tr from-blue-800/10 to-blue-900/10 dark:from-blue-700/20 dark:to-blue-800/20 rounded-full opacity-60" />
-          <div className="absolute inset-0 bg-gradient-to-br from-transparent via-transparent to-blue-50/20 dark:to-blue-950/20" />
-        </div>
-
+      <div className="mx-auto max-w-7xl">
         {/* Main Content */}
-        <div className="relative z-10 min-h-screen">
-          <div className="space-y-6">
+        <div>
+          <div className="space-y-4">
             {/* Header */}
             <ProgressHeader greeting={greeting} username={user?.username || 'User'} />
 
@@ -1889,32 +1999,20 @@ const Progress = () => {
             />
 
             {/* Main tabs: Overview | Statistics | Achievements (same style as Notes, Decks, Tasks) */}
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-6">
-              <div
-                className="flex space-x-4"
-                role="tablist"
-                aria-label="Progress sections"
+            <div className="flex items-center justify-between border-b border-gray-200 dark:border-[#2f2f2f]">
+              <TabBar
+                bare
+                ariaLabel="Progress sections"
+                value={activeMainTab}
+                onChange={setActiveMainTab}
                 onKeyDown={handleMainTabKeyDown}
-              >
-                {MAIN_TABS.map((tab) => (
-                  <button
-                    key={tab}
-                    role="tab"
-                    aria-selected={activeMainTab === tab}
-                    aria-controls={`progress-panel-${tab}`}
-                    id={`progress-tab-${tab}`}
-                    tabIndex={activeMainTab === tab ? 0 : -1}
-                    onClick={() => setActiveMainTab(tab)}
-                    className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 rounded-t ${
-                      activeMainTab === tab
-                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                        : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                    }`}
-                  >
-                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </button>
-                ))}
-              </div>
+                idPrefix="progress"
+                rovingFocus
+                items={MAIN_TABS.map((tab) => ({
+                  id: tab,
+                  label: tab.charAt(0).toUpperCase() + tab.slice(1),
+                }))}
+              />
             </div>
 
             {/* Tab content */}
@@ -1925,7 +2023,12 @@ const Progress = () => {
                   stats={{ ...stats, streakData }}
                   todaysProductivity={todaysProductivity}
                 />
-                <div className="flex flex-col mt-6">
+                <ProductivityScoreCard
+                  insights={insights}
+                  loading={insightsState.loading}
+                  view={insightsView}
+                />
+                <div className="flex flex-col">
                   <ProgressOverview
                     key={`progress-overview-${refreshKey}`}
                     userLevel={userLevel}
@@ -1945,15 +2048,23 @@ const Progress = () => {
             {activeMainTab === 'statistics' && (
               <div id="progress-panel-statistics" role="tabpanel" aria-labelledby="progress-tab-statistics">
               <>
+                <ProductivityScoreCard
+                  insights={insights}
+                  loading={insightsState.loading}
+                  view={insightsView}
+                />
                 <StatsAnalysis
-                  tasksByPriority={stats.tasksByPriority ?? null}
-                  weightedProductivity={stats.weightedProductivity ?? null}
-                  totalTasksCompleted={stats.totalTasksCompleted}
+                  tasksByPriority={insights?.tasksByPriority ?? stats.tasksByPriority ?? null}
+                  weightedProductivity={
+                    insights ? (insights.totalTasks > 0 ? insights.weightedRateRaw : null) : stats.weightedProductivity ?? null
+                  }
+                  totalTasksCompleted={insights?.completedTasks ?? stats.totalTasksCompleted}
                 />
                 <ProductivityHistory
                   progressView={progressView}
                   productivity={productivity}
                   prodLogs={prodLogs}
+                  isLoading={prodLogsLoading}
                   selectedDate={selectedDate}
                   handlePrev={handlePrev}
                   handleNext={handleNext}
@@ -2142,7 +2253,7 @@ function calculateLongestStreak(streakData: any[]) {
   // Check every day in the range
   const currentDate = new Date(startDate);
   while (currentDate <= endDate) {
-    const dateStr = currentDate.toISOString().split('T')[0];
+    const dateStr = toDateKey(currentDate);
     
     if (productiveDates.has(dateStr)) {
       currentStreak.push(dateStr);
@@ -2274,13 +2385,15 @@ async function fetchUserStats() {
       }
     }
     
-    // Get average productivity from productivity logs
+    // Average completion over the last 30 *daily* logs. Filtering by period
+    // type keeps weekly/monthly rows from being averaged in with daily ones.
     const { data: productivityData, error: productivityError } = await supabase
       .from('productivity_logs')
       .select('completion_rate')
       .eq('user_id', userId)
+      .eq('period_type', 'daily')
       .order('logged_at', { ascending: false })
-      .limit(30); // Last 30 entries for average
+      .limit(30);
     
     let averageProductivity = 0;
     if (!productivityError && productivityData && productivityData.length > 0) {
@@ -2411,7 +2524,7 @@ async function fetchStreakData() {
     // Get productivity logs from Supabase (last 365 days for complete streak calculation)
     const oneYearAgo = new Date();
     oneYearAgo.setDate(oneYearAgo.getDate() - 365);
-    const oneYearAgoStr = oneYearAgo.toISOString().split('T')[0];
+    const oneYearAgoStr = toDateKey(oneYearAgo);
     
     console.log('🔄 Date range: from', oneYearAgoStr, 'to today (365 days)');
     
@@ -2516,7 +2629,7 @@ async function fetchStreakData() {
       let testDate = new Date(today);
       for (let i = 1; i < 10; i++) {
         testDate.setDate(testDate.getDate() - 1);
-        const dateStr = testDate.toISOString().split('T')[0];
+        const dateStr = toDateKey(testDate);
         const dayData = streakData.find(day => day.date === dateStr);
         if (dayData && dayData.streak) {
           testStreak++;

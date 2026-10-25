@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { MessageCircle } from 'lucide-react';
 import MessageBubble from './MessageBubble';
 import { Message, ChatRoom } from './types';
@@ -22,12 +22,32 @@ const MessagesList: React.FC<MessagesListProps> = ({
   messagesContainerRef,
   isLoading,
   loadingLabel,
+  onDeleteMessage,
 }) => {
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Toggle .scrolled class on the container so the internal scrollbar visual responds
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const update = () => {
+      if (el.scrollHeight > el.clientHeight) {
+        el.classList.toggle('scrolled', el.scrollTop > 0);
+      } else {
+        el.classList.remove('scrolled');
+      }
+    };
+
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    return () => el.removeEventListener('scroll', update);
+  }, []);
   if (isLoading) {
     return (
       <div
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto scrollbar-hide p-4 space-y-4 relative"
+        ref={el => { messagesContainerRef.current = el; scrollContainerRef.current = el; }}
+        className="flex-1 overflow-y-auto scrollbar-hide-internal p-4 space-y-4 relative"
       >
         <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
           <div className="text-center">
@@ -44,8 +64,8 @@ const MessagesList: React.FC<MessagesListProps> = ({
   if (messages.length === 0) {
     return (
       <div
-        ref={messagesContainerRef}
-        className="flex-1 overflow-y-auto scrollbar-hide p-4 space-y-4 relative"
+        ref={el => { messagesContainerRef.current = el; scrollContainerRef.current = el; }}
+        className="flex-1 overflow-y-auto scrollbar-hide-internal p-4 space-y-4 relative"
       >
         <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400">
           <div className="text-center">
@@ -60,8 +80,8 @@ const MessagesList: React.FC<MessagesListProps> = ({
 
   return (
     <div
-      ref={messagesContainerRef}
-      className="flex-1 overflow-y-auto scrollbar-hide p-4 space-y-4 relative"
+      ref={el => { messagesContainerRef.current = el; scrollContainerRef.current = el; }}
+      className="flex-1 overflow-y-auto scrollbar-hide-internal p-4 space-y-4 relative"
     >
       {messages.map((message, index) => {
         const prevMessage = index > 0 ? messages[index - 1] : null;
@@ -76,7 +96,6 @@ const MessagesList: React.FC<MessagesListProps> = ({
           <MessageBubble
             key={message.id}
             message={message}
-            prevMessage={prevMessage}
             currentUserId={currentUserId}
             selectedRoom={selectedRoom}
             showAvatar={showAvatar}

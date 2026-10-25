@@ -961,7 +961,7 @@ const LandingPage = () => {
             <div>
             {loading ? (
                 <div className="text-center py-12" role="status" aria-live="polite">
-                  <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" aria-hidden="true"></div>
+                  <div className="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500" aria-hidden="true"></div>
                 <p className="mt-2 text-gray-600 dark:text-gray-400">Loading reviews...</p>
               </div>
             ) : userReviews.length === 0 ? (

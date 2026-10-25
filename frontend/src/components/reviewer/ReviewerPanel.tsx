@@ -27,6 +27,7 @@ import { useNavigate } from 'react-router-dom';
 import ReviewerCard from './ReviewerCard';
 import Toast from '../../components/common/Toast';
 import Pagination from '../common/Pagination';
+import TabBar from '../common/TabBar';
 import DeleteConfirmationModal from './DeleteConfirmationModal';
 import GenerateModal from './GenerateModal';
 import InteractiveQuiz from './InteractiveQuiz';
@@ -901,29 +902,20 @@ const ReviewerPanel: React.FC<ReviewerPanelProps> = ({ notes, notebooks, activeT
           <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Generate study materials from your notes</p>
         </div>
         {/* Tabs and Controls Row (same pattern as Tasks/Decks) */}
-        <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2 gap-4 flex-wrap">
-          <div className="flex space-x-4">
-            <button
-              onClick={() => { setActiveTab('reviewer'); navigate('/reviewer/r'); }}
-              className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'reviewer'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Reviewer
-            </button>
-            <button
-              onClick={() => { setActiveTab('quiz'); navigate('/reviewer/q'); }}
-              className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                activeTab === 'quiz'
-                  ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                  : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-              }`}
-            >
-              Quiz
-            </button>
-          </div>
+        <div className="flex items-center justify-between border-b border-gray-200 dark:border-[#2f2f2f] mb-2 gap-3 flex-wrap">
+          <TabBar
+            bare
+            ariaLabel="Reviewer views"
+            value={activeTab}
+            onChange={(tab) => {
+              setActiveTab(tab);
+              navigate(tab === 'reviewer' ? '/reviewer/r' : '/reviewer/q');
+            }}
+            items={[
+              { id: 'reviewer', label: 'Reviewer' },
+              { id: 'quiz', label: 'Quiz' },
+            ]}
+          />
           <div className="flex items-center gap-2 flex-wrap justify-end w-full sm:w-auto">
             {/* Search */}
             <div className="relative w-full sm:w-48">

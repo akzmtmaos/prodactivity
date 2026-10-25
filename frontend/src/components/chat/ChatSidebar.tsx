@@ -1,6 +1,7 @@
 import React from 'react';
 import { MessageCircle, Search, Users, Plus } from 'lucide-react';
 import ChatList from './ChatList';
+import TabBar from '../common/TabBar';
 import { ChatRoom } from './types';
 
 interface ChatSidebarProps {
@@ -32,33 +33,22 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({
 
   return (
     <div className="w-80 border-r border-gray-200 dark:border-gray-700 flex flex-col">
-      {/* Tabs – Chats (1), Groups (2) */}
-      <div className="flex border-b border-gray-200 dark:border-gray-700">
-        <button
-          onClick={() => {
-            onViewChange('chats');
+      {/* Tabs – compact pills, same as the rest of the app */}
+      <div className="border-b border-gray-200 px-2 py-1.5 dark:border-gray-700">
+        <TabBar
+          bare
+          ariaLabel="Chat views"
+          value={activeView}
+          onChange={(view) => {
+            onViewChange(view);
             onRoomSelect(null);
           }}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
-            activeView === 'chats'
-              ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20'
-              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-          }`}
-        >
-          <MessageCircle size={14} />
-          Chats
-        </button>
-        <button
-          onClick={() => onViewChange('groups')}
-          className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-xs font-medium transition-colors border-b-2 -mb-px ${
-            activeView === 'groups'
-              ? 'border-indigo-600 text-indigo-600 dark:border-indigo-400 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-900/20'
-              : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-          }`}
-        >
-          <Users size={14} />
-          Group
-        </button>
+          tabClassName="flex-1 justify-center"
+          items={[
+            { id: 'chats', label: 'Chats', icon: <MessageCircle size={14} /> },
+            { id: 'groups', label: 'Groups', icon: <Users size={14} /> },
+          ]}
+        />
       </div>
 
       {/* Search + New group – compact */}

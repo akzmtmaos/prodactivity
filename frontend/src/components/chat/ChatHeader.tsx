@@ -1,14 +1,16 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Users, MoreVertical, UserPlus } from 'lucide-react';
+import { Users, MoreVertical, UserPlus, Trash2 } from 'lucide-react';
 import { ChatRoom } from './types';
 
 interface ChatHeaderProps {
   room: ChatRoom;
   currentUserId: string;
   onAddMembers?: () => void;
+  onRemoveMembers?: () => void;
+  canManageMembers?: boolean;
 }
 
-const ChatHeader: React.FC<ChatHeaderProps> = ({ room, currentUserId, onAddMembers }) => {
+const ChatHeader: React.FC<ChatHeaderProps> = ({ room, currentUserId, onAddMembers, onRemoveMembers, canManageMembers }) => {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const otherParticipant = room.participants?.find(p => String(p.id) !== currentUserId);
@@ -74,7 +76,7 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ room, currentUserId, onAddMembe
           <MoreVertical className="text-gray-600 dark:text-gray-400" size={18} />
         </button>
         {menuOpen && (
-          <div className="absolute right-0 top-full mt-1 min-w-[160px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
+          <div className="absolute right-0 top-full mt-1 min-w-[180px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
             {onAddMembers && (
               <button
                 type="button"
@@ -86,6 +88,19 @@ const ChatHeader: React.FC<ChatHeaderProps> = ({ room, currentUserId, onAddMembe
               >
                 <UserPlus size={14} />
                 Add members
+              </button>
+            )}
+            {room.room_type === 'group' && canManageMembers && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMenuOpen(false);
+                  onRemoveMembers?.();
+                }}
+                className="w-full px-3 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] flex items-center gap-2 whitespace-nowrap"
+              >
+                <Trash2 size={14} className="text-red-600 dark:text-red-400" />
+                Remove members
               </button>
             )}
           </div>

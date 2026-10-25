@@ -1,11 +1,12 @@
 // frontend/src/components/NotesList.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { Plus, ChevronRight, FileText, BookOpen, Trash2, Archive, RotateCcw, Settings, Pencil, Share2 } from 'lucide-react';
-import { formatDistanceToNow } from 'date-fns';
+import { format } from 'date-fns';
 import NoteItem from './NoteItem';
 import NoteForm from './NoteForm';
 import ShareModal from '../collaboration/ShareModal';
 import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
+import HeaderTooltip from '../common/HeaderTooltip';
 
 interface Notebook {
   id: number;
@@ -64,6 +65,12 @@ interface NotesListProps {
   onSelectionChange?: (selectedIds: number[]) => void;
   selectedForBulk?: number[];
   listViewMode?: 'compact' | 'comfortable';
+  /** When provided, renders without the internal scroll container (parent supplies scrolling) */
+  containerClassName?: string;
+  /** Render without a selected notebook (e.g. combined Archived view) */
+  allowNoNotebook?: boolean;
+  /** When provided, renders these rows instead of `notes` (archive's merged All view) */
+  rows?: Note[];
 }
 
 const NotesList: React.FC<NotesListProps> = ({
@@ -90,6 +97,9 @@ const NotesList: React.FC<NotesListProps> = ({
   onSelectionChange,
   selectedForBulk = [],
   listViewMode = 'comfortable',
+  containerClassName,
+  allowNoNotebook = false,
+  rows,
 }) => {
   const [openOptionsNoteId, setOpenOptionsNoteId] = useState<number | null>(null);
   const [noteToShare, setNoteToShare] = useState<Note | null>(null);
@@ -108,7 +118,62 @@ const NotesList: React.FC<NotesListProps> = ({
     }
   }, [openOptionsNoteId]);
 
-  if (!selectedNotebook) {
+  const exactTime = (iso?: string | null) => {
+    if (!iso) return '';
+    const parsed = new Date(iso);
+    return isNaN(parsed.getTime()) ? '' : format(parsed, 'MMM d, yyyy, hh:mm a');
+  };
+
+  const renderCompactNote = (note: Note) => {
+    return (
+      <div
+        key={note.id}
+        className="flex items-center gap-3 w-full min-w-0 h-12 px-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group"
+        onClick={() => onEditNote(note)}
+      >
+        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: note.notebook_color }} />
+        <FileText className="flex-shrink-0 text-gray-500 dark:text-gray-400" size={18} />
+        <span className="font-medium truncate flex-1 min-w-0 text-sm text-gray-800 dark:text-gray-200">{note.title || 'Untitled'}</span>
+        <span className="hidden flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 md:inline">
+          Created: {exactTime(note.created_at)}
+        </span>
+        <span className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
+          Updated: {exactTime(note.updated_at)}
+        </span>
+        <div className="relative flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity max-sm:opacity-100" ref={openOptionsNoteId === note.id ? optionsMenuRef : undefined} onClick={(e) => e.stopPropagation()}>
+          <HeaderTooltip label="Note options" fixed>
+            <button
+              onClick={(e) => { e.stopPropagation(); setOpenOptionsNoteId((id) => (id === note.id ? null : note.id)); }}
+              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
+              aria-label="Note options"
+            >
+              <Settings size={14} />
+            </button>
+          </HeaderTooltip>
+          {openOptionsNoteId === note.id && (
+            <div className="absolute right-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
+              <button onClick={() => { onEditNote(note); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                <Pencil size={12} /> Edit
+              </button>
+              {!note.is_archived && (
+                <button onClick={() => { setNoteToShare(note); setShowShareModal(true); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                  <Share2 size={12} /> Share
+                </button>
+              )}
+              <button onClick={() => { onArchiveNote(note.id, !note.is_archived); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
+                {note.is_archived ? <><RotateCcw size={12} /> Unarchive</> : <><Archive size={12} /> Archive</>}
+              </button>
+              <button onClick={() => { onDeleteNote(note.id); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-md mx-0.5">
+                <Trash2 size={12} /> Delete
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  if (!selectedNotebook && !allowNoNotebook) {
     return (
       <div className="w-full h-[calc(100vh-12rem)]">
         <div className="p-5 text-center">
@@ -124,10 +189,13 @@ const NotesList: React.FC<NotesListProps> = ({
     );
   }
 
+  // `rows` (archive merged view) takes precedence over `notes`
+  const displayNotes = rows ?? notes;
+
   return (
-    <div className="w-full h-[calc(100vh-12rem)] flex flex-col">
+    <div className={containerClassName || 'w-full h-[calc(100vh-12rem)] flex flex-col'}>
       {/* Content */}
-      <div className="flex-1 overflow-y-auto min-h-0">
+      <div data-notes-scroll className={`flex-1 min-h-0 ${!containerClassName ? 'overflow-y-auto' : ''}`}>
         {/* Add note form */}
         {isAddingNote && (
           <NoteForm
@@ -142,7 +210,7 @@ const NotesList: React.FC<NotesListProps> = ({
         
         {/* Notes list */}
         <div className={listViewMode === 'compact' ? 'flex flex-col gap-1' : 'space-y-4'}>
-          {notes.length === 0 ? (
+          {displayNotes.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="mx-auto h-12 w-12 text-gray-400 dark:text-white" />
               <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
@@ -153,48 +221,10 @@ const NotesList: React.FC<NotesListProps> = ({
               </p>
             </div>
           ) : listViewMode === 'compact' ? (
-            notes.map((note) => (
-              <div
-                key={note.id}
-                className="flex items-center gap-3 w-full min-w-0 h-12 px-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors cursor-pointer group"
-                onClick={() => onEditNote(note)}
-              >
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: note.notebook_color }} />
-                <FileText className="flex-shrink-0 text-gray-500 dark:text-gray-400" size={18} />
-                <span className="font-medium truncate flex-1 min-w-0 text-sm text-gray-800 dark:text-gray-200">{note.title || 'Untitled'}</span>
-                <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{formatDistanceToNow(new Date(note.updated_at), { addSuffix: true })}</span>
-                <div className="relative flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" ref={openOptionsNoteId === note.id ? optionsMenuRef : undefined} onClick={(e) => e.stopPropagation()}>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setOpenOptionsNoteId((id) => (id === note.id ? null : note.id)); }}
-                    className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
-                    aria-label="Note options"
-                  >
-                    <Settings size={14} />
-                  </button>
-                  {openOptionsNoteId === note.id && (
-                    <div className="absolute right-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
-                      <button onClick={() => { onEditNote(note); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                        <Pencil size={12} /> Edit
-                      </button>
-                      {!note.is_archived && (
-                        <button onClick={() => { setNoteToShare(note); setShowShareModal(true); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                          <Share2 size={12} /> Share
-                        </button>
-                      )}
-                      <button onClick={() => { onArchiveNote(note.id, !note.is_archived); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] flex items-center gap-2 rounded-md mx-0.5">
-                        {note.is_archived ? <><RotateCcw size={12} /> Unarchive</> : <><Archive size={12} /> Archive</>}
-                      </button>
-                      <button onClick={() => { onDeleteNote(note.id); setOpenOptionsNoteId(null); }} className="w-full px-2.5 py-1.5 text-left text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-md mx-0.5">
-                        <Trash2 size={12} /> Delete
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))
+            displayNotes.map(renderCompactNote)
           ) : (
             <>
-              {notes.map((note) => (
+              {displayNotes.map((note) => (
                 <div key={note.id} className="flex items-center">
                   <div className="flex-1">
                     <NoteItem

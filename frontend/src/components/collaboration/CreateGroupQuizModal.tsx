@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { X, Users, Search, Check } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Users, Search, Check, ChevronDown } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { getAvatarUrl } from '../chat/utils';
 import axiosInstance from '../../utils/axiosConfig';
 import Toast from '../common/Toast';
 
@@ -27,6 +28,12 @@ interface CreateGroupQuizModalProps {
   onCreateSuccess?: () => void;
 }
 
+interface GroupChatOption {
+  id: string;
+  name: string;
+  members: User[];
+}
+
 const CreateGroupQuizModal: React.FC<CreateGroupQuizModalProps> = ({
   isOpen,
   onClose,
@@ -35,8 +42,9 @@ const CreateGroupQuizModal: React.FC<CreateGroupQuizModalProps> = ({
   availableDecks = [],
   onCreateSuccess
 }) => {
-  const [users, setUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState<User[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectedDeckId, setSelectedDeckId] = useState<string | null>(null);
   const [selectedDeckTitle, setSelectedDeckTitle] = useState('');
@@ -44,11 +52,21 @@ const CreateGroupQuizModal: React.FC<CreateGroupQuizModalProps> = ({
   const [description, setDescription] = useState('');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [groupChats, setGroupChats] = useState<GroupChatOption[]>([]);
+  const [loadingGroupChats, setLoadingGroupChats] = useState(false);
+  const [expandedChatId, setExpandedChatId] = useState<string | null>(null);
+  // Which invite method the participant picker is showing
+  const [inviteMode, setInviteMode] = useState<'groupChat' | 'invite'>('groupChat');
+  // Once the user picks a method, the group-chat load must not switch it for them
+  const inviteModePicked = useRef(false);
+
+  const handleInviteModeChange = (mode: 'groupChat' | 'invite') => {
+    inviteModePicked.current = true;
+    setInviteMode(mode);
+  };
 
   useEffect(() => {
     if (isOpen) {
-      fetchUsers();
-
       if (deckId && deckTitle) {
         setSelectedDeckId(deckId);
         setSelectedDeckTitle(deckTitle);
@@ -66,36 +84,161 @@ const CreateGroupQuizModal: React.FC<CreateGroupQuizModalProps> = ({
       setSelectedDeckTitle('');
       setTitle('');
       setDescription('');
+      setGroupChats([]);
+      setExpandedChatId(null);
+      setInviteMode('groupChat');
+      inviteModePicked.current = false;
     }
   }, [isOpen, deckId, deckTitle, availableDecks]);
 
-  const fetchUsers = async () => {
-    try {
-      // Only use people you already follow (friends) as potential participants
-      const res = await axiosInstance.get('/following/');
-      const list = res.data?.following || [];
+  // Group chat members the user can invite straight into the quiz
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
 
-      const mapped: User[] = list.map((item: any) => ({
-        id: String(item.id),
-        username: item.username,
-        // Use school/course as secondary text instead of exposing all emails
-        email: item.school || item.course || '',
-        avatar: item.avatar || null,
-      }));
+    // A quiz with no group chats to pick from should open on the search tab instead
+    const applyChats = (chats: GroupChatOption[]) => {
+      if (cancelled) return;
+      setGroupChats(chats);
+      if (chats.length === 0 && !inviteModePicked.current) setInviteMode('invite');
+    };
 
-      setUsers(mapped);
-    } catch (error) {
-      console.error('Error fetching following for group quiz participants:', error);
-      setUsers([]);
+    const loadGroupChats = async () => {
+      setLoadingGroupChats(true);
+      try {
+        const userData = localStorage.getItem('user');
+        if (!userData) return;
+        const currentUserId = String(JSON.parse(userData)?.id ?? '');
+        if (!currentUserId) return;
+
+        const { data: myRooms, error: roomsError } = await supabase
+          .from('room_participants')
+          .select('room_id, chat_rooms(id, name, room_type)')
+          .eq('user_id', currentUserId);
+        if (roomsError) throw roomsError;
+
+        const groupRooms = (myRooms || [])
+          .map((row: any) => row.chat_rooms)
+          .filter((room: any) => room && room.room_type === 'group');
+        if (groupRooms.length === 0) {
+          applyChats([]);
+          return;
+        }
+
+        const roomIds = groupRooms.map((room: any) => room.id);
+        const { data: rows } = await supabase
+          .from('room_participants')
+          .select('room_id, user_id')
+          .in('room_id', roomIds);
+
+        const memberIds = Array.from(
+          new Set((rows || []).map((row: any) => String(row.user_id)).filter(id => id !== currentUserId))
+        );
+
+        let profilesById = new Map<string, User>();
+        if (memberIds.length > 0) {
+          const { data: profiles } = await supabase
+            .from('profiles')
+            .select('id, username, email, avatar')
+            .in('id', memberIds);
+          profilesById = new Map(
+            (profiles || []).map((profile: any) => [
+              String(profile.id),
+              { ...profile, id: String(profile.id), avatar: getAvatarUrl(profile.avatar) } as User
+            ])
+          );
+        }
+
+        const chats: GroupChatOption[] = groupRooms
+          .map((room: any) => ({
+            id: String(room.id),
+            name: room.name || 'Group chat',
+            members: (rows || [])
+              .filter((row: any) => String(row.room_id) === String(room.id))
+              .map((row: any) => profilesById.get(String(row.user_id)))
+              .filter((member: User | undefined): member is User => !!member)
+          }))
+          .filter(chat => chat.members.length > 0);
+
+        applyChats(chats);
+      } catch (error) {
+        console.error('Error loading group chats for quiz invite:', error);
+        applyChats([]);
+      } finally {
+        if (!cancelled) setLoadingGroupChats(false);
+      }
+    };
+
+    loadGroupChats();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  // Search fires only when the term is a complete username or email (exact match)
+  useEffect(() => {
+    if (!isOpen) return;
+    const term = searchTerm.trim();
+    if (term.length === 0) {
+      setSearchResults([]);
+      setSearchLoading(false);
+      return;
     }
-  };
+
+    setSearchLoading(true);
+    const timer = setTimeout(async () => {
+      try {
+        const userData = localStorage.getItem('user');
+        if (!userData) {
+          setSearchResults([]);
+          setSearchLoading(false);
+          return;
+        }
+        const currentUser = JSON.parse(userData);
+
+        // Exact match only (case-insensitive) — prevents large result sets
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('id, username, email, avatar')
+          .neq('id', currentUser.id)
+          .or(`email.ilike.${term},username.ilike.${term}`)
+          .limit(20)
+          .order('username', { ascending: true });
+
+        if (error) {
+          console.error('Error searching users for group quiz:', error);
+          setSearchResults([]);
+          setSearchLoading(false);
+          return;
+        }
+
+        setSearchResults(
+          (data || []).map((user: any) => ({ ...user, avatar: getAvatarUrl(user.avatar) })) as User[]
+        );
+      } catch (err) {
+        console.error(err);
+        setSearchResults([]);
+      } finally {
+        setSearchLoading(false);
+      }
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [isOpen, searchTerm]);
 
   const handleUserToggle = (userId: string) => {
+    const id = String(userId);
     setSelectedUsers(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
+      prev.includes(id)
+        ? prev.filter(selectedId => selectedId !== id)
+        : [...prev, id]
     );
+  };
+
+  // Invite every member of one group chat at once
+  const handleAddChatMembers = (chat: GroupChatOption) => {
+    const memberIds = chat.members.map(member => String(member.id));
+    setSelectedUsers(prev => Array.from(new Set([...prev, ...memberIds])));
   };
 
   const handleCreate = async () => {
@@ -149,14 +292,6 @@ const CreateGroupQuizModal: React.FC<CreateGroupQuizModalProps> = ({
     }
   };
 
-  const trimmedSearch = searchTerm.trim();
-  const filteredUsers =
-    trimmedSearch.length >= 2
-      ? users.filter(user =>
-          user.username.toLowerCase().includes(trimmedSearch.toLowerCase()) ||
-          user.email.toLowerCase().includes(trimmedSearch.toLowerCase())
-        )
-      : [];
 
   if (!isOpen) return null;
 
@@ -209,7 +344,7 @@ const CreateGroupQuizModal: React.FC<CreateGroupQuizModalProps> = ({
                   className="w-full px-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
                 >
                   <option value="">
-                    Select a deck to quiz with friends
+                    Select a deck to quiz with
                   </option>
                   {availableDecks.map((d) => (
                     <option key={d.id} value={d.id}>
@@ -266,7 +401,136 @@ const CreateGroupQuizModal: React.FC<CreateGroupQuizModalProps> = ({
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5">
               Select Participants
             </label>
-            
+            {/* Invite method tabs: pick a whole chat at once, or find people by handle */}
+            <div
+              role="tablist"
+              aria-label="How to invite participants"
+              className="inline-flex items-center rounded-md border border-gray-300 dark:border-gray-600 p-0.5 mb-3"
+            >
+              <button
+                type="button"
+                role="tab"
+                aria-selected={inviteMode === 'groupChat'}
+                onClick={() => handleInviteModeChange('groupChat')}
+                className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  inviteMode === 'groupChat'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Users size={13} className="mr-1.5" />
+                Group Chat
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={inviteMode === 'invite'}
+                onClick={() => handleInviteModeChange('invite')}
+                className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded transition-colors ${
+                  inviteMode === 'invite'
+                    ? 'bg-indigo-600 text-white'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <Search size={13} className="mr-1.5" />
+                Invite
+              </button>
+            </div>
+
+            {inviteMode === 'groupChat' ? (
+              <div>
+            {loadingGroupChats ? (
+              <div className="mb-3 flex items-center space-x-2 text-xs text-gray-500 dark:text-gray-400">
+                <div className="w-3 h-3 border-2 border-gray-300 dark:border-gray-600 border-t-indigo-500 rounded-full animate-spin" />
+                <span>Loading your group chats…</span>
+              </div>
+            ) : groupChats.length > 0 ? (
+              <div className="mb-3">
+                <p className="text-[11px] font-medium text-gray-600 dark:text-gray-400 mb-1.5">
+                  Invite from a group chat
+                </p>
+                <div className="space-y-1.5">
+                  {groupChats.map(chat => {
+                    const selectedCount = chat.members.filter(member => selectedUsers.includes(String(member.id))).length;
+                    const isExpanded = expandedChatId === chat.id;
+                    return (
+                      <div key={chat.id} className="border border-gray-300 dark:border-gray-600 rounded-md overflow-hidden">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedChatId(isExpanded ? null : chat.id)}
+                          className="w-full flex items-center justify-between px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                          aria-expanded={isExpanded}
+                        >
+                          <span className="flex items-center space-x-2 min-w-0">
+                            <Users size={14} className="text-gray-400 flex-shrink-0" />
+                            <span className="text-sm text-gray-900 dark:text-white truncate">{chat.name}</span>
+                            <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
+                              {chat.members.length} member{chat.members.length !== 1 ? 's' : ''}
+                            </span>
+                          </span>
+                          <span className="flex items-center space-x-2 flex-shrink-0">
+                            {selectedCount > 0 && (
+                              <span className="text-[11px] text-indigo-600 dark:text-indigo-400">{selectedCount} selected</span>
+                            )}
+                            <ChevronDown
+                              size={14}
+                              className={`text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                            />
+                          </span>
+                        </button>
+                        {isExpanded && (
+                          <div className="border-t border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-[#181818]">
+                            <button
+                              type="button"
+                              onClick={() => handleAddChatMembers(chat)}
+                              className="w-full px-3 py-2 text-left text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                            >
+                              Invite all {chat.members.length} member{chat.members.length !== 1 ? 's' : ''}
+                            </button>
+                            {chat.members.map(member => (
+                              <button
+                                key={member.id}
+                                type="button"
+                                onClick={() => handleUserToggle(String(member.id))}
+                                className={`w-full flex items-center justify-between px-3 py-2 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                                  selectedUsers.includes(String(member.id)) ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''
+                                }`}
+                              >
+                                <span className="flex items-center space-x-2.5 min-w-0">
+                                  <span className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                                    {member.avatar ? (
+                                      <img src={member.avatar} alt={member.username} className="w-7 h-7 rounded-full object-cover" />
+                                    ) : (
+                                      <span className="text-indigo-600 dark:text-indigo-400 text-[11px] font-medium">
+                                        {(member.username || '?').charAt(0).toUpperCase()}
+                                      </span>
+                                    )}
+                                  </span>
+                                  <span className="min-w-0 text-left">
+                                    <span className="block text-sm text-gray-900 dark:text-white truncate">{member.username}</span>
+                                    <span className="block text-xs text-gray-500 dark:text-gray-400 truncate">{member.email}</span>
+                                  </span>
+                                </span>
+                                {selectedUsers.includes(String(member.id)) && (
+                                  <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
+                                )}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="mb-3 text-[11px] text-gray-500 dark:text-gray-400">
+                No group chats yet — switch to Invite to find someone by username or email.
+              </p>
+            )}
+              </div>
+            ) : (
+              <div>
             {/* Search */}
             <div className="relative mb-3">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
@@ -274,29 +538,46 @@ const CreateGroupQuizModal: React.FC<CreateGroupQuizModalProps> = ({
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-9 pr-3 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                placeholder="Type a name or email (min 2 chars)"
+                className="w-full pl-9 pr-8 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
+                placeholder="Type the full username or email"
               />
+              {searchLoading && (
+                <div
+                  className="absolute right-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 border-2 border-gray-300 dark:border-gray-600 border-t-indigo-500 rounded-full animate-spin"
+                  aria-hidden
+                />
+              )}
             </div>
 
             {/* User List */}
             <div className="border border-gray-300 dark:border-gray-600 rounded-md max-h-64 overflow-y-auto">
-              {trimmedSearch.length < 2 ? (
-                <div className="px-3 py-5 text-center text-xs text-gray-500 dark:text-gray-400">
-                  <p>Start typing to search for participants.</p>
-                  <p className="mt-0.5">Use at least 2 characters.</p>
+              {searchLoading ? (
+                <div className="animate-pulse" aria-live="polite" aria-label="Searching for users">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="flex items-center space-x-3 px-3 py-2.5">
+                      <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 w-1/3 bg-gray-200 dark:bg-gray-700 rounded" />
+                        <div className="h-2.5 w-1/2 bg-gray-100 dark:bg-gray-800 rounded" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              ) : filteredUsers.length === 0 ? (
+              ) : searchTerm.trim().length === 0 ? (
                 <div className="px-3 py-5 text-center text-xs text-gray-500 dark:text-gray-400">
-                  <p>No users found.</p>
+                  <p>Type the person's full username or email to find them.</p>
+                </div>
+              ) : searchResults.length === 0 ? (
+                <div className="px-3 py-5 text-center text-xs text-gray-500 dark:text-gray-400">
+                  <p>No users found. Check the spelling — search matches the full username or email.</p>
                 </div>
               ) : (
-                filteredUsers.map((user) => (
+                searchResults.map((user) => (
                   <button
                     key={user.id}
-                    onClick={() => handleUserToggle(user.id)}
+                    onClick={() => handleUserToggle(String(user.id))}
                     className={`w-full flex items-center justify-between px-3 py-2.5 text-sm hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${
-                      selectedUsers.includes(user.id)
+                      selectedUsers.includes(String(user.id))
                         ? 'bg-indigo-50 dark:bg-indigo-900/20'
                         : ''
                     }`}
@@ -324,13 +605,15 @@ const CreateGroupQuizModal: React.FC<CreateGroupQuizModalProps> = ({
                         </p>
                       </div>
                     </div>
-                    {selectedUsers.includes(user.id) && (
+                    {selectedUsers.includes(String(user.id)) && (
                       <Check className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
                     )}
                   </button>
                 ))
               )}
             </div>
+              </div>
+            )}
 
             {selectedUsers.length > 0 && (
               <p className="mt-1.5 text-xs text-gray-600 dark:text-gray-400">

@@ -1,6 +1,6 @@
 // frontend/src/components/NotebookList.tsx
 import React, { useEffect, useRef, useState } from 'react';
-import { formatDistanceToNow } from 'date-fns';
+import { format, formatDistanceToNow } from 'date-fns';
 import { Plus, Trash2, Book, Save, X, MoreVertical, FolderOpen, Archive, RotateCcw, Palette, Star, Search, Share2, Settings, AlertTriangle, Pencil } from 'lucide-react';
 import CreateNotebookModal from './CreateNotebookModal';
 import EditNotebookModal from './EditNotebookModal';
@@ -143,6 +143,81 @@ const NotebookList: React.FC<NotebookListProps> = ({
   // `rows` (archive merged view) takes precedence over `notebooks`
   const displayNotebooks = rows ?? notebooks;
 
+  // The options menu is rendered `fixed` at its trigger's coordinates: the list is a
+  // scroll container, so an absolutely positioned menu got clipped at its bottom edge.
+  const [menuPlacement, setMenuPlacement] = useState<{ top?: number; bottom?: number; right: number }>({ right: 12 });
+  const OPTIONS_MENU_WIDTH = 208;
+  const OPTIONS_MENU_HEIGHT = 252;
+
+  const toggleOptionsMenu = (notebook: Notebook, e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation();
+    if (openOptionsNotebookId === notebook.id) {
+      setOpenOptionsNotebookId(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const gap = 6;
+    const openUpward = rect.bottom + gap + OPTIONS_MENU_HEIGHT > window.innerHeight - 8;
+    const right = Math.min(
+      Math.max(8, window.innerWidth - rect.right),
+      Math.max(8, window.innerWidth - OPTIONS_MENU_WIDTH - 8)
+    );
+    setMenuPlacement({
+      top: openUpward ? undefined : rect.bottom + gap,
+      bottom: openUpward ? window.innerHeight - rect.top + gap : undefined,
+      right,
+    });
+    setOpenOptionsNotebookId(notebook.id);
+  };
+
+  // A fixed menu would drift away from its row when the list scrolls or the window resizes.
+  useEffect(() => {
+    if (openOptionsNotebookId === null) return;
+    const close = () => setOpenOptionsNotebookId(null);
+    document.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, [openOptionsNotebookId]);
+
+  /** Notebook actions, shared by the compact rows and the comfortable cards. */
+  const renderOptionsMenu = (notebook: Notebook) => (
+    <div
+      role="menu"
+      className="fixed z-[9999] w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-xl dark:border-[#333333] dark:bg-[#252525]"
+      style={{ top: menuPlacement.top, bottom: menuPlacement.bottom, right: menuPlacement.right }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button onClick={() => { setNotebookToEdit(notebook); setShowEditModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+        <Pencil size={16} className="mr-3 text-gray-400" /> Edit
+      </button>
+      <button onClick={() => { onColorChange(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+        <Palette size={16} className="mr-3 text-gray-400" /> Color
+      </button>
+      {!notebook.is_archived && (
+        <button onClick={() => { setNotebookToShare(notebook); setShowShareModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+          <Share2 size={16} className="mr-3 text-gray-400" /> Share
+        </button>
+      )}
+      {notebook.is_archived ? (
+        <button onClick={() => { onArchiveNotebook(notebook.id, false); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+          <RotateCcw size={16} className="mr-3 text-gray-400" /> Unarchive
+        </button>
+      ) : (
+        <button onClick={() => { onArchiveNotebook(notebook.id, true); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+          <Archive size={16} className="mr-3 text-gray-400" /> Archive
+        </button>
+      )}
+      <hr className="border-gray-200 my-1 dark:border-[#333333]" />
+      <button onClick={() => { setNotebookToDelete(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+        <Trash2 size={16} className="mr-3" /> Delete
+      </button>
+    </div>
+  );
+
+
   // Compact list menu style flag used to switch between compact popover and full
   // menu rendering for the notebook options. Currently forced to full-menu style to
   // match the Deck cards menu option list style.
@@ -152,105 +227,194 @@ const NotebookList: React.FC<NotebookListProps> = ({
   // receive every available notebook so the menu is not limited to a filtered subset.
   const allNotesNotebooks = notebooks;
 
+  /** Exact timestamp for tooltips (relative time alone is ambiguous). */
+  const exactTime = (iso?: string | null) => {
+    if (!iso) return '';
+    const parsed = new Date(iso);
+    return isNaN(parsed.getTime()) ? '' : format(parsed, 'MMM d, yyyy · h:mm a');
+  };
+
   /** One notebook per full-width row (compact list) */
   const renderCompactRow = (notebook: Notebook) => {
     if (editingNotebook?.id === notebook.id) {
       return (
-        <div key={notebook.id} className="flex items-center gap-3 h-12 min-h-12 px-3 rounded-lg border border-gray-200 dark:border-gray-700">
-          <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: notebook.color }} />
+        <div key={notebook.id} className="flex h-12 min-h-12 shrink-0 items-center gap-3 rounded-lg border border-gray-200 px-3 dark:border-gray-700">
+          <div className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: notebook.color }} />
           <input
             type="text"
             value={newNotebookName}
             onChange={(e) => onNotebookNameChange(e.target.value)}
-            className="flex-1 min-w-0 h-7 px-2 text-sm border border-gray-200 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            className="h-7 min-w-0 flex-1 rounded border border-gray-200 bg-gray-50 px-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
           />
-          <button onClick={() => onUpdateNotebook(editingNotebook.id, newNotebookName)} className="p-1.5 h-7 flex items-center justify-center bg-indigo-600 text-white rounded hover:bg-indigo-700"><Save size={14} /></button>
-          <button onClick={onCancelEditingNotebook} className="p-1.5 h-7 flex items-center justify-center bg-gray-500 text-white rounded hover:bg-gray-600"><X size={14} /></button>
+          <button onClick={() => onUpdateNotebook(editingNotebook.id, newNotebookName)} aria-label="Save notebook name" className="flex h-7 items-center justify-center rounded bg-indigo-600 p-1.5 text-white hover:bg-indigo-700"><Save size={14} /></button>
+          <button onClick={onCancelEditingNotebook} aria-label="Cancel renaming" className="flex h-7 items-center justify-center rounded bg-gray-500 p-1.5 text-white hover:bg-gray-600"><X size={14} /></button>
         </div>
       );
     }
+
     const selected = selectedNotebook?.id === notebook.id;
     return (
       <div
         key={notebook.id}
-        className={`flex items-center gap-3 w-full min-w-0 h-12 min-h-12 px-3 rounded-xl border border-gray-200 dark:border-gray-700 cursor-pointer transition-colors group ${
-          selected ? 'bg-indigo-50 dark:bg-indigo-900/50 border-indigo-200 dark:border-indigo-700' : 'hover:bg-gray-50 dark:hover:bg-gray-800/60'
+        className={`group flex h-12 min-h-12 w-full min-w-0 cursor-pointer items-center gap-3 rounded-xl border border-gray-200 px-3 transition-colors dark:border-gray-700 ${
+          selected
+            ? 'border-indigo-200 bg-indigo-50 dark:border-indigo-700 dark:bg-indigo-900/50'
+            : 'hover:bg-gray-50 dark:hover:bg-gray-800/60'
         }`}
         onClick={() => onNotebookSelect(notebook)}
       >
-        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: notebook.color }} />
-        <span className="text-[10px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400 flex-shrink-0">NOTEBOOK</span>
+        <div className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: notebook.color }} />
         <Book className={`flex-shrink-0 ${selected ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400'}`} size={14} />
-        <span className={`font-medium truncate flex-1 min-w-0 text-sm ${selected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-800 dark:text-gray-200'}`}>{notebook.name}</span>
-        <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">{formatDistanceToNow(new Date(notebook.archived_at ?? notebook.updated_at), { addSuffix: true })}</span>
-        <div className="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" onClick={e => e.stopPropagation()}>
+        <span className={`min-w-0 flex-1 truncate text-sm font-medium ${selected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-800 dark:text-gray-200'}`}>{notebook.name}</span>
+        <HeaderTooltip label={`${notebook.notes_count ?? 0} ${(notebook.notes_count ?? 0) === 1 ? 'note' : 'notes'} in this notebook`} fixed>
+          <span className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
+            {notebook.notes_count ?? 0} {(notebook.notes_count ?? 0) === 1 ? 'note' : 'notes'}
+          </span>
+        </HeaderTooltip>
+        <HeaderTooltip label={`Updated ${exactTime(notebook.archived_at ?? notebook.updated_at)}`} fixed>
+          <span className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
+            {formatDistanceToNow(new Date(notebook.archived_at ?? notebook.updated_at), { addSuffix: true })}
+          </span>
+        </HeaderTooltip>
+        <div className="flex flex-shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 max-sm:opacity-100" onClick={(e) => e.stopPropagation()}>
           {onToggleFavorite && !notebook.is_archived && (
             <HeaderTooltip label={notebook.is_favorite ? 'Unfavorite' : 'Favorite'} fixed>
-            <button
-              onClick={() => onToggleFavorite(notebook.id)}
-              className={`p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors ${
-                notebook.is_favorite
-                  ? 'text-yellow-500 hover:text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20'
-                  : 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30'
-              }`}
-            >
-              <Star size={12} fill={notebook.is_favorite ? 'currentColor' : 'none'} />
-            </button>
+              <button
+                onClick={() => onToggleFavorite(notebook.id)}
+                aria-label={notebook.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                className={`flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 transition-colors dark:border-gray-600 ${
+                  notebook.is_favorite
+                    ? 'bg-yellow-50 text-yellow-500 hover:text-yellow-600 dark:bg-yellow-900/20'
+                    : 'text-gray-500 hover:bg-yellow-50 hover:text-yellow-600 dark:hover:bg-yellow-900/30'
+                }`}
+              >
+                <Star size={12} fill={notebook.is_favorite ? 'currentColor' : 'none'} />
+              </button>
             </HeaderTooltip>
           )}
           <div className="relative" ref={openOptionsNotebookId === notebook.id ? compactOptionsMenuRef : undefined}>
             <HeaderTooltip label="Notebook options" fixed>
-            <button
-              onClick={(e) => { e.stopPropagation(); setOpenOptionsNotebookId((id) => (id === notebook.id ? null : notebook.id)); }}
-              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
-              aria-label="Notebook options"
-            >
-              <Settings size={14} />
-            </button>
+              <button
+                onClick={(e) => toggleOptionsMenu(notebook, e)}
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-300 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:border-gray-600 dark:hover:bg-gray-700 dark:hover:text-gray-300"
+                aria-label="Notebook options"
+              >
+                <MoreVertical size={14} />
+              </button>
             </HeaderTooltip>
-            {openOptionsNotebookId === notebook.id && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-[#252525] rounded-lg shadow-xl border border-gray-200 dark:border-[#333333] z-[1000] py-1">
-                  <button onClick={() => { setNotebookToEdit(notebook); setShowEditModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                    <Pencil size={16} className="mr-3 text-gray-400" /> Edit
-                  </button>
-                  <button onClick={() => { onColorChange(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                    <Palette size={16} className="mr-3 text-gray-400" /> Color
-                  </button>
-                {!notebook.is_archived && (
-                  <button onClick={() => { setNotebookToShare(notebook); setShowShareModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                    <Share2 size={16} className="mr-3 text-gray-400" /> Share
-                  </button>
-                )}
-                {notebook.is_archived ? (
-                  <button onClick={() => { onArchiveNotebook(notebook.id, false); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                    <RotateCcw size={16} className="mr-3 text-gray-400" /> Unarchive
-                  </button>
-                ) : (
-                  <button onClick={() => { onArchiveNotebook(notebook.id, true); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                    <Archive size={16} className="mr-3 text-gray-400" /> Archive
-                  </button>
-                )}
-                  <hr className="border-gray-200 dark:border-[#333333] my-1" />
-                  <button onClick={() => { setNotebookToDelete(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                    <Trash2 size={16} className="mr-3" /> Delete
-                  </button>
-                </div>
-              )}
+            {openOptionsNotebookId === notebook.id && renderOptionsMenu(notebook)}
           </div>
         </div>
       </div>
     );
   };
 
+  /** Comfortable cards: colored band + title + footer, as originally designed. */
+  const renderComfortableCard = (notebook: Notebook) => {
+    if (editingNotebook?.id === notebook.id) {
+      return (
+        <div key={notebook.id} className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg min-h-[140px] w-full">
+          <input
+            type="text"
+            value={newNotebookName}
+            onChange={(e) => onNotebookNameChange(e.target.value)}
+            className="w-full mb-2 p-2 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => onUpdateNotebook(editingNotebook.id, newNotebookName)}
+              aria-label="Save notebook name"
+              className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
+            >
+              <Save size={16} className="text-white" />
+            </button>
+            <button
+              onClick={onCancelEditingNotebook}
+              aria-label="Cancel renaming"
+              className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              <X size={16} className="text-white" />
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    const selected = selectedNotebook?.id === notebook.id;
+    const notesCount = notebook.notes_count ?? 0;
+
+    return (
+      <div key={notebook.id} className="group">
+        <div
+          className={`rounded-lg transition-all border flex flex-col cursor-pointer h-[160px] w-full overflow-hidden ${
+            selected
+              ? 'bg-indigo-50 dark:bg-indigo-900/50 border-indigo-200 dark:border-indigo-700 shadow-md'
+              : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600'
+          }`}
+          onClick={() => onNotebookSelect(notebook)}
+        >
+          <div className="h-16 flex items-center justify-center flex-shrink-0" style={{ backgroundColor: notebook.color }}>
+            <Book className={selected ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400'} size={24} />
+          </div>
+          <div className="flex-1 flex items-center px-4 min-h-0">
+            <div
+              className={`font-semibold text-lg truncate ${
+                selected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-800 dark:text-gray-200'
+              }`}
+            >
+              {notebook.name}
+            </div>
+          </div>
+          <div className="flex items-center justify-between px-4 pb-4 pt-2 border-t border-gray-200 dark:border-gray-600 flex-shrink-0">
+            <span className="text-sm text-gray-500 dark:text-gray-400">
+              {notesCount} {notesCount === 1 ? 'note' : 'notes'}
+            </span>
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              {onToggleFavorite && !notebook.is_archived && (
+                <HeaderTooltip label={notebook.is_favorite ? 'Remove from favorites' : 'Add to favorites'} fixed>
+                  <button
+                    onClick={() => onToggleFavorite(notebook.id)}
+                    aria-label={notebook.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                    className={`p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors ${
+                      notebook.is_favorite
+                        ? 'text-yellow-500 hover:text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20'
+                        : 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30'
+                    }`}
+                  >
+                    <Star size={14} fill={notebook.is_favorite ? 'currentColor' : 'none'} />
+                  </button>
+                </HeaderTooltip>
+              )}
+              <div className="relative" ref={openOptionsNotebookId === notebook.id ? compactOptionsMenuRef : undefined}>
+                <HeaderTooltip label="Notebook options" fixed>
+                  <button
+                    onClick={(e) => toggleOptionsMenu(notebook, e)}
+                    className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
+                    aria-label="Notebook options"
+                  >
+                    <Settings size={14} />
+                  </button>
+                </HeaderTooltip>
+                {openOptionsNotebookId === notebook.id && renderOptionsMenu(notebook)}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+
   return (
     <div className={containerClassName || 'w-full h-full flex flex-col'}>
       {/* Notebooks list */}
       <div
-        className={`${!containerClassName ? 'overflow-y-auto flex-1' : ''} ${isCompact ? 'flex flex-col gap-1' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'}`}
+        data-notes-scroll
+        className={`notebook-scroll ${!containerClassName ? 'overflow-y-auto flex-1 max-h-[calc(100dvh-23rem)] sm:max-h-[calc(100dvh-15rem)]' : ''} ${isCompact ? 'flex flex-col gap-1' : 'grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'}`}
         style={isCompact ? undefined : { alignContent: 'start' }}
       >
         {displayNotebooks.length === 0 && (
-          <div className={isCompact ? 'py-8' : 'col-span-full'}>
+          <div className={isCompact ? 'py-8' : 'col-span-full py-8'}>
             <div className="flex items-center justify-center h-40 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
               <div className="text-center">
                 <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-1">No notebooks found</h3>
@@ -259,121 +423,7 @@ const NotebookList: React.FC<NotebookListProps> = ({
             </div>
           </div>
         )}
-        {isCompact ? displayNotebooks.map(renderCompactRow) : displayNotebooks.map((notebook) => (
-          <div key={notebook.id} className="group">
-            {editingNotebook?.id === notebook.id ? (
-              <div className="p-3 border border-gray-200 dark:border-gray-700 rounded-lg min-h-[140px] w-full">
-                <input
-                  type="text"
-                  value={newNotebookName}
-                  onChange={(e) => onNotebookNameChange(e.target.value)}
-                  className="w-full mb-2 p-2 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                />
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => onUpdateNotebook(editingNotebook.id, newNotebookName)}
-                    className="px-3 py-1 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-                  >
-                    <Save size={16} className="text-white" />
-                  </button>
-                  <button
-                    onClick={onCancelEditingNotebook}
-                    className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
-                  >
-                    <X size={16} className="text-white" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div
-                className={`rounded-lg transition-all border flex flex-col cursor-pointer h-[160px] w-full ${
-                  selectedNotebook?.id === notebook.id
-                    ? 'bg-indigo-50 dark:bg-indigo-900/50 border-indigo-200 dark:border-indigo-700 shadow-md'
-                    : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700/50 hover:border-gray-300 dark:hover:border-gray-600'
-                }`}
-                onClick={() => onNotebookSelect(notebook)}
-              >
-                <div className="h-16 flex items-center justify-center flex-shrink-0 w-full rounded-t-lg px-4" style={{ backgroundColor: notebook.color }}>
-                  <Book className={`${selectedNotebook?.id === notebook.id ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-600 dark:text-gray-400'}`} size={24} />
-                </div>
-                <div className="flex-1 flex items-center px-4">
-                  <div
-                    className={`font-semibold text-lg truncate ${
-                      selectedNotebook?.id === notebook.id
-                        ? 'text-indigo-700 dark:text-indigo-300'
-                        : 'text-gray-800 dark:text-gray-200'
-                    }`}
-                  >
-                    {notebook.name}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between px-4 pb-4 pt-2 border-t border-gray-200 dark:border-gray-600 flex-shrink-0">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {notebook.notes_count} {notebook.notes_count === 1 ? 'note' : 'notes'}
-                  </span>
-                  <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
-                    {onToggleFavorite && !notebook.is_archived && (
-                      <HeaderTooltip label={notebook.is_favorite ? 'Remove from favorites' : 'Add to favorites'} fixed>
-                      <button
-                        onClick={() => onToggleFavorite(notebook.id)}
-                        className={`p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 flex items-center justify-center transition-colors ${
-                          notebook.is_favorite
-                            ? 'text-yellow-500 hover:text-yellow-600 bg-yellow-50 dark:bg-yellow-900/20'
-                            : 'text-gray-500 hover:text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/30'
-                        }`}
-                      >
-                        <Star size={14} fill={notebook.is_favorite ? 'currentColor' : 'none'} />
-                      </button>
-                      </HeaderTooltip>
-                    )}
-                    <div className="relative" ref={openOptionsNotebookId === notebook.id ? compactOptionsMenuRef : undefined}>
-                      <HeaderTooltip label="Notebook options" fixed>
-                      <button
-                        onClick={e => {
-                          e.stopPropagation();
-                          setOpenOptionsNotebookId((id) => (id === notebook.id ? null : notebook.id));
-                        }}
-                        className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
-                        aria-label="Notebook options"
-                      >
-                        <Settings size={14} />
-                      </button>
-                      </HeaderTooltip>
-                        {openOptionsNotebookId === notebook.id && (
-                          <div className="absolute right-0 top-full mt-1 w-52 bg-white dark:bg-[#252525] rounded-lg shadow-xl border border-gray-200 dark:border-[#333333] z-[1000] py-1">
-                            <button onClick={() => { setNotebookToEdit(notebook); setShowEditModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                              <Pencil size={16} className="mr-3 text-gray-400" /> Edit
-                            </button>
-                            <button onClick={() => { onColorChange(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                              <Palette size={16} className="mr-3 text-gray-400" /> Color
-                            </button>
-                            {!notebook.is_archived && (
-                              <button onClick={() => { setNotebookToShare(notebook); setShowShareModal(true); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                                <Share2 size={16} className="mr-3 text-gray-400" /> Share
-                              </button>
-                            )}
-                            {notebook.is_archived ? (
-                              <button onClick={() => { onArchiveNotebook(notebook.id, false); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                                <RotateCcw size={16} className="mr-3 text-gray-400" /> Unarchive
-                              </button>
-                            ) : (
-                              <button onClick={() => { onArchiveNotebook(notebook.id, true); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                                <Archive size={16} className="mr-3 text-gray-400" /> Archive
-                              </button>
-                            )}
-                            <hr className="border-gray-200 dark:border-[#333333] my-1" />
-                            <button onClick={() => { setNotebookToDelete(notebook); setOpenOptionsNotebookId(null); }} className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
-                              <Trash2 size={16} className="mr-3" /> Delete
-                            </button>
-                          </div>
-                        )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        ))}
+        {isCompact ? displayNotebooks.map(renderCompactRow) : displayNotebooks.map(renderComfortableCard)}
       </div>
 
       {/* Delete Notebook confirmation – matches Deck/Note/Reviewer delete modals (icon box in header, gray borders, no "Are you sure?") */}

@@ -1,81 +1,101 @@
 import React, { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface PaginationProps {
   currentPage: number;
   totalPages: number;
   onPageChange: (page: number) => void;
+  /** Optional "Showing X–Y of Z" text rendered on the left (controls move right) */
+  rangeText?: string;
 }
 
-const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPageChange }) => {
+/**
+ * Notion-style pager:  ‹  [ current ] of total  ›
+ * The current page is an editable input – type a number and press Enter.
+ */
+const Pagination: React.FC<PaginationProps> = ({ currentPage, totalPages, onPageChange, rangeText }) => {
   const safeTotal = Math.max(totalPages, 1);
-  const [inputValue, setInputValue] = useState<string>(String(currentPage));
+  const page = Math.min(Math.max(currentPage, 1), safeTotal);
+  const [inputValue, setInputValue] = useState<string>(String(page));
 
   useEffect(() => {
-    setInputValue(String(currentPage));
-  }, [currentPage]);
+    setInputValue(String(page));
+  }, [page]);
 
   const commitPageChange = () => {
-    const num = parseInt(inputValue, 10);
-    if (Number.isNaN(num)) {
-      setInputValue(String(currentPage));
+    const trimmed = inputValue.trim();
+    const num = parseInt(trimmed, 10);
+    if (trimmed === '' || Number.isNaN(num)) {
+      setInputValue(String(page));
       return;
     }
     const clamped = Math.min(safeTotal, Math.max(1, num));
     setInputValue(String(clamped));
-    if (clamped !== currentPage) {
+    if (clamped !== page) {
       onPageChange(clamped);
     }
   };
 
+  const chevronClass =
+    'flex items-center justify-center h-7 w-7 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] hover:text-gray-700 dark:hover:text-gray-200 transition-colors disabled:opacity-30 disabled:pointer-events-none';
+
   return (
-    <nav className="flex justify-center" aria-label="Pagination">
-      <div className="inline-flex items-stretch rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm text-xs sm:text-sm text-gray-700 dark:text-gray-200 overflow-hidden h-7">
+    <nav
+      aria-label="Pagination"
+      className={`flex items-center gap-3 flex-wrap ${rangeText ? 'justify-between' : 'justify-center'}`}
+    >
+      {rangeText && (
+        <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">{rangeText}</p>
+      )}
+
+      <div className="inline-flex items-center rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] overflow-hidden">
         {/* Previous */}
         <button
           type="button"
-          onClick={() => onPageChange(Math.max(1, currentPage - 1))}
-          disabled={currentPage <= 1}
-          className="px-2 sm:px-3 flex items-center justify-center border-r border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          onClick={() => onPageChange(page - 1)}
+          disabled={page <= 1}
+          className={`${chevronClass} border-r border-gray-200 dark:border-gray-700`}
           aria-label="Previous page"
         >
-          ‹
+          <ChevronLeft size={16} />
         </button>
 
-        {/* Current page and total */}
-        <div className="px-2 sm:px-3 flex items-center gap-1 bg-gray-50 dark:bg-gray-700 border-r border-gray-200 dark:border-gray-700">
+        {/* Editable current page "of" total */}
+        <div className="flex items-center gap-1.5 px-3">
           <input
-            type="number"
-            min={1}
-            max={safeTotal}
+            type="text"
+            inputMode="numeric"
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value.replace(/[^\d]/g, ''))}
             onBlur={commitPageChange}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 commitPageChange();
+                (e.target as HTMLInputElement).blur();
               }
             }}
-            className="w-10 px-1 py-0.5 text-center text-xs sm:text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-1 focus:ring-indigo-500"
-            aria-label="Current page"
+            onFocus={(e) => e.target.select()}
+            className="w-9 h-5 px-0.5 text-center text-xs text-gray-900 dark:text-gray-100 bg-transparent rounded border border-gray-300 dark:border-gray-600 focus:border-indigo-400 dark:focus:border-indigo-500 focus:bg-gray-50 dark:focus:bg-[#2d2d2d] focus:outline-none"
+            aria-label={`Current page, page ${page} of ${safeTotal}`}
           />
-          <span className="text-xs sm:text-sm font-medium text-gray-600 dark:text-gray-300">
-            / {safeTotal}
+          <span className="text-xs text-gray-500 dark:text-gray-400 select-none">
+            of {safeTotal}
           </span>
         </div>
 
         {/* Next */}
         <button
           type="button"
-          onClick={() => onPageChange(Math.min(Math.max(totalPages, 1), currentPage + 1))}
-          disabled={currentPage >= totalPages || totalPages <= 1}
-          className="px-2 sm:px-3 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+          onClick={() => onPageChange(page + 1)}
+          disabled={page >= safeTotal}
+          className={`${chevronClass} border-l border-gray-200 dark:border-gray-700`}
           aria-label="Next page"
         >
-          ›
+          <ChevronRight size={16} />
         </button>
       </div>
     </nav>
   );
 };
 
-export default Pagination; 
+export default Pagination;

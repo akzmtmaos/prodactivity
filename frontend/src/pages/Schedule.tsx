@@ -1,6 +1,13 @@
-import React, { useEffect, useState, useRef } from 'react';
-import { Plus } from 'lucide-react';
-import { isValid } from 'date-fns';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CalendarDays, CalendarRange, Clock, Plus } from 'lucide-react';
+import {
+  endOfWeek,
+  format,
+  isSameDay,
+  isToday,
+  isTomorrow,
+  startOfWeek,
+} from 'date-fns';
 import PageLayout from '../components/PageLayout';
 import Calendar from '../components/schedules/Calendar';
 import UpcomingEvents from '../components/schedules/UpcomingEvents';
@@ -13,24 +20,37 @@ import { ScheduleEvent, PastEvent } from '../types/schedule';
 import { supabase } from '../lib/supabase';
 import { scheduleNotificationService } from '../services/scheduleNotificationService';
 
+const TABS = [
+  { key: 'calendar', label: 'Calendar' },
+  { key: 'upcoming', label: 'Upcoming' },
+  { key: 'past', label: 'Past' },
+] as const;
+
+type TabKey = (typeof TABS)[number]['key'];
+
+const relativeDay = (date: Date) => {
+  if (isToday(date)) return 'Today';
+  if (isTomorrow(date)) return 'Tomorrow';
+  return format(date, 'EEE, MMM d');
+};
+
 const Schedule = () => {
   const [user, setUser] = useState<any | null>(null);
-  const [greeting, setGreeting] = useState('');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState<ScheduleEvent[]>([]);
   const [pastEvents, setPastEvents] = useState<PastEvent[]>([]);
   const [showAddEvent, setShowAddEvent] = useState(false);
   const [recurringEvent, setRecurringEvent] = useState<PastEvent | null>(null);
-  const [activeTab, setActiveTab] = useState('calendar');
-  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabKey>('calendar');
+  const [isLoading, setIsLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   const notificationCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const hasStartedNotificationCheck = useRef(false);
-  
+
   // Pagination state for Past Events
   const [pastEventsCurrentPage, setPastEventsCurrentPage] = useState(1);
-  const [pastEventsPerPage] = useState(8); // 8 items per page for compact display
-  
+  const [pastEventsPerPage] = useState(8);
+
   // Delete confirmation modal state
   const [deleteModal, setDeleteModal] = useState<{
     isOpen: boolean;
@@ -43,7 +63,6 @@ const Schedule = () => {
   });
 
   useEffect(() => {
-    // Get user data from localStorage
     const userData = localStorage.getItem('user');
     if (userData) {
       try {
@@ -61,42 +80,21 @@ const Schedule = () => {
       setUser({ username: 'User' });
     }
 
-    // Set greeting based on time of day
-    const hour = new Date().getHours();
-    if (hour < 12) setGreeting('Good morning');
-    else if (hour < 18) setGreeting('Good afternoon');
-    else setGreeting('Good evening');
-    
-    // Load all data from localStorage
     loadAllData();
-    
-    // Check for past events every time the component mounts
-    checkAndMovePastEvents();
-    
-    // Start checking for upcoming events to create notifications
-    // Only start once using ref to prevent multiple intervals
+
     if (!hasStartedNotificationCheck.current) {
       hasStartedNotificationCheck.current = true;
-      const intervalId = scheduleNotificationService.startPeriodicCheck();
-      notificationCheckIntervalRef.current = intervalId;
-      console.log('✅ Started schedule notification checker');
+      notificationCheckIntervalRef.current = scheduleNotificationService.startPeriodicCheck();
     }
-    
-    // Cleanup on unmount
+
     return () => {
       if (notificationCheckIntervalRef.current) {
         scheduleNotificationService.stopPeriodicCheck(notificationCheckIntervalRef.current);
         notificationCheckIntervalRef.current = null;
         hasStartedNotificationCheck.current = false;
-        console.log('🛑 Stopped schedule notification checker');
       }
     };
-  }, []); // Empty dependency - only run once
-  
-  // Also check for past events when events change
-  useEffect(() => {
-    checkAndMovePastEvents();
-  }, [events]);
+  }, []);
 
   // Reset pagination when past events change or tab switches
   useEffect(() => {
@@ -109,22 +107,20 @@ const Schedule = () => {
       if (!userData) {
         setEvents([]);
         setPastEvents([]);
+        setIsLoading(false);
         return;
       }
 
-      const user = JSON.parse(userData);
-      const userId = user.id;
+      const parsedUser = JSON.parse(userData);
+      const userId = parsedUser.id;
 
       if (!userId) {
-        console.error('No user ID found');
         setEvents([]);
         setPastEvents([]);
+        setIsLoading(false);
         return;
       }
 
-      console.log('📅 Fetching events from Supabase for user:', userId);
-
-      // Fetch all events from Supabase
       const { data: eventsData, error: eventsError } = await supabase
         .from('events')
         .select('*')
@@ -136,12 +132,10 @@ const Schedule = () => {
         setToast({ message: 'Failed to load events from database.', type: 'error' });
         setEvents([]);
         setPastEvents([]);
+        setIsLoading(false);
         return;
       }
 
-      console.log('✅ Fetched events:', eventsData);
-
-      // Split into upcoming and past events
       const now = new Date();
       const upcoming: ScheduleEvent[] = [];
       const past: PastEvent[] = [];
@@ -149,31 +143,24 @@ const Schedule = () => {
       eventsData?.forEach((event: any) => {
         const eventDate = new Date(event.start_time);
         const endDate = new Date(event.end_time);
-        
+        const startTime = eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+        const endTime = endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+        const normalized = {
+          id: String(event.id),
+          title: event.title,
+          description: event.description || '',
+          date: eventDate,
+          endDate,
+          startTime,
+          endTime,
+          category: event.category || 'study',
+        };
+
         if (endDate < now) {
-          // Past event
-          past.push({
-            id: event.id.toString(),
-            title: event.title,
-            description: event.description || '',
-            date: eventDate,
-            endDate: endDate,
-            startTime: eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            endTime: endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            category: event.category || 'study'
-          });
+          past.push(normalized);
         } else {
-          // Upcoming event
-          upcoming.push({
-            id: event.id.toString(),
-            title: event.title,
-            description: event.description || '',
-            date: eventDate,
-            endDate: endDate,
-            startTime: eventDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            endTime: endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            category: event.category || 'study'
-          });
+          upcoming.push(normalized);
         }
       });
 
@@ -184,6 +171,8 @@ const Schedule = () => {
       setToast({ message: 'Failed to load data. Please try again.', type: 'error' });
       setEvents([]);
       setPastEvents([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -195,30 +184,29 @@ const Schedule = () => {
         return;
       }
 
-      const user = JSON.parse(userData);
-      const userId = user.id;
+      const parsedUser = JSON.parse(userData);
+      const userId = parsedUser.id;
 
-      // Parse startTime string to get hours and minutes
       const [hours, minutes] = eventData.startTime.split(':').map(Number);
       const startDate = new Date(eventData.date);
       startDate.setHours(hours, minutes, 0, 0);
 
-      // Parse endTime to calculate end date
       const [endHours, endMinutes] = eventData.endTime.split(':').map(Number);
       const endDate = new Date(eventData.endDate || eventData.date);
       endDate.setHours(endHours, endMinutes, 0, 0);
 
-      // Insert into Supabase
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('events')
-        .insert([{
-          user_id: userId,
-          title: eventData.title,
-          description: eventData.description,
-          start_time: startDate.toISOString(),
-          end_time: endDate.toISOString(),
-          category: eventData.category
-        }])
+        .insert([
+          {
+            user_id: userId,
+            title: eventData.title,
+            description: eventData.description,
+            start_time: startDate.toISOString(),
+            end_time: endDate.toISOString(),
+            category: eventData.category,
+          },
+        ])
         .select()
         .single();
 
@@ -228,15 +216,9 @@ const Schedule = () => {
         return;
       }
 
-      console.log('✅ Event added to Supabase:', data);
-      
-      // Show success notification
       setToast({ message: 'Event created successfully!', type: 'success' });
-      
-      // Reload data to refresh the list
+      setCurrentDate(startDate);
       await loadAllData();
-      
-      // Check for upcoming events and create notifications
       await scheduleNotificationService.checkUpcomingEvents();
     } catch (e) {
       console.error('Error adding event:', e);
@@ -245,19 +227,14 @@ const Schedule = () => {
   };
 
   const handleRecurEvent = (pastEvent: PastEvent) => {
-    // Pre-fill the form with the past event's data
     setRecurringEvent(pastEvent);
     setShowAddEvent(true);
   };
 
   const handleDeleteClick = (id: string) => {
-    const event = events.find(e => e.id === id) || pastEvents.find(e => e.id === id);
+    const event = events.find((entry) => entry.id === id) || pastEvents.find((entry) => entry.id === id);
     if (event) {
-      setDeleteModal({
-        isOpen: true,
-        eventId: id,
-        eventTitle: event.title,
-      });
+      setDeleteModal({ isOpen: true, eventId: id, eventTitle: event.title });
     }
   };
 
@@ -265,11 +242,7 @@ const Schedule = () => {
     if (!deleteModal.eventId) return;
 
     try {
-      // Delete from Supabase
-      const { error } = await supabase
-        .from('events')
-        .delete()
-        .eq('id', deleteModal.eventId);
+      const { error } = await supabase.from('events').delete().eq('id', deleteModal.eventId);
 
       if (error) {
         console.error('Error deleting event from Supabase:', error);
@@ -278,131 +251,173 @@ const Schedule = () => {
         return;
       }
 
-      console.log('✅ Event deleted from Supabase');
-      
-      // Show success notification
       setToast({ message: 'Event deleted successfully!', type: 'success' });
-      
-      // Reload data to refresh the list
       await loadAllData();
-      setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' });
     } catch (e) {
       console.error('Error deleting event:', e);
       setToast({ message: 'Failed to delete event. Please try again.', type: 'error' });
+    } finally {
       setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' });
     }
   };
 
-  const deleteEvent = handleDeleteClick; // Keep for backward compatibility
+  const allEvents = useMemo(() => [...events, ...pastEvents], [events, pastEvents]);
 
+  const todayCount = useMemo(
+    () => allEvents.filter((event) => isSameDay(new Date(event.date), new Date())).length,
+    [allEvents]
+  );
 
-  const handleViewPastEvent = (event: PastEvent) => {
-    // For now, just log the event. You could open a modal with more details
-    console.log('Viewing past event:', event);
-  };
-  
-  const handleMarkPastEventCompleted = async (eventId: string, completed: boolean) => {
-    // Note: Completion status for events is not yet implemented in Supabase
-    // This would require adding a 'completed' field to the events table
-    console.log('Mark as completed clicked for event:', eventId, completed);
-    // TODO: Implement when completed field is added to events table
-  };
+  const weekCount = useMemo(() => {
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
+    const weekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
+    return allEvents.filter((event) => {
+      const date = new Date(event.date);
+      return date >= weekStart && date <= weekEnd;
+    }).length;
+  }, [allEvents]);
 
-  // No longer needed - Supabase query automatically separates past and upcoming events
-  const checkAndMovePastEvents = () => {
-    // This is now handled automatically in loadAllData()
-  };
+  const nextEvent = events.length > 0
+    ? [...events].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())[0]
+    : null;
 
-  // Show loading state while waiting for user data
   if (!user) {
     return (
-      <div className="flex justify-center items-center min-h-[200px]">
-        <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent"></div>
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent" />
       </div>
     );
   }
 
   return (
     <PageLayout>
-      <div className="flex h-full flex-col min-h-0">
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Header – title + subtitle only */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
-              Schedule
-            </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Here's your upcoming schedule.
+      <div className="flex min-h-0 flex-col">
+        <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">Schedule</h1>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Plan study blocks, deadlines and meetings — they stay on the calendar and in Upcoming.
             </p>
           </div>
+          <button
+            type="button"
+            onClick={() => {
+              setRecurringEvent(null);
+              setShowAddEvent(true);
+            }}
+            className="inline-flex h-7 items-center gap-1.5 rounded-md bg-indigo-600 px-3 text-xs font-medium text-white transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
+          >
+            <Plus size={14} />
+            Add event
+          </button>
+        </div>
 
-          {/* Tab row – tabs left, Add Event right (compact, like Decks/Trash) */}
-          <div className="flex flex-col min-h-0 flex-1">
-            <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2 gap-4 flex-wrap">
-              <div className="flex space-x-4">
+        {/* Summary strip */}
+        <div className="mb-4 grid grid-cols-1 overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-[#2f2f2f] dark:bg-[#1e1e1e] sm:grid-cols-3">
+          <div className="flex items-center gap-2 px-3.5 py-2.5">
+            <CalendarDays size={14} className="flex-shrink-0 text-gray-400 dark:text-gray-500" />
+            <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{todayCount}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              {todayCount === 1 ? 'event today' : 'events today'}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 border-t border-gray-200 px-3.5 py-2.5 dark:border-[#2f2f2f] sm:border-l sm:border-t-0">
+            <CalendarRange size={14} className="flex-shrink-0 text-gray-400 dark:text-gray-500" />
+            <span className="text-sm font-semibold tabular-nums text-gray-900 dark:text-white">{weekCount}</span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">this week</span>
+          </div>
+          <div className="flex min-w-0 items-center gap-2 border-t border-gray-200 px-3.5 py-2.5 dark:border-[#2f2f2f] sm:border-l sm:border-t-0">
+            <Clock size={14} className="flex-shrink-0 text-indigo-500 dark:text-indigo-400" />
+            {nextEvent ? (
+              <>
+                <span className="min-w-0 truncate text-xs font-medium text-gray-900 dark:text-white">
+                  {nextEvent.title}
+                </span>
+                <span className="flex-shrink-0 text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
+                  {relativeDay(new Date(nextEvent.date))} · {nextEvent.startTime}
+                </span>
+              </>
+            ) : (
+              <span className="text-xs text-gray-500 dark:text-gray-400">Nothing scheduled</span>
+            )}
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 dark:border-[#2f2f2f]">
+          <div className="flex items-center gap-0.5" role="tablist" aria-label="Schedule views">
+            {TABS.map((tab) => {
+              const count = tab.key === 'upcoming' ? events.length : tab.key === 'past' ? pastEvents.length : null;
+              return (
                 <button
-                  onClick={() => setActiveTab('calendar')}
-                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeTab === 'calendar'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={activeTab === tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                    activeTab === tab.key
+                      ? 'bg-gray-100 text-gray-900 dark:bg-[#2b2b2b] dark:text-white'
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-[#242424] dark:hover:text-gray-200'
                   }`}
                 >
-                  Calendar
+                  {tab.label}
+                  {count !== null && (
+                    <span
+                      className={`text-[11px] tabular-nums ${
+                        activeTab === tab.key
+                          ? 'text-gray-500 dark:text-gray-400'
+                          : 'text-gray-400 dark:text-gray-500'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
                 </button>
-                <button
-                  onClick={() => setActiveTab('upcoming')}
-                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeTab === 'upcoming'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Upcoming Events
-                </button>
-                <button
-                  onClick={() => setActiveTab('past')}
-                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeTab === 'past'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Past Events
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => { setRecurringEvent(null); setShowAddEvent(true); }}
-                className="inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500"
-              >
-                <Plus size={14} />
-                Add Event
-              </button>
+              );
+            })}
+          </div>
+          <span className="hidden pb-1.5 text-[11px] tabular-nums text-gray-400 dark:text-gray-500 sm:inline">
+            {format(currentDate, 'MMMM yyyy')}
+          </span>
+        </div>
+
+        <div className="min-h-0 flex-1">
+          {isLoading ? (
+            <div className="space-y-2">
+              {[0, 1, 2].map((row) => (
+                <div
+                  key={row}
+                  className="h-12 animate-pulse rounded-lg border border-gray-200 bg-gray-50 dark:border-[#2f2f2f] dark:bg-[#242424]"
+                />
+              ))}
             </div>
-            <div className="flex-1 min-h-0 overflow-auto mt-2">
-              {/* Tab content */}
+          ) : (
+            <>
               {activeTab === 'calendar' && (
                 <Calendar
                   currentDate={currentDate}
-                  events={[...events, ...pastEvents]}
+                  events={allEvents}
                   onDateChange={setCurrentDate}
-                  onDeleteEvent={deleteEvent}
+                  onDeleteEvent={handleDeleteClick}
                 />
               )}
               {activeTab === 'upcoming' && (
                 <UpcomingEvents
                   events={events}
-                  onDeleteEvent={deleteEvent}
+                  onDeleteEvent={handleDeleteClick}
+                  onCreate={() => {
+                    setRecurringEvent(null);
+                    setShowAddEvent(true);
+                  }}
                 />
               )}
               {activeTab === 'past' && (
                 <>
                   <PastEvents
                     pastEvents={pastEvents}
-                    onViewEvent={handleViewPastEvent}
-                    onMarkCompleted={handleMarkPastEventCompleted}
                     onRecurEvent={handleRecurEvent}
+                    onDeleteEvent={handleDeleteClick}
                     currentPage={pastEventsCurrentPage}
                     itemsPerPage={pastEventsPerPage}
                   />
@@ -417,40 +432,31 @@ const Schedule = () => {
                   )}
                 </>
               )}
-            </div>
-          </div>
-
-          {/* Add Event Modal */}
-          <AddEventModal
-            isOpen={showAddEvent}
-            onClose={() => {
-              setShowAddEvent(false);
-              setRecurringEvent(null);
-            }}
-            onAddEvent={handleAddEvent}
-            recurringEvent={recurringEvent}
-          />
-
-          {/* Delete Confirmation Modal */}
-          <DeleteConfirmationModal
-            isOpen={deleteModal.isOpen}
-            onClose={() => setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' })}
-            onConfirm={confirmDelete}
-            title="Delete Event"
-            message={`Are you sure you want to delete "${deleteModal.eventTitle}"? This action cannot be undone.`}
-            confirmLabel="Delete"
-            cancelLabel="Cancel"
-          />
-
-          {/* Toast Notification */}
-          {toast && (
-            <Toast
-              message={toast.message}
-              type={toast.type}
-              onClose={() => setToast(null)}
-            />
+            </>
           )}
         </div>
+
+        <AddEventModal
+          isOpen={showAddEvent}
+          onClose={() => {
+            setShowAddEvent(false);
+            setRecurringEvent(null);
+          }}
+          onAddEvent={handleAddEvent}
+          recurringEvent={recurringEvent}
+        />
+
+        <DeleteConfirmationModal
+          isOpen={deleteModal.isOpen}
+          onClose={() => setDeleteModal({ isOpen: false, eventId: null, eventTitle: '' })}
+          onConfirm={confirmDelete}
+          title="Delete Event"
+          message={`Are you sure you want to delete "${deleteModal.eventTitle}"? This action cannot be undone.`}
+          confirmLabel="Delete"
+          cancelLabel="Cancel"
+        />
+
+        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>
     </PageLayout>
   );

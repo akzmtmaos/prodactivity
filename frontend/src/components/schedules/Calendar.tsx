@@ -1,6 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { format, addDays, startOfWeek, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths, subMonths } from 'date-fns';
+import {
+  addDays,
+  addMonths,
+  eachDayOfInterval,
+  endOfMonth,
+  format,
+  getDay,
+  isSameDay,
+  isSameMonth,
+  startOfMonth,
+  startOfWeek,
+  subMonths,
+} from 'date-fns';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { ScheduleEvent } from '../../types/schedule';
+import { getCategoryStyle } from '../../utils/scheduleCategories';
+import HeaderTooltip from '../common/HeaderTooltip';
 import EventDetailsModal from './EventDetailsModal';
 import DateEventsModal from './DateEventsModal';
 
@@ -14,6 +29,28 @@ interface CalendarProps {
   onEventClick?: (event: ScheduleEvent) => void;
 }
 
+const toMidnight = (date: Date) => {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+};
+
+/** Real end of an event (date + end time), used to dim finished blocks. */
+const eventEnd = (event: ScheduleEvent) => {
+  const end = new Date(event.endDate ?? event.date);
+  const [hours, minutes] = event.endTime.split(':').map(Number);
+  if (Number.isFinite(hours) && Number.isFinite(minutes)) {
+    end.setHours(hours, minutes, 0, 0);
+  }
+  return end;
+};
+
+const eventStartsOnOrBefore = (event: ScheduleEvent, day: Date) =>
+  toMidnight(new Date(event.date)).getTime() <= toMidnight(day).getTime();
+
+const eventEndsOnOrAfter = (event: ScheduleEvent, day: Date) =>
+  toMidnight(new Date(event.endDate ?? event.date)).getTime() >= toMidnight(day).getTime();
+
 const Calendar: React.FC<CalendarProps> = ({
   currentDate,
   events,
@@ -25,398 +62,260 @@ const Calendar: React.FC<CalendarProps> = ({
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [view, setView] = useState<CalendarView>(() => {
     const saved = localStorage.getItem('calendarView');
-    return (saved === 'weekly' || saved === 'monthly') ? saved : 'weekly';
+    return saved === 'weekly' || saved === 'monthly' ? saved : 'weekly';
   });
 
-  // Save view preference to localStorage
   useEffect(() => {
     localStorage.setItem('calendarView', view);
   }, [view]);
 
-  // Weekly view days
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const date = addDays(startOfWeek(currentDate, { weekStartsOn: 0 }), i);
-    const dayOfWeek = getDay(date); // 0 = Sunday, 6 = Saturday
+  const weekDays = Array.from({ length: 7 }, (_, index) => {
+    const date = addDays(startOfWeek(currentDate, { weekStartsOn: 0 }), index);
     return {
       date,
-      dayName: format(date, 'EEE'),
-      dayNumber: format(date, 'd'),
-      isToday: isSameDay(date, new Date()),
-      isWeekend: dayOfWeek === 0 || dayOfWeek === 6 // Sunday or Saturday
+      isWeekend: getDay(date) === 0 || getDay(date) === 6,
     };
   });
 
-  // Monthly view days
   const monthStart = startOfMonth(currentDate);
-  const monthEnd = endOfMonth(currentDate);
-  const monthDays = eachDayOfInterval({ start: monthStart, end: monthEnd });
-  
-  // Get first day of month (0 = Sunday, 1 = Monday, etc.)
-  const firstDayOfMonth = getDay(monthStart);
-  // Create array with empty cells for days before month starts
-  const emptyDays = Array.from({ length: firstDayOfMonth }, (_, i) => null);
-  const allMonthDays = [...emptyDays, ...monthDays];
+  const monthDays = eachDayOfInterval({ start: monthStart, end: endOfMonth(currentDate) });
+  const monthCells: (Date | null)[] = [
+    ...Array.from({ length: getDay(monthStart) }, () => null),
+    ...monthDays,
+  ];
+  while (monthCells.length % 7 !== 0) monthCells.push(null);
 
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'study': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      case 'assignment': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'exam': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'meeting': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
-    }
+  const getEventsForDate = (date: Date) =>
+    events
+      .filter((event) => eventStartsOnOrBefore(event, date) && eventEndsOnOrAfter(event, date))
+      .sort((a, b) => a.startTime.localeCompare(b.startTime));
+
+  const isEventOver = (event: ScheduleEvent) => eventEnd(event).getTime() < Date.now();
+
+  const openEvent = (event: ScheduleEvent) => {
+    setSelectedEvent(event);
+    onEventClick?.(event);
   };
 
-  const getEventsForDate = (date: Date) => {
-    // Helper to zero out the time part
-    const toMidnight = (d: Date) => {
-      const nd = new Date(d);
-      nd.setHours(0, 0, 0, 0);
-      return nd;
-    };
-    const dayMid = toMidnight(date).getTime();
-    return events.filter(event => {
-      const start = toMidnight(new Date(event.date)).getTime();
-      const end = event.endDate ? toMidnight(new Date(event.endDate)).getTime() : start;
-      return dayMid >= start && dayMid <= end;
-    }).sort((a, b) => 
-      a.startTime.localeCompare(b.startTime)
+  const weekRangeLabel =
+    weekDays[0].date.getFullYear() === weekDays[6].date.getFullYear()
+      ? `${format(weekDays[0].date, 'MMM d')} – ${format(weekDays[6].date, 'MMM d')}`
+      : `${format(weekDays[0].date, 'MMM d, yyyy')} – ${format(weekDays[6].date, 'MMM d, yyyy')}`;
+
+  const renderDayNumber = (date: Date, size: 'sm' | 'md') => {
+    const today = isSameDay(date, new Date());
+    const sizeClasses = size === 'md' ? 'h-7 w-7 text-[12px]' : 'h-6 w-6 text-[11px]';
+    return (
+      <button
+        type="button"
+        onClick={() => setSelectedDate(date)}
+        className={`flex items-center justify-center rounded-full font-medium tabular-nums transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${sizeClasses} ${
+          today
+            ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+            : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-[#2d2d2d]'
+        }`}
+        aria-label={`View events on ${format(date, 'EEEE, MMM d')}`}
+      >
+        {format(date, 'd')}
+      </button>
     );
   };
-  
-  const isEventPast = (event: ScheduleEvent) => {
-    const now = new Date();
-    now.setHours(0, 0, 0, 0);
-    const eventDate = new Date(event.date);
-    eventDate.setHours(0, 0, 0, 0);
-    return eventDate < now;
-  };
 
-  const renderWeeklyView = () => (
-    <>
-      {/* Days of the week */}
-      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-[#333333]">
-        {weekDays.map((day, index) => {
-          const dayEvents = getEventsForDate(day.date);
-          const hasEvents = dayEvents.length > 0;
-          
-          return (
-            <div 
-              key={index} 
-              className={`text-center py-3 ${
-                day.isWeekend 
-                  ? 'bg-blue-50 dark:bg-blue-900/10 border-l border-r border-blue-200 dark:border-blue-800' 
-                  : ''
-              }`}
-            >
-              <div className={`text-sm font-medium ${
-                day.isWeekend 
-                  ? 'text-blue-700 dark:text-blue-300' 
-                  : 'text-gray-600 dark:text-gray-300'
-              }`}>
-                {day.dayName}
-              </div>
-              <button
-                onClick={() => {
-                  setSelectedDate(day.date);
-                }}
-                className={`mt-1 font-semibold text-lg transition-all ${
-                  day.isToday 
-                    ? 'bg-indigo-600 text-white rounded-full w-8 h-8 flex items-center justify-center mx-auto' 
-                    : hasEvents
-                    ? day.isWeekend
-                      ? 'text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full w-8 h-8 flex items-center justify-center mx-auto cursor-pointer'
-                      : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full w-8 h-8 flex items-center justify-center mx-auto cursor-pointer'
-                    : day.isWeekend
-                    ? 'text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full w-8 h-8 flex items-center justify-center mx-auto cursor-pointer'
-                    : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full w-8 h-8 flex items-center justify-center mx-auto cursor-pointer'
-                }`}
-                title={hasEvents ? `${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''} on this day - Click to view` : 'Click to view events for this date'}
-              >
-                {day.dayNumber}
-              </button>
-              {hasEvents && (
-                <div className="mt-1 flex justify-center gap-1">
-                  {dayEvents.slice(0, 3).map((_, i) => (
-                    <div
-                      key={i}
-                      className={`w-1 h-1 rounded-full ${
-                        day.isToday ? 'bg-white' : 'bg-indigo-500'
-                      }`}
-                    />
-                  ))}
-                  {dayEvents.length > 3 && (
-                    <span className="text-xs text-gray-500 dark:text-gray-400">
-                      +{dayEvents.length - 3}
+  const renderWeekView = () => (
+    <div className="overflow-x-auto">
+    <div className="grid min-w-[720px] grid-cols-7 divide-x divide-gray-200 dark:divide-[#2b2b2b]">
+      {weekDays.map((day) => {
+        const dayEvents = getEventsForDate(day.date);
+        return (
+          <div
+            key={day.date.toISOString()}
+            className={`flex min-h-[420px] min-w-0 flex-col ${
+              day.isWeekend ? 'bg-gray-50/60 dark:bg-[#232323]/50' : ''
+            }`}
+          >
+            <div className="flex flex-col items-center gap-1 border-b border-gray-200 px-1 py-2 dark:border-[#2b2b2b]">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                {format(day.date, 'EEE')}
+              </span>
+              {renderDayNumber(day.date, 'md')}
+            </div>
+            <div className="flex-1 space-y-1 p-1.5">
+              {dayEvents.map((event) => {
+                const style = getCategoryStyle(event.category);
+                return (
+                  <button
+                    key={event.id}
+                    type="button"
+                    onClick={() => openEvent(event)}
+                    className={`block w-full rounded-md border border-transparent px-1.5 py-1 text-left transition-colors hover:border-gray-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 dark:hover:border-[#3a3a3a] ${style.chip} ${
+                      isEventOver(event) ? 'opacity-55' : ''
+                    }`}
+                    aria-label={`${event.title}, ${event.startTime} to ${event.endTime}`}
+                  >
+                    <span className="block truncate text-[11px] font-medium leading-tight">{event.title}</span>
+                    <span className="mt-0.5 block truncate text-[10px] tabular-nums opacity-75">
+                      {event.startTime}
                     </span>
-                  )}
-                </div>
-              )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+    </div>
+  );
+
+  const renderMonthView = () => (
+    <>
+      <div className="grid grid-cols-7 border-b border-gray-200 dark:border-[#2b2b2b]">
+        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((dayName, index) => (
+          <div
+            key={dayName}
+            className={`px-2 py-1.5 text-center text-[10px] font-medium uppercase tracking-wider ${
+              index === 0 || index === 6 ? 'text-gray-400 dark:text-gray-500' : 'text-gray-500 dark:text-gray-400'
+            }`}
+          >
+            {dayName}
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-7">
+        {monthCells.map((day, index) => {
+          if (!day) {
+            return (
+              <div
+                key={`blank-${index}`}
+                className="min-h-[104px] border-b border-r border-gray-200 bg-gray-50/50 dark:border-[#2b2b2b] dark:bg-[#1b1b1b]"
+              />
+            );
+          }
+
+          const dayEvents = getEventsForDate(day);
+          const weekend = getDay(day) === 0 || getDay(day) === 6;
+          return (
+            <div
+              key={day.toISOString()}
+              className={`min-h-[104px] border-b border-r border-gray-200 p-1.5 dark:border-[#2b2b2b] ${
+                weekend ? 'bg-gray-50/60 dark:bg-[#232323]/50' : ''
+              } ${isSameMonth(day, currentDate) ? '' : 'opacity-70'}`}
+            >
+              <div className="mb-1 flex items-center justify-between">
+                {renderDayNumber(day, 'sm')}
+                {dayEvents.length > 0 && (
+                  <span className="text-[10px] tabular-nums text-gray-400 dark:text-gray-500">
+                    {dayEvents.length}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-1">
+                {dayEvents.slice(0, 2).map((event) => {
+                  const style = getCategoryStyle(event.category);
+                  return (
+                    <button
+                      key={event.id}
+                      type="button"
+                      onClick={() => openEvent(event)}
+                      title={`${event.title} · ${event.startTime} – ${event.endTime}`}
+                      className={`block w-full truncate rounded px-1 py-0.5 text-left text-[10px] font-medium transition-opacity hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${style.chip} ${
+                        isEventOver(event) ? 'opacity-55' : ''
+                      }`}
+                    >
+                      <span className="tabular-nums opacity-70">{event.startTime}</span> {event.title}
+                    </button>
+                  );
+                })}
+                {dayEvents.length > 2 && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDate(day)}
+                    className="w-full rounded px-1 text-left text-[10px] font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200"
+                  >
+                    +{dayEvents.length - 2} more
+                  </button>
+                )}
+              </div>
             </div>
           );
         })}
       </div>
-
-      {/* Calendar grid */}
-      <div className="grid grid-cols-7 min-h-[500px]">
-        {weekDays.map((day, dayIndex) => (
-          <div 
-            key={dayIndex} 
-            className={`border-r border-b border-gray-200 dark:border-[#333333] p-2 h-full overflow-y-auto ${
-              day.isWeekend 
-                ? 'bg-blue-50 dark:bg-blue-900/10 border-l border-blue-200 dark:border-blue-800' 
-                : ''
-            }`}
-          >
-            {getEventsForDate(day.date).length > 0 ? (
-              getEventsForDate(day.date).map((event, eventIndex) => {
-                const isPast = isEventPast(event);
-                return (
-                  <div
-                    key={eventIndex}
-                    onClick={() => {
-                      setSelectedEvent(event);
-                      if (onEventClick) {
-                        onEventClick(event);
-                      }
-                    }}
-                    className={`mb-2 p-2 rounded ${getCategoryColor(event.category)} relative cursor-pointer hover:opacity-80 transition-opacity ${
-                      isPast ? 'opacity-60' : ''
-                    }`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex items-center gap-1 flex-1 min-w-0">
-                        <h3 className="font-medium text-sm truncate">{event.title}</h3>
-                        {isPast && (
-                          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0" title="Past event">
-                            📅
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteEvent(event.id);
-                        }}
-                        className="text-xs hover:text-red-600 dark:hover:text-red-400 flex-shrink-0 ml-1"
-                        title="Delete event"
-                      >
-                        ×
-                      </button>
-                    </div>
-                    <div className="text-xs mt-1">
-                      {event.startTime} - {event.endTime}
-                    </div>
-                    {event.description && (
-                      <div className="text-xs mt-1 text-gray-600 dark:text-gray-300 line-clamp-2">
-                        {event.description}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            ) : (
-              <div className="h-full flex items-center justify-center text-gray-500 dark:text-gray-400 text-sm">
-                No events
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
     </>
   );
 
-  const renderMonthlyView = () => {
-    const weekDayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-    
-    return (
-      <>
-        {/* Days of the week header */}
-        <div className="grid grid-cols-7 border-b border-gray-200 dark:border-[#333333]">
-          {weekDayNames.map((dayName, index) => {
-            const isWeekend = index === 0 || index === 6; // Sunday (0) or Saturday (6)
-            return (
-              <div 
-                key={index} 
-                className={`text-center py-2 text-sm font-medium ${
-                  isWeekend 
-                    ? 'bg-blue-50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-300 border-l border-r border-blue-200 dark:border-blue-800' 
-                    : 'text-gray-600 dark:text-gray-300'
-                }`}
-              >
-                {dayName}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Calendar grid */}
-        <div className="grid grid-cols-7 min-h-[600px]">
-          {allMonthDays.map((day, index) => {
-            if (!day) {
-              return (
-                <div key={`empty-${index}`} className="border-r border-b border-gray-200 dark:border-[#333333] p-2 bg-gray-50 dark:bg-gray-900/50"></div>
-              );
-            }
-
-            const dayEvents = getEventsForDate(day);
-            const hasEvents = dayEvents.length > 0;
-            const isToday = isSameDay(day, new Date());
-            const isCurrentMonth = day.getMonth() === currentDate.getMonth();
-            const dayOfWeek = getDay(day); // 0 = Sunday, 6 = Saturday
-            const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
-
-            return (
-              <div 
-                key={day.toISOString()} 
-                className={`border-r border-b border-gray-200 dark:border-[#333333] p-2 min-h-[100px] overflow-y-auto ${
-                  !isCurrentMonth 
-                    ? 'bg-gray-50 dark:bg-gray-900/30' 
-                    : isWeekend 
-                    ? 'bg-blue-50 dark:bg-blue-900/10 border-l border-blue-200 dark:border-blue-800' 
-                    : ''
-                }`}
-              >
-                <div className="flex items-center justify-between mb-1">
-                  <button
-                    onClick={() => {
-                      setSelectedDate(day);
-                    }}
-                    className={`text-sm font-semibold transition-all ${
-                      isToday
-                        ? 'bg-indigo-600 text-white rounded-full w-7 h-7 flex items-center justify-center'
-                        : hasEvents
-                        ? isWeekend
-                          ? 'text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
-                          : 'text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
-                        : isCurrentMonth
-                        ? isWeekend
-                          ? 'text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/30 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
-                          : 'text-gray-900 dark:text-white hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
-                        : 'text-gray-400 dark:text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full w-7 h-7 flex items-center justify-center cursor-pointer'
-                    }`}
-                    title={hasEvents ? `${dayEvents.length} event${dayEvents.length > 1 ? 's' : ''} on this day - Click to view` : 'Click to view events for this date'}
-                  >
-                    {format(day, 'd')}
-                  </button>
-                  {hasEvents && (
-                    <div className="flex gap-1">
-                      {dayEvents.slice(0, 2).map((_, i) => (
-                        <div
-                          key={i}
-                          className={`w-1.5 h-1.5 rounded-full ${
-                            isToday ? 'bg-white' : 'bg-indigo-500'
-                          }`}
-                        />
-                      ))}
-                      {dayEvents.length > 2 && (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">
-                          +{dayEvents.length - 2}
-                        </span>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Events list */}
-                <div className="space-y-1">
-                  {dayEvents.slice(0, 3).map((event, eventIndex) => {
-                    const isPast = isEventPast(event);
-                    return (
-                      <div
-                        key={eventIndex}
-                        onClick={() => {
-                          setSelectedEvent(event);
-                          if (onEventClick) {
-                            onEventClick(event);
-                          }
-                        }}
-                        className={`p-1.5 rounded text-xs cursor-pointer hover:opacity-80 transition-opacity ${getCategoryColor(event.category)} ${
-                          isPast ? 'opacity-60' : ''
-                        }`}
-                        title={event.title}
-                      >
-                        <div className="font-medium truncate">{event.title}</div>
-                        <div className="text-xs mt-0.5">{event.startTime}</div>
-                      </div>
-                    );
-                  })}
-                  {dayEvents.length > 3 && (
-                    <div className="text-xs text-gray-500 dark:text-gray-400 text-center py-1">
-                      +{dayEvents.length - 3} more
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </>
-    );
-  };
-
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] overflow-hidden">
-      {/* Calendar header */}
-      <div className="px-4 py-3 border-b border-gray-200 dark:border-[#333333] flex justify-between items-center flex-wrap gap-2">
-        <h2 className="text-base font-semibold text-gray-900 dark:text-white">
-          {view === 'weekly' 
-            ? format(weekDays[0].date, 'MMMM yyyy')
-            : format(currentDate, 'MMMM yyyy')
-          }
-        </h2>
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* View Toggle */}
-          <div className="flex items-center bg-gray-100 dark:bg-[#252525] rounded-lg p-0.5 border border-gray-200 dark:border-[#333333]">
-            <button
-              onClick={() => setView('weekly')}
-              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                view === 'weekly'
-                  ? 'bg-white dark:bg-[#2d2d2d] text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              Week
-            </button>
-            <button
-              onClick={() => setView('monthly')}
-              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                view === 'monthly'
-                  ? 'bg-white dark:bg-[#2d2d2d] text-indigo-600 dark:text-indigo-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
-              }`}
-            >
-              Month
-            </button>
+    <div className="overflow-hidden rounded-lg border border-gray-200 bg-white dark:border-[#2f2f2f] dark:bg-[#1e1e1e]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-200 px-4 py-2.5 dark:border-[#2f2f2f]">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h2 className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+            {format(currentDate, 'MMMM yyyy')}
+          </h2>
+          <span className="hidden text-[11px] tabular-nums text-gray-500 dark:text-gray-400 sm:inline">
+            {view === 'weekly' ? weekRangeLabel : `${monthDays.length} days`}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <div
+            className="flex items-center gap-0.5 rounded-md border border-gray-200 bg-gray-50 p-0.5 dark:border-[#333333] dark:bg-[#252525]"
+            role="group"
+            aria-label="Calendar view"
+          >
+            {(['weekly', 'monthly'] as CalendarView[]).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => setView(option)}
+                aria-pressed={view === option}
+                className={`rounded px-2 py-1 text-[11px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 ${
+                  view === option
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-[#333333] dark:text-white'
+                    : 'text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                }`}
+              >
+                {option === 'weekly' ? 'Week' : 'Month'}
+              </button>
+            ))}
           </div>
-          {/* Navigation */}
-          <div className="flex items-center gap-1">
+
+          <div className="flex items-center gap-0.5">
+            <HeaderTooltip label={view === 'weekly' ? 'Previous week' : 'Previous month'} fixed>
+              <button
+                type="button"
+                onClick={() =>
+                  onDateChange(view === 'weekly' ? addDays(currentDate, -7) : subMonths(currentDate, 1))
+                }
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-[#333333] dark:bg-[#252525] dark:text-gray-400 dark:hover:bg-[#2d2d2d] dark:hover:text-gray-200"
+                aria-label={view === 'weekly' ? 'Previous week' : 'Previous month'}
+              >
+                <ChevronLeft size={14} />
+              </button>
+            </HeaderTooltip>
             <button
-              onClick={() => onDateChange(view === 'weekly' ? addDays(currentDate, -7) : subMonths(currentDate, 1))}
-              className="h-7 px-2 text-xs font-medium rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300"
-            >
-              &larr;
-            </button>
-            <button
+              type="button"
               onClick={() => onDateChange(new Date())}
-              className="h-7 px-2.5 text-xs font-medium rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300"
+              className="h-7 rounded-md border border-gray-200 bg-white px-2.5 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-[#333333] dark:bg-[#252525] dark:text-gray-300 dark:hover:bg-[#2d2d2d] dark:hover:text-white"
             >
               Today
             </button>
-            <button
-              onClick={() => onDateChange(view === 'weekly' ? addDays(currentDate, 7) : addMonths(currentDate, 1))}
-              className="h-7 px-2 text-xs font-medium rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d] text-gray-600 dark:text-gray-300"
-            >
-              &rarr;
-            </button>
+            <HeaderTooltip label={view === 'weekly' ? 'Next week' : 'Next month'} fixed>
+              <button
+                type="button"
+                onClick={() =>
+                  onDateChange(view === 'weekly' ? addDays(currentDate, 7) : addMonths(currentDate, 1))
+                }
+                className="flex h-7 w-7 items-center justify-center rounded-md border border-gray-200 bg-white text-gray-500 transition-colors hover:bg-gray-50 hover:text-gray-900 dark:border-[#333333] dark:bg-[#252525] dark:text-gray-400 dark:hover:bg-[#2d2d2d] dark:hover:text-gray-200"
+                aria-label={view === 'weekly' ? 'Next week' : 'Next month'}
+              >
+                <ChevronRight size={14} />
+              </button>
+            </HeaderTooltip>
           </div>
         </div>
       </div>
 
-      {/* Calendar content */}
-      {view === 'weekly' ? renderWeeklyView() : renderMonthlyView()}
+      {view === 'weekly' ? renderWeekView() : renderMonthView()}
 
-      {/* Event Details Modal */}
       <EventDetailsModal
         isOpen={selectedEvent !== null}
         event={selectedEvent}
@@ -424,7 +323,6 @@ const Calendar: React.FC<CalendarProps> = ({
         onDelete={onDeleteEvent}
       />
 
-      {/* Date Events Modal - Shows all events for a selected date */}
       <DateEventsModal
         isOpen={selectedDate !== null}
         date={selectedDate}
@@ -432,7 +330,7 @@ const Calendar: React.FC<CalendarProps> = ({
         onClose={() => setSelectedDate(null)}
         onEventClick={(event) => {
           setSelectedDate(null);
-          setSelectedEvent(event);
+          openEvent(event);
         }}
         onDelete={onDeleteEvent}
       />
@@ -440,4 +338,4 @@ const Calendar: React.FC<CalendarProps> = ({
   );
 };
 
-export default Calendar; 
+export default Calendar;

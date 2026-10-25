@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, CheckCircle, Target } from 'lucide-react';
+import { ArrowLeft, Check, Volume2, VolumeX, X } from 'lucide-react';
 import { useNavbar } from '../../context/NavbarContext';
 import axiosInstance from '../../utils/axiosConfig';
+import {
+  areQuizSoundsEnabled,
+  setQuizSoundsEnabled,
+  playCorrectSound,
+  playWrongSound,
+  playQuizCompleteSound,
+  playGroupQuizCompleteSound,
+} from '../../utils/quizSounds';
 
 interface FlashcardData {
   id: string;
@@ -55,6 +63,15 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   const [startTime] = useState(Date.now());
   const [quizComplete, setQuizComplete] = useState(false);
   const [options, setOptions] = useState<string[]>([]);
+  // Feedback sounds are on by default and can be muted from the quiz header
+  const [soundEnabled, setSoundEnabled] = useState(() => areQuizSoundsEnabled());
+
+  const toggleSound = () => {
+    setSoundEnabled((enabled) => {
+      setQuizSoundsEnabled(!enabled);
+      return !enabled;
+    });
+  };
 
   // Generate multiple choice options for current question
   useEffect(() => {
@@ -93,7 +110,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   // Handle empty flashcards case
   if (flashcards.length === 0) {
     return (
-      <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto flex flex-col items-center justify-center">
+      <div className="fixed inset-0 z-40 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto flex flex-col items-center justify-center">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-md">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">No Flashcards</h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">This deck has no flashcards to quiz. Please add some cards first!</p>
@@ -111,7 +128,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   // Safety check for current question
   if (!currentQuestion) {
     return (
-      <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto flex flex-col items-center justify-center">
+      <div className="fixed inset-0 z-40 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto flex flex-col items-center justify-center">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-md">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">Error</h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">Unable to load quiz questions. Please try again.</p>
@@ -128,7 +145,14 @@ const QuizSession: React.FC<QuizSessionProps> = ({
 
   const handleAnswerSelect = (answer: string) => {
     setSelectedAnswer(answer);
-    
+
+    // Immediate audio feedback for right / wrong
+    if (answer === currentQuestion.back) {
+      playCorrectSound();
+    } else {
+      playWrongSound();
+    }
+
     // Record the answer
     setAnswers(prev => ({
       ...prev,
@@ -183,6 +207,11 @@ const QuizSession: React.FC<QuizSessionProps> = ({
     }
 
     setQuizComplete(true);
+    if (groupQuizId) {
+      playGroupQuizCompleteSound();
+    } else {
+      playQuizCompleteSound();
+    }
     // Don't call onComplete automatically - let user manually exit
   };
 
@@ -193,128 +222,120 @@ const QuizSession: React.FC<QuizSessionProps> = ({
     const score = Math.round((correctAnswers / shuffledFlashcards.length) * 100);
     const incorrectAnswers = shuffledFlashcards.length - correctAnswers;
 
+    const performance =
+      score >= 90 ? 'Excellent' :
+      score >= 80 ? 'Very good' :
+      score >= 70 ? 'Good' :
+      score >= 60 ? 'Fair' :
+      'Needs improvement';
+
+    const performanceStyles =
+      score >= 90 ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400' :
+      score >= 80 ? 'bg-sky-50 text-sky-700 dark:bg-sky-500/10 dark:text-sky-400' :
+      score >= 70 ? 'bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400' :
+      score >= 60 ? 'bg-orange-50 text-orange-700 dark:bg-orange-500/10 dark:text-orange-400' :
+      'bg-rose-50 text-rose-700 dark:bg-rose-500/10 dark:text-rose-400';
+
+    const finishResults: QuizResults = {
+      totalQuestions: shuffledFlashcards.length,
+      correctAnswers,
+      score,
+      timeSpent: Math.round((Date.now() - startTime) / 1000 / 60)
+    };
+
     return (
-      <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
-        <div className="py-8 px-4 flex flex-col items-center justify-start min-h-screen">
-          {/* Header */}
-          <div className="flex items-center justify-between mb-8 w-full max-w-4xl">
-            <button
-              onClick={onClose}
-              className="flex items-center text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors"
-            >
-              <ArrowLeft size={20} className="mr-2" />
-              Back to Decks
-            </button>
-          </div>
-
-          {/* Results Card */}
-          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-4xl">
-            <div className="mb-6">
-              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/20 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle size={32} className="text-green-600 dark:text-green-400" />
+      <div className="fixed inset-0 z-40 w-screen h-screen overflow-y-auto bg-gray-50 dark:bg-gray-950">
+        <div className="flex min-h-full items-center justify-center px-4 py-8">
+          <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900">
+            {/* Card header */}
+            <div className="flex items-center justify-between gap-4 px-6 pt-5 sm:px-8">
+              <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.14em] text-gray-400 dark:text-gray-500">
+                <Check size={14} strokeWidth={2.5} className="text-emerald-600 dark:text-emerald-500" />
+                Quiz complete
               </div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
-                Quiz Complete!
+              <button
+                onClick={onClose}
+                aria-label="Close results"
+                className="-mr-1 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-gray-800 dark:hover:text-gray-200"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Score */}
+            <div className="px-6 pb-7 pt-5 text-center sm:px-8">
+              <h2 className="break-words text-lg font-semibold tracking-tight text-gray-900 dark:text-white">
+                {deckTitle}
               </h2>
-              <p className="text-gray-600 dark:text-gray-400">
-                Your results for "{deckTitle}"
-              </p>
+              <div className="mt-5 flex items-baseline justify-center gap-2">
+                <span className="text-5xl font-semibold tabular-nums tracking-tight text-gray-900 dark:text-white">
+                  {score}<span className="text-2xl text-gray-400 dark:text-gray-500">%</span>
+                </span>
+                <span className="text-sm text-gray-500 dark:text-gray-400">
+                  {correctAnswers} of {shuffledFlashcards.length}
+                </span>
+              </div>
+              <div className="mt-5 h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800">
+                <div
+                  className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                  style={{ width: `${score}%` }}
+                />
+              </div>
             </div>
 
-            {/* Score Display */}
-            <div className="mb-8">
-              <div className="text-6xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">
-                {score}%
-              </div>
-              <p className="text-gray-600 dark:text-gray-400">
-                {correctAnswers} out of {shuffledFlashcards.length} correct
-              </p>
-            </div>
-
-            {/* Detailed Breakdown */}
-            <div className="mb-8">
-              <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4">
-                Quiz Breakdown
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                {/* Total Questions */}
-                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-gray-900 dark:text-white mb-1">
-                    {shuffledFlashcards.length}
-                  </div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">
-                    Total Questions
-                  </div>
+            {/* Stats */}
+            <div className="grid grid-cols-3 divide-x divide-gray-100 border-y border-gray-100 dark:divide-gray-800 dark:border-gray-800">
+              <div className="px-3 py-4 text-center">
+                <div className="text-lg font-semibold tabular-nums text-gray-900 dark:text-white">
+                  {shuffledFlashcards.length}
                 </div>
-                
-                {/* Correct Answers */}
-                <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-green-600 dark:text-green-400 mb-1">
-                    {correctAnswers}
-                  </div>
-                  <div className="text-sm text-green-700 dark:text-green-300">
-                    Correct Answers
-                  </div>
-                </div>
-                
-                {/* Incorrect Answers */}
-                <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
-                  <div className="text-2xl font-bold text-red-600 dark:text-red-400 mb-1">
-                    {incorrectAnswers}
-                  </div>
-                  <div className="text-sm text-red-700 dark:text-red-300">
-                    Incorrect Answers
-                  </div>
+                <div className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Questions
                 </div>
               </div>
-
-              {/* Performance Level */}
-              <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                <div className="text-lg font-semibold text-gray-900 dark:text-white mb-2">
-                  Performance Level
+              <div className="px-3 py-4 text-center">
+                <div className="text-lg font-semibold tabular-nums text-emerald-600 dark:text-emerald-400">
+                  {correctAnswers}
                 </div>
-                <div className={`text-lg font-bold ${
-                  score >= 90 ? 'text-green-600 dark:text-green-400' :
-                  score >= 80 ? 'text-blue-600 dark:text-blue-400' :
-                  score >= 70 ? 'text-yellow-600 dark:text-yellow-400' :
-                  score >= 60 ? 'text-orange-600 dark:text-orange-400' :
-                  'text-red-600 dark:text-red-400'
-                }`}>
-                  {score >= 90 ? 'Excellent!' :
-                   score >= 80 ? 'Very Good!' :
-                   score >= 70 ? 'Good!' :
-                   score >= 60 ? 'Fair' :
-                   'Needs Improvement'}
+                <div className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Correct
+                </div>
+              </div>
+              <div className="px-3 py-4 text-center">
+                <div className="text-lg font-semibold tabular-nums text-rose-600 dark:text-rose-400">
+                  {incorrectAnswers}
+                </div>
+                <div className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                  Missed
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-3 justify-center">
+            {/* Performance */}
+            <div className="flex items-center justify-between px-6 py-4 sm:px-8">
+              <span className="text-sm text-gray-500 dark:text-gray-400">Performance</span>
+              <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${performanceStyles}`}>
+                {performance}
+              </span>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-2 border-t border-gray-100 px-6 py-4 dark:border-gray-800 sm:px-8">
               {groupQuizId && onViewGroupResults && (
                 <button
                   onClick={() => onViewGroupResults(groupQuizId)}
-                  className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors"
+                  className="flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700"
                 >
-                  View Group Results
+                  View group results
                 </button>
               )}
               <button
-                onClick={() => {
-                  const quizResults: QuizResults = {
-                    totalQuestions: shuffledFlashcards.length,
-                    correctAnswers: Object.entries(answers).filter(
-                      ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
-                    ).length,
-                    score: Math.round((Object.entries(answers).filter(
-                      ([id, answer]) => shuffledFlashcards.find(f => f.id === id)?.back === answer
-                    ).length / shuffledFlashcards.length) * 100),
-                    timeSpent: Math.round((Date.now() - startTime) / 1000 / 60)
-                  };
-                  onComplete(quizResults);
-                }}
-                className="px-6 py-2 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-900 dark:text-white rounded-lg font-medium transition-colors"
+                onClick={() => onComplete(finishResults)}
+                className={groupQuizId
+                  ? 'flex-1 rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200 dark:hover:bg-gray-800'
+                  : 'flex-1 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-indigo-700'}
               >
-                Back to Decks
+                Back to decks
               </button>
             </div>
           </div>
@@ -324,7 +345,7 @@ const QuizSession: React.FC<QuizSessionProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
+    <div className="fixed inset-0 z-40 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
       <div className="py-8 px-4 flex flex-col items-center justify-start min-h-screen">
         {/* Header */}
         <div className="flex items-center justify-between mb-8 w-full max-w-4xl">
@@ -335,13 +356,23 @@ const QuizSession: React.FC<QuizSessionProps> = ({
             <ArrowLeft size={20} className="mr-2" />
             Back to Decks
           </button>
-          <div className="text-right">
-            <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {deckTitle} - Quiz
-            </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              Question {currentQuestionIndex + 1} of {shuffledFlashcards.length}
-            </p>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleSound}
+              aria-label={soundEnabled ? 'Mute quiz sounds' : 'Unmute quiz sounds'}
+              title={soundEnabled ? 'Mute quiz sounds' : 'Unmute quiz sounds'}
+              className="p-1.5 rounded-lg text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/60 dark:hover:bg-gray-700 transition-colors"
+            >
+              {soundEnabled ? <Volume2 size={18} /> : <VolumeX size={18} />}
+            </button>
+            <div className="text-right">
+              <h1 className="text-xl font-semibold text-gray-900 dark:text-white">
+                {deckTitle} - Quiz
+              </h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                Question {currentQuestionIndex + 1} of {shuffledFlashcards.length}
+              </p>
+            </div>
           </div>
         </div>
 

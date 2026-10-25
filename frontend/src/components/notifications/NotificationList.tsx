@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import NotificationItem, { NotificationItemProps } from './NotificationItem';
-import { ChevronLeft, ChevronRight, Bell, Eye, Trash2 } from 'lucide-react';
+import { Bell, Eye, Trash2 } from 'lucide-react';
+import Pagination from '../common/Pagination';
 
 export interface Notification {
   id: string;
@@ -114,76 +115,13 @@ const NotificationList: React.FC<NotificationListProps> = ({
 
           {/* Pagination Controls */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                Showing {startIndex + 1}-{Math.min(endIndex, filteredNotifications.length)} of {filteredNotifications.length}
-              </div>
-              
-              <div className="flex items-center space-x-2">
-                <button
-                  onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
-                  disabled={currentPage === 1}
-                  className={`p-2 rounded-md transition-colors ${
-                    currentPage === 1
-                      ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft size={20} />
-                </button>
-
-                <div className="flex items-center space-x-1">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => {
-                    // Show first page, last page, current page, and pages around current
-                    const showPage = 
-                      page === 1 || 
-                      page === totalPages || 
-                      (page >= currentPage - 1 && page <= currentPage + 1);
-                    
-                    const showEllipsis = 
-                      (page === 2 && currentPage > 3) || 
-                      (page === totalPages - 1 && currentPage < totalPages - 2);
-
-                    if (showEllipsis) {
-                      return (
-                        <span key={page} className="px-2 text-gray-500 dark:text-gray-400">
-                          ...
-                        </span>
-                      );
-                    }
-
-                    if (!showPage) return null;
-
-                    return (
-                      <button
-                        key={page}
-                        onClick={() => setCurrentPage(page)}
-                        className={`min-w-[36px] h-9 px-3 rounded-md text-sm font-medium transition-colors ${
-                          currentPage === page
-                            ? 'bg-indigo-600 text-white'
-                            : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                        }`}
-                      >
-                        {page}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                <button
-                  onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
-                  disabled={currentPage === totalPages}
-                  className={`p-2 rounded-md transition-colors ${
-                    currentPage === totalPages
-                      ? 'text-gray-400 dark:text-gray-600 cursor-not-allowed'
-                      : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700'
-                  }`}
-                  aria-label="Next page"
-                >
-                  <ChevronRight size={20} />
-                </button>
-              </div>
+            <div className="mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+                rangeText={`Showing ${startIndex + 1}-${Math.min(endIndex, filteredNotifications.length)} of ${filteredNotifications.length}`}
+              />
             </div>
           )}
         </>

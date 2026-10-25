@@ -1,12 +1,14 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Send, Paperclip, X, Image as ImageIcon, File } from 'lucide-react';
-import { Attachment } from './types';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { Send, Plus, X, File } from 'lucide-react';
+import { Attachment, User as ChatUser } from './types';
 
 interface MessageInputProps {
   newMessage: string;
   isSendingMessage: boolean;
   onMessageChange: (message: string) => void;
   onSubmit: (e: React.FormEvent, attachments?: Attachment[]) => void;
+  participants?: ChatUser[];
+  currentUserId?: string;
 }
 
 interface FilePreview {
@@ -20,11 +22,19 @@ const MessageInput: React.FC<MessageInputProps> = ({
   isSendingMessage,
   onMessageChange,
   onSubmit,
+  participants = [],
+  currentUserId,
 }) => {
   const [attachments, setAttachments] = useState<FilePreview[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Members come from selectedRoom.participants (passed by Chat.tsx).
+  // Mention picker filtering uses that list + currentUserId so you can't pick yourself.
+  const [mentionSearch, setMentionSearch] = useState<string | null>(null);
+  const [mentionSelectedIndex, setMentionSelectedIndex] = useState(-1);
+  const [activeMention, setActiveMention] = useState<{ start: number; end: number } | null>(null);
 
   // Handle paste events for images
   useEffect(() => {
@@ -53,17 +63,39 @@ const MessageInput: React.FC<MessageInputProps> = ({
     }
   }, []);
 
-  // Auto-resize textarea: single-line height (32px) when empty, grow up to 96px when typing
-  const LINE_HEIGHT_PX = 32;
-  const MAX_HEIGHT_PX = 96;
+  const handleMessageChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const { value, selectionStart } = e.currentTarget;
+    onMessageChange(value);
+
+    const mentionStart = value.lastIndexOf('@', selectionStart - 1);
+    if (mentionStart < 0) {
+      setActiveMention(null);
+      setMentionSearch(null);
+      return;
+    }
+
+    let mentionEnd = mentionStart + 1;
+    while (mentionEnd < value.length && !/\s/.test(value[mentionEnd]) && value[mentionEnd] !== '@') {
+      mentionEnd += 1;
+    }
+
+    if (selectionStart > mentionEnd) {
+      setActiveMention(null);
+      setMentionSearch(null);
+      return;
+    }
+
+    setActiveMention({ start: mentionStart, end: mentionEnd });
+    setMentionSearch(value.slice(mentionStart + 1, selectionStart));
+    setMentionSelectedIndex(-1);
+  };
+
+  // Composer height is pinned at 32px so the input line never jumps when the mention popup opens.
+  const LINE_HEIGHT_PX = 40;
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
-      textarea.style.height = 'auto';
-      const h = !newMessage.trim()
-        ? LINE_HEIGHT_PX
-        : Math.min(textarea.scrollHeight, MAX_HEIGHT_PX);
-      textarea.style.height = `${h}px`;
+      textarea.style.height = `${LINE_HEIGHT_PX}px`;
     }
   }, [newMessage]);
 
@@ -94,6 +126,87 @@ const MessageInput: React.FC<MessageInputProps> = ({
 
     setAttachments(prev => [...prev, preview]);
   };
+
+  const filteredMembers = useMemo(() => {
+    if (mentionSearch === null) return [];
+    const q = mentionSearch.trim().toLowerCase();
+    if (!q) return participants.filter((p) => String(p.id) !== String(currentUserId ?? ''));
+    return participants.filter(
+      (p) =>
+        p.username &&
+        p.username.toLowerCase().includes(q) &&
+        String(p.id) !== String(currentUserId ?? ''),
+    );
+  }, [participants, mentionSearch, currentUserId]);
+
+  const insertMention = (mention: string) => {
+    const textarea = textareaRef.current;
+    if (!textarea || !activeMention) return;
+
+    const before = textarea.value.slice(0, activeMention.start);
+    const after = textarea.value.slice(activeMention.end);
+    const insertedText = `${mention} `;
+    const nextValue = before + insertedText + after;
+    onMessageChange(nextValue);
+
+    requestAnimationFrame(() => {
+      textarea.focus();
+      const cursor = before.length + insertedText.length;
+      textarea.setSelectionRange(cursor, cursor);
+    });
+    setMentionSearch(null);
+    setMentionSelectedIndex(-1);
+  };
+
+  const handleTextareaKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (mentionSearch === null || e.nativeEvent.isComposing) return false;
+
+    if (e.key === 'ArrowDown') {
+      if (filteredMembers.length > 0) {
+        e.preventDefault();
+        setMentionSelectedIndex((prev) => (
+          prev < filteredMembers.length - 1 ? prev + 1 : 0
+        ));
+        return true;
+      }
+    } else if (e.key === 'ArrowUp') {
+      if (filteredMembers.length > 0) {
+        e.preventDefault();
+        setMentionSelectedIndex((prev) => (
+          prev > 0 ? prev - 1 : filteredMembers.length - 1
+        ));
+        return true;
+      }
+    } else if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault();
+      if (mentionSearch.trim() === '') {
+        insertMention('@everyone');
+      } else if (filteredMembers.length > 0) {
+        const idx = mentionSelectedIndex >= 0 ? mentionSelectedIndex : 0;
+        const member = filteredMembers[idx];
+        if (member) {
+          insertMention(`@${member.username}`);
+        }
+      }
+      return true;
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      setMentionSearch(null);
+      setMentionSelectedIndex(-1);
+      return true;
+    }
+    return false;
+  };
+
+  const selectMember = (member: ChatUser) => {
+    insertMention(`@${member.username}`);
+  };
+
+  const selectEveryone = () => {
+    insertMention('@everyone');
+  };
+
+  const mentionPopupVisible = mentionSearch !== null;
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -158,9 +271,9 @@ const MessageInput: React.FC<MessageInputProps> = ({
       mime_type: att.file.type,
     }));
 
-    console.log('📎 MessageInput: Sending attachment data:', { 
-      count: attachmentData.length, 
-      attachments: attachmentData.map(a => ({ name: a.name, type: a.type, url: a.url?.substring(0, 50) }))
+    console.log('📎 MessageInput: Sending attachment data:', {
+      count: attachmentData.length,
+      attachments: attachmentData.map(a => ({ name: a.name, type: a.type, url: a.url?.substring(0, 50) })),
     });
 
     onSubmit(e, attachmentData);
@@ -221,7 +334,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       )}
 
       <form onSubmit={handleSubmit} className="px-2 py-2">
-        <div className="flex gap-1 items-center">
+        <div className="relative">
           {/* File Input (hidden) */}
           <input
             ref={fileInputRef}
@@ -232,44 +345,88 @@ const MessageInput: React.FC<MessageInputProps> = ({
             className="hidden"
           />
 
-          {/* Attachment Button - h-8 for a bit more presence */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isSendingMessage}
-            className="h-8 w-8 flex-shrink-0 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Attach file or image"
-          >
-            <Paperclip size={18} />
-          </button>
+          <div className="relative rounded-xl border border-gray-200 bg-white transition-colors focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 dark:border-[#333333] dark:bg-[#252525]">
+            <textarea
+              ref={textareaRef}
+              value={newMessage}
+              onChange={handleMessageChange}
+              placeholder={isDragging ? "Drop files here..." : "Type a message..."}
+              disabled={isSendingMessage}
+              rows={1}
+              className="w-full min-h-[40px] min-w-0 pt-3 pb-1 pl-11 pr-12 text-sm leading-6 focus:outline-none bg-transparent text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 disabled:opacity-50 disabled:cursor-not-allowed resize-none max-h-24 overflow-y-auto scrollbar-hide box-border"
+              style={{ height: '40px' }}
+              onKeyDown={(e) => {
+                if (handleTextareaKeyDown(e)) return;
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  e.currentTarget.form?.requestSubmit();
+                }
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSendingMessage}
+              className="absolute left-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-gray-100 hover:text-indigo-600 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-[#333333] dark:hover:text-indigo-400"
+              title="Attach file or image"
+              aria-label="Attach file or image"
+            >
+              <Plus size={20} />
+            </button>
+            {mentionPopupVisible && (
+              <div className="absolute bottom-full left-0 z-50 mb-2 w-full max-w-[280px] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-lg dark:border-[#333333] dark:bg-[#252525] max-h-56">
+              <div className="max-w-[280px] mx-auto">
+                {mentionSearch !== null && mentionSearch.trim() === '' && (
+                  <button
+                    type="button"
+                    onClick={selectEveryone}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
+                  >
+                    <span className="inline-flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 text-[11px] font-bold text-gray-600 dark:bg-[#333333] dark:text-gray-300">
+                      @
+                    </span>
+                    @everyone
+                  </button>
+                )}
 
-          {/* Text Input - h-8 min height, equal padding */}
-          <textarea
-            ref={textareaRef}
-            value={newMessage}
-            onChange={(e) => onMessageChange(e.target.value)}
-            placeholder={isDragging ? "Drop files here..." : "Type a message..."}
-            disabled={isSendingMessage}
-            rows={1}
-            className="flex-1 min-h-[32px] min-w-0 px-2 py-2 text-xs leading-4 border border-gray-200 dark:border-[#333333] rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all bg-white dark:bg-[#252525] text-gray-900 dark:text-white disabled:opacity-50 disabled:cursor-not-allowed resize-none max-h-24 overflow-y-auto scrollbar-hide box-border"
-            style={{ height: '32px' }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-          />
-
-          {/* Send Button - h-8 to match field and attach */}
-          <button
-            type="submit"
-            disabled={(!newMessage.trim() && attachments.length === 0) || isSendingMessage}
-            className="h-8 px-3 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors inline-flex items-center gap-1"
-          >
-            <Send size={16} />
-            Send
-          </button>
+                {filteredMembers.length > 0 ? (
+                  <ul className="text-sm">
+                    {filteredMembers.map((member, index) => (
+                      <li key={String(member.id)}>
+                        <button
+                          type="button"
+                          onClick={() => selectMember(member)}
+                          className={`w-full flex items-center gap-2 px-3 py-2 text-left text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] ${index === mentionSelectedIndex ? 'bg-indigo-50 dark:bg-indigo-900/20' : ''}`}
+                        >
+                          <div className="h-6 w-6 rounded-full bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                            <span className="text-indigo-600 dark:text-indigo-400 text-xs font-semibold">
+                              {(member.username || '?').charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <span className="flex-1 truncate">{member.username}</span>
+                          <span className="text-indigo-600 dark:text-indigo-400 text-xs font-medium">@</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : mentionSearch.trim() !== '' ? (
+                  <div className="px-3 py-3 text-center text-xs text-gray-500 dark:text-gray-400">
+                    No members found for “@{mentionSearch}”
+                  </div>
+                ) : null}
+                </div>
+              </div>
+            )}
+              <button
+                type="submit"
+                disabled={(!newMessage.trim() && attachments.length === 0) || isSendingMessage}
+                className="absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-full bg-indigo-600 text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-gray-300 dark:disabled:bg-gray-600"
+                title="Send message"
+                aria-label="Send message"
+              >
+                <Send size={15} />
+              </button>
+            </div>
         </div>
       </form>
     </div>
@@ -277,4 +434,3 @@ const MessageInput: React.FC<MessageInputProps> = ({
 };
 
 export default MessageInput;
-

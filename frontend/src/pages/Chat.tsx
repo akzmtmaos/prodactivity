@@ -14,6 +14,7 @@ import {
   ProfileView,
   CreateGroupChatModal,
   AddMembersToGroupModal,
+  RemoveMembersModal,
   GroupInfoPanel,
   type ChatRoom,
   type User,
@@ -21,6 +22,7 @@ import {
   type Attachment,
   getAvatarUrl,
 } from '../components/chat';
+import { notifyMentions } from '../components/chat/mentionHelpers';
 
 const Chat = () => {
   const { isCollapsed } = useNavbar();
@@ -44,6 +46,7 @@ const Chat = () => {
   const [viewingProfile, setViewingProfile] = useState<string | null>(null);
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
   const [showAddMembersModal, setShowAddMembersModal] = useState(false);
+  const [showRemoveMembersModal, setShowRemoveMembersModal] = useState(false);
   const [pendingAddSnapshotParticipantIds, setPendingAddSnapshotParticipantIds] = useState<string[]>([]);
   const [showRemoveConfirm, setShowRemoveConfirm] = useState(false);
   const [pendingRemoveTarget, setPendingRemoveTarget] = useState<{ roomId: string; userId: string; username: string } | null>(null);
@@ -332,9 +335,8 @@ const Chat = () => {
     }
 
     const participantMap = new Map<string, User>();
-    if (room?.participants) {
-      room.participants.forEach(p => {
-        participantMap.set(String(p.id), { ...p, avatar: getAvatarUrl(p.avatar) });
+    if (room?.participants) {        room.participants.forEach(p => {
+        participantMap.set(String(p.id), { ...p, ...(p.avatar !== null ? { avatar: getAvatarUrl(p.avatar) } : {}) });
       });
     }
 
@@ -349,7 +351,7 @@ const Chat = () => {
         attachments: attachments || undefined,
         sender: isSystemRow
           ? SYSTEM_SENDER
-          : (processedSenders?.find((s: User) => String(s.id) === senderId) ||
+          : (processedSenders?.find((s: any) => String(s.id) === senderId) ||
              participantMap.get(senderId) || undefined),
         is_system: isSystemRow || !!msg.is_system,
       };
@@ -732,6 +734,22 @@ const Chat = () => {
     }
   };
 
+  const applyGroupAvatarChange = async (
+    roomId: string,
+    newAvatarUrl: string | null,
+    prevAvatarUrl: string | null | undefined,
+  ) => {
+    if (!selectedRoom) return;
+    const avatarChanged = newAvatarUrl !== prevAvatarUrl;
+    if (!avatarChanged) return;
+    console.log('[system event] photo triggering:', { roomId, prevAvatarUrl, newAvatarUrl });
+    const photoText = newAvatarUrl
+      ? 'Group photo was updated'
+      : 'Group photo was removed';
+    await postGroupSystemEvent(roomId, photoText);
+    console.log('[system event] photo result:', { roomId, posted: true });
+  };
+
   const uploadGroupPhoto = async (id: string, file: File): Promise<string | null> => {
     try {
       const ext = file.name.split('.').pop() || 'jpg';
@@ -741,7 +759,9 @@ const Chat = () => {
         .upload(path, file, { cacheControl: '3600', upsert: true });
       if (uploadError) throw uploadError;
       const { data } = supabase.storage.from('chat_attachments').getPublicUrl(path);
-      return data?.publicUrl ?? null;
+      const publicUrl = data?.publicUrl ?? null;
+      await applyGroupAvatarChange(id, publicUrl, null);
+      return publicUrl;
     } catch (err: any) {
       const msg = err?.message || 'Failed to upload photo';
       setToast({ message: msg, type: 'error' });
@@ -797,6 +817,47 @@ const Chat = () => {
       }
     } catch (err: any) {
       setToast({ message: err?.message || 'Failed to remove member', type: 'error' });
+      throw err;
+    }
+  };
+
+  const removeMultipleGroupMembers = async (roomId: string, userIds: string[]) => {
+    if (!user?.id || !selectedRoom) return;
+    const currentUserId = String(user.id);
+    const createdBy = selectedRoom.created_by ?? null;
+    if (!createdBy || String(createdBy) !== currentUserId) {
+      setToast({ message: 'Only the group owner can remove members', type: 'error' });
+      return;
+    }
+    const idsToRemove = userIds.filter((id) => String(id) !== currentUserId);
+    if (idsToRemove.length === 0) {
+      setToast({ message: 'You cannot remove yourself', type: 'error' });
+      return;
+    }
+
+    try {
+      const { error: delError } = await supabase
+        .from('room_participants')
+        .delete()
+        .in('user_id', idsToRemove)
+        .eq('room_id', roomId);
+      if (delError) throw delError;
+
+      await refreshSelectedRoomParticipants();
+      if (selectedRoom) {
+        for (const userId of idsToRemove) {
+          const removedProfile = (selectedRoom.participants || [])
+            .find((p) => String(p.id) === userId);
+          const removedUsername = resolveParticipantDisplayName(removedProfile);
+          console.log('[system event] bulk-remove triggering:', { roomId: selectedRoom.id, removedUsername });
+          await postGroupSystemEvent(
+            selectedRoom.id,
+            `${removedUsername} was removed from the group`,
+          );
+        }
+      }
+    } catch (err: any) {
+      setToast({ message: err?.message || 'Failed to remove members', type: 'error' });
       throw err;
     }
   };
@@ -1348,6 +1409,29 @@ const Chat = () => {
       // Immediately update status to 'sent' after successful insert
       if (data) {
         console.log('✅ Message sent successfully, updating status to "sent"', data.id);
+
+        const selectedSender = selectedRoom?.participants?.find(
+          (p) => String(p.id) === currentUserId,
+        );
+        const senderUsername = selectedSender?.username || user?.username || null;
+        const participantsById = new Map<string, User>();
+        (selectedRoom?.participants || []).forEach((p) =>
+          participantsById.set(String(p.id), p),
+        );
+
+        await notifyMentions({
+          roomId: selectedRoom.id,
+          roomName: selectedRoom.name ?? null,
+          senderId: currentUserId,
+          senderUsername,
+          content: messageContent,
+          participants: selectedRoom?.participants ?? [],
+          getUsernameById: (userId) => participantsById.get(userId)?.username ?? null,
+        }).catch((err) => {
+          console.warn('[mentions] notification dispatch failed:', err);
+        });
+
+        await refreshSelectedRoomParticipants();
         setMessages(prev => {
           // Find optimistic message by temp ID
           const optimisticIndex = prev.findIndex(msg => msg.id === optimisticMessage.id);
@@ -1519,6 +1603,14 @@ const Chat = () => {
                         setShowAddMembersModal(true);
                       }
                     : undefined}
+                  onRemoveMembers={selectedRoom?.room_type === 'group'
+                    ? () => setShowRemoveMembersModal(true)
+                    : undefined}
+                  canManageMembers={Boolean(
+                    selectedRoom?.room_type === 'group' &&
+                      selectedRoom.created_by &&
+                      String(selectedRoom.created_by) === String(user.id),
+                  )}
                 />
                 
                 <MessagesList
@@ -1537,6 +1629,8 @@ const Chat = () => {
                   isSendingMessage={isSendingMessage}
                   onMessageChange={setNewMessage}
                   onSubmit={handleSendMessage}
+                  participants={selectedRoom?.participants ?? []}
+                  currentUserId={String(user?.id ?? '')}
                 />
               </>
             ) : viewingProfile ? (
@@ -1600,16 +1694,18 @@ const Chat = () => {
           currentParticipantIds={(selectedRoom.participants || []).map((p) => String(p.id))}
           onAdded={async (addedEmails) => {
             setShowAddMembersModal(false);
-            await refreshSelectedRoomParticipants();
             if (!selectedRoom) return;
+            const participantsRefresh = refreshSelectedRoomParticipants();
             const emails = Array.isArray(addedEmails) ? addedEmails : [];
             if (emails.length === 0) {
               console.log('[system event] add: no emails provided');
+              await participantsRefresh;
               return;
             }
             const uniqueEmails = Array.from(new Set(emails.map((e) => e.trim().toLowerCase()).filter(Boolean)));
             if (uniqueEmails.length === 0) {
               console.log('[system event] add: no valid emails');
+              await participantsRefresh;
               return;
             }
             const who = uniqueEmails.length === 1
@@ -1618,6 +1714,28 @@ const Chat = () => {
             console.log('[system event] add triggering:', { roomId: selectedRoom.id, who, emails: uniqueEmails });
             const added = await postGroupSystemEvent(selectedRoom.id, `${who} was added to the group`);
             console.log('[system event] add result:', { posted: !!added });
+            if (added) {
+              setMessages((prev) => (
+                prev.some((message) => String(message.id) === added.id)
+                  ? prev
+                  : [...prev, added]
+              ));
+            }
+            await participantsRefresh;
+          }}
+        />
+      )}
+
+      {showRemoveMembersModal && selectedRoom && selectedRoom.room_type === 'group' && (
+        <RemoveMembersModal
+          isOpen={showRemoveMembersModal}
+          onClose={() => setShowRemoveMembersModal(false)}
+          roomName={selectedRoom.name || 'Group'}
+          currentUserId={String(user.id)}
+          participants={selectedRoom.participants || []}
+          ownerId={selectedRoom.created_by}
+          onRemove={async (userIds) => {
+            await removeMultipleGroupMembers(selectedRoom.id, userIds);
           }}
         />
       )}

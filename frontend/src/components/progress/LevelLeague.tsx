@@ -1,5 +1,5 @@
 import React from 'react';
-import { Award, ChevronRight } from 'lucide-react';
+import { Award } from 'lucide-react';
 
 export interface LeagueTier {
   name: string;
@@ -45,33 +45,29 @@ const LevelLeague: React.FC<LevelLeagueProps> = ({ currentLevel }) => {
   const { league, nextLeague, progressInTier } = getLeagueForLevel(currentLevel);
 
   return (
-    <div className="flex flex-col items-center justify-center w-full">
-      <div className="flex items-center gap-2 mb-2">
-        <Award className="w-5 h-5 text-gray-500 dark:text-gray-400 flex-shrink-0" aria-hidden />
-        <span className="text-sm text-gray-600 dark:text-gray-400">Level League</span>
+    <div className="flex items-center gap-3">
+      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md border border-gray-200 bg-gray-50 dark:border-[#333333] dark:bg-[#262626]">
+        <Award className="h-4 w-4 text-gray-400 dark:text-gray-500" aria-hidden />
       </div>
-      <div
-        className={`inline-flex items-center justify-center px-5 py-2.5 rounded-lg border ${league.borderClass} ${league.bgClass} ${league.textClass}`}
-      >
-        <span className="text-lg font-semibold">{league.name}</span>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-semibold ${league.borderClass} ${league.bgClass} ${league.textClass}`}>
+            {league.name}
+          </span>
+          <span className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
+            Levels {league.minLevel}–{league.maxLevel}
+          </span>
+        </div>
+        <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-[#262626]">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${league.bgClass}`}
+            style={{ width: `${Math.max(progressInTier * 100, 2)}%` }}
+          />
+        </div>
+        <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+          {nextLeague ? `Next league: ${nextLeague.name}` : 'Top league reached'}
+        </p>
       </div>
-      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-        Levels {league.minLevel}–{league.maxLevel}
-      </p>
-      {nextLeague && (
-        <>
-          <div className="w-full max-w-[160px] mt-2 h-1.5 bg-gray-100 dark:bg-[#1e1e1e] rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${league.bgClass}`}
-              style={{ width: `${progressInTier * 100}%` }}
-            />
-          </div>
-          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-            Next: <span className="font-medium text-gray-700 dark:text-gray-300">{nextLeague.name}</span>
-            <ChevronRight className="w-3 h-3" />
-          </p>
-        </>
-      )}
     </div>
   );
 };

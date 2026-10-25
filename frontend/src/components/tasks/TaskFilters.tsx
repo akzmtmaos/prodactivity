@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ChevronDown, RotateCcw, Calendar, Flag, ListOrdered } from 'lucide-react';
+import { ChevronDown, RotateCcw, CalendarDays, Flag, ArrowDownAZ, ArrowUp, ArrowDown, Tag } from 'lucide-react';
 import { Task } from '../../types/task';
+import HeaderTooltip from '../common/HeaderTooltip';
 
 interface TaskFiltersProps {
   searchTerm: string;
@@ -32,14 +33,19 @@ const SORT_OPTIONS: { value: 'dueDate' | 'priority' | 'title'; label: string }[]
   { value: 'title', label: 'Title' },
 ];
 
-const compactButton =
-  'h-7 px-2.5 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040]';
+const triggerBase =
+  'flex items-center justify-center gap-1 h-7 text-xs rounded-md border transition-colors focus:outline-none focus:ring-2 focus:ring-gray-200 dark:focus:ring-[#404040]';
 
-const dropdownTrigger =
-  'flex items-center justify-center gap-1 h-7 pl-2.5 pr-2 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors';
+const triggerIdle =
+  'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] hover:text-gray-900 dark:hover:text-gray-200';
 
-const dropdownPanel = 'absolute left-0 top-full mt-1 min-w-[120px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow z-50 py-1';
-const dropdownItem = 'w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] rounded-md transition-colors whitespace-nowrap';
+const triggerActive =
+  'border-indigo-200 dark:border-indigo-800 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/30';
+
+const dropdownPanel =
+  'absolute right-0 top-full mt-1 min-w-[130px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-md shadow-lg z-50 py-1';
+const dropdownItem =
+  'w-full px-2.5 py-1.5 text-left text-xs text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors whitespace-nowrap';
 
 const TaskFilters: React.FC<TaskFiltersProps> = ({
   filterPriority,
@@ -70,23 +76,26 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const priorityLabel = PRIORITY_OPTIONS.find((o) => o.value === filterPriority)?.label ?? 'Priority';
+  const sortLabel = SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? 'Due Date';
+
   return (
-    <div className="flex flex-nowrap gap-2 items-center">
-      {/* Priority dropdown */}
+    <div className="flex flex-nowrap gap-1.5 items-center">
+      {/* Priority */}
       <div className="relative" ref={priorityRef}>
-        <button
-          type="button"
-          onClick={() => { setPriorityOpen((o) => !o); setCategoryOpen(false); setSortOpen(false); }}
-          className={dropdownTrigger}
-          aria-expanded={priorityOpen}
-          title={PRIORITY_OPTIONS.find((o) => o.value === filterPriority)?.label ?? 'Priority'}
-        >
-          <Flag size={14} className="text-gray-500 dark:text-gray-400" />
-          {filterPriority !== 'all' ? (
-            <span>{PRIORITY_OPTIONS.find((o) => o.value === filterPriority)?.label}</span>
-          ) : null}
-          <ChevronDown size={12} className={`text-gray-500 dark:text-gray-400 transition-transform ${priorityOpen ? 'rotate-180' : ''}`} />
-        </button>
+        <HeaderTooltip label="Priority" fixed>
+          <button
+            type="button"
+            onClick={() => { setPriorityOpen((o) => !o); setCategoryOpen(false); setSortOpen(false); }}
+            className={`${triggerBase} ${filterPriority === 'all' ? triggerIdle : triggerActive} px-2`}
+            aria-expanded={priorityOpen}
+            aria-label="Filter by priority"
+          >
+            <Flag size={14} />
+            {filterPriority !== 'all' && <span className="font-medium">{priorityLabel}</span>}
+            <ChevronDown size={11} className={`transition-transform ${priorityOpen ? 'rotate-180' : ''}`} />
+          </button>
+        </HeaderTooltip>
         {priorityOpen && (
           <div className={dropdownPanel}>
             {PRIORITY_OPTIONS.map((opt) => (
@@ -103,20 +112,22 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
         )}
       </div>
 
-      {/* Category dropdown */}
+      {/* Category */}
       {onFilterCategoryChange && categories.length > 0 && (
         <div className="relative" ref={categoryRef}>
-          <button
-            type="button"
-            onClick={() => { setCategoryOpen((o) => !o); setPriorityOpen(false); setSortOpen(false); }}
-            className={dropdownTrigger}
-            aria-expanded={categoryOpen}
-            title={filterCategory === 'all' ? 'Category' : filterCategory}
-          >
-            <ListOrdered size={14} className="text-gray-500 dark:text-gray-400" />
-            {filterCategory !== 'all' ? <span>{filterCategory}</span> : null}
-            <ChevronDown size={12} className={`text-gray-500 dark:text-gray-400 transition-transform ${categoryOpen ? 'rotate-180' : ''}`} />
-          </button>
+          <HeaderTooltip label="Category" fixed>
+            <button
+              type="button"
+              onClick={() => { setCategoryOpen((o) => !o); setPriorityOpen(false); setSortOpen(false); }}
+              className={`${triggerBase} ${filterCategory === 'all' ? triggerIdle : triggerActive} px-2`}
+              aria-expanded={categoryOpen}
+              aria-label="Filter by category"
+            >
+              <Tag size={14} />
+              {filterCategory !== 'all' && <span className="font-medium max-w-[7rem] truncate">{filterCategory}</span>}
+              <ChevronDown size={11} className={`transition-transform ${categoryOpen ? 'rotate-180' : ''}`} />
+            </button>
+          </HeaderTooltip>
           {categoryOpen && (
             <div className={`${dropdownPanel} max-h-56 overflow-y-auto`}>
               <button type="button" onClick={() => { onFilterCategoryChange('all'); setCategoryOpen(false); }} className={dropdownItem}>
@@ -132,22 +143,23 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
         </div>
       )}
 
-      {/* Sort dropdown (icon trigger) */}
+      {/* Sort field */}
       {onSortFieldChange && (
         <div className="relative" ref={sortRef}>
-          <button
-            type="button"
-            onClick={() => { setSortOpen((o) => !o); setPriorityOpen(false); setCategoryOpen(false); }}
-            className={`flex items-center justify-center gap-0.5 h-7 px-2.5 text-xs rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-600 dark:text-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors`}
-            aria-expanded={sortOpen}
-            title={SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? 'Sort by'}
-            aria-label={`Sort by ${SORT_OPTIONS.find((o) => o.value === sortField)?.label ?? 'Due Date'}`}
-          >
-            {sortField === 'dueDate' && <Calendar size={14} />}
-            {sortField === 'priority' && <Flag size={14} />}
-            {sortField === 'title' && <ListOrdered size={14} />}
-            <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${sortOpen ? 'rotate-180' : ''}`} />
-          </button>
+          <HeaderTooltip label={`Sort: ${sortLabel}`} fixed>
+            <button
+              type="button"
+              onClick={() => { setSortOpen((o) => !o); setPriorityOpen(false); setCategoryOpen(false); }}
+              className={`${triggerBase} ${triggerIdle} px-2`}
+              aria-expanded={sortOpen}
+              aria-label={`Sort by ${sortLabel}`}
+            >
+              {sortField === 'dueDate' && <CalendarDays size={14} />}
+              {sortField === 'priority' && <Flag size={14} />}
+              {sortField === 'title' && <ArrowDownAZ size={14} />}
+              <ChevronDown size={11} className={`transition-transform ${sortOpen ? 'rotate-180' : ''}`} />
+            </button>
+          </HeaderTooltip>
           {sortOpen && (
             <div className={dropdownPanel}>
               {SORT_OPTIONS.map((opt) => (
@@ -167,19 +179,33 @@ const TaskFilters: React.FC<TaskFiltersProps> = ({
 
       {/* Sort direction */}
       {onSortDirectionChange && (
-        <button type="button" onClick={() => onSortDirectionChange(sortDirection === 'asc' ? 'desc' : 'asc')} className={compactButton} title={sortDirection === 'asc' ? 'Ascending' : 'Descending'}>
-          {sortDirection === 'asc' ? '↑' : '↓'}
-        </button>
+        <HeaderTooltip label={sortDirection === 'asc' ? 'Ascending' : 'Descending'} fixed>
+          <button
+            type="button"
+            onClick={() => onSortDirectionChange(sortDirection === 'asc' ? 'desc' : 'asc')}
+            className={`${triggerBase} ${triggerIdle} w-7`}
+            aria-label={sortDirection === 'asc' ? 'Sort ascending' : 'Sort descending'}
+          >
+            {sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />}
+          </button>
+        </HeaderTooltip>
       )}
 
-      {/* Reset Filters */}
+      {/* Reset */}
       {onResetFilters && (
-        <button type="button" className={`flex items-center justify-center h-7 w-7 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition focus:outline-none focus:ring-1 focus:ring-gray-300 dark:focus:ring-[#404040]`} onClick={onResetFilters} title="Reset all filters" aria-label="Reset all filters">
-          <RotateCcw size={14} />
-        </button>
+        <HeaderTooltip label="Reset filters" fixed>
+          <button
+            type="button"
+            onClick={onResetFilters}
+            className={`${triggerBase} ${triggerIdle} w-7`}
+            aria-label="Reset all filters"
+          >
+            <RotateCcw size={14} />
+          </button>
+        </HeaderTooltip>
       )}
     </div>
   );
 };
 
-export default TaskFilters; 
+export default TaskFilters;

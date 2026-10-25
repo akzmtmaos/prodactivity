@@ -81,7 +81,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
             <button
               type="button"
               onClick={onConfirm}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 dark:bg-[#b55353] dark:hover:bg-[#c76363] transition-colors"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700 transition-colors"
             >
               <Trash2 className="h-3.5 w-3.5" />
               {confirmLabel || 'Delete'}

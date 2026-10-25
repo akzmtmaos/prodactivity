@@ -3,7 +3,16 @@ import { useTimer } from '../../context/TimerContext';
 import FloatingTimer from './FloatingTimer';
 
 const TimerWidget: React.FC = () => {
-  const { timerState, startTimer, pauseTimer, resetTimer, stopTimer, isTimerRunning, stopwatchMode } = useTimer();
+  const {
+    timerState,
+    startTimer,
+    pauseTimer,
+    resetTimer,
+    isTimerRunning,
+    stopwatchMode,
+    sessionTitle,
+    sessionTag,
+  } = useTimer();
 
   const handleToggle = () => {
     if (timerState.isActive) {
@@ -27,9 +36,10 @@ const TimerWidget: React.FC = () => {
       elapsedTime={timerState.elapsedTime || 0}
       sessionsCompleted={timerState.sessionsCompleted}
       stopwatchMode={stopwatchMode}
+      sessionTitle={sessionTitle}
+      sessionTag={sessionTag}
       onToggle={handleToggle}
       onReset={resetTimer}
-      onStop={stopTimer}
     />
   );
 };

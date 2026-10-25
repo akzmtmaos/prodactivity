@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Flame, Target, Clock, Star, Trophy, Zap, UserPlus, UserMinus, MessageCircle, Mail, GraduationCap, Calendar, CheckSquare, FileText, Layers, Brain, HelpCircle, BarChart3 } from 'lucide-react';
+import { Flame, Target, Clock, Star, Trophy, Zap, MessageCircle, Mail, GraduationCap, Calendar, CheckSquare, FileText, Layers, Brain, HelpCircle, BarChart3 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import axiosInstance from '../utils/axiosConfig';
 import PageLayout from '../components/PageLayout';
@@ -37,8 +37,6 @@ const UserProfile: React.FC = () => {
   });
   const [userLevel, setUserLevel] = useState({ currentLevel: 1, currentXP: 0, xpToNextLevel: 100 });
   const [averageProductivity, setAverageProductivity] = useState(0);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [followLoading, setFollowLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -64,7 +62,6 @@ const UserProfile: React.FC = () => {
       const data = response.data;
       
       setProfile(data);
-      setIsFollowing(data.is_following || false);
     } catch (err: any) {
       console.error('Error fetching user profile:', err);
       setError(err.response?.data?.message || 'Failed to load profile');
@@ -368,27 +365,6 @@ const UserProfile: React.FC = () => {
     }
   };
 
-  const handleFollow = async () => {
-    if (!username || !profile || followLoading) return;
-    
-    try {
-      setFollowLoading(true);
-      if (isFollowing) {
-        await axiosInstance.post(`/unfollow/${username}/`);
-        setIsFollowing(false);
-        setProfile((prev: any) => prev ? { ...prev, followers_count: Math.max(0, prev.followers_count - 1) } : null);
-      } else {
-        await axiosInstance.post(`/follow/${username}/`);
-        setIsFollowing(true);
-        setProfile((prev: any) => prev ? { ...prev, followers_count: prev.followers_count + 1 } : null);
-      }
-    } catch (err: any) {
-      console.error('Error following/unfollowing:', err);
-    } finally {
-      setFollowLoading(false);
-    }
-  };
-
   const handleStartChat = async () => {
     if (!profile) return;
     navigate(`/chat/${profile.id}`);
@@ -492,55 +468,14 @@ const UserProfile: React.FC = () => {
               {!profile.is_own_profile && (
                 <div className="flex gap-3">
                   <button
-                    onClick={handleFollow}
-                    disabled={followLoading}
-                    className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
-                      isFollowing
-                        ? 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'
-                        : 'bg-indigo-600 text-white hover:bg-indigo-700'
-                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                    onClick={handleStartChat}
+                    className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
                   >
-                    {followLoading ? (
-                      <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
-                    ) : isFollowing ? (
-                      <>
-                        <UserMinus size={18} />
-                        Unfollow
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus size={18} />
-                        Follow
-                      </>
-                    )}
+                    <MessageCircle size={18} />
+                    Message
                   </button>
-                  {isFollowing && (
-                    <button
-                      onClick={handleStartChat}
-                      className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg font-medium hover:bg-green-700 transition-colors"
-                    >
-                      <MessageCircle size={18} />
-                      Message
-                    </button>
-                  )}
                 </div>
               )}
-            </div>
-
-            {/* Follow Stats */}
-            <div className="flex gap-6">
-              <div>
-                <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {profile.followers_count || 0}
-                </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Followers</div>
-              </div>
-              <div>
-                <div className="text-2xl font-semibold text-gray-900 dark:text-white">
-                  {profile.following_count || 0}
-                </div>
-                <div className="text-sm text-gray-500 dark:text-gray-400">Following</div>
-              </div>
             </div>
           </div>
         </div>

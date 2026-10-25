@@ -1,7 +1,8 @@
 import React from 'react';
-import { X, Calendar, Clock, Tag, FileText } from 'lucide-react';
+import { X, Calendar, Clock, FileText } from 'lucide-react';
 import { format, isSameDay } from 'date-fns';
 import { ScheduleEvent } from '../../types/schedule';
+import { getCategoryLabel, getCategoryStyle } from '../../utils/scheduleCategories';
 
 interface DateEventsModalProps {
   isOpen: boolean;
@@ -21,20 +22,6 @@ const DateEventsModal: React.FC<DateEventsModalProps> = ({
   onDelete,
 }) => {
   if (!isOpen || !date) return null;
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'study': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      case 'assignment': return 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200';
-      case 'exam': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'meeting': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
-      default: return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
-    }
-  };
-
-  const getCategoryLabel = (category: string) => {
-    return category.charAt(0).toUpperCase() + category.slice(1);
-  };
 
   const isEventPast = (event: ScheduleEvent) => {
     const now = new Date();
@@ -109,7 +96,7 @@ const DateEventsModal: React.FC<DateEventsModalProps> = ({
                             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
                               {event.title}
                             </h3>
-                            <span className={`px-2 py-0.5 rounded-md text-xs font-medium ${getCategoryColor(event.category)}`}>
+                            <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${getCategoryStyle(event.category).chip}`}>
                               {getCategoryLabel(event.category)}
                             </span>
                             {isPast && (
@@ -161,6 +148,7 @@ const DateEventsModal: React.FC<DateEventsModalProps> = ({
                               onClick={(e) => {
                                 e.stopPropagation();
                                 onDelete(event.id);
+                                onClose();
                               }}
                               className="h-7 px-3 text-xs font-medium rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20"
                             >

@@ -346,7 +346,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
     <>
       {/* Backdrop - covers everything including navbar (z-30) and header (z-20) */}
       <div 
-        className="fixed inset-0 bg-black/40 dark:bg-black/60 transition-opacity"
+        className="fixed inset-0 bg-slate-950/30 backdrop-blur-sm transition-opacity dark:bg-black/60"
         onClick={onClose}
         style={{ zIndex: 9999 }}
       />
@@ -356,31 +356,31 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
       
         {/* Modal - horizontally and vertically centered */}
         <div className="flex min-h-full items-center justify-center p-4 pointer-events-auto">
-          <div className="relative w-full max-w-xl bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl border border-gray-200 dark:border-[#333333]">
-          {/* Header - compact */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-              Search
-            </h2>
+          <div className="relative w-full max-w-2xl overflow-hidden rounded-2xl border border-gray-200/80 bg-white shadow-2xl shadow-slate-900/15 dark:border-[#333333] dark:bg-[#1e1e1e] dark:shadow-black/40">
+          <div className="flex items-center justify-between px-5 pb-3 pt-4 sm:px-6">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Search your workspace</h2>
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">Find notes, tasks, flashcards, and more</p>
+            </div>
             <button
               onClick={onClose}
-              className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d] transition-colors"
+              aria-label="Close search"
+              className="rounded-lg p-2 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-[#2d2d2d] dark:hover:text-gray-200"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
           </div>
 
-          {/* Search Input - compact like dtrack Input */}
-          <div className="px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 transform -translate-y-1/2 text-gray-400" size={16} />
+          <div className="px-5 pb-4 sm:px-6">
+            <div className="group relative">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 transition-colors group-focus-within:text-indigo-500 dark:text-gray-500 dark:group-focus-within:text-indigo-400" size={17} />
               <input
                 ref={searchInputRef}
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search notes, tasks, decks..."
-                className="w-full pl-8 pr-8 py-2 text-sm border border-gray-300 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white placeholder-gray-400 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 transition-all"
+                placeholder="Search anything..."
+                className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-11 pr-11 text-sm text-gray-900 shadow-sm outline-none transition-all placeholder:text-gray-400 focus:border-indigo-300 focus:bg-white focus:ring-4 focus:ring-indigo-500/10 dark:border-[#333333] dark:bg-[#252525] dark:text-white dark:placeholder:text-gray-500 dark:focus:border-indigo-500/60 dark:focus:bg-[#222222] dark:focus:ring-indigo-500/15"
               />
               {searchQuery && (
                 <button
@@ -390,7 +390,7 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                     searchInputRef.current?.focus();
                   }}
                   aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-[#2d2d2d] rounded-md transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-[#333333] dark:hover:text-white"
                 >
                   <X size={14} />
                 </button>
@@ -398,29 +398,31 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
             </div>
           </div>
 
-          {/* Results */}
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-[min(60vh,28rem)] overflow-y-auto border-t border-gray-100 dark:border-[#333333]">
             {isSearching ? (
-              <div className="py-6 px-4 text-center text-gray-500 dark:text-gray-400">
-                <div className="animate-spin rounded-full h-6 w-6 border-2 border-indigo-500 border-t-transparent mx-auto mb-2"></div>
-                <p className="text-xs">Searching...</p>
+              <div className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
+                <div className="mx-auto mb-3 h-6 w-6 animate-spin rounded-full border-2 border-indigo-500 border-t-transparent"></div>
+                <p className="text-sm">Searching...</p>
               </div>
             ) : searchResults.length === 0 && searchQuery.trim() ? (
-              <div className="py-6 px-4 text-center text-gray-500 dark:text-gray-400">
-                <Search size={36} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                <p className="text-sm">No results found for "{searchQuery}". Try a different search term.</p>
+              <div className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
+                <Search size={24} className="mx-auto mb-3 text-gray-300 dark:text-gray-600" />
+                <p className="text-sm">No results for <span className="font-medium text-gray-700 dark:text-gray-200">"{searchQuery}"</span></p>
+                <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Try a different search term.</p>
               </div>
             ) : searchResults.length === 0 ? (
-              <div className="py-6 px-4 text-center text-gray-500 dark:text-gray-400">
-                <Search size={36} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
-                <p className="text-sm mb-1">Start typing to search across notes, tasks, decks, and more</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500">Press Esc to close</p>
+              <div className="px-4 py-10 text-center text-gray-500 dark:text-gray-400">
+                <div className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400">
+                  <Search size={18} />
+                </div>
+                <p className="mb-1 text-sm font-medium text-gray-700 dark:text-gray-200">Start typing to search</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">Search across notes, tasks, flashcards, and more</p>
               </div>
             ) : (
               <>
                 {/* Filter Buttons - compact */}
                 {getAvailableFilters().length > 1 && (
-                  <div className="px-4 py-2 border-b border-gray-200 dark:border-[#333333]">
+                  <div className="border-b border-gray-100 px-4 py-3 dark:border-[#333333] sm:px-5">
                     <div className="flex flex-wrap gap-1.5">
                       {getAvailableFilters().map((filter) => (
                         <button
@@ -431,10 +433,10 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                             setActiveFilter(filter.key);
                             setSelectedResultIndex(-1);
                           }}
-                          className={`px-2.5 py-1 text-xs font-medium rounded-md transition-colors ${
+                          className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition-colors ${
                             activeFilter === filter.key
-                              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300'
-                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#333333] dark:text-gray-400 dark:hover:bg-[#2d2d2d]'
+                              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300'
+                              : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-[#2d2d2d] dark:text-gray-400 dark:hover:bg-[#383838]'
                           }`}
                         >
                           {filter.label} ({filter.count})
@@ -445,38 +447,38 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
                 )}
                 
                 {/* Search Results */}
-                <div className="py-1">
+                <div className="space-y-0.5 px-2 py-2 sm:px-3">
                   {getFilteredResults().map((result, index) => (
                     <div
                       key={result.id}
-                      className={`flex items-center px-4 py-2.5 cursor-pointer transition-colors ${
+                      className={`group flex cursor-pointer items-center rounded-xl px-3 py-3 transition-colors ${
                         index === selectedResultIndex 
-                          ? 'bg-indigo-50 dark:bg-indigo-900/20' 
-                          : 'hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                          ? 'bg-indigo-50 dark:bg-indigo-500/10'
+                          : 'hover:bg-gray-50 dark:hover:bg-[#252525]'
                       }`}
                       onClick={() => handleResultClick(result)}
                       onMouseEnter={() => setSelectedResultIndex(index)}
                     >
-                      <div className="mr-3 text-indigo-600 dark:text-indigo-400">{result.icon}</div>
+                      <div className="mr-3 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-100 text-indigo-600 transition-colors group-hover:bg-white dark:bg-[#303030] dark:text-indigo-400 dark:group-hover:bg-[#383838]">{result.icon}</div>
                       <div className="flex-1 min-w-0">
                         <h4 className="text-sm font-medium text-gray-900 dark:text-white truncate">{result.title}</h4>
                         <p className="text-xs text-gray-600 dark:text-gray-400 truncate">{result.description}</p>
                         {result.timestamp && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{format(new Date(result.timestamp), 'MMM d, yyyy')}</p>
+                          <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">{format(new Date(result.timestamp), 'MMM d, yyyy')}</p>
                         )}
                       </div>
-                      <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                        <span className="text-xs text-gray-400 dark:text-gray-500">
+                      <div className="ml-2 flex shrink-0 items-center gap-2">
+                        <span className="text-[11px] text-gray-400 dark:text-gray-500">
                           {result.category}
                         </span>
-                        <ArrowRight size={14} className="text-gray-400 dark:text-gray-500" />
+                        <ArrowRight size={14} className="text-gray-300 transition-colors group-hover:text-indigo-500 dark:text-gray-600 dark:group-hover:text-indigo-400" />
                       </div>
                     </div>
                   ))}
                   
                   {/* No results for current filter */}
                   {getFilteredResults().length === 0 && searchResults.length > 0 && (
-                    <div className="px-4 py-6 text-center text-gray-500 dark:text-gray-400">
+                    <div className="px-4 py-8 text-center text-gray-500 dark:text-gray-400">
                       <p className="text-sm">No results found for the selected filter.</p>
                       <button
                         onClick={(e) => {
@@ -495,13 +497,15 @@ const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, onClose }
             )}
           </div>
 
-          {/* Footer - compact */}
-          <div className="px-4 py-2.5 border-t border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#252525] rounded-b-md">
+          <div className="border-t border-gray-100 bg-gray-50/80 px-5 py-3 dark:border-[#333333] dark:bg-[#252525] sm:px-6">
             <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
               <span>
                 {searchResults.length > 0 ? `${searchResults.length} result${searchResults.length === 1 ? '' : 's'} found` : ''}
               </span>
-              <span>Press Esc to close</span>
+              <span className="flex items-center gap-1.5">
+                <kbd className="rounded border border-gray-200 bg-white px-1.5 py-0.5 text-[10px] font-medium text-gray-500 dark:border-[#444444] dark:bg-[#303030] dark:text-gray-400">Esc</kbd>
+                <span>to close</span>
+              </span>
             </div>
           </div>
         </div>

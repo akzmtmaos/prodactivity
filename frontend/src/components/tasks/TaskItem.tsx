@@ -1,11 +1,11 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
-import axios from 'axios';
 import { Task, Subtask } from '../../types/task';
 import AddSubtaskModal from './AddSubtaskModal';
 import TaskActivityModal from './TaskActivityModal';
 import ShareModal from '../collaboration/ShareModal';
 import AssignTaskModal from '../collaboration/AssignTaskModal';
-import { Share2, UserCheck, Users, Settings, Pencil, Plus } from 'lucide-react';
+import { Users, Settings, Pencil, Plus, CalendarDays, Trash2 } from 'lucide-react';
+import HeaderTooltip from '../common/HeaderTooltip';
 import { supabase } from '../../lib/supabase';
 
 interface TaskItemProps {
@@ -14,7 +14,6 @@ interface TaskItemProps {
   onEdit: (task: Task) => void;
   onDelete: (id: number) => void;
   onTaskCompleted?: (completedTask: any) => void;
-  onCreateGroupTask?: (task: Task) => void;
   compact?: boolean;
 }
 
@@ -24,7 +23,13 @@ const priorityColors: Record<string, string> = {
   low: 'bg-green-500',
 };
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete, onTaskCompleted, onCreateGroupTask, compact = false }) => {
+const priorityPills: Record<string, string> = {
+  high: 'bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400',
+  medium: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
+  low: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400',
+};
+
+const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onDelete, onTaskCompleted, compact = false }) => {
   // Function to check if task is overdue
   const isOverdue = () => {
     if (task.completed) return false; // Don't show late for completed tasks
@@ -70,6 +75,7 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
   const [isSubtasksOpen, setIsSubtasksOpen] = useState(false);
   const [isAddSubtaskOpen, setIsAddSubtaskOpen] = useState(false);
   const [isGearOpen, setIsGearOpen] = useState(false);
+  const [gearMenuDirection, setGearMenuDirection] = useState<'down' | 'up'>('down');
   const gearRef = useRef<HTMLDivElement>(null);
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -172,11 +178,6 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
     }
   };
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('accessToken');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  };
-
   const handleToggleComplete = async () => {
     console.log('TaskItem handleToggleComplete called for task:', task.title);
     console.log('Task completed status:', task.completed);
@@ -198,10 +199,6 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
   const handleActivityLogged = () => {
     // Task completion is now handled by onTaskCompleted callback
     // No need to refresh the page
-  };
-
-  const openActivityModal = () => {
-    setIsActivityModalOpen(true);
   };
 
   const toggleSubtask = async (s: Subtask) => {
@@ -414,23 +411,28 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
         tabIndex={0}
         onClick={handleCardClick}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleCardClick(); } }}
-        className={`group rounded-lg shadow-sm transition hover:shadow-md w-full cursor-pointer ${
-          compact ? 'py-2 px-3 mb-1.5' : 'p-4 mb-3'
+        className={`group relative transition-colors w-full cursor-pointer ${
+          isGearOpen ? 'z-30' : ''
         } ${
-          isOverdue()
-            ? 'bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-800'
-            : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700'
+          compact
+            ? `px-3 py-2.5 hover:bg-gray-50 dark:hover:bg-[#242424] ${isOverdue() ? 'bg-red-50/50 dark:bg-red-900/10' : ''}`
+            : `rounded-lg shadow-sm hover:shadow-md p-4 mb-3 ${
+                isOverdue()
+                  ? 'bg-red-50 dark:bg-red-900/10 border-2 border-red-200 dark:border-red-800'
+                  : 'bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700'
+              }`
         }`}
       >
         {/* Task row – clicks on checkbox or action buttons do not toggle subtasks */}
-        <div className={`flex items-center ${compact ? 'gap-2' : 'gap-4'}`}>
-          {/* Priority color bar */}
-          <div className={`${compact ? 'w-1 h-6' : 'w-1.5 h-10'} rounded-full flex-shrink-0 ${priorityColors[task.priority] || 'bg-gray-300'}`}></div>
+        <div className={`flex ${compact ? 'items-start gap-3' : 'items-center gap-4'}`}>
+          {/* Priority color bar (roomy layout only – compact rows use a pill) */}
+          {!compact && (
+            <div className={`w-1.5 h-10 rounded-full flex-shrink-0 ${priorityColors[task.priority] || 'bg-gray-300'}`}></div>
+          )}
           {/* Checkbox */}
           <input
             type="checkbox"
-            className={`${compact ? 'h-4 w-4' : 'h-5 w-5'} text-indigo-600 focus:ring-indigo-200 focus:ring-2 border-gray-400 rounded-full cursor-pointer flex-shrink-0 bg-transparent checked:bg-indigo-600 checked:border-indigo-600 transition`
-            }
+            className={`${compact ? 'mt-0.5 h-4 w-4 accent-indigo-600' : 'h-5 w-5 accent-indigo-600'} focus:ring-2 focus:ring-indigo-200 border-gray-300 dark:border-gray-600 rounded cursor-pointer flex-shrink-0 bg-transparent transition`}
             checked={task.completed}
             onChange={handleToggleComplete}
             onClick={e => e.stopPropagation()}
@@ -438,18 +440,42 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
           {/* Task main info */}
           <div className="flex-1 min-w-0">
             {compact ? (
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-sm font-medium truncate ${task.completed ? 'text-gray-400 line-through' : 'text-gray-800 dark:text-white'}`}>{task.title}</span>
-                <span className="text-xs text-gray-400 dark:text-gray-500 flex-shrink-0">Due: {new Date(task.dueDate).toLocaleDateString()}</span>
-                <span className={`text-xs font-medium flex-shrink-0 ${
-                  task.priority === 'high' ? 'text-red-500' : task.priority === 'medium' ? 'text-yellow-500' : 'text-green-500'
-                }`}>
-                  <span className={`w-1.5 h-1.5 rounded-full mr-0.5 inline-block align-middle ${priorityColors[task.priority] || 'bg-gray-300'}`}></span>
-                  {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
-                </span>
-                {isOverdue() && (
-                  <span className="text-xs text-red-600 dark:text-red-400 flex-shrink-0">Late</span>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`truncate text-[13px] font-medium ${task.completed ? 'text-gray-400 line-through dark:text-gray-500' : 'text-gray-900 dark:text-gray-100'}`}>
+                    {task.title || 'Untitled task'}
+                  </span>
+                  {isOverdue() && (
+                    <span className="flex-shrink-0 rounded bg-red-50 px-1.5 py-0.5 text-[10px] font-medium text-red-600 dark:bg-red-900/20 dark:text-red-400">
+                      Late
+                    </span>
+                  )}
+                </div>
+                {task.description && (
+                  <p className={`mt-0.5 truncate text-xs ${task.completed ? 'text-gray-300 line-through dark:text-gray-600' : 'text-gray-500 dark:text-gray-400'}`}>
+                    {task.description}
+                  </p>
                 )}
+                <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px]">
+                  <span className="inline-flex items-center gap-1 text-gray-500 dark:text-gray-400">
+                    <CalendarDays size={12} className="flex-shrink-0" />
+                    {new Date(task.dueDate).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                  </span>
+                  {task.task_category && (
+                    <span className={`inline-flex items-center rounded px-1.5 py-0.5 font-medium ${getCategoryColor(task.task_category).bg} ${getCategoryColor(task.task_category).text}`}>
+                      {task.task_category}
+                    </span>
+                  )}
+                  <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 font-medium ${priorityPills[task.priority] || 'bg-gray-100 text-gray-600 dark:bg-[#2b2b2b] dark:text-gray-300'}`}>
+                    <span className={`h-1.5 w-1.5 rounded-full ${priorityColors[task.priority] || 'bg-gray-300'}`}></span>
+                    {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)}
+                  </span>
+                  {task.has_activity && (
+                    <span className="inline-flex items-center rounded bg-gray-100 px-1.5 py-0.5 font-medium text-gray-600 dark:bg-[#2b2b2b] dark:text-gray-300">
+                      Worked on
+                    </span>
+                  )}
+                </div>
               </div>
             ) : (
               <>
@@ -677,23 +703,35 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
             )}
             {/* Subtask count badge (no button – expand by clicking card) */}
             {totalSubtasks > 0 && (
-              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-medium">
-                {completedSubtasks}/{totalSubtasks}
-              </span>
+              <HeaderTooltip label={`${completedSubtasks} of ${totalSubtasks} subtasks done`} fixed>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 font-medium tabular-nums">
+                  {completedSubtasks}/{totalSubtasks}
+                </span>
+              </HeaderTooltip>
             )}
-            {/* Gear menu: Edit Task, Add Subtask – border for UI consistency with notebook list */}
-            <div className="relative" ref={gearRef}>
-              <button
-                type="button"
-                className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center justify-center transition-colors"
-                onClick={(e) => { e.stopPropagation(); setIsGearOpen(prev => !prev); }}
-                title="Task options"
-                aria-expanded={isGearOpen}
-              >
-                <Settings size={14} className="text-gray-500 dark:text-gray-400" />
-              </button>
+            {/* Gear menu: Edit Task, Add Subtask */}
+            <div className="relative z-10" ref={gearRef}>
+              <HeaderTooltip label="Options" fixed>
+                <button
+                  type="button"
+                  className="p-1.5 h-7 w-7 rounded-md text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2b2b2b] flex items-center justify-center transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isGearOpen && gearRef.current) {
+                      const rect = gearRef.current.getBoundingClientRect();
+                      // Open upward when the row sits near the bottom of the viewport
+                      setGearMenuDirection(window.innerHeight - rect.bottom < 180 ? 'up' : 'down');
+                    }
+                    setIsGearOpen(prev => !prev);
+                  }}
+                  aria-label="Task options"
+                  aria-expanded={isGearOpen}
+                >
+                  <Settings size={14} />
+                </button>
+              </HeaderTooltip>
               {isGearOpen && (
-                <div className="absolute right-0 top-full mt-1 min-w-[160px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
+                <div className={`absolute right-0 ${gearMenuDirection === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'} min-w-[160px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1`}>
                   <button
                     type="button"
                     className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] flex items-center gap-2"
@@ -717,32 +755,19 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleComplete, onEdit, onD
                     <Plus size={14} />
                     Add Subtask
                   </button>
-                  {onCreateGroupTask && (
-                    <button
-                      type="button"
-                      className="w-full px-3 py-2 text-left text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] flex items-center gap-2"
-                      onClick={() => {
-                        setIsGearOpen(false);
-                        onCreateGroupTask(task);
-                      }}
-                    >
-                      <Users size={14} />
-                      Create group task
-                    </button>
-                  )}
                 </div>
               )}
             </div>
-            <button
-              type="button"
-              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:border-red-300 dark:hover:border-red-800 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center transition-colors"
-              onClick={() => onDelete(task.id)}
-              title="Delete"
-            >
-              <svg className="h-4 w-4 text-current" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            <HeaderTooltip label="Delete" fixed>
+              <button
+                type="button"
+                className="p-1.5 h-7 w-7 rounded-md text-gray-400 hover:text-red-600 dark:text-gray-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center justify-center transition-colors"
+                onClick={() => onDelete(task.id)}
+                aria-label="Delete task"
+              >
+                <Trash2 size={14} />
+              </button>
+            </HeaderTooltip>
           </div>
         </div>
 

@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, BookOpen, Plus, Edit2, Trash2, ChevronRight, Play, HelpCircle, ChevronLeft, FileText, X } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import Pagination from '../components/common/Pagination';
+import TabBar from '../components/common/TabBar';
 import CreateDeckModal from '../components/decks/CreateDeckModal';
 import DeleteConfirmationModal from '../components/decks/DeleteConfirmationModal';
 import EditDeckModal from '../components/decks/EditDeckModal';
@@ -663,28 +664,16 @@ const DeckDetails: React.FC = () => {
 
           {/* Tabs Bar: tabs left, actions right (same pattern as Decks/Tasks) */}
           <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-4 gap-4 flex-wrap">
-            <div className="flex space-x-4">
-              <button
-                onClick={() => setActiveTab('subdecks')}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'subdecks'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                Subdecks
-              </button>
-              <button
-                onClick={() => setActiveTab('flashcards')}
-                className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'flashcards'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-              >
-                Flashcards
-              </button>
-            </div>
+            <TabBar
+              bare
+              ariaLabel="Deck sections"
+              value={activeTab}
+              onChange={setActiveTab}
+              items={[
+                { id: 'subdecks', label: 'Subdecks' },
+                { id: 'flashcards', label: 'Flashcards' },
+              ]}
+            />
             <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
               <button
                 type="button"
@@ -932,7 +921,7 @@ const DeckDetails: React.FC = () => {
                       
                       return (
                         <>
-                          <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                           {paginatedFlashcards.map(card => (
                     <div key={card.id} className="relative bg-white dark:bg-[#252525] rounded-xl border border-gray-200 dark:border-[#333333] overflow-hidden transition-shadow hover:shadow-md">
                       <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-xl" />

@@ -1,203 +1,181 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { format } from 'date-fns';
+import { Archive, ChevronDown, ChevronUp, Clock, Repeat, Trash2 } from 'lucide-react';
 import { PastEvent } from '../../types/schedule';
-import { Calendar, Clock, CheckCircle, Circle, FileText, Repeat, ChevronDown, ChevronUp } from 'lucide-react';
+import { getCategoryLabel, getCategoryStyle } from '../../utils/scheduleCategories';
+import HeaderTooltip from '../common/HeaderTooltip';
 
 interface PastEventsProps {
   pastEvents: PastEvent[];
-  onViewEvent: (event: PastEvent) => void;
-  onMarkCompleted?: (eventId: string, completed: boolean) => void;
   onRecurEvent?: (event: PastEvent) => void;
+  onDeleteEvent?: (id: string) => void;
   currentPage?: number;
   itemsPerPage?: number;
 }
 
-const PastEvents: React.FC<PastEventsProps> = ({ 
-  pastEvents, 
-  onViewEvent, 
-  onMarkCompleted, 
+const PastEvents: React.FC<PastEventsProps> = ({
+  pastEvents,
   onRecurEvent,
+  onDeleteEvent,
   currentPage = 1,
-  itemsPerPage = 8
+  itemsPerPage = 8,
 }) => {
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const getCategoryColor = (category: string) => {
-    const colors: { [key: string]: string } = {
-      study: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-700',
-      assignment: 'bg-yellow-50 text-yellow-700 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-700',
-      exam: 'bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-700',
-      meeting: 'bg-green-50 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-700',
-      other: 'bg-gray-50 text-gray-700 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700',
-    };
-    return colors[category] || colors.other;
-  };
-
-  const getCompletionStatus = (event: PastEvent) => {
-    if (event.completedAt) {
-      return {
-        icon: <CheckCircle className="h-4 w-4 text-green-500" />,
-        text: 'Completed',
-        color: 'text-green-600 dark:text-green-400',
-      };
-    } else {
-      return {
-        icon: <Circle className="h-4 w-4 text-gray-400" />,
-        text: 'Pending',
-        color: 'text-gray-500 dark:text-gray-400',
-      };
-    }
-  };
-
-  // Sort and paginate events
-  const { sortedEvents, paginatedEvents } = useMemo(() => {
-    const sorted = [...pastEvents].sort((a, b) => 
-      new Date(b.date).getTime() - new Date(a.date).getTime()
-    );
-    
+  const pageEvents = useMemo(() => {
+    const sorted = [...pastEvents].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginated = sorted.slice(startIndex, endIndex);
-    
-    return { sortedEvents: sorted, paginatedEvents: paginated };
+    return sorted.slice(startIndex, startIndex + itemsPerPage);
   }, [pastEvents, currentPage, itemsPerPage]);
+
+  const monthGroups = useMemo(() => {
+    const grouped = new Map<string, PastEvent[]>();
+    pageEvents.forEach((event) => {
+      const key = format(new Date(event.date), 'MMMM yyyy');
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.push(event);
+      } else {
+        grouped.set(key, [event]);
+      }
+    });
+    return Array.from(grouped.entries());
+  }, [pageEvents]);
 
   if (pastEvents.length === 0) {
     return (
-      <div className="text-center py-10">
-        <FileText className="mx-auto h-10 w-10 text-gray-400 dark:text-gray-500" />
-        <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">No past events</h3>
-        <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-          Past events will appear here once they're completed or archived.
+      <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-gray-200 px-6 py-14 text-center dark:border-[#333333]">
+        <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-[#2b2b2b]">
+          <Archive size={18} className="text-gray-400 dark:text-gray-500" />
+        </div>
+        <p className="text-sm font-medium text-gray-900 dark:text-white">Nothing archived yet</p>
+        <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-gray-400">
+          Events move here once their end time has passed, so you can look back or repeat them.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-2">
-      {paginatedEvents.map((event) => {
-        const status = getCompletionStatus(event);
-        const isExpanded = expandedId === event.id;
-        
-        return (
-          <div
-            key={event.id}
-            className="rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] hover:border-gray-300 dark:hover:border-[#404040] transition-colors"
-          >
-            <div className="p-3">
-              <div className="flex items-start justify-between gap-3">
-                {/* Left side - Main content */}
-                <div className="flex-1 min-w-0 space-y-2">
-                  {/* Title and Category Row */}
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                      {status.icon}
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                        {event.title}
-                      </h3>
-                    </div>
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border ${getCategoryColor(event.category)} whitespace-nowrap`}>
-                      {event.category}
-                    </span>
-                    {event.wasRecurring && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200 dark:bg-purple-900/30 dark:text-purple-300 dark:border-purple-700 whitespace-nowrap">
-                        <Repeat className="h-3 w-3 mr-1" />
-                        Recurring
+    <div className="space-y-5">
+      {monthGroups.map(([month, monthEvents]) => (
+        <section key={month}>
+          <div className="mb-1.5 flex items-baseline gap-2 px-1">
+            <h3 className="text-[11px] font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
+              {month}
+            </h3>
+            <span className="text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
+              {monthEvents.length} event{monthEvents.length === 1 ? '' : 's'}
+            </span>
+          </div>
+
+          <div className="divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white dark:divide-[#2b2b2b] dark:border-[#2f2f2f] dark:bg-[#1e1e1e]">
+            {monthEvents.map((event) => {
+              const style = getCategoryStyle(event.category);
+              const isExpanded = expandedId === event.id;
+              const date = new Date(event.date);
+              return (
+                <div key={event.id} className="group px-3 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-[#242424]">
+                  <div className="flex items-center gap-3">
+                    <div className="flex w-10 shrink-0 flex-col items-center rounded-md bg-gray-50 py-1 dark:bg-[#252525]">
+                      <span className="text-[10px] font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                        {format(date, 'MMM')}
                       </span>
-                    )}
+                      <span className="text-[15px] font-semibold leading-none tabular-nums text-gray-800 dark:text-gray-200">
+                        {format(date, 'd')}
+                      </span>
+                    </div>
+
+                    <span className={`h-8 w-0.5 shrink-0 rounded-full ${style.bar}`} aria-hidden />
+
+                    <button
+                      type="button"
+                      onClick={() => setExpandedId(isExpanded ? null : event.id)}
+                      className="min-w-0 flex-1 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400"
+                      aria-expanded={isExpanded}
+                    >
+                      <span className="flex min-w-0 items-center gap-2">
+                        <span className="truncate text-[13px] font-medium text-gray-900 dark:text-white">
+                          {event.title}
+                        </span>
+                        <span className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium ${style.chip}`}>
+                          {getCategoryLabel(event.category)}
+                        </span>
+                        {event.wasRecurring && (
+                          <span className="shrink-0 rounded border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[10px] font-medium text-violet-700 dark:border-violet-900/60 dark:bg-violet-950/40 dark:text-violet-300">
+                            Recurring
+                          </span>
+                        )}
+                      </span>
+                      <span className="mt-0.5 flex items-center gap-1 text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
+                        <Clock size={11} />
+                        {event.startTime} – {event.endTime}
+                        {event.description && !isExpanded && (
+                          <span className="ml-1 truncate text-gray-400 dark:text-gray-500">· {event.description}</span>
+                        )}
+                      </span>
+                    </button>
+
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      {onRecurEvent && (
+                        <HeaderTooltip label="Repeat this event" fixed>
+                          <button
+                            type="button"
+                            onClick={() => onRecurEvent(event)}
+                            className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-violet-50 hover:text-violet-600 dark:text-gray-500 dark:hover:bg-violet-900/20 dark:hover:text-violet-400"
+                            aria-label={`Repeat ${event.title}`}
+                          >
+                            <Repeat size={13} />
+                          </button>
+                        </HeaderTooltip>
+                      )}
+                      {onDeleteEvent && (
+                        <HeaderTooltip label="Delete event" fixed>
+                          <button
+                            type="button"
+                            onClick={() => onDeleteEvent(event.id)}
+                            className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 dark:text-gray-500 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+                            aria-label={`Delete ${event.title}`}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </HeaderTooltip>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId(isExpanded ? null : event.id)}
+                        className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:text-gray-500 dark:hover:bg-[#2d2d2d] dark:hover:text-gray-300"
+                        aria-label={isExpanded ? 'Hide details' : 'Show details'}
+                      >
+                        {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                    </div>
                   </div>
 
-                  {/* Date, Time, and Status Row */}
-                  <div className="flex items-center gap-4 text-xs text-gray-600 dark:text-gray-400 flex-wrap">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5" />
-                      <span>{format(new Date(event.date), 'MMM dd, yyyy')}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Clock className="h-3.5 w-3.5" />
-                      <span>{event.startTime} - {event.endTime}</span>
-                    </div>
-                    <span className={status.color}>{status.text}</span>
-                  </div>
-
-                  {/* Description - Collapsed by default */}
-                  {event.description && !isExpanded && (
-                    <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-1">
-                      {event.description}
-                    </p>
-                  )}
-
-                  {/* Expanded Content */}
                   {isExpanded && (
-                    <div className="pt-2 space-y-2 border-t border-gray-100 dark:border-gray-700">
-                      {event.description && (
-                        <p className="text-xs text-gray-600 dark:text-gray-300">
-                          {event.description}
-                        </p>
+                    <div className="mt-2 space-y-2 border-t border-gray-100 pl-[3.25rem] pt-2 dark:border-[#2b2b2b]">
+                      {event.description ? (
+                        <p className="text-xs text-gray-600 dark:text-gray-300">{event.description}</p>
+                      ) : (
+                        <p className="text-xs text-gray-400 dark:text-gray-500">No description.</p>
                       )}
                       {event.notes && (
-                        <div className="p-2 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-700 rounded text-xs text-yellow-800 dark:text-yellow-200">
-                          <strong>Notes:</strong> {event.notes}
-                        </div>
+                        <p className="rounded-md border border-amber-200 bg-amber-50 px-2 py-1.5 text-xs text-amber-800 dark:border-amber-900/60 dark:bg-amber-950/30 dark:text-amber-200">
+                          <span className="font-medium">Notes:</span> {event.notes}
+                        </p>
                       )}
-                      {event.completedAt && (
-                        <div className="text-xs text-gray-500 dark:text-gray-400">
-                          Completed at: {format(new Date(event.completedAt), 'MMM dd, yyyy HH:mm')}
-                        </div>
-                      )}
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                        {format(new Date(event.date), 'EEEE, MMM d, yyyy')} · {event.startTime} – {event.endTime}
+                        {event.completedAt && ` · completed ${format(new Date(event.completedAt), 'MMM d, HH:mm')}`}
+                      </p>
                     </div>
                   )}
                 </div>
-
-                {/* Right side - Actions */}
-                <div className="flex items-center gap-1.5 flex-shrink-0">
-                  {onRecurEvent && (
-                    <button
-                      onClick={() => onRecurEvent(event)}
-                      className="h-7 px-2 text-xs font-medium text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/30 dark:text-purple-400 rounded-md transition-colors flex items-center gap-1"
-                      title="Create a recurring event with same details"
-                    >
-                      <Repeat size={12} />
-                      <span className="hidden sm:inline">Recur</span>
-                    </button>
-                  )}
-                  {onMarkCompleted && (
-                    <button
-                      onClick={() => onMarkCompleted(event.id, !event.completedAt)}
-                      className={`h-7 px-2 text-xs font-medium rounded-md transition-colors ${
-                        event.completedAt
-                          ? 'text-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 dark:text-gray-400'
-                          : 'text-green-600 hover:bg-green-50 dark:hover:bg-green-900/30 dark:text-green-400'
-                      }`}
-                      title={event.completedAt ? 'Mark as not completed' : 'Mark as completed'}
-                    >
-                      {event.completedAt ? 'Undo' : 'Complete'}
-                    </button>
-                  )}
-                  <button
-                    onClick={() => onViewEvent(event)}
-                    className="h-7 px-2 text-xs font-medium text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 dark:text-indigo-400 rounded-md transition-colors"
-                  >
-                    View
-                  </button>
-                  <button
-                    onClick={() => setExpandedId(isExpanded ? null : event.id)}
-                    className="p-1.5 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md transition-colors"
-                    aria-label={isExpanded ? 'Collapse' : 'Expand'}
-                  >
-                    {isExpanded ? (
-                      <ChevronUp className="h-4 w-4" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
-        );
-      })}
+        </section>
+      ))}
     </div>
   );
 };

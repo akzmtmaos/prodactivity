@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Plus, Search, BookOpen, TrendingUp, Clock, Target, FileText, ChevronDown, LayoutList, Play, X, Pencil, Trash2, Filter } from 'lucide-react';
+import { Plus, Search, BookOpen, TrendingUp, Clock, Target, FileText, ChevronDown, ChevronLeft, ChevronRight, LayoutList, Play, X, Pencil, Trash2, Filter, BarChart2, Users, MoreVertical, Archive, RotateCcw } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import Pagination from '../components/common/Pagination';
 import DeckCard from '../components/decks/DeckCard';
@@ -21,6 +21,7 @@ import { truncateHtmlContent } from '../utils/htmlUtils';
 import { API_BASE_URL } from '../config/api';
 import axiosInstance from '../utils/axiosConfig';
 import HeaderTooltip from '../components/common/HeaderTooltip';
+import TabBar from '../components/common/TabBar';
 
 interface FlashcardData {
   id: string;
@@ -28,6 +29,7 @@ interface FlashcardData {
   answer: string;
   front?: string;
   back?: string;
+  created_at?: string;
   difficulty?: 'easy' | 'medium' | 'hard';
 }
 
@@ -46,6 +48,72 @@ interface Deck {
   is_archived: boolean;
   archived_at?: string;
 }
+
+// Year the account was created, used to bound the Stats tab's year picker.
+// Returns null when the stored session has no usable join date.
+const getAccountCreatedYear = (): number | null => {
+  try {
+    const stored = JSON.parse(localStorage.getItem('user') || '{}');
+    const joined =
+      stored?.date_joined ||
+      stored?.created_at ||
+      stored?.createdAt ||
+      stored?.joinedAt ||
+      stored?.dateJoined;
+    if (!joined) return null;
+    const year = new Date(joined).getFullYear();
+    return Number.isFinite(year) ? year : null;
+  } catch {
+    return null;
+  }
+};
+
+type DecksTab = 'decks' | 'archived' | 'stats' | 'groupQuizzes';
+
+// Each Decks tab has its own URL so it can be linked to and navigated with back/forward
+const TAB_PATHS: Record<DecksTab, string> = {
+  decks: '/decks',
+  archived: '/decks/archive',
+  stats: '/stats',
+  groupQuizzes: '/group-quizzes',
+};
+
+const pathToTab = (pathname: string): DecksTab => {
+  const match = (Object.keys(TAB_PATHS) as DecksTab[]).find(tab => TAB_PATHS[tab] === pathname);
+  return match ?? 'decks';
+};
+
+interface StatsYearPickerProps {
+  year: number;
+  earliestYear: number;
+  latestYear: number;
+  onChange: (year: number) => void;
+}
+
+// Shared year control so both growth charts stay on the same year
+const StatsYearPicker = ({ year, earliestYear, latestYear, onChange }: StatsYearPickerProps) => (
+  <div className="flex items-center gap-1">
+    <button
+      type="button"
+      onClick={() => onChange(Math.max(earliestYear, year - 1))}
+      disabled={year <= earliestYear}
+      className="p-1 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      aria-label="Previous year"
+    >
+      <ChevronLeft size={16} />
+    </button>
+    <span className="px-2 text-sm font-medium text-gray-900 dark:text-white tabular-nums">{year}</span>
+    <button
+      type="button"
+      onClick={() => onChange(Math.min(latestYear, year + 1))}
+      disabled={year >= latestYear}
+      className="p-1 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+      aria-label="Next year"
+    >
+      <ChevronRight size={16} />
+    </button>
+  </div>
+);
 
 interface DeckStats {
   totalCards: number;
@@ -88,7 +156,13 @@ const Decks = () => {
   const [showNoFlashcardsModal, setShowNoFlashcardsModal] = useState(false);
 
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [activeTab, setActiveTab] = useState<'decks' | 'archived' | 'stats' | 'groupQuizzes'>('decks');
+  // Derived from the URL rather than local state, so switching tabs updates the address
+  const activeTab = pathToTab(location.pathname);
+  const setActiveTab = (tab: DecksTab) => navigate(TAB_PATHS[tab]);
+  // Each growth chart keeps its own year, so changing one leaves the other alone
+  const [statsYear, setStatsYear] = useState(() => new Date().getFullYear());
+  const [statsCardsYear, setStatsCardsYear] = useState(() => new Date().getFullYear());
+  const [accountCreatedYear] = useState(getAccountCreatedYear);
   const [groupQuizzes, setGroupQuizzes] = useState<any[]>([]);
   const [loadingGroupQuizzes, setLoadingGroupQuizzes] = useState(false);
   const [showCreateGroupQuiz, setShowCreateGroupQuiz] = useState(false);
@@ -96,6 +170,14 @@ const Decks = () => {
   const [showGroupQuizResults, setShowGroupQuizResults] = useState(false);
   const [selectedGroupQuizIdForResults, setSelectedGroupQuizIdForResults] = useState<string | null>(null);
   const [activeGroupQuizId, setActiveGroupQuizId] = useState<string | null>(null);
+  // Group quiz toolbar: search + status filter
+  const [groupQuizSearchTerm, setGroupQuizSearchTerm] = useState('');
+  const [groupQuizFilter, setGroupQuizFilter] = useState<'all' | 'invited' | 'accepted' | 'completed'>('all');
+  const [groupQuizFilterOpen, setGroupQuizFilterOpen] = useState(false);
+  const groupQuizFilterRef = useRef<HTMLDivElement | null>(null);
+  // Group quiz awaiting delete confirmation
+  const [groupQuizPendingDelete, setGroupQuizPendingDelete] = useState<any | null>(null);
+  const [deletingGroupQuiz, setDeletingGroupQuiz] = useState(false);
   const [currentPage, setCurrentPage] = useState<number>(1);
   const [currentArchivedPage, setCurrentArchivedPage] = useState<number>(1);
   const PAGE_SIZE = 20;
@@ -114,6 +196,16 @@ const Decks = () => {
     }
   });
 
+  // Group quizzes offer the same comfortable card / compact row choice as decks
+  const [groupQuizViewMode, setGroupQuizViewMode] = useState<'comfortable' | 'compact'>(() => {
+    try {
+      const saved = localStorage.getItem('prodactivity-group-quizzes-view');
+      return saved === 'compact' ? 'compact' : 'comfortable';
+    } catch {
+      return 'comfortable';
+    }
+  });
+
   // Bulk delete decks (Delete Section) – same pattern as Notebooks
   const [showBulkDeleteDecksModal, setShowBulkDeleteDecksModal] = useState(false);
   const [selectedDecksForDelete, setSelectedDecksForDelete] = useState<string[]>([]);
@@ -126,6 +218,54 @@ const Decks = () => {
       // ignore
     }
   }, [deckListViewMode]);
+
+  // Compact deck rows open the same action menu as the comfortable deck cards. It is
+  // rendered `fixed` because the list is a scroll container that would clip it.
+  const [deckRowMenuId, setDeckRowMenuId] = useState<string | null>(null);
+  const [deckRowMenuPos, setDeckRowMenuPos] = useState<{ top?: number; bottom?: number; right: number }>({ right: 12 });
+
+  const toggleDeckRowMenu = (deckId: string, e: React.MouseEvent<HTMLElement>) => {
+    e.stopPropagation();
+    if (deckRowMenuId === deckId) {
+      setDeckRowMenuId(null);
+      return;
+    }
+    const rect = e.currentTarget.getBoundingClientRect();
+    const gap = 6;
+    const openUpward = rect.bottom + gap + 260 > window.innerHeight - 8;
+    setDeckRowMenuPos({
+      top: openUpward ? undefined : rect.bottom + gap,
+      bottom: openUpward ? window.innerHeight - rect.top + gap : undefined,
+      right: Math.min(Math.max(8, window.innerWidth - rect.right), Math.max(8, window.innerWidth - 208 - 8)),
+    });
+    setDeckRowMenuId(deckId);
+  };
+
+  useEffect(() => {
+    if (!deckRowMenuId) return;
+    const close = () => setDeckRowMenuId(null);
+    const onMouseDown = (ev: MouseEvent) => {
+      const target = ev.target as HTMLElement | null;
+      if (target?.closest('[data-deck-row-menu]') || target?.closest('[data-deck-row-menu-trigger]')) return;
+      close();
+    };
+    document.addEventListener('scroll', close, true);
+    document.addEventListener('mousedown', onMouseDown);
+    window.addEventListener('resize', close);
+    return () => {
+      document.removeEventListener('scroll', close, true);
+      document.removeEventListener('mousedown', onMouseDown);
+      window.removeEventListener('resize', close);
+    };
+  }, [deckRowMenuId]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('prodactivity-group-quizzes-view', groupQuizViewMode);
+    } catch {
+      // ignore
+    }
+  }, [groupQuizViewMode]);
 
   // Notes -> Flashcards conversion modal state
 interface Notebook {
@@ -222,6 +362,26 @@ interface NoteItem {
     currentUserIdForGroupQuizzes = null;
   }
 
+  // Per-quiz state shared by the comfortable card and the compact row
+  const getGroupQuizView = (gq: any) => {
+    const myPart = (gq.participants || []).find((p: any) => {
+      if (currentUserIdForGroupQuizzes == null) return false;
+      // Support numeric or string ids from backend
+      return (
+        p.user_id === currentUserIdForGroupQuizzes ||
+        p.user_id === Number(currentUserIdForGroupQuizzes)
+      );
+    });
+    const total = gq.participant_count || 0;
+    const done = gq.completed_participants_count || 0;
+    return {
+      myStatus: myPart?.status ?? 'invited',
+      total,
+      done,
+      completion: total > 0 ? Math.round((done / total) * 100) : 0,
+    };
+  };
+
   const getDeckProgressColor = (progress: number) => {
     if (progress >= 80) return 'bg-green-500';
     if (progress >= 50) return 'bg-yellow-500';
@@ -303,12 +463,15 @@ interface NoteItem {
       if (deckFilterRef.current && !deckFilterRef.current.contains(target)) {
         setDeckFilterOpen(false);
       }
+      if (groupQuizFilterRef.current && !groupQuizFilterRef.current.contains(target)) {
+        setGroupQuizFilterOpen(false);
+      }
     };
-    if (deckSortOpen || deckFilterOpen) {
+    if (deckSortOpen || deckFilterOpen || groupQuizFilterOpen) {
       document.addEventListener('mousedown', handleClickOutside);
       return () => document.removeEventListener('mousedown', handleClickOutside);
     }
-  }, [deckSortOpen, deckFilterOpen]);
+  }, [deckSortOpen, deckFilterOpen, groupQuizFilterOpen]);
 
   useEffect(() => {
     if (!showConvertModal || !convertNotebookDropdownOpen) return;
@@ -433,6 +596,7 @@ interface NoteItem {
             answer: fc.back,
             front: fc.front,
             back: fc.back,
+            created_at: fc.created_at,
             difficulty: undefined
           })),
           subDecks: [],
@@ -499,6 +663,7 @@ interface NoteItem {
               answer: fc.back,
               front: fc.front,
               back: fc.back,
+              created_at: fc.created_at,
               difficulty: undefined
             })),
             subDecks: (deck.sub_decks || []).map((sd: any) => ({
@@ -539,6 +704,7 @@ interface NoteItem {
             answer: fc.back,
             front: fc.front,
             back: fc.back,
+            created_at: fc.created_at,
                 difficulty: undefined
               })),
               subDecks: (deck.sub_decks || []).map((sd: any) => ({
@@ -605,9 +771,60 @@ interface NoteItem {
     }
   };
 
+  const isGroupQuizCreator = (gq: any) =>
+    currentUserIdForGroupQuizzes != null &&
+    String(gq?.created_by_id) === String(currentUserIdForGroupQuizzes);
+
+  // The API cancels rather than hard-deletes, and only the creator may do it
+  const handleDeleteGroupQuiz = (gq: any) => setGroupQuizPendingDelete(gq);
+
+  const confirmDeleteGroupQuiz = async () => {
+    if (!groupQuizPendingDelete) return;
+    setDeletingGroupQuiz(true);
+    try {
+      await axiosInstance.delete(`/decks/group-quizzes/${groupQuizPendingDelete.id}/`);
+      setGroupQuizzes(prev =>
+        prev.filter((item: any) => String(item.id) !== String(groupQuizPendingDelete.id))
+      );
+      setToast({ message: 'Group quiz deleted', type: 'success' });
+      setGroupQuizPendingDelete(null);
+    } catch (e) {
+      console.error(e);
+      setToast({ message: 'Failed to delete group quiz', type: 'error' });
+    } finally {
+      setDeletingGroupQuiz(false);
+    }
+  };
+
   const handleTakeGroupQuiz = async (gq: any) => {
     const deckId = gq.deck_id?.toString() ?? gq.deck_id;
     let deck = decks.find((d: Deck) => d.id === deckId) || archivedDecks.find((d: Deck) => d.id === deckId);
+
+    // An invited participant doesn't own the quiz's deck and the deck endpoints are
+    // scoped to the owner, so fall back to the cards carried by the group quiz itself.
+    if (!deck && Array.isArray(gq.deck_flashcards)) {
+      const quizCards = gq.deck_flashcards.map((fc: any) => ({
+        id: String(fc.id),
+        question: fc.front,
+        answer: fc.back,
+        front: fc.front,
+        back: fc.back
+      }));
+      deck = {
+        id: deckId,
+        title: gq.deck_title || 'Group Quiz',
+        flashcardCount: quizCards.length,
+        progress: 0,
+        created_at: gq.created_at,
+        updated_at: gq.created_at,
+        createdAt: gq.created_at,
+        flashcards: quizCards,
+        subDecks: [],
+        is_deleted: false,
+        is_archived: false
+      };
+    }
+
     if (!deck) {
       try {
         const res = await axiosInstance.get(`/decks/decks/${deckId}/`);
@@ -626,6 +843,7 @@ interface NoteItem {
             answer: fc.back,
             front: fc.front,
             back: fc.back,
+            created_at: fc.created_at,
             difficulty: fc.difficulty
           })),
           subDecks: d.sub_decks || [],
@@ -1157,12 +1375,142 @@ interface NoteItem {
   const endArchivedIndex = startArchivedIndex + PAGE_SIZE;
   const pagedArchivedDecks = filteredArchivedDecks.slice(startArchivedIndex, endArchivedIndex);
 
+  // Group quizzes: search across the quiz, its deck and its creator, then filter by my status
+  const groupQuizSearch = groupQuizSearchTerm.trim().toLowerCase();
+  // Deleted group quizzes are cancelled server-side, so hide them from the tab
+  const visibleGroupQuizzes = (groupQuizzes || []).filter((gq: any) => gq?.status !== 'cancelled');
+  const filteredGroupQuizzes = visibleGroupQuizzes.filter((gq: any) => {
+    const matchesSearch =
+      !groupQuizSearch ||
+      [gq?.title, gq?.deck_title, gq?.created_by_username]
+        .some(value => (value || '').toString().toLowerCase().includes(groupQuizSearch));
+    if (!matchesSearch) return false;
+    if (groupQuizFilter === 'all') return true;
+    const { myStatus } = getGroupQuizView(gq);
+    // A closed quiz shows View Results, so it belongs under Completed even if I never took it
+    const effectiveStatus = myStatus === 'completed' || gq?.status === 'completed' ? 'completed' : myStatus;
+    return effectiveStatus === groupQuizFilter;
+  });
+
   // Calculate summary stats
   const totalDecks = decks.length;
   const totalCards = decks.reduce((sum, deck) => sum + deck.flashcardCount, 0);
   const averageProgress = decks.length > 0 
     ? Math.round(decks.reduce((sum, deck) => sum + deck.progress, 0) / decks.length)
     : 0;
+
+  // ---- Stats tab insights (active top-level decks only, matching the tiles above) ----
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  const notStartedDecks = decks.filter(d => (d.progress || 0) === 0);
+  const inProgressDecks = decks.filter(d => (d.progress || 0) > 0 && (d.progress || 0) < 100);
+  const masteredDecks = decks.filter(d => (d.progress || 0) >= 100);
+
+  const cardsInProgressDecks = decks
+    .filter(d => (d.progress || 0) > 0)
+    .reduce((sum, d) => sum + (d.flashcardCount || 0), 0);
+  const cardsInUntouchedDecks = notStartedDecks.reduce((sum, d) => sum + (d.flashcardCount || 0), 0);
+  const emptyDecks = decks.filter(d => (d.flashcardCount || 0) === 0).length;
+  const studiedCoverage = totalCards > 0 ? Math.round((cardsInProgressDecks / totalCards) * 100) : 0;
+
+  const deckStatus = [
+    { label: 'Not started', count: notStartedDecks.length, color: 'bg-gray-400 dark:bg-gray-500' },
+    { label: 'In progress', count: inProgressDecks.length, color: 'bg-amber-500 dark:bg-amber-400' },
+    { label: 'Mastered', count: masteredDecks.length, color: 'bg-emerald-500 dark:bg-emerald-400' },
+  ];
+  const statusPercent = (count: number) => (totalDecks > 0 ? Math.round((count / totalDecks) * 100) : 0);
+
+  const progressBuckets = [
+    { label: '0%', match: (p: number) => p === 0 },
+    { label: '1-25%', match: (p: number) => p > 0 && p <= 25 },
+    { label: '26-50%', match: (p: number) => p > 25 && p <= 50 },
+    { label: '51-75%', match: (p: number) => p > 50 && p <= 75 },
+    { label: '76-99%', match: (p: number) => p > 75 && p < 100 },
+    { label: '100%', match: (p: number) => p >= 100 },
+  ].map(bucket => ({ label: bucket.label, count: decks.filter(d => bucket.match(d.progress || 0)).length }));
+  const busiestBucket = Math.max(1, ...progressBuckets.map(b => b.count));
+
+  const lastActivityAt = (deck: Deck): number | null => {
+    const raw = deck.updated_at || deck.created_at || deck.createdAt;
+    if (!raw) return null;
+    const time = new Date(raw).getTime();
+    return Number.isFinite(time) ? time : null;
+  };
+
+  const describeAge = (time: number | null) => {
+    if (time === null) return 'No activity yet';
+    const days = Math.floor((Date.now() - time) / DAY_MS);
+    if (days <= 0) return 'Today';
+    if (days === 1) return 'Yesterday';
+    if (days < 30) return `${days} days ago`;
+    const months = Math.floor(days / 30);
+    return months === 1 ? '1 month ago' : `${months} months ago`;
+  };
+
+  const staleDecks = decks
+    .map(deck => ({ deck, touched: lastActivityAt(deck) }))
+    .filter(entry => entry.touched !== null)
+    .sort((a, b) => (a.touched as number) - (b.touched as number))
+    .slice(0, 5);
+
+  // Decks and cards added per month across the selected year (Jan - Dec)
+  const monthlyGrowth = Array.from({ length: 12 }, (_, monthIndex) => ({
+    label: new Date(statsYear, monthIndex, 1).toLocaleString('en-US', { month: 'short' }),
+    monthIndex,
+    decks: 0,
+    cards: 0,
+  }));
+  decks.forEach(deck => {
+    const raw = deck.created_at || deck.createdAt;
+    if (!raw) return;
+    const created = new Date(raw);
+    if (created.getFullYear() !== statsYear) return;
+    const bucket = monthlyGrowth[created.getMonth()];
+    if (bucket) {
+      bucket.decks += 1;
+      bucket.cards += deck.flashcardCount || 0;
+    }
+  });
+  const busiestMonth = Math.max(1, ...monthlyGrowth.map(b => b.decks));
+  const decksAddedInYear = monthlyGrowth.reduce((sum, bucket) => sum + bucket.decks, 0);
+  const currentYear = new Date().getFullYear();
+
+  // Flashcards added per month, counted per card rather than per deck
+  const monthlyCardGrowth = Array.from({ length: 12 }, (_, monthIndex) => ({
+    label: new Date(statsCardsYear, monthIndex, 1).toLocaleString('en-US', { month: 'short' }),
+    monthIndex,
+    cards: 0,
+  }));
+  decks.forEach(deck => {
+    const deckCreated = new Date(deck.created_at || deck.createdAt || '');
+    (deck.flashcards || []).forEach(card => {
+      // Cards saved before the timestamp was kept fall back to their deck's date
+      const raw =
+        card.created_at ||
+        (Number.isFinite(deckCreated.getTime()) ? deckCreated.toISOString() : '');
+      if (!raw) return;
+      const created = new Date(raw);
+      if (!Number.isFinite(created.getTime()) || created.getFullYear() !== statsCardsYear) return;
+      const bucket = monthlyCardGrowth[created.getMonth()];
+      if (bucket) bucket.cards += 1;
+    });
+  });
+  const busiestCardMonth = Math.max(1, ...monthlyCardGrowth.map(b => b.cards));
+  const cardsAddedInYear = monthlyCardGrowth.reduce((sum, bucket) => sum + bucket.cards, 0);
+
+  // The year picker stops at the account's first year (or the oldest deck, if data
+  // predates it), so it can't run back through empty years. Implausible dates are ignored.
+  const plausibleYear = (year: number | null | undefined): number | null =>
+    year !== null && year !== undefined && Number.isFinite(year) && year >= 2000 && year <= currentYear
+      ? year
+      : null;
+  const deckCreatedYears = decks
+    .map(deck => plausibleYear(new Date(deck.created_at || deck.createdAt || '').getFullYear()))
+    .filter((year): year is number => year !== null);
+  const earliestStatsYear = Math.min(
+    currentYear,
+    ...[plausibleYear(accountCreatedYear), ...deckCreatedYears].filter((year): year is number => year !== null)
+  );
 
   const generateDeckStats = (deck: Deck): DeckStats => {
     const notStartedCards = deck.flashcards.filter(card => !card.difficulty).length;
@@ -1180,6 +1528,43 @@ interface NoteItem {
       weeklyProgress: Array.from({ length: 7 }, () => Math.floor(Math.random() * 20))
     };
   };
+
+  /** Deck actions for compact rows — identical to the comfortable card's menu. */
+  const renderDeckRowMenu = (deck: Deck, archivedView = false) => (
+    <div
+      role="menu"
+      data-deck-row-menu
+      className="fixed z-[9999] w-52 rounded-lg border border-gray-200 bg-white py-1 shadow-xl dark:border-[#333333] dark:bg-[#252525]"
+      style={{ top: deckRowMenuPos.top, bottom: deckRowMenuPos.bottom, right: deckRowMenuPos.right }}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <button onClick={() => { handleEdit(deck.id); setDeckRowMenuId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+        <Pencil size={16} className="mr-3 text-gray-400" /> Edit deck
+      </button>
+      <button onClick={() => { handleViewStats(deck.id); setDeckRowMenuId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+        <BarChart2 size={16} className="mr-3 text-gray-400" /> View stats
+      </button>
+      <button onClick={() => { handleCreateGroupQuiz(deck.id); setDeckRowMenuId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+        <Users size={16} className="mr-3 text-gray-400" /> Create group quiz
+      </button>
+      <button onClick={() => { handleArchive(deck.id); setDeckRowMenuId(null); }} className="w-full px-4 py-2 text-left text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+        {deck.is_archived || archivedView ? (
+          <><RotateCcw size={16} className="mr-3 text-gray-400" /> Unarchive</>
+        ) : (
+          <><Archive size={16} className="mr-3 text-gray-400" /> Archive</>
+        )}
+      </button>
+      {deck.progress > 0 && (
+        <button onClick={() => { handleResetProgress(deck.id); setDeckRowMenuId(null); }} className="w-full px-4 py-2 text-left text-sm text-orange-600 dark:text-orange-400 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+          <RotateCcw size={16} className="mr-3" /> Reset progress
+        </button>
+      )}
+      <hr className="border-gray-200 my-1 dark:border-[#333333]" />
+      <button onClick={() => { handleDelete(deck.id); setDeckRowMenuId(null); }} className="w-full px-4 py-2 text-left text-sm text-red-600 dark:text-red-400 hover:bg-gray-100 dark:hover:bg-[#333333] flex items-center transition-colors">
+        <Trash2 size={16} className="mr-3" /> Delete deck
+      </button>
+    </div>
+  );
 
   return (
     <>
@@ -1386,50 +1771,110 @@ interface NoteItem {
           <div>
             <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-2 gap-4 flex-wrap">
               {/* Tabs on left */}
-              <div className="flex space-x-4">
-                <button
-                  onClick={() => setActiveTab('decks')}
-                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeTab === 'decks'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Decks
-                </button>
-                <button
-                  onClick={() => setActiveTab('archived')}
-                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeTab === 'archived'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Archived
-                </button>
-                <button
-                  onClick={() => setActiveTab('stats')}
-                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeTab === 'stats'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Stats
-                </button>
-                <button
-                  onClick={() => setActiveTab('groupQuizzes')}
-                  className={`px-3 py-1.5 text-sm font-medium transition-colors border-b-2 -mb-px focus:outline-none ${
-                    activeTab === 'groupQuizzes'
-                      ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                      : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                  }`}
-                >
-                  Group Quizzes
-                </button>
-              </div>
+              <TabBar
+                bare
+                ariaLabel="Deck views"
+                value={activeTab}
+                onChange={setActiveTab}
+                items={[
+                  { id: 'decks', label: 'Decks' },
+                  { id: 'archived', label: 'Archived' },
+                  { id: 'stats', label: 'Stats' },
+                  { id: 'groupQuizzes', label: 'Group Quizzes' },
+                ]}
+              />
               {/* Pagination / Filters / Actions on right (compact) */}
               <div className="flex items-center gap-2 flex-wrap justify-end w-full md:w-auto">
+                {activeTab === 'groupQuizzes' && (
+                  <>
+                    <HeaderTooltip label={groupQuizViewMode === 'compact' ? 'Comfortable list' : 'Compact list'}>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setGroupQuizViewMode((mode) =>
+                            mode === 'compact' ? 'comfortable' : 'compact'
+                          )
+                        }
+                        className={`flex items-center justify-center h-7 px-2.5 text-xs border rounded-lg focus:outline-none focus:ring-2 transition-colors ${
+                          groupQuizViewMode === 'compact'
+                            ? 'border-indigo-400 bg-indigo-600 hover:bg-indigo-700 text-white focus:ring-indigo-300 dark:border-indigo-400 dark:bg-indigo-600 dark:hover:bg-indigo-700 dark:text-white dark:focus:ring-indigo-500'
+                            : 'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                        }`}
+                        aria-label={
+                          groupQuizViewMode === 'compact'
+                            ? 'Switch to comfortable list'
+                            : 'Switch to compact list'
+                        }
+                      >
+                        <LayoutList size={14} className={groupQuizViewMode === 'compact' ? 'text-white' : 'text-gray-400'} />
+                      </button>
+                    </HeaderTooltip>
+                    {/* Filter by my status – same reviewer-style dropdown as the deck filter */}
+                    <div className="relative" ref={groupQuizFilterRef}>
+                      <HeaderTooltip label="Filter group quizzes">
+                        <button
+                          type="button"
+                          onClick={() => setGroupQuizFilterOpen((o) => !o)}
+                          className={`flex items-center justify-center gap-1 h-7 pl-2.5 pr-2 text-xs rounded-lg border focus:outline-none focus:ring-1 transition-colors ${
+                            groupQuizFilter !== 'all'
+                              ? 'border-indigo-300 dark:border-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 focus:ring-indigo-300'
+                              : 'border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-700 dark:text-gray-300 focus:ring-gray-300 dark:focus:ring-[#404040] hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                          }`}
+                          aria-label="Filter group quizzes"
+                          aria-expanded={groupQuizFilterOpen}
+                        >
+                          <Filter size={14} className={groupQuizFilter !== 'all' ? 'text-indigo-500 dark:text-indigo-400' : 'text-gray-500 dark:text-gray-400'} />
+                          <ChevronDown size={10} className={`text-gray-500 dark:text-gray-400 transition-transform ${groupQuizFilterOpen ? 'rotate-180' : ''}`} />
+                        </button>
+                      </HeaderTooltip>
+                      {groupQuizFilterOpen && (
+                        <div className="absolute right-0 top-full mt-1 min-w-[140px] bg-white dark:bg-[#252525] border border-gray-200 dark:border-[#333333] rounded-lg shadow-lg z-50 py-1">
+                          {[
+                            { value: 'all' as const, label: 'All' },
+                            { value: 'invited' as const, label: 'Invites' },
+                            { value: 'accepted' as const, label: 'In progress' },
+                            { value: 'completed' as const, label: 'Completed' },
+                          ].map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => { setGroupQuizFilter(opt.value); setGroupQuizFilterOpen(false); }}
+                              className={`w-full px-2.5 py-1.5 text-left text-xs rounded-md transition-colors ${
+                                groupQuizFilter === opt.value
+                                  ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300'
+                                  : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#2d2d2d]'
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    {/* Search field */}
+                    <div className="relative w-full sm:w-48">
+                      <Search size={14} className="absolute left-2 top-1.5 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search group quizzes..."
+                        value={groupQuizSearchTerm}
+                        onChange={(e) => setGroupQuizSearchTerm(e.target.value)}
+                        className="w-full pl-7 pr-2 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                      />
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSelectedDeckForGroupQuiz(null);
+                        setShowCreateGroupQuiz(true);
+                      }}
+                      className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                      aria-label="Add group quiz"
+                    >
+                      <Plus size={14} className="mr-1.5" />
+                      Add Group Quiz
+                    </button>
+                  </>
+                )}
                 {activeTab !== 'stats' && activeTab !== 'groupQuizzes' && (
                   <>
                     {/* Pagination */}
@@ -1702,24 +2147,17 @@ interface NoteItem {
                             <TrendingUp size={12} />
                             <span>Quiz</span>
                           </button>
-                          <HeaderTooltip label="Edit deck">
+                          <HeaderTooltip label="Deck options" fixed>
                             <button
-                              onClick={() => handleEdit(deck.id)}
-                              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-center"
-                              aria-label="Edit deck"
+                              onClick={(e) => toggleDeckRowMenu(deck.id, e)}
+                              data-deck-row-menu-trigger
+                              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-center"
+                              aria-label="Deck options"
                             >
-                              <Pencil size={12} />
+                              <MoreVertical size={12} />
                             </button>
                           </HeaderTooltip>
-                          <HeaderTooltip label="Delete deck">
-                            <button
-                              onClick={() => handleDelete(deck.id)}
-                              className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:border-red-300 dark:hover:border-red-800 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center"
-                              aria-label="Delete deck"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </HeaderTooltip>
+                          {deckRowMenuId === deck.id && renderDeckRowMenu(deck)}
                         </div>
                       </div>
                     ))}
@@ -2126,7 +2564,7 @@ interface NoteItem {
           {activeTab === 'archived' && (
             <div className="space-y-6 pb-6">
               {filteredArchivedDecks.length > 0 ? (
-                <div className="max-h-[80vh] overflow-y-auto pr-1">
+                <div className="max-h-[80vh] overflow-y-auto overflow-x-hidden pr-1">
                   {deckListViewMode === 'comfortable' ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                       {pagedArchivedDecks.map((deck) => (
@@ -2218,24 +2656,17 @@ interface NoteItem {
                               <TrendingUp size={12} />
                               <span>Quiz</span>
                             </button>
-                            <HeaderTooltip label="Edit deck">
+                            <HeaderTooltip label="Deck options" fixed>
                               <button
-                                onClick={() => handleEdit(deck.id)}
-                                className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-center"
-                                aria-label="Edit deck"
+                                onClick={(e) => toggleDeckRowMenu(deck.id, e)}
+                                data-deck-row-menu-trigger
+                                className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors flex items-center justify-center"
+                                aria-label="Deck options"
                               >
-                                <Pencil size={12} />
+                                <MoreVertical size={12} />
                               </button>
                             </HeaderTooltip>
-                            <HeaderTooltip label="Delete deck">
-                              <button
-                                onClick={() => handleDelete(deck.id)}
-                                className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:border-red-300 dark:hover:border-red-800 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center"
-                                aria-label="Delete deck"
-                              >
-                                <Trash2 size={12} />
-                              </button>
-                            </HeaderTooltip>
+                            {deckRowMenuId === deck.id && renderDeckRowMenu(deck, true)}
                           </div>
                         </div>
                       ))}
@@ -2264,12 +2695,12 @@ interface NoteItem {
                 <div className="flex justify-center py-12">
                   <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-500" />
                 </div>
-              ) : (groupQuizzes || []).length === 0 ? (
+              ) : visibleGroupQuizzes.length === 0 ? (
                 <div className="text-center py-12 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e]">
                   <Target size={40} className="mx-auto text-gray-400 mb-3" />
                   <p className="text-sm text-gray-600 dark:text-gray-400">No group quizzes yet.</p>
                   <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
-                    Create one from a deck or start from here.
+                    Invite people from a group chat, or search for anyone by username or email.
                   </p>
                   <button
                     onClick={() => {
@@ -2278,52 +2709,195 @@ interface NoteItem {
                     }}
                     className="mt-4 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
                   >
+                    <Plus size={14} className="mr-1.5" />
                     Create Group Quiz
                   </button>
                 </div>
-              ) : (
-                <div className="space-y-2">
-                  {(groupQuizzes || []).map((gq: any) => {
-                    const myPart = (gq.participants || []).find((p: any) => {
-                      if (currentUserIdForGroupQuizzes == null) return false;
-                      // Support numeric or string ids from backend
-                      return (
-                        p.user_id === currentUserIdForGroupQuizzes ||
-                        p.user_id === Number(currentUserIdForGroupQuizzes)
-                      );
-                    });
-                    const myStatus = myPart?.status ?? 'invited';
+              ) : filteredGroupQuizzes.length === 0 ? (
+                <div className="text-center py-12 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e]">
+                  <Search size={40} className="mx-auto text-gray-400 mb-3" />
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    No group quizzes found.
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1">
+                    {groupQuizSearch
+                      ? `Nothing matches “${groupQuizSearchTerm.trim()}”${groupQuizFilter !== 'all' ? ' with this filter' : ''}.`
+                      : 'Try a different filter.'}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setGroupQuizSearchTerm('');
+                      setGroupQuizFilter('all');
+                    }}
+                    className="mt-4 inline-flex items-center px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-[#444444] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#333333]"
+                  >
+                    Clear search and filters
+                  </button>
+                </div>
+              ) : groupQuizViewMode === 'comfortable' ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  {filteredGroupQuizzes.map((gq: any) => {
+                    const { myStatus, total, done, completion } = getGroupQuizView(gq);
                     return (
                       <div
                         key={gq.id}
-                        className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] px-3 py-2.5 min-h-[52px]"
+                        className="bg-white dark:bg-[#252525] rounded-xl border border-gray-200 dark:border-[#333333] shadow-sm hover:shadow-lg hover:border-gray-300 dark:hover:border-[#444444] transition-all duration-200"
                       >
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{gq.title}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {gq.deck_title} · by {gq.created_by_username} · {gq.participant_count} participant{gq.participant_count !== 1 ? 's' : ''}
-                          </p>
+                        <div className="p-5">
+                          {/* Card header: quiz title, status, deck/creator */}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex-1 min-w-0">
+                              <h3 className="text-lg font-semibold text-gray-900 dark:text-white truncate leading-tight">
+                                {gq.title}
+                              </h3>
+                              <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                                {gq.deck_title} · by {gq.created_by_username}
+                              </p>
+                            </div>
+                            <span className={`flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded capitalize ${
+                              myStatus === 'completed' ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300' :
+                              myStatus === 'accepted' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' :
+                              myStatus === 'declined' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' :
+                              'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                            }`}>
+                              {myStatus}
+                            </span>
+                            {isGroupQuizCreator(gq) && (
+                              <HeaderTooltip label="Delete">
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteGroupQuiz(gq)}
+                                  className="flex-shrink-0 p-1.5 rounded-md border border-gray-300 dark:border-[#444444] text-gray-500 dark:text-gray-400 hover:text-red-600 hover:border-red-300 dark:hover:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                  aria-label="Delete group quiz"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </HeaderTooltip>
+                            )}
+                          </div>
+
+                          {/* Participants completed */}
+                          <div className="mt-3 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                            <Users size={13} className="text-gray-400" />
+                            <span className="tabular-nums">
+                              {done} / {total} completed
+                            </span>
+                          </div>
+
+                          {/* Completion, mirroring the deck progress bar */}
+                          <div className="relative mt-2 h-5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-[#333333]">
+                            <div
+                              className={`h-full rounded-full transition-all duration-300 ${completion === 100 ? 'bg-green-500' : 'bg-indigo-500'}`}
+                              style={{ width: `${completion}%` }}
+                            />
+                            <span className="absolute inset-0 flex items-center justify-center text-xs font-medium text-gray-800 dark:text-white">
+                              {completion}%
+                            </span>
+                          </div>
+
+                          {/* Actions, mirroring the deck card's button row */}
+                          <div className="mt-4 grid grid-cols-2 gap-2">
+                            {myStatus === 'invited' && (
+                              <>
+                                <button
+                                  onClick={() => handleAcceptDeclineGroupQuiz(String(gq.id), true)}
+                                  className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
+                                >
+                                  Accept
+                                </button>
+                                <button
+                                  onClick={() => handleAcceptDeclineGroupQuiz(String(gq.id), false)}
+                                  className="inline-flex items-center justify-center gap-1.5 h-9 rounded-lg border border-gray-300 dark:border-[#444444] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-[#333333] text-sm font-medium transition-colors"
+                                >
+                                  Decline
+                                </button>
+                              </>
+                            )}
+                            {myStatus === 'accepted' && gq.status === 'active' && (
+                              <button
+                                onClick={() => handleTakeGroupQuiz(gq)}
+                                className="col-span-2 inline-flex items-center justify-center gap-1.5 h-9 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium transition-colors"
+                              >
+                                <Play size={14} />
+                                Take Quiz
+                              </button>
+                            )}
+                            {(myStatus === 'completed' || gq.status === 'completed') && (
+                              <HeaderTooltip label="Results" fixed className="col-span-2 w-full">
+                                <button
+                                  onClick={() => handleViewGroupQuizResults(String(gq.id))}
+                                  className="w-full inline-flex items-center justify-center h-9 rounded-lg border border-indigo-600 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 text-sm font-medium transition-colors"
+                                  aria-label="View group quiz results"
+                                >
+                                  <BarChart2 size={16} />
+                                </button>
+                              </HeaderTooltip>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className={`text-xs px-2 py-0.5 rounded-md ${
-                            myStatus === 'completed' ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300' :
-                            myStatus === 'accepted' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' :
-                            myStatus === 'declined' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' :
-                            'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
-                          }`}>
-                            {myStatus}
-                          </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col gap-1">
+                  {filteredGroupQuizzes.map((gq: any) => {
+                    const { myStatus, total, done, completion } = getGroupQuizView(gq);
+                    return (
+                      <div
+                        key={gq.id}
+                        className="flex items-center gap-3 w-full min-w-0 h-12 px-3 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/60 transition-colors"
+                      >
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0">
+                          <span
+                            className={`block w-full h-full rounded-full ${
+                              completion === 100 ? 'bg-green-500' : 'bg-indigo-500'
+                            }`}
+                          />
+                        </div>
+                        <Users size={18} className="flex-shrink-0 text-gray-500 dark:text-gray-400" />
+                        <span className="font-medium truncate flex-1 min-w-0 text-sm text-gray-800 dark:text-gray-200">
+                          {gq.title}
+                        </span>
+                        <span className={`hidden sm:inline-flex flex-shrink-0 text-[11px] font-medium px-1.5 py-0.5 rounded capitalize ${
+                          myStatus === 'completed' ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300' :
+                          myStatus === 'accepted' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' :
+                          myStatus === 'declined' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' :
+                          'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
+                        }`}>
+                          {myStatus}
+                        </span>
+                        <span className="hidden lg:block flex-shrink-0 max-w-[180px] truncate text-xs text-gray-500 dark:text-gray-400">
+                          {gq.deck_title} · by {gq.created_by_username}
+                        </span>
+                        <span className="hidden md:block flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 tabular-nums">
+                          {done}/{total} completed
+                        </span>
+                        <div className="flex-shrink-0">
+                          <div className="relative w-24 h-3 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                            <div
+                              className={`h-full transition-all ${
+                                completion === 100 ? 'bg-green-500' : 'bg-indigo-500'
+                              }`}
+                              style={{ width: `${completion}%` }}
+                            />
+                            <span className="absolute inset-0 flex items-center justify-center text-[10px] font-medium text-gray-700 dark:text-gray-100">
+                              {completion}%
+                            </span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 flex-shrink-0">
                           {myStatus === 'invited' && (
                             <>
                               <button
                                 onClick={() => handleAcceptDeclineGroupQuiz(String(gq.id), true)}
-                                className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                                className="px-2 h-7 text-[11px] rounded-md border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
                               >
                                 Accept
                               </button>
                               <button
                                 onClick={() => handleAcceptDeclineGroupQuiz(String(gq.id), false)}
-                                className="h-7 px-3 text-xs font-medium rounded-lg border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
+                                className="px-2 h-7 text-[11px] rounded-md border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
                               >
                                 Decline
                               </button>
@@ -2332,19 +2906,35 @@ interface NoteItem {
                           {myStatus === 'accepted' && gq.status === 'active' && (
                             <button
                               onClick={() => handleTakeGroupQuiz(gq)}
-                              className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
+                              className="px-2 h-7 text-[11px] rounded-md border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors flex items-center gap-1"
                             >
-                              Take Quiz
+                              <Play size={12} />
+                              <span>Take Quiz</span>
                             </button>
                           )}
-                          {myStatus === 'completed' || gq.status === 'completed' ? (
-                            <button
-                              onClick={() => handleViewGroupQuizResults(String(gq.id))}
-                              className="h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
-                            >
-                              View Results
-                            </button>
-                          ) : null}
+                          {(myStatus === 'completed' || gq.status === 'completed') && (
+                            <HeaderTooltip label="Results">
+                              <button
+                                onClick={() => handleViewGroupQuizResults(String(gq.id))}
+                                className="px-2 h-7 text-[11px] rounded-md border border-indigo-600 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors flex items-center justify-center"
+                                aria-label="View group quiz results"
+                              >
+                                <BarChart2 size={12} />
+                              </button>
+                            </HeaderTooltip>
+                          )}
+                          {isGroupQuizCreator(gq) && (
+                            <HeaderTooltip label="Delete">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteGroupQuiz(gq)}
+                                className="p-1.5 h-7 w-7 rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-400 hover:text-red-600 hover:border-red-300 dark:hover:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center justify-center"
+                                aria-label="Delete group quiz"
+                              >
+                                <Trash2 size={12} />
+                              </button>
+                            </HeaderTooltip>
+                          )}
                         </div>
                       </div>
                     );
@@ -2390,10 +2980,261 @@ interface NoteItem {
                   </div>
                 </div>
               </div>
+
+              {totalDecks === 0 ? (
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-8 shadow-md border border-gray-200 dark:border-gray-700 text-center">
+                  <p className="text-gray-600 dark:text-gray-400">
+                    Create a deck and study it to start building stats.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Collection status */}
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                        <Target size={18} className="mr-2" />
+                        Collection status
+                      </h3>
+                      <div className="flex h-3 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-700 mb-4">
+                        {deckStatus.filter(status => status.count > 0).map(status => (
+                          <div
+                            key={status.label}
+                            className={status.color}
+                            style={{ width: `${(status.count / totalDecks) * 100}%` }}
+                            title={`${status.label}: ${status.count}`}
+                          />
+                        ))}
+                      </div>
+                      <ul className="space-y-2">
+                        {deckStatus.map(status => (
+                          <li key={status.label} className="flex items-center justify-between text-sm">
+                            <span className="flex items-center text-gray-600 dark:text-gray-400">
+                              <span className={`w-2.5 h-2.5 rounded-full mr-2 ${status.color}`} />
+                              {status.label}
+                            </span>
+                            <span className="text-gray-900 dark:text-white font-medium">
+                              {status.count}
+                              <span className="text-gray-500 dark:text-gray-400 font-normal"> ({statusPercent(status.count)}%)</span>
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                      {archivedDecks.length > 0 && (
+                        <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                          {archivedDecks.length} archived deck{archivedDecks.length !== 1 ? 's' : ''} not included
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Progress distribution */}
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                        <BarChart2 size={18} className="mr-2" />
+                        Progress distribution
+                      </h3>
+                      <div className="space-y-2">
+                        {progressBuckets.map(bucket => (
+                          <div key={bucket.label} className="flex items-center text-sm">
+                            <span className="w-16 flex-shrink-0 text-gray-600 dark:text-gray-400">{bucket.label}</span>
+                            <div className="flex-1 h-5 bg-gray-100 dark:bg-gray-700 rounded-md overflow-hidden mr-3">
+                              <div
+                                className="h-full bg-indigo-500 dark:bg-indigo-400 rounded-md"
+                                style={{ width: bucket.count > 0 ? `${Math.max(6, (bucket.count / busiestBucket) * 100)}%` : '0%' }}
+                              />
+                            </div>
+                            <span className="w-6 text-right text-gray-900 dark:text-white font-medium">{bucket.count}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                        Decks needing work: {notStartedDecks.length + inProgressDecks.length}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    {/* Study coverage */}
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                        <BookOpen size={18} className="mr-2" />
+                        Study coverage
+                      </h3>
+                      {totalCards === 0 ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+                          No flashcards yet — add cards to a deck to track coverage.
+                        </p>
+                      ) : (
+                        <>
+                          <div className="flex items-baseline mb-2">
+                            <span className="text-3xl font-bold text-gray-900 dark:text-white">{studiedCoverage}%</span>
+                            <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">of cards are in a started deck</span>
+                          </div>
+                          <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-3 mb-4">
+                            <div
+                              className="h-3 rounded-full bg-indigo-500 dark:bg-indigo-400 transition-all duration-300"
+                              style={{ width: `${studiedCoverage}%` }}
+                            />
+                          </div>
+                        </>
+                      )}
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <div className="text-gray-900 dark:text-white font-medium">{cardsInProgressDecks}</div>
+                          <div className="text-gray-500 dark:text-gray-400">in started decks</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-900 dark:text-white font-medium">{cardsInUntouchedDecks}</div>
+                          <div className="text-gray-500 dark:text-gray-400">never studied</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-900 dark:text-white font-medium">{masteredDecks.length}</div>
+                          <div className="text-gray-500 dark:text-gray-400">decks at 100%</div>
+                        </div>
+                        <div>
+                          <div className="text-gray-900 dark:text-white font-medium">{emptyDecks}</div>
+                          <div className="text-gray-500 dark:text-gray-400">empty decks</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Needs attention */}
+                    <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-4 flex items-center">
+                        <Clock size={18} className="mr-2" />
+                        Needs attention
+                      </h3>
+                      {staleDecks.length === 0 ? (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Nothing to review yet.</p>
+                      ) : (
+                        <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+                          {staleDecks.map(({ deck, touched }) => (
+                            <li key={deck.id} className="flex items-center justify-between py-2.5 first:pt-0 last:pb-0">
+                              <button
+                                onClick={() => handleOpenDeck(deck.id)}
+                                className="flex-1 min-w-0 text-left"
+                              >
+                                <div className="text-sm font-medium text-gray-900 dark:text-white truncate hover:text-indigo-600 dark:hover:text-indigo-400">
+                                  {deck.title}
+                                </div>
+                                <div className="text-xs text-gray-500 dark:text-gray-400">
+                                  {describeAge(touched)} • {deck.flashcardCount} card{deck.flashcardCount !== 1 ? 's' : ''}
+                                  {deck.progress > 0 ? ` • ${deck.progress}% progress` : ' • not started'}
+                                </div>
+                              </button>
+                              <button
+                                onClick={() => handleStudy(deck.id)}
+                                className="ml-3 flex-shrink-0 h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 flex items-center"
+                              >
+                                <Play size={12} className="mr-1" /> Study
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                        Based on last deck activity, oldest first.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Collection growth */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                        <TrendingUp size={18} className="mr-2" />
+                        Decks added per month
+                      </h3>
+                      <StatsYearPicker
+                        year={statsYear}
+                        earliestYear={earliestStatsYear}
+                        latestYear={currentYear}
+                        onChange={setStatsYear}
+                      />
+                    </div>
+                    <div className="flex items-end justify-between gap-1 sm:gap-2 h-32">
+                      {monthlyGrowth.map(bucket => (
+                        <div key={`${statsYear}-${bucket.monthIndex}`} className="flex-1 flex flex-col items-center justify-end h-full min-w-0">
+                          <span className="text-[10px] sm:text-xs text-gray-900 dark:text-white font-medium mb-1">{bucket.decks}</span>
+                          <div
+                            className="w-full bg-indigo-500 dark:bg-indigo-400 rounded-t-md"
+                            style={{ height: bucket.decks > 0 ? `${Math.max(6, (bucket.decks / busiestMonth) * 100)}%` : '2px' }}
+                            title={`${bucket.label} ${statsYear}: ${bucket.decks} deck${bucket.decks !== 1 ? 's' : ''}, ${bucket.cards} card${bucket.cards !== 1 ? 's' : ''}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between gap-1 sm:gap-2 mt-2">
+                      {monthlyGrowth.map(bucket => (
+                        <div key={`${statsYear}-label-${bucket.monthIndex}`} className="flex-1 min-w-0 text-center text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {bucket.label}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                      {decksAddedInYear} deck{decksAddedInYear !== 1 ? 's' : ''} added in {statsYear}
+                      {statsYear === currentYear ? ' (so far)' : ''}
+                    </p>
+                  </div>
+
+                  {/* Flashcards added per month - follows the same year picker above */}
+                  <div className="bg-white dark:bg-gray-800 rounded-xl p-6 shadow-md border border-gray-200 dark:border-gray-700">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center">
+                        <LayoutList size={18} className="mr-2" />
+                        Flashcards added per month
+                      </h3>
+                      <StatsYearPicker
+                        year={statsCardsYear}
+                        earliestYear={earliestStatsYear}
+                        latestYear={currentYear}
+                        onChange={setStatsCardsYear}
+                      />
+                    </div>
+                    <div className="flex items-end justify-between gap-1 sm:gap-2 h-32">
+                      {monthlyCardGrowth.map(bucket => (
+                        <div key={`cards-${statsCardsYear}-${bucket.monthIndex}`} className="flex-1 flex flex-col items-center justify-end h-full min-w-0">
+                          <span className="text-[10px] sm:text-xs text-gray-900 dark:text-white font-medium mb-1">{bucket.cards}</span>
+                          <div
+                            className="w-full bg-emerald-500 dark:bg-emerald-400 rounded-t-md"
+                            style={{ height: bucket.cards > 0 ? `${Math.max(6, (bucket.cards / busiestCardMonth) * 100)}%` : '2px' }}
+                            title={`${bucket.label} ${statsCardsYear}: ${bucket.cards} card${bucket.cards !== 1 ? 's' : ''}`}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    <div className="flex justify-between gap-1 sm:gap-2 mt-2">
+                      {monthlyCardGrowth.map(bucket => (
+                        <div key={`cards-label-${statsCardsYear}-${bucket.monthIndex}`} className="flex-1 min-w-0 text-center text-[10px] sm:text-xs text-gray-500 dark:text-gray-400 truncate">
+                          {bucket.label}
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-4 text-xs text-gray-500 dark:text-gray-400">
+                      {cardsAddedInYear} card{cardsAddedInYear !== 1 ? 's' : ''} added in {statsCardsYear}
+                      {statsCardsYear === currentYear ? ' (so far)' : ''}
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           )}
         </div>
     </PageLayout>
+      {/* Rendered outside PageLayout so it works on every tab, not just Decks */}
+      {groupQuizPendingDelete && (
+        <DeleteConfirmationModal
+          isOpen
+          title="Delete Group Quiz"
+          deckTitle={groupQuizPendingDelete.title || 'Untitled quiz'}
+          description="Everyone in the group will lose access to it. You can restore it from Trash."
+          loading={deletingGroupQuiz}
+          onClose={() => {
+            if (!deletingGroupQuiz) setGroupQuizPendingDelete(null);
+          }}
+          onConfirm={confirmDeleteGroupQuiz}
+        />
+      )}
       {toast && (
         <Toast
           message={toast.message}

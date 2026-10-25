@@ -325,6 +325,8 @@ export type Database = {
           id: number
           user_id: string
           session_type: 'Study' | 'Break' | 'Long Break'
+          title?: string | null
+          subject?: string | null
           start_time: string
           end_time: string
           duration: number
@@ -335,6 +337,8 @@ export type Database = {
           id?: number
           user_id: string
           session_type: 'Study' | 'Break' | 'Long Break'
+          title?: string | null
+          subject?: string | null
           start_time: string
           end_time: string
           duration: number
@@ -345,6 +349,8 @@ export type Database = {
           id?: number
           user_id?: string
           session_type?: 'Study' | 'Break' | 'Long Break'
+          title?: string | null
+          subject?: string | null
           start_time?: string
           end_time?: string
           duration?: number

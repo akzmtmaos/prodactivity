@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, FolderOpen, Tag, Users, X, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Search, FolderOpen, X, Trash2, AlertTriangle, ClipboardList, ChevronDown } from 'lucide-react';
 import PageLayout from '../components/PageLayout';
 import TaskList from '../components/tasks/TaskList';
 import TaskForm from '../components/tasks/TaskForm';
@@ -9,11 +9,10 @@ import TaskSummary from '../components/tasks/TaskSummary';
 import { Task } from '../types/task';
 import { getXpForTask } from '../utils/xpUtils';
 import Toast from '../components/common/Toast';
-import CreateGroupTaskModal from '../components/collaboration/CreateGroupTaskModal';
-import GroupTaskResultsModal from '../components/collaboration/GroupTaskResultsModal';
+import Pagination from '../components/common/Pagination';
+import HeaderTooltip from '../components/common/HeaderTooltip';
 import { RealtimeProvider, useRealtime } from '../context/RealtimeContext';
 import { supabase } from '../lib/supabase';
-import axiosInstance from '../utils/axiosConfig';
 // import { getTimezoneOffset } from '../utils/dateUtils';
 
 // API_BASE_URL not needed; tasks use Supabase directly
@@ -52,13 +51,13 @@ const Tasks = () => {
 
   return (
     <RealtimeProvider userId={user.id}>
-      <TasksContent user={user} />
+      <TasksContent />
     </RealtimeProvider>
   );
 };
 
 // Tasks content component that uses real-time features
-const TasksContent = ({ user }: { user: any }) => {
+const TasksContent = () => {
   const navigate = useNavigate();
   const { setRefreshCallbacks } = useRealtime();
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -80,19 +79,20 @@ const TasksContent = ({ user }: { user: any }) => {
   const [deleteTaskId, setDeleteTaskId] = useState<number | null>(null);
   const [deleteTaskLoading, setDeleteTaskLoading] = useState(false);
 
+  // Bulk delete (same pattern as Decks/Notebooks)
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [selectedTasksForDelete, setSelectedTasksForDelete] = useState<number[]>([]);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
+
   // State for tabs
-  const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed' | 'assigned' | 'groupTasks'>('tasks');
+  const [activeTab, setActiveTab] = useState<'tasks' | 'categories' | 'completed'>('tasks');
   // State for pre-selected category when adding task from category tab
   const [selectedCategory, setSelectedCategory] = useState<string>('');
 
-  // Group tasks state
-  const [groupTasks, setGroupTasks] = useState<any[]>([]);
-  const [loadingGroupTasks, setLoadingGroupTasks] = useState(false);
-  const [showCreateGroupTask, setShowCreateGroupTask] = useState(false);
-  const [selectedTaskForGroupTask, setSelectedTaskForGroupTask] = useState<Task | null>(null);
-  const [showGroupTaskResults, setShowGroupTaskResults] = useState(false);
-  const [selectedGroupTaskIdForResults, setSelectedGroupTaskIdForResults] = useState<string | null>(null);
-  const [showTaskPickerForGroupTask, setShowTaskPickerForGroupTask] = useState(false);
+  // Collapsed due-date sections on the All Tasks tab
+  const [collapsedTaskGroups, setCollapsedTaskGroups] = useState<Record<string, boolean>>({});
+
 
   // Pagination state
   const [currentPage, setCurrentPage] = useState(1);
@@ -131,57 +131,6 @@ const TasksContent = ({ user }: { user: any }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
 
-  // Fetch group tasks when Group Tasks tab is active
-  useEffect(() => {
-    if (activeTab !== 'groupTasks') return;
-    const fetchGroupTasks = async () => {
-      setLoadingGroupTasks(true);
-      try {
-        const res = await axiosInstance.get('/group-tasks/');
-        setGroupTasks(Array.isArray(res.data) ? res.data : []);
-      } catch {
-        setGroupTasks([]);
-      } finally {
-        setLoadingGroupTasks(false);
-      }
-    };
-    fetchGroupTasks();
-  }, [activeTab]);
-
-  const handleCreateGroupTask = (task: Task) => {
-    setSelectedTaskForGroupTask(task);
-    setShowCreateGroupTask(true);
-  };
-
-  const handleAcceptDeclineGroupTask = async (groupTaskId: string, accept: boolean) => {
-    try {
-      await axiosInstance.post(`/group-tasks/${groupTaskId}/participants/`, { action: accept ? 'accept' : 'decline' });
-      setGroupTasks(prev => prev.filter(g => g.id !== groupTaskId));
-      if (activeTab === 'groupTasks') {
-        const res = await axiosInstance.get('/group-tasks/');
-        setGroupTasks(Array.isArray(res.data) ? res.data : []);
-      }
-    } catch (e) {
-      console.error(e);
-      showToast(accept ? 'Failed to accept' : 'Failed to decline', 'error');
-    }
-  };
-
-  const handleMarkGroupTaskComplete = async (gt: any) => {
-    try {
-      await axiosInstance.post(`/group-tasks/${gt.id}/complete/`);
-      const res = await axiosInstance.get('/group-tasks/');
-      setGroupTasks(Array.isArray(res.data) ? res.data : []);
-      showToast('Task marked complete. Team XP will be awarded when everyone completes!', 'success');
-    } catch (e: any) {
-      showToast(e.response?.data?.error || 'Failed to mark complete', 'error');
-    }
-  };
-
-  const handleViewGroupTaskResults = (id: string) => {
-    setSelectedGroupTaskIdForResults(id);
-    setShowGroupTaskResults(true);
-  };
 
   // Show toast notification
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -279,65 +228,6 @@ const TasksContent = ({ user }: { user: any }) => {
       const userId = typeof user.id === 'number' ? user.id : parseInt(user.id) || 11;
       
       console.log('Fetching tasks from Supabase for user:', userId);
-      
-      // Handle assigned tasks separately
-      if (activeTab === 'assigned') {
-        const userData = localStorage.getItem('user');
-        if (!userData) {
-          setLoading(false);
-          return;
-        }
-        const currentUser = JSON.parse(userData);
-        
-        // Get task IDs assigned to this user
-        const { data: assignments, error: assignError } = await supabase
-          .from('task_assignments')
-          .select('task_id')
-          .eq('assigned_to', currentUser.id)
-          .in('status', ['pending', 'accepted', 'in_progress']);
-        
-        if (assignError) {
-          console.error('Error fetching assignments:', assignError);
-          setError('Failed to load assigned tasks.');
-          setLoading(false);
-          return;
-        }
-        
-        const assignedTaskIds = (assignments || []).map(a => a.task_id);
-        
-        if (assignedTaskIds.length === 0) {
-          setTasks([]);
-          setTotalCount(0);
-          setTotalPages(1);
-          setLoading(false);
-          return;
-        }
-        
-        // Fetch assigned tasks
-        const { data, error } = await supabase
-          .from('tasks')
-          .select('*')
-          .in('id', assignedTaskIds)
-          .eq('is_deleted', false);
-        
-        if (error) {
-          console.error('Supabase error:', error);
-          setError('Failed to load assigned tasks.');
-          setLoading(false);
-          return;
-        }
-        
-        const mappedTasks = (data || []).map((task: any) => ({
-          ...task,
-          dueDate: task.due_date,
-        }));
-        
-        setTasks(mappedTasks);
-        setTotalCount(mappedTasks.length);
-        setTotalPages(Math.ceil(mappedTasks.length / pageSize));
-        setLoading(false);
-        return;
-      }
       
       // Helper function to build base query with filters
       const buildBaseQuery = () => {
@@ -637,6 +527,45 @@ const TasksContent = ({ user }: { user: any }) => {
     }
   };
 
+  // Bulk delete tasks – moves the selected tasks to Trash
+  const handleBulkDeleteTasks = async (taskIds: number[]) => {
+    if (taskIds.length === 0) return;
+    setBulkDeleteLoading(true);
+    try {
+      const { error } = await supabase
+        .from('tasks')
+        .update({
+          is_deleted: true,
+          deleted_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .in('id', taskIds);
+
+      if (error) {
+        setShowBulkDeleteConfirm(false);
+        setError(`Failed to delete tasks: ${error.message}`);
+        showToast('Failed to delete tasks.', 'error');
+        return;
+      }
+
+      setSelectedTasksForDelete([]);
+      setShowBulkDeleteConfirm(false);
+      setShowBulkDeleteModal(false);
+      await fetchTasks();
+      await fetchTaskStats();
+      // Keep the pager on a page that still has rows
+      setCurrentPage((page) => Math.min(page, Math.max(1, Math.ceil((tasks.length - taskIds.length) / pageSize))));
+      showToast(`${taskIds.length} task${taskIds.length !== 1 ? 's' : ''} moved to Trash.`, 'success');
+    } catch (err) {
+      console.error('Error bulk deleting tasks from Supabase:', err);
+      setShowBulkDeleteConfirm(false);
+      setError('Failed to delete tasks. Please try again.');
+      showToast('Failed to delete tasks.', 'error');
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  };
+
   // Helper function to update productivity log (called when tasks are created or completed)
   const updateProductivityLog = async () => {
     try {
@@ -926,59 +855,6 @@ const TasksContent = ({ user }: { user: any }) => {
     setCurrentPage(page);
   };
 
-  const handlePreviousPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage(currentPage - 1);
-    }
-  };
-
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage(currentPage + 1);
-    }
-  };
-
-  // Function to generate consistent hash for category colors
-  const getCategoryColorHash = (category: string) => {
-    let hash = 0;
-    for (let i = 0; i < category.length; i++) {
-      const char = category.charCodeAt(i);
-      hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
-    }
-    return Math.abs(hash);
-  };
-
-  // Function to get category color styling with randomized but consistent colors
-  const getCategoryColor = (category: string) => {
-    if (category === 'Uncategorized') {
-      return {
-        bg: 'bg-gray-50 dark:bg-gray-700',
-        text: 'text-gray-900 dark:text-white',
-        count: 'text-gray-500 dark:text-gray-400',
-        border: 'border-gray-200 dark:border-gray-600'
-      };
-    }
-
-    // Array of color combinations for categories
-    const colorCombinations = [
-      { bg: 'bg-blue-50 dark:bg-blue-900/20', text: 'text-blue-900 dark:text-blue-100', count: 'text-blue-600 dark:text-blue-300', border: 'border-blue-200 dark:border-blue-700' },
-      { bg: 'bg-green-50 dark:bg-green-900/20', text: 'text-green-900 dark:text-green-100', count: 'text-green-600 dark:text-green-300', border: 'border-green-200 dark:border-green-700' },
-      { bg: 'bg-purple-50 dark:bg-purple-900/20', text: 'text-purple-900 dark:text-purple-100', count: 'text-purple-600 dark:text-purple-300', border: 'border-purple-200 dark:border-purple-700' },
-      { bg: 'bg-orange-50 dark:bg-orange-900/20', text: 'text-orange-900 dark:text-orange-100', count: 'text-orange-600 dark:text-orange-300', border: 'border-orange-200 dark:border-orange-700' },
-      { bg: 'bg-pink-50 dark:bg-pink-900/20', text: 'text-pink-900 dark:text-pink-100', count: 'text-pink-600 dark:text-pink-300', border: 'border-pink-200 dark:border-pink-700' },
-      { bg: 'bg-indigo-50 dark:bg-indigo-900/20', text: 'text-indigo-900 dark:text-indigo-100', count: 'text-indigo-600 dark:text-indigo-300', border: 'border-indigo-200 dark:border-indigo-700' },
-      { bg: 'bg-teal-50 dark:bg-teal-900/20', text: 'text-teal-900 dark:text-teal-100', count: 'text-teal-600 dark:text-teal-300', border: 'border-teal-200 dark:border-teal-700' },
-      { bg: 'bg-red-50 dark:bg-red-900/20', text: 'text-red-900 dark:text-red-100', count: 'text-red-600 dark:text-red-300', border: 'border-red-200 dark:border-red-700' },
-      { bg: 'bg-yellow-50 dark:bg-yellow-900/20', text: 'text-yellow-900 dark:text-yellow-100', count: 'text-yellow-600 dark:text-yellow-300', border: 'border-yellow-200 dark:border-yellow-700' },
-      { bg: 'bg-cyan-50 dark:bg-cyan-900/20', text: 'text-cyan-900 dark:text-cyan-100', count: 'text-cyan-600 dark:text-cyan-300', border: 'border-cyan-200 dark:border-cyan-700' }
-    ];
-
-    const hash = getCategoryColorHash(category);
-    const colorIndex = hash % colorCombinations.length;
-    return colorCombinations[colorIndex];
-  };
-  
   // Group tasks by category for the categories tab
   const tasksByCategory = tasks.reduce((acc, task) => {
     const category = task.task_category || 'Uncategorized';
@@ -1015,18 +891,63 @@ const TasksContent = ({ user }: { user: any }) => {
     displayedTasks = tasks;
   }
 
+  const allTasksSelected = tasks.length > 0 && selectedTasksForDelete.length === tasks.length;
+  const someTasksSelected = selectedTasksForDelete.length > 0 && !allTasksSelected;
+
+  const toggleAllTasksForDelete = () => {
+    setSelectedTasksForDelete(allTasksSelected ? [] : tasks.map((task) => task.id));
+  };
+
+  const tabs: { id: 'tasks' | 'categories' | 'completed'; label: string; count: number }[] = [
+    { id: 'tasks', label: 'All Tasks', count: taskStats.pending_tasks },
+    { id: 'categories', label: 'Category', count: uniqueCategories.length },
+    { id: 'completed', label: 'Completed', count: taskStats.completed_tasks },
+  ];
+
+  // Notion-style due-date sections for the current page of All Tasks
+  const groupedTasks = (() => {
+    if (activeTab !== 'tasks' || displayedTasks.length === 0) return null;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const weekEnd = new Date(today);
+    weekEnd.setDate(today.getDate() + 7);
+
+    const buckets: { key: string; label: string; tasks: Task[] }[] = [
+      { key: 'overdue', label: 'Overdue', tasks: [] },
+      { key: 'today', label: 'Today', tasks: [] },
+      { key: 'week', label: 'This week', tasks: [] },
+      { key: 'later', label: 'Later', tasks: [] },
+      { key: 'no-date', label: 'No due date', tasks: [] },
+    ];
+
+    displayedTasks.forEach((task) => {
+      if (!task.dueDate) {
+        buckets[4].tasks.push(task);
+        return;
+      }
+      const due = new Date(task.dueDate);
+      due.setHours(0, 0, 0, 0);
+      if (due < today) buckets[0].tasks.push(task);
+      else if (due.getTime() === today.getTime()) buckets[1].tasks.push(task);
+      else if (due <= weekEnd) buckets[2].tasks.push(task);
+      else buckets[3].tasks.push(task);
+    });
+
+    return buckets.filter((bucket) => bucket.tasks.length > 0);
+  })();
 
   return (
     <PageLayout>
       <div className="space-y-6">
         <div className="max-w-7xl mx-auto">
-          {/* Header – title only; Search + Add Task moved to filter row below */}
-          <div className="mb-4">
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+          {/* Header */}
+          <div className="mb-5">
+            <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-white">
               Tasks
             </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Manage and track your tasks
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Plan what matters, then work through it.
             </p>
           </div>
 
@@ -1039,62 +960,30 @@ const TasksContent = ({ user }: { user: any }) => {
             dueTodayCount={taskStats.due_today}
           />
 
-          {/* Tabs + Filters row: single line, tabs scroll horizontally if needed */}
-          <div className="flex items-center justify-between border-b border-gray-200 dark:border-gray-700 mb-4 gap-2 min-w-0 flex-nowrap">
-            <div className="flex items-center gap-0 min-w-0 overflow-x-auto overflow-y-hidden scrollbar-thin" style={{ scrollbarWidth: 'thin' }}>
-              <button
-                className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'tasks'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-                onClick={() => setActiveTab('tasks')}
-              >
-                All Tasks
-              </button>
-              <button
-                className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'categories'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-                onClick={() => setActiveTab('categories')}
-              >
-                Category
-              </button>
-              <button
-                className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'completed'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-                onClick={() => setActiveTab('completed')}
-              >
-                Completed
-              </button>
-              <button
-                className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'assigned'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-                onClick={() => setActiveTab('assigned')}
-              >
-                Assigned
-              </button>
-              <button
-                className={`px-2 py-1 text-xs font-medium whitespace-nowrap transition-colors border-b-2 -mb-px focus:outline-none ${
-                  activeTab === 'groupTasks'
-                    ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400 dark:border-indigo-400'
-                    : 'border-transparent text-gray-600 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400'
-                }`}
-                onClick={() => setActiveTab('groupTasks')}
-              >
-                Group
-              </button>
+          {/* Tabs + toolbar */}
+          <div className="flex items-center justify-between border-b border-gray-200 dark:border-[#2f2f2f] mb-3 gap-3 min-w-0 flex-nowrap">
+            <div className="flex items-center gap-0.5 min-w-0 overflow-x-auto overflow-y-hidden scrollbar-thin" style={{ scrollbarWidth: 'thin' }} role="tablist">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  role="tab"
+                  aria-selected={activeTab === tab.id}
+                  className={`flex items-center gap-1.5 whitespace-nowrap rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors focus:outline-none ${
+                    activeTab === tab.id
+                      ? 'bg-gray-100 text-gray-900 dark:bg-[#2b2b2b] dark:text-white'
+                      : 'text-gray-500 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-[#242424] dark:hover:text-gray-200'
+                  }`}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  {tab.label}
+                  <span className={`text-[11px] tabular-nums ${activeTab === tab.id ? 'text-gray-500 dark:text-gray-400' : 'text-gray-400 dark:text-gray-500'}`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
             </div>
             {/* Filters + Search + Add Task: no wrap so row stays single line */}
-            <div className="flex items-center gap-2 justify-end flex-shrink-0 min-w-0">
+            <div className="flex items-center gap-1.5 justify-end flex-shrink-0 min-w-0">
               <TaskFilters
                 searchTerm={searchTerm}
                 onSearchChange={setSearchTerm}
@@ -1117,53 +1006,55 @@ const TasksContent = ({ user }: { user: any }) => {
                   setSortDirection('asc');
                 }}
               />
-              <div className="relative w-full sm:w-48">
-                <Search size={14} className="absolute left-2 top-1.5 text-gray-400" />
+              {tasks.length > 0 && (
+                <HeaderTooltip label="Delete tasks" fixed>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedTasksForDelete([]);
+                      setShowBulkDeleteConfirm(false);
+                      setShowBulkDeleteModal(true);
+                    }}
+                    className="px-2 h-7 text-xs border border-red-200 dark:border-red-700 rounded-md bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors flex items-center justify-center"
+                    aria-label="Delete tasks"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </HeaderTooltip>
+              )}
+              <div className="relative w-full sm:w-44">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                 <input
                   type="text"
                   placeholder="Search tasks..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-7 pr-2 h-7 text-xs border border-gray-200 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  aria-label="Search tasks"
+                  className="w-full pl-7 pr-2.5 h-7 text-xs rounded-md border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-200 dark:focus:ring-[#404040] transition-colors"
                 />
               </div>
-              {activeTab === 'groupTasks' && (
+              <HeaderTooltip label="New task" fixed>
                 <button
                   type="button"
-                  onClick={() => setShowTaskPickerForGroupTask(true)}
-                  className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                  onClick={() => {
+                    setEditingTask(undefined);
+                    setIsFormOpen(true);
+                  }}
+                  className="inline-flex items-center h-7 px-2.5 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                  aria-label="Add task"
                 >
-                  <Users size={14} className="mr-1.5" />
-                  Group
+                  <Plus size={14} className="mr-1.5" />
+                  Add Task
                 </button>
-              )}
-              <button
-                type="button"
-                onClick={() => {
-                  setEditingTask(undefined);
-                  setIsFormOpen(true);
-                }}
-                className="inline-flex items-center h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
-              >
-                <Plus size={14} className="mr-1.5" />
-                Add Task
-              </button>
+              </HeaderTooltip>
             </div>
           </div>
 
           {/* Error display */}
           {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border-l-4 border-red-500 p-4 mb-6">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-                </div>
-              </div>
+            <div className="mb-3 flex items-start gap-2 rounded-md border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-900/15 px-3 py-2">
+              <AlertTriangle size={14} className="mt-0.5 flex-shrink-0 text-red-500 dark:text-red-400" />
+              <p className="text-xs text-red-700 dark:text-red-300">{error}</p>
             </div>
           )}
 
@@ -1182,229 +1073,72 @@ const TasksContent = ({ user }: { user: any }) => {
              />
            )}
 
-          {showCreateGroupTask && selectedTaskForGroupTask && (
-            <CreateGroupTaskModal
-              isOpen={showCreateGroupTask}
-              onClose={() => {
-                setShowCreateGroupTask(false);
-                setSelectedTaskForGroupTask(null);
-              }}
-              taskId={selectedTaskForGroupTask.id}
-              taskTitle={selectedTaskForGroupTask.title}
-              onCreateSuccess={() => {
-                setShowCreateGroupTask(false);
-                setSelectedTaskForGroupTask(null);
-                setActiveTab('groupTasks');
-                axiosInstance.get('/group-tasks/').then(res => setGroupTasks(Array.isArray(res.data) ? res.data : [])).catch(() => setGroupTasks([]));
-              }}
-            />
-          )}
-          {showGroupTaskResults && selectedGroupTaskIdForResults && (
-            <GroupTaskResultsModal
-              isOpen={showGroupTaskResults}
-              onClose={() => {
-                setShowGroupTaskResults(false);
-                setSelectedGroupTaskIdForResults(null);
-              }}
-              groupTaskId={selectedGroupTaskIdForResults}
-            />
-          )}
-
-          {/* Task picker modal: choose which task to turn into a group task */}
-          {showTaskPickerForGroupTask && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setShowTaskPickerForGroupTask(false)}>
-              <div
-                className="w-full max-w-md rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#1e1e1e] shadow-xl mx-4 max-h-[70vh] flex flex-col"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <div className="px-4 py-3 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Create group task</h2>
-                  <button
-                    type="button"
-                    onClick={() => setShowTaskPickerForGroupTask(false)}
-                    className="p-1.5 rounded-md text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700"
-                    aria-label="Close"
-                  >
-                    <span className="text-lg leading-none">×</span>
-                  </button>
-                </div>
-                <p className="px-4 pt-2 text-xs text-gray-500 dark:text-gray-400">Choose a task to invite others to complete together.</p>
-                <div className="p-4 overflow-y-auto flex-1">
-                  {tasks.length === 0 ? (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">You don’t have any tasks yet. Add a task first, then create a group task.</p>
-                  ) : (
-                    <ul className="space-y-1">
-                      {tasks.filter((t) => !t.completed).map((task) => (
-                        <li key={task.id}>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setShowTaskPickerForGroupTask(false);
-                              setSelectedTaskForGroupTask(task);
-                              setShowCreateGroupTask(true);
-                            }}
-                            className="w-full text-left px-3 py-2.5 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] hover:bg-gray-50 dark:hover:bg-gray-700/50 text-sm font-medium text-gray-900 dark:text-white"
-                          >
-                            {task.title}
-                          </button>
-                        </li>
-                      ))}
-                      {tasks.filter((t) => !t.completed).length === 0 && tasks.length > 0 && (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">All your tasks are completed. Add a new task to create a group task.</p>
-                      )}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* Tasks list */}
-          <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden">
-            {activeTab === 'groupTasks' ? (
-              <div className="p-4">
-                {loadingGroupTasks ? (
-                  <div className="flex justify-center py-12">
-                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-indigo-500 border-t-transparent" />
+          <div className="bg-white dark:bg-[#1e1e1e] border border-gray-200 dark:border-[#2f2f2f] rounded-lg">
+            {loading ? (
+              <div className="divide-y divide-gray-100 dark:divide-[#2b2b2b]">
+                {Array.from({ length: 6 }).map((_, index) => (
+                  <div key={index} className="flex items-start gap-3 px-3 py-3">
+                    <div className="mt-0.5 h-4 w-4 rounded bg-gray-100 dark:bg-[#2b2b2b] animate-pulse" />
+                    <div className="flex-1 space-y-2">
+                      <div className="h-3 w-1/3 rounded bg-gray-100 dark:bg-[#2b2b2b] animate-pulse" />
+                      <div className="h-2.5 w-1/5 rounded bg-gray-100 dark:bg-[#2b2b2b] animate-pulse" />
+                    </div>
                   </div>
-                ) : groupTasks.length === 0 ? (
-                  <div className="text-center py-12 rounded-lg border border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#1e1e1e]">
-                    <FolderOpen size={40} className="mx-auto text-gray-400 mb-3" />
-                    <p className="text-sm text-gray-600 dark:text-gray-400">No group tasks yet.</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 mb-4">Pick a task below to invite others and earn team XP.</p>
-                    <button
-                      type="button"
-                      onClick={() => setShowTaskPickerForGroupTask(true)}
-                      className="inline-flex items-center h-8 px-4 text-sm font-medium rounded-lg border border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700"
-                    >
-                      <Users size={16} className="mr-2" />
-                      Create group task
-                    </button>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {groupTasks.map((gt: any) => {
-                      const userData = localStorage.getItem('user');
-                      const currentUserId = userData ? (JSON.parse(userData)?.id ?? JSON.parse(userData)?.pk) : null;
-                      const myPart = (gt.participants || []).find((p: any) => p.user_id === currentUserId || p.user_id === parseInt(currentUserId, 10));
-                      const myStatus = myPart?.status ?? 'invited';
-                      return (
-                        <div
-                          key={gt.id}
-                          className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 dark:border-[#333333] bg-white dark:bg-[#252525] px-3 py-2.5 min-h-[52px]"
-                        >
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{gt.title}</p>
-                            <p className="text-xs text-gray-500 dark:text-gray-400">
-                              {gt.task_title} · by {gt.created_by_username} · {gt.participant_count} participant{gt.participant_count !== 1 ? 's' : ''}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <span className={`text-xs px-2 py-0.5 rounded-md ${
-                              myStatus === 'completed' ? 'bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300' :
-                              myStatus === 'accepted' ? 'bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300' :
-                              myStatus === 'declined' ? 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400' :
-                              'bg-amber-100 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300'
-                            }`}>
-                              {myStatus}
-                            </span>
-                            {myStatus === 'invited' && (
-                              <>
-                                <button
-                                  onClick={() => handleAcceptDeclineGroupTask(String(gt.id), true)}
-                                  className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                                >
-                                  Accept
-                                </button>
-                                <button
-                                  onClick={() => handleAcceptDeclineGroupTask(String(gt.id), false)}
-                                  className="h-7 px-3 text-xs font-medium rounded-lg border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                                >
-                                  Decline
-                                </button>
-                              </>
-                            )}
-                            {myStatus === 'accepted' && gt.status === 'active' && (
-                              <button
-                                onClick={() => handleMarkGroupTaskComplete(gt)}
-                                className="h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700"
-                              >
-                                Mark complete
-                              </button>
-                            )}
-                            {(myStatus === 'completed' || gt.status === 'completed') && (
-                              <button
-                                onClick={() => handleViewGroupTaskResults(String(gt.id))}
-                                className="h-7 px-3 text-xs font-medium rounded-lg border border-indigo-600 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/20"
-                              >
-                                View Results
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            ) : loading ? (
-              <div className="p-6 text-center">
-                <div className="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-indigo-500"></div>
-                <p className="mt-2 text-gray-500 dark:text-gray-400">Loading tasks...</p>
+                ))}
               </div>
             ) : activeTab === 'categories' ? (
               // Categories tab display (same padding as All Tasks: p-2 so content reaches same left/right)
               <div className="p-2">
                 {Object.keys(tasksByCategory).length === 0 ? (
-                  <div className="text-center py-12 px-4 bg-gray-50 dark:bg-[#252525] rounded-xl border border-gray-200 dark:border-[#333333]">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 dark:bg-[#333333] mb-4">
-                      <FolderOpen size={24} className="text-gray-400 dark:text-gray-500" />
+                  <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-[#2b2b2b]">
+                      <FolderOpen size={18} className="text-gray-400 dark:text-gray-500" />
                     </div>
                     <h3 className="text-sm font-medium text-gray-900 dark:text-white">No categories yet</h3>
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 max-w-sm mx-auto">
-                      Create tasks with a category to see them grouped here.
+                    <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-gray-400">
+                      Give a task a category and it will be grouped here.
                     </p>
                     <button
                       type="button"
-                      className="mt-4 flex items-center justify-center h-7 px-3 text-xs font-medium rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-500 transition-colors mx-auto"
+                      className="mt-4 inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-md bg-indigo-600 hover:bg-indigo-700 text-white transition-colors"
                       onClick={() => setIsFormOpen(true)}
                     >
-                      <Plus size={14} className="mr-1.5" />
-                      New Task
+                      <Plus size={14} />
+                      New task
                     </button>
                   </div>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     {Object.entries(tasksByCategory).map(([category, categoryTasks]) => {
-                      const colors = getCategoryColor(category);
                       return (
-                        <div key={category} className="rounded-xl border border-gray-200 dark:border-[#333333] overflow-hidden bg-white dark:bg-[#252525] shadow-sm">
-                          <div className={`flex items-center justify-between px-4 py-2.5 border-b border-gray-200 dark:border-[#333333] ${colors.bg}`}>
+                        <div key={category} className="rounded-lg border border-gray-200 dark:border-[#2f2f2f] bg-white dark:bg-[#1e1e1e]">
+                          <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-[#2f2f2f]">
                             <div className="flex items-center gap-2 min-w-0">
-                              <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center ${colors.bg} border ${colors.border}`}>
-                                <Tag size={16} className={colors.text} />
-                              </div>
-                              <div className="min-w-0">
-                                <h3 className={`text-sm font-semibold truncate ${colors.text}`}>
-                                  {category} ({categoryTasks.length} task{categoryTasks.length !== 1 ? 's' : ''})
-                                </h3>
-                              </div>
+                              <span className="h-2 w-2 flex-shrink-0 rounded-full bg-gray-400 dark:bg-gray-500" />
+                              <h3 className="min-w-0 truncate text-[13px] font-medium text-gray-900 dark:text-gray-100">
+                                {category}
+                              </h3>
+                              <span className="flex-shrink-0 text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
+                                {categoryTasks.length}
+                              </span>
                             </div>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setEditingTask(undefined);
-                                setIsFormOpen(true);
-                                setSelectedCategory(category);
-                              }}
-                              className="flex-shrink-0 flex items-center justify-center h-7 w-7 rounded-lg text-gray-500 dark:text-gray-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white/50 dark:hover:bg-black/20 transition-colors"
-                              title={`Add task to ${category}`}
-                              aria-label={`Add task to ${category}`}
-                            >
-                              <Plus size={16} />
-                            </button>
+                            <HeaderTooltip label="Add task here" fixed>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingTask(undefined);
+                                  setIsFormOpen(true);
+                                  setSelectedCategory(category);
+                                }}
+                                className="flex-shrink-0 flex items-center justify-center h-6 w-6 rounded-md text-gray-400 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-[#2b2b2b] transition-colors"
+                                aria-label={`Add task to ${category}`}
+                              >
+                                <Plus size={14} />
+                              </button>
+                            </HeaderTooltip>
                           </div>
-                          <div className="border-t border-gray-200 dark:border-[#333333]">
+                          <div>
                             <TaskList
                               tasks={categoryTasks}
                               onToggleComplete={toggleTaskCompletion}
@@ -1414,7 +1148,6 @@ const TasksContent = ({ user }: { user: any }) => {
                               }}
                               onDelete={handleDeleteClick}
                               onTaskCompleted={handleTaskCompleted}
-                              onCreateGroupTask={handleCreateGroupTask}
                               sortField={sortField}
                               sortDirection={sortDirection}
                               onSort={handleSort}
@@ -1432,120 +1165,110 @@ const TasksContent = ({ user }: { user: any }) => {
                 )}
               </div>
             ) : displayedTasks.length === 0 ? (
-              <div className="p-6 text-center">
-                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                </svg>
-                <h3 className="mt-2 text-sm font-medium text-gray-900 dark:text-white">
-                  {activeTab === 'assigned' ? 'No assigned tasks' : 'No tasks found'}
+              <div className="flex flex-col items-center justify-center px-6 py-16 text-center">
+                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-gray-100 dark:bg-[#2b2b2b]">
+                  <ClipboardList size={18} className="text-gray-400 dark:text-gray-500" />
+                </div>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white">
+                  No tasks found
                 </h3>
-                <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-                  {activeTab === 'assigned' 
-                    ? 'No tasks have been assigned to you yet. Tasks assigned by others will appear here.'
-                    : searchTerm || filterPriority !== 'all'
-                    ? 'Try changing your search or filter criteria.'
-                    : 'Get started by creating a new task.'}
+                <p className="mt-1 max-w-xs text-xs text-gray-500 dark:text-gray-400">
+                  {searchTerm || filterPriority !== 'all' || filterCategory !== 'all'
+                    ? 'Try a different search or clear your filters.'
+                    : 'Add your first task to get started.'}
                 </p>
                 {!searchTerm && filterPriority === 'all' && filterCategory === 'all' && (
-                  <div className="mt-6">
-                    <button
-                      type="button"
-                      className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                      onClick={() => setIsFormOpen(true)}
-                    >
-                      <svg className="-ml-1 mr-2 h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-                      </svg>
-                      New Task
-                    </button>
-                  </div>
+                  <button
+                    type="button"
+                    className="mt-4 inline-flex items-center gap-1.5 h-7 px-3 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+                    onClick={() => setIsFormOpen(true)}
+                  >
+                    <Plus size={14} />
+                    New task
+                  </button>
                 )}
               </div>
             ) : (
               <>
-                <TaskList
-                  tasks={displayedTasks}
-                  onToggleComplete={toggleTaskCompletion}
-                  onEdit={(task) => {
-                    setEditingTask(task);
-                    setIsFormOpen(true);
-                  }}
-                  onDelete={handleDeleteClick}
-                  onTaskCompleted={handleTaskCompleted}
-                  onCreateGroupTask={handleCreateGroupTask}
-                  sortField={sortField}
-                  sortDirection={sortDirection}
-                  onSort={handleSort}
-                  onAddTask={() => {
-                    setEditingTask(undefined);
-                    setIsFormOpen(true);
-                  }}
-                  compact={true}
-                />
+                {groupedTasks ? (
+                  <div>
+                    {groupedTasks.map((group) => {
+                      const collapsed = !!collapsedTaskGroups[group.key];
+                      return (
+                        <section key={group.key}>
+                          <button
+                            type="button"
+                            onClick={() => setCollapsedTaskGroups((prev) => ({ ...prev, [group.key]: !prev[group.key] }))}
+                            aria-expanded={!collapsed}
+                            className="flex w-full items-center gap-1.5 px-3 pt-2.5 pb-1 text-left transition-colors hover:bg-gray-50/70 dark:hover:bg-[#242424]"
+                          >
+                            <ChevronDown
+                              size={12}
+                              className={`flex-shrink-0 text-gray-400 transition-transform ${collapsed ? '-rotate-90' : ''}`}
+                            />
+                            <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                              {group.label}
+                            </span>
+                            <span className="text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
+                              {group.tasks.length}
+                            </span>
+                          </button>
+                          {!collapsed && (
+                            <TaskList
+                              tasks={group.tasks}
+                              onToggleComplete={toggleTaskCompletion}
+                              onEdit={(task) => {
+                                setEditingTask(task);
+                                setIsFormOpen(true);
+                              }}
+                              onDelete={handleDeleteClick}
+                              onTaskCompleted={handleTaskCompleted}
+                              sortField={sortField}
+                              sortDirection={sortDirection}
+                              onSort={handleSort}
+                              onAddTask={() => {
+                                setEditingTask(undefined);
+                                setIsFormOpen(true);
+                              }}
+                              compact={true}
+                            />
+                          )}
+                        </section>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <TaskList
+                    tasks={displayedTasks}
+                    onToggleComplete={toggleTaskCompletion}
+                    onEdit={(task) => {
+                      setEditingTask(task);
+                      setIsFormOpen(true);
+                    }}
+                    onDelete={handleDeleteClick}
+                    onTaskCompleted={handleTaskCompleted}
+                    sortField={sortField}
+                    sortDirection={sortDirection}
+                    onSort={handleSort}
+                    onAddTask={() => {
+                      setEditingTask(undefined);
+                      setIsFormOpen(true);
+                    }}
+                    compact={true}
+                  />
+                )}
                 
-                {/* Pagination Controls */}
+                {/* Pagination – header-style footer */}
                 {totalPages > 1 && (
-                  <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm text-gray-700 dark:text-gray-300">
-                        Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, totalCount)} of {totalCount} results
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <button
-                          onClick={handlePreviousPage}
-                          disabled={currentPage === 1}
-                          className={`px-3 py-1 text-sm font-medium rounded-md ${
-                            currentPage === 1
-                              ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          Previous
-                        </button>
-                        
-                        {/* Page numbers */}
-                        <div className="flex items-center space-x-1">
-                          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                            let pageNum: number;
-                            if (totalPages <= 5) {
-                              pageNum = i + 1;
-                            } else if (currentPage <= 3) {
-                              pageNum = i + 1;
-                            } else if (currentPage >= totalPages - 2) {
-                              pageNum = totalPages - 4 + i;
-                            } else {
-                              pageNum = currentPage - 2 + i;
-                            }
-                            
-                            return (
-                              <button
-                                key={pageNum}
-                                onClick={() => handlePageChange(pageNum)}
-                                className={`px-3 py-1 text-sm font-medium rounded-md ${
-                                  currentPage === pageNum
-                                    ? 'bg-indigo-600 text-white'
-                                    : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                                }`}
-                              >
-                                {pageNum}
-                              </button>
-                            );
-                          })}
-                        </div>
-                        
-                        <button
-                          onClick={handleNextPage}
-                          disabled={currentPage === totalPages}
-                          className={`px-3 py-1 text-sm font-medium rounded-md ${
-                            currentPage === totalPages
-                              ? 'text-gray-400 dark:text-gray-500 cursor-not-allowed'
-                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
-                          }`}
-                        >
-                          Next
-                        </button>
-                      </div>
-                    </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-t border-gray-200 dark:border-[#2f2f2f] bg-gray-50/60 dark:bg-[#242424]">
+                    <span className="text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
+                      {((currentPage - 1) * pageSize) + 1}–{Math.min(currentPage * pageSize, totalCount)} of {totalCount}
+                    </span>
+                    <Pagination
+                      currentPage={currentPage}
+                      totalPages={totalPages}
+                      onPageChange={handlePageChange}
+                    />
                   </div>
                 )}
               </>
@@ -1553,37 +1276,43 @@ const TasksContent = ({ user }: { user: any }) => {
           </div>
         </div>
       </div>
-      {/* Delete Task confirmation – refined UI (icon in header only, like Deck/Notebook) */}
+      {/* Delete Task confirmation – matches Deck/Notebook delete dialogs */}
       {deleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 dark:bg-black/60">
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow-2xl w-full max-w-xs mx-4">
-            <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center">
-                <div className="p-1 bg-red-100 dark:bg-red-900/20 rounded-lg mr-2">
-                  <AlertTriangle size={16} className="text-red-600 dark:text-red-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/30 dark:bg-black/60 transition-opacity"
+            onClick={() => { setDeleteModalOpen(false); setDeleteTaskId(null); }}
+          />
+          <div className="relative w-full max-w-md overflow-hidden rounded-lg bg-white dark:bg-[#1a1a1a] text-left shadow-xl border border-gray-200 dark:border-[#2a2a2a]">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-200 dark:border-[#2a2a2a]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FDE8E8] dark:bg-red-900/30 shrink-0">
+                  <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
                 </div>
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">Delete Task</h2>
+                <h2 className="text-base font-semibold leading-6 text-gray-900 dark:text-white">Delete Task</h2>
               </div>
-              <button
-                type="button"
-                onClick={() => { setDeleteModalOpen(false); setDeleteTaskId(null); }}
-                className="p-1 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
-              >
-                <X size={16} />
-              </button>
+              <HeaderTooltip label="Close" fixed>
+                <button
+                  type="button"
+                  onClick={() => { setDeleteModalOpen(false); setDeleteTaskId(null); }}
+                  className="p-1 text-gray-400 dark:text-[#666666] hover:text-gray-600 dark:hover:text-[#888888] rounded-md hover:bg-gray-100 dark:hover:bg-[#242424] transition-colors"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </HeaderTooltip>
             </div>
-            <div className="p-4">
-              <h3 className="text-base font-semibold text-gray-900 dark:text-white mb-0.5">Are you sure?</h3>
-              <p className="text-gray-600 dark:text-gray-400 text-sm m-0">
-                Delete <span className="font-medium">"{tasks.find(t => t.id === deleteTaskId)?.title ?? 'this task'}"</span>? This cannot be undone.
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-600 dark:text-white/80">
+                Delete <span className="font-medium text-gray-900 dark:text-white">"{tasks.find(t => t.id === deleteTaskId)?.title ?? 'this task'}"</span>? This cannot be undone.
               </p>
             </div>
-            <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex gap-2">
+            <div className="flex items-center justify-end gap-2 px-5 py-3">
               <button
                 type="button"
                 onClick={() => { setDeleteModalOpen(false); setDeleteTaskId(null); }}
                 disabled={deleteTaskLoading}
-                className="flex-1 px-2 py-1 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 rounded font-medium text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-2.5 py-1.5 text-xs text-gray-700 dark:text-white border border-gray-300 dark:border-[#333333] rounded-md font-medium bg-white dark:bg-[#242424] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
@@ -1591,14 +1320,214 @@ const TasksContent = ({ user }: { user: any }) => {
                 type="button"
                 onClick={confirmDeleteTask}
                 disabled={deleteTaskLoading}
-                className="flex-1 px-2 py-1 bg-red-600 text-white rounded font-medium text-sm flex items-center justify-center gap-1 transition-colors disabled:opacity-50 disabled:cursor-not-allowed hover:bg-red-700"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 dark:bg-[#e60000] dark:hover:bg-[#c20000] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {deleteTaskLoading ? (
                   <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                 ) : (
-                  <Trash2 size={14} />
+                  <Trash2 className="h-3.5 w-3.5" />
                 )}
                 {deleteTaskLoading ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk delete tasks – same pattern as Decks/Notebooks */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 z-[100] overflow-y-auto">
+          <div
+            className="fixed inset-0 bg-black/40 dark:bg-black/60"
+            onClick={() => {
+              if (!bulkDeleteLoading) {
+                setShowBulkDeleteModal(false);
+                setSelectedTasksForDelete([]);
+              }
+            }}
+          />
+          <div className="flex items-center justify-center min-h-screen p-4">
+            <div
+              className="relative flex flex-col bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl border border-gray-200 dark:border-[#333333] max-w-4xl w-full max-h-[85vh] overflow-hidden z-[101]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex-shrink-0 px-4 py-3 border-b border-gray-200 dark:border-[#333333] flex items-center justify-between">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Delete Tasks</h3>
+                <HeaderTooltip label="Close" fixed>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!bulkDeleteLoading) {
+                        setShowBulkDeleteModal(false);
+                        setSelectedTasksForDelete([]);
+                      }
+                    }}
+                    className="p-1.5 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d] disabled:opacity-50"
+                    disabled={bulkDeleteLoading}
+                    aria-label="Close"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </HeaderTooltip>
+              </div>
+              <div className="flex-1 flex flex-col min-h-0 overflow-hidden px-4 py-3">
+                <p className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400 mb-3">
+                  Select tasks to delete. They will be moved to Trash and can be restored from there.
+                </p>
+                <div className="flex-1 min-h-0 flex flex-col border border-gray-200 dark:border-[#333333] rounded-md overflow-hidden">
+                  <div className="flex-shrink-0 flex items-center justify-between gap-3 px-3 py-2 border-b border-gray-200 dark:border-[#333333] bg-gray-50/60 dark:bg-[#252525]">
+                    <label className="flex items-center gap-2 text-xs font-medium text-gray-700 dark:text-gray-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={allTasksSelected}
+                        ref={(el) => { if (el) el.indeterminate = someTasksSelected; }}
+                        onChange={toggleAllTasksForDelete}
+                        disabled={bulkDeleteLoading}
+                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                      />
+                      Select all
+                    </label>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                        {selectedTasksForDelete.length} of {tasks.length} selected
+                      </span>
+                      {selectedTasksForDelete.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setShowBulkDeleteConfirm(true)}
+                          disabled={bulkDeleteLoading}
+                          className="px-2 py-1 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Delete ({selectedTasksForDelete.length})
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex-1 min-h-0 overflow-y-auto">
+                    {tasks.map((task) => (
+                    <div
+                      key={task.id}
+                      className="flex items-center p-3 hover:bg-gray-50 dark:hover:bg-[#2d2d2d] border-b border-gray-100 dark:border-[#333333] last:border-b-0"
+                    >
+                      <input
+                        type="checkbox"
+                        id={`task-bulk-${task.id}`}
+                        checked={selectedTasksForDelete.includes(task.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTasksForDelete((prev) => [...prev, task.id]);
+                          } else {
+                            setSelectedTasksForDelete((prev) => prev.filter((id) => id !== task.id));
+                          }
+                        }}
+                        disabled={bulkDeleteLoading}
+                        className="h-4 w-4 text-red-600 focus:ring-red-500 border-gray-300 rounded"
+                      />
+                      <label
+                        htmlFor={`task-bulk-${task.id}`}
+                        className="ml-4 flex items-center flex-1 min-w-0 cursor-pointer"
+                      >
+                        <div className="w-8 h-8 rounded-lg mr-4 bg-indigo-100 dark:bg-indigo-900/30 flex items-center justify-center flex-shrink-0">
+                          <ClipboardList size={16} className="text-indigo-600 dark:text-indigo-400" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium text-gray-900 dark:text-white truncate">
+                            {task.title || 'Untitled task'}
+                          </div>
+                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                            {task.priority.charAt(0).toUpperCase() + task.priority.slice(1)} priority
+                            {task.dueDate ? ` • Due ${new Date(task.dueDate).toLocaleDateString()}` : ' • No due date'}
+                            {task.task_category ? ` • ${task.task_category}` : ''}
+                            {task.completed ? ' • Completed' : ''}
+                          </div>
+                        </div>
+                      </label>
+                    </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="flex-shrink-0 px-4 py-2.5 border-t border-gray-200 dark:border-[#333333] bg-gray-50 dark:bg-[#252525] rounded-b-md flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!bulkDeleteLoading) {
+                      setShowBulkDeleteModal(false);
+                      setSelectedTasksForDelete([]);
+                    }
+                  }}
+                  disabled={bulkDeleteLoading}
+                  className="px-2.5 py-1.5 text-xs rounded-md border border-gray-300 dark:border-[#333333] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-[#2d2d2d] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowBulkDeleteConfirm(true)}
+                  disabled={selectedTasksForDelete.length === 0 || bulkDeleteLoading}
+                  className="px-2.5 py-1.5 text-xs rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Delete{selectedTasksForDelete.length > 0 ? ` (${selectedTasksForDelete.length})` : ''}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation for the bulk delete */}
+      {showBulkDeleteConfirm && selectedTasksForDelete.length > 0 && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4">
+          <div
+            className="fixed inset-0 bg-black/40 dark:bg-black/70"
+            onClick={() => { if (!bulkDeleteLoading) setShowBulkDeleteConfirm(false); }}
+          />
+          <div className="relative w-full max-w-md overflow-hidden rounded-lg bg-white dark:bg-[#1a1a1a] text-left shadow-xl border border-gray-200 dark:border-[#2a2a2a]">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-gray-200 dark:border-[#2a2a2a]">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FDE8E8] dark:bg-red-900/30 shrink-0">
+                  <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
+                </div>
+                <h2 className="text-base font-semibold leading-6 text-gray-900 dark:text-white">Delete Tasks</h2>
+              </div>
+              <HeaderTooltip label="Close" fixed>
+                <button
+                  type="button"
+                  onClick={() => { if (!bulkDeleteLoading) setShowBulkDeleteConfirm(false); }}
+                  disabled={bulkDeleteLoading}
+                  className="p-1 text-gray-400 dark:text-[#666666] hover:text-gray-600 dark:hover:text-[#888888] rounded-md hover:bg-gray-100 dark:hover:bg-[#242424] transition-colors disabled:opacity-50"
+                  aria-label="Close"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </HeaderTooltip>
+            </div>
+            <div className="px-5 py-4">
+              <p className="text-sm text-gray-600 dark:text-white/80">
+                Delete <span className="font-medium text-gray-900 dark:text-white">{selectedTasksForDelete.length} task{selectedTasksForDelete.length !== 1 ? 's' : ''}</span>? They will be moved to Trash and can be restored from there.
+              </p>
+            </div>
+            <div className="flex items-center justify-end gap-2 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setShowBulkDeleteConfirm(false)}
+                disabled={bulkDeleteLoading}
+                className="px-2.5 py-1.5 text-xs text-gray-700 dark:text-white border border-gray-300 dark:border-[#333333] rounded-md font-medium bg-white dark:bg-[#242424] hover:bg-gray-50 dark:hover:bg-[#2d2d2d] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => handleBulkDeleteTasks(selectedTasksForDelete)}
+                disabled={bulkDeleteLoading}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md bg-red-600 text-white hover:bg-red-700 dark:bg-[#e60000] dark:hover:bg-[#c20000] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {bulkDeleteLoading ? (
+                  <span className="inline-block h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <Trash2 className="h-3.5 w-3.5" />
+                )}
+                {bulkDeleteLoading ? 'Deleting...' : `Delete (${selectedTasksForDelete.length})`}
               </button>
             </div>
           </div>

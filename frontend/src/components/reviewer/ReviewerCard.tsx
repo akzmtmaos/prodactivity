@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Document, Packer, Paragraph, TextRun, HeadingLevel } from 'docx';
-import { Star, Trash2, Download, Share2, ExternalLink, PlayCircle, Trophy, Edit, Settings, FileText, File } from 'lucide-react';
+import { Star, Trash2, Download, Share2, ExternalLink, PlayCircle, Sparkles, Trophy, Edit, Settings, FileText, File, BookOpen } from 'lucide-react';
 import { truncateHtmlContent } from '../../utils/htmlUtils';
 import { useNavigate } from 'react-router-dom';
 import axiosInstance from '../../utils/axiosConfig';
@@ -240,37 +240,52 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
     >
       <div className="absolute left-0 top-0 bottom-0 w-1 bg-indigo-500 rounded-l-lg" />
       <div className="flex items-center justify-between gap-3 pl-3 pr-2.5 py-2">
-        {/* Left: Title and Source */}
-        <div className="flex-1 min-w-0 flex items-center gap-2">
-          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors">
+        {/* Column 1: Icon + Title – fixed half of the row so the Source column always starts at the midpoint */}
+        <div className="w-1/2 min-w-0 flex items-center gap-2">
+          {isQuiz ? (
+            <FileText size={16} className="flex-shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+          ) : (
+            <BookOpen size={16} className="flex-shrink-0 text-gray-500 dark:text-gray-400" aria-hidden="true" />
+          )}
+          <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors" title={reviewer.title}>
             {reviewer.title}
           </h3>
+        </div>
+
+        {/* Column 2: Source – starts at the row's midpoint on every row; chip is left-aligned inside its column (invisible-table style) */}
+        <div className="hidden sm:flex flex-1 items-center min-w-0">
           {(reviewer.source_note || reviewer.source_notebook) && (
             <button
               onClick={handleSourceClick}
-              className="flex-shrink-0 flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors truncate max-w-[140px]"
+              className="min-w-0 flex items-center gap-1 text-xs px-1.5 py-0.5 rounded-md bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
               title={`Go to ${reviewer.source_note ? 'note' : 'notebook'}: ${reviewer.source_note_title || reviewer.source_notebook_name || (reviewer.source_note ? `Note #${reviewer.source_note}` : `Notebook #${reviewer.source_notebook}`)}`}
             >
-              <ExternalLink size={11} />
+              <ExternalLink size={11} className="flex-shrink-0" />
               <span className="truncate">{reviewer.source_note_title || reviewer.source_notebook_name || (reviewer.source_note ? `#${reviewer.source_note}` : `Notebook`)}</span>
             </button>
           )}
         </div>
 
-        {/* Right: Meta + Actions */}
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          {/* Best Score (quizzes) */}
-          {reviewer.best_score !== null && reviewer.best_score !== undefined && (
-            <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium">
-              <Trophy size={12} />
-              {reviewer.best_score_correct != null && reviewer.best_score_total != null
-                ? `${reviewer.best_score_correct}/${reviewer.best_score_total}`
-                : `${reviewer.best_score}%`}
+        {/* Right: Meta (fixed invisible-table columns) + Actions */}
+        <div className="flex items-center flex-shrink-0">
+          {/* Score column – fixed width so scores align down the list like a table column */}
+          <div className="hidden sm:flex w-16 justify-center flex-shrink-0">
+            {reviewer.best_score !== null && reviewer.best_score !== undefined && (
+              <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300 text-xs font-medium tabular-nums">
+                <Trophy size={12} className="flex-shrink-0" />
+                {reviewer.best_score_correct != null && reviewer.best_score_total != null
+                  ? `${reviewer.best_score_correct}/${reviewer.best_score_total}`
+                  : `${reviewer.best_score}%`}
+              </span>
+            )}
+          </div>
+          {/* Date column – fixed width so dates align down the list */}
+          <div className="hidden sm:flex w-20 justify-end flex-shrink-0">
+            <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap tabular-nums">
+              {new Date(reviewer.created_at).toLocaleDateString()}
             </span>
-          )}
-          <span className="text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap hidden sm:inline">
-            {new Date(reviewer.created_at).toLocaleDateString()}
-          </span>
+          </div>
+          <div className="ml-2 flex items-center gap-1.5">
           {showFavorite && onFavorite && (
             <button
               onClick={e => { e.stopPropagation(); onFavorite(reviewer.id); }}
@@ -372,12 +387,15 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
             <button
               onClick={e => { e.stopPropagation(); onGenerateQuiz(reviewer); }}
               disabled={quizLoadingId === reviewer.id}
-              className="flex items-center justify-center h-7 px-2.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              className="flex items-center justify-center gap-1.5 h-7 px-2.5 text-xs font-medium rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {quizLoadingId === reviewer.id ? (
                 <div className="animate-spin rounded-full h-3.5 w-3.5 border-2 border-white border-t-transparent" />
               ) : (
-                'Generate Quiz'
+                <>
+                  <Sparkles size={12} />
+                  Generate Quiz
+                </>
               )}
             </button>
           )}
@@ -391,6 +409,7 @@ const ReviewerCard: React.FC<ReviewerCardProps> = ({
               Take Quiz
             </button>
           )}
+          </div>
         </div>
       </div>
       

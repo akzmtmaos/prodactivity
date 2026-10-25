@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, Loader2 } from 'lucide-react';
+import { X, Loader2 } from 'lucide-react';
 
 interface Reviewer {
   id: number;
   title: string;
   content: string;
+  tags?: string[];
 }
 
 interface EditReviewerModalProps {
@@ -34,6 +35,10 @@ const EditReviewerModal: React.FC<EditReviewerModalProps> = ({
   }, [isOpen, reviewer]);
 
   if (!isOpen || !reviewer) return null;
+
+  const isQuiz =
+    (reviewer.tags?.includes('quiz') ?? false) || reviewer.title.startsWith('Quiz:');
+  const entityLabel = isQuiz ? 'quiz' : 'reviewer';
 
   const handleSave = async () => {
     if (!title.trim()) {
@@ -69,88 +74,102 @@ const EditReviewerModal: React.FC<EditReviewerModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 z-[10000] flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 p-4 backdrop-blur-[2px] dark:bg-black/60">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-800 dark:bg-gray-900">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-            Edit {reviewer.title.startsWith('Quiz:') ? 'Quiz' : 'Reviewer'}
-          </h2>
+        <div className="flex items-start justify-between gap-4 px-7 pb-4 pt-5">
+          <div className="min-w-0">
+            <h2 className="text-base font-semibold tracking-tight text-gray-900 dark:text-white">
+              Edit {entityLabel}
+            </h2>
+            <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+              Make your changes, then save them to this {entityLabel}.
+            </p>
+          </div>
           <button
             onClick={handleClose}
             disabled={isSaving}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Close"
+            className="-mr-1 rounded-md p-1 text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:hover:bg-gray-800 dark:hover:text-gray-200"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 space-y-5 overflow-y-auto border-t border-gray-100 px-7 py-5 dark:border-gray-800">
           {error && (
-            <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-400">
+              {error}
             </div>
           )}
 
           {/* Title Input */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <div className="space-y-1.5">
+            <label
+              htmlFor="edit-entity-title"
+              className="block text-[11px] font-medium uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500"
+            >
               Title
             </label>
             <input
+              id="edit-entity-title"
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               disabled={isSaving}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed"
-              placeholder="Enter title..."
+              autoFocus
+              className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-indigo-500/60"
+              placeholder="Give this a clear, descriptive title"
             />
           </div>
 
           {/* Content Textarea */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          <div className="space-y-1.5">
+            <label
+              htmlFor="edit-entity-content"
+              className="block text-[11px] font-medium uppercase tracking-[0.12em] text-gray-400 dark:text-gray-500"
+            >
               Content
             </label>
             <textarea
+              id="edit-entity-content"
               value={content}
               onChange={(e) => setContent(e.target.value)}
               disabled={isSaving}
-              rows={15}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed font-mono text-sm"
-              placeholder="Enter content..."
+              rows={18}
+              className="w-full resize-y rounded-lg border border-gray-200 bg-white px-3 py-2.5 font-mono text-[13px] leading-6 text-gray-900 placeholder:text-gray-400 transition-colors focus:border-indigo-300 focus:outline-none focus:ring-4 focus:ring-indigo-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder:text-gray-500 dark:focus:border-indigo-500/60"
+              placeholder="Write the content here..."
             />
-            <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-              You can add more questions, edit existing content, or modify the reviewer material.
+            <p className="pt-0.5 text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+              {isQuiz
+                ? 'Keep each question in the Q1. / A) / Answer: format so the quiz stays playable.'
+                : 'Add sections, refine wording, or update the source material.'}
             </p>
           </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-3 p-4 border-t border-gray-200 dark:border-gray-700">
+        <div className="flex items-center justify-end gap-2 border-t border-gray-100 px-7 py-3.5 dark:border-gray-800">
           <button
             onClick={handleClose}
             disabled={isSaving}
-            className="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="rounded-md px-2.5 py-1.5 text-[13px] font-medium text-gray-600 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-300 dark:hover:bg-gray-800"
           >
             Cancel
           </button>
           <button
             onClick={handleSave}
             disabled={isSaving || !title.trim() || !content.trim()}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-[13px] font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {isSaving ? (
               <>
-                <Loader2 size={16} className="animate-spin" />
+                <Loader2 size={14} className="animate-spin" />
                 Saving...
               </>
             ) : (
-              <>
-                <Save size={16} />
-                Save Changes
-              </>
+              'Save changes'
             )}
           </button>
         </div>
@@ -160,4 +179,3 @@ const EditReviewerModal: React.FC<EditReviewerModalProps> = ({
 };
 
 export default EditReviewerModal;
-

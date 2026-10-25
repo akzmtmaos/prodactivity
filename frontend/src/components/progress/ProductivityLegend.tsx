@@ -6,26 +6,27 @@ interface ProductivityLegendProps {
 
 const ProductivityLegend: React.FC<ProductivityLegendProps> = ({ getProductivityColor }) => {
   const legendItems = [
-    { range: '90-100%', status: 'Highly Productive', color: 'bg-green-600 dark:bg-green-400' },
-    { range: '70-89%', status: 'Productive', color: 'bg-green-500 dark:bg-green-300' },
-    { range: '40-69%', status: 'Moderately Productive', color: 'bg-yellow-500 dark:bg-yellow-400' },
-    { range: '0-39%', status: 'Low Productive', color: 'bg-red-500 dark:bg-red-400' }
+    { range: '90–100%', status: 'Highly Productive', color: 'bg-green-600 dark:bg-green-400' },
+    { range: '70–89%', status: 'Productive', color: 'bg-green-500 dark:bg-green-300' },
+    { range: '40–69%', status: 'Moderately Productive', color: 'bg-yellow-500 dark:bg-yellow-400' },
+    { range: '0–39%', status: 'Low Productive', color: 'bg-red-500 dark:bg-red-400' },
+    { range: '', status: 'No Tasks', color: '' }
   ];
 
   return (
-    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-4">
-      <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Productivity Scale</h3>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {legendItems.map((item, index) => (
-          <div key={index} className="flex items-center space-x-2">
-            <div className={`w-4 h-4 rounded-full ${item.color}`}></div>
-            <div className="flex flex-col">
-              <span className="text-xs font-medium text-gray-900 dark:text-white">{item.range}</span>
-              <span className={`text-xs ${getProductivityColor(item.status)}`}>{item.status}</span>
-            </div>
-          </div>
-        ))}
-      </div>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+      <h3 className="sr-only">Productivity legend</h3>
+      {legendItems.map((item) => (
+        <div key={item.status} className="flex items-center gap-1.5" title={item.status}>
+          {item.color ? (
+            <span className={`h-2 w-2 rounded-full ${item.color}`} />
+          ) : (
+            <span className="h-2 w-2 rounded-full bg-gray-300 dark:bg-gray-600" />
+          )}
+          <span className="text-[11px] tabular-nums text-gray-600 dark:text-gray-300">{item.range}</span>
+          <span className="text-[11px] text-gray-400 dark:text-gray-500">{item.status}</span>
+        </div>
+      ))}
     </div>
   );
 };

@@ -184,6 +184,13 @@ const Notes = () => {
   const [activeNotebookTab, setActiveNotebookTab] = useState<'notebooks' | 'favorites' | 'archived'>('notebooks');
   const [archivedTypeFilter, setArchivedTypeFilter] = useState<'all' | 'notebooks' | 'notes'>('all');
 
+  // Header pagination (25 per page). Page numbers live here because the pager
+  // is rendered in NotesTabs, above the list components.
+  const [notebooksPage, setNotebooksPage] = useState(1);
+  const [favoriteNotebooksPage, setFavoriteNotebooksPage] = useState(1);
+  const [archivePage, setArchivePage] = useState(1);
+  const [notesPage, setNotesPage] = useState(1);
+
   // Add toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
   // Bulk selection state for inline Delete Selected
@@ -1278,7 +1285,7 @@ const Notes = () => {
       }));
       
       const notebooks = results.filter((item: any) => item.type === 'notebook');
-      
+
       setGlobalSearchResults({notes, notebooks});
     } catch (error) {
       console.error('Global search failed:', error);
@@ -1510,6 +1517,57 @@ const Notes = () => {
       // Apply sort order
       return sortOrder === 'asc' ? comparison : -comparison;
     });
+
+  // ── Header pagination (20 per page) ───────────────────────────────────────
+  const NOTES_PAGE_SIZE = 20;
+
+  const notebooksTotalPages = Math.max(1, Math.ceil(filteredNotebooks.length / NOTES_PAGE_SIZE));
+  const favoriteNotebooksTotalPages = Math.max(1, Math.ceil(filteredFavoriteNotebooks.length / NOTES_PAGE_SIZE));
+  const archivedItemsCount = filteredArchivedNotebooks.length + filteredArchivedNotes.length;
+  const archiveTotalPages = Math.max(1, Math.ceil(archivedItemsCount / NOTES_PAGE_SIZE));
+  const notesTotalPages = Math.max(1, Math.ceil(filteredNotes.length / NOTES_PAGE_SIZE));
+
+  const safeNotebooksPage = Math.min(notebooksPage, notebooksTotalPages);
+  const safeFavoriteNotebooksPage = Math.min(favoriteNotebooksPage, favoriteNotebooksTotalPages);
+  const safeArchivePage = Math.min(archivePage, archiveTotalPages);
+  const safeNotesPage = Math.min(notesPage, notesTotalPages);
+
+  const paginatedFilteredNotebooks = filteredNotebooks.slice(
+    (safeNotebooksPage - 1) * NOTES_PAGE_SIZE,
+    safeNotebooksPage * NOTES_PAGE_SIZE
+  );
+  const paginatedFavoriteNotebooks = filteredFavoriteNotebooks.slice(
+    (safeFavoriteNotebooksPage - 1) * NOTES_PAGE_SIZE,
+    safeFavoriteNotebooksPage * NOTES_PAGE_SIZE
+  );
+  const paginatedFilteredNotes = filteredNotes.slice(
+    (safeNotesPage - 1) * NOTES_PAGE_SIZE,
+    safeNotesPage * NOTES_PAGE_SIZE
+  );
+
+  // Returning to page 1 after a search/filter/tab change keeps the pager honest
+  useEffect(() => { setNotebooksPage(1); }, [notebookSearchTerm, notebookFilterType, notebookSortOrder, notebookDateStart, notebookDateEnd, activeNotebookTab, currentView]);
+  useEffect(() => { setFavoriteNotebooksPage(1); }, [notebookSearchTerm, notebookFilterType, notebookSortOrder, notebookDateStart, notebookDateEnd, activeNotebookTab, currentView]);
+  useEffect(() => { setArchivePage(1); }, [notebookSearchTerm, notebookFilterType, notebookSortOrder, notebookDateStart, notebookDateEnd, activeNotebookTab, archivedTypeFilter, currentView]);
+  useEffect(() => { setNotesPage(1); }, [selectedNotebook?.id, searchTerm, notesLocalSearchTerm, filterType, sortOrder, noteDateStart, noteDateEnd, activeTab, currentView]);
+
+  const scrollNotesListTop = () => {
+    requestAnimationFrame(() => {
+      document.querySelectorAll<HTMLElement>('[data-notes-scroll]').forEach(el => {
+        el.scrollTop = 0;
+      });
+    });
+  };
+
+  const pagination = currentView === 'notebooks'
+    ? activeNotebookTab === 'notebooks'
+      ? { currentPage: safeNotebooksPage, totalPages: notebooksTotalPages, onPageChange: (page: number) => { setNotebooksPage(page); scrollNotesListTop(); } }
+      : activeNotebookTab === 'favorites'
+        ? { currentPage: safeFavoriteNotebooksPage, totalPages: favoriteNotebooksTotalPages, onPageChange: (page: number) => { setFavoriteNotebooksPage(page); scrollNotesListTop(); } }
+        : { currentPage: safeArchivePage, totalPages: archiveTotalPages, onPageChange: (page: number) => { setArchivePage(page); scrollNotesListTop(); } }
+    : activeTab === 'notes'
+      ? { currentPage: safeNotesPage, totalPages: notesTotalPages, onPageChange: (page: number) => { setNotesPage(page); scrollNotesListTop(); } }
+      : undefined;
 
   // Add handler to update note title
   const handleUpdateNoteTitle = async (noteId: number, newTitle: string) => {
@@ -3034,6 +3092,7 @@ const Notes = () => {
             isImporting={isImporting}
             isExporting={isExporting}
             notesCount={notes.length}
+            pagination={pagination}
           />
           {/* Main Content - no white container */}
           <div className="w-full flex-1 min-h-0 flex flex-col">
@@ -3059,7 +3118,7 @@ const Notes = () => {
                         </div>
                       ) : (
                         <NotebookList
-                          notebooks={filteredNotebooks}
+                          notebooks={paginatedFilteredNotebooks}
                           selectedNotebook={selectedNotebook}
                           editingNotebook={editingNotebook}
                           newNotebookName={newNotebookName}
@@ -3107,7 +3166,7 @@ const Notes = () => {
                         </div>
                       ) : (
                         <NotebookList
-                          notebooks={filteredFavoriteNotebooks}
+                          notebooks={paginatedFavoriteNotebooks}
                           selectedNotebook={selectedNotebook}
                           editingNotebook={editingNotebook}
                           newNotebookName={newNotebookName}
@@ -3138,6 +3197,7 @@ const Notes = () => {
                     <NotesArchive
                       notebooks={filteredArchivedNotebooks}
                       notes={filteredArchivedNotes}
+                      currentPage={safeArchivePage}
                       onArchiveNotebook={handleArchiveNotebook}
                       onArchiveNote={handleArchiveNote}
                       onDeleteNotebook={handleDeleteNotebook}
@@ -3155,7 +3215,7 @@ const Notes = () => {
               {currentView === 'notes' && activeTab === 'notes' && (
                 <NotesList
                   selectedNotebook={selectedNotebook}
-                  notes={filteredNotes}
+                  notes={paginatedFilteredNotes}
                   isAddingNote={false}
                   editingNote={null}
                   noteTitle={newNote.title}

@@ -47,10 +47,10 @@ const PrivateRoute = ({ isAuthenticated, children }: PrivateRouteProps) => {
   }
   
   return (
-    <div className="min-h-screen flex flex-col overflow-hidden bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white">
       <Navbar setIsAuthenticated={() => {}} />
       <Header />
-      <main className="flex-1 overflow-y-auto">
+      <main className="relative w-full">
         {children}
       </main>
       <TimerWidget />
@@ -348,6 +348,31 @@ function App() {
             />
             <Route
               path="/decks/practice"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Decks />
+                </PrivateRoute>
+              }
+            />
+            {/* Decks page tabs, each with its own addressable URL */}
+            <Route
+              path="/decks/archive"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Decks />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/stats"
+              element={
+                <PrivateRoute isAuthenticated={authState.isAuthenticated}>
+                  <Decks />
+                </PrivateRoute>
+              }
+            />
+            <Route
+              path="/group-quizzes"
               element={
                 <PrivateRoute isAuthenticated={authState.isAuthenticated}>
                   <Decks />

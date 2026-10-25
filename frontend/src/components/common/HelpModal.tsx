@@ -3,7 +3,6 @@ import { createPortal } from 'react-dom';
 import {
   X,
   Home,
-  Users,
   MessageCircle,
   BarChart2,
   FileText,
@@ -43,24 +42,6 @@ const HELP_ITEMS: HelpItem[] = [
         'Pending Tasks & Upcoming Events',
         '- Two side‑by‑side panels summarizing your top tasks and nearest schedule items.',
         '- Each row links into the full Tasks or Schedule page for deeper management.',
-      ].join('\n'),
-  },
-  {
-    id: 'find-friends',
-    name: 'Find Friends',
-    icon: Users,
-    description:
-      [
-        'Search panel',
-        '- Slide‑in panel that lets you search by username.',
-        '- Shows basic profile info so you can quickly recognize classmates or teammates.',
-        '',
-        'Profile preview',
-        '- Click a result to open a richer profile view with avatar, bio, school, and course.',
-        '- From there you can follow/unfollow and navigate to chat.',
-        '',
-        'Social graph',
-        '- People you follow appear in other areas like chat, collaboration, and group quizzes.',
       ].join('\n'),
   },
   {

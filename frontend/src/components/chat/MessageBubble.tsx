@@ -5,10 +5,11 @@ import { Message, ChatRoom, User } from './types';
 import { getAvatarUrl } from './utils';
 import { File, Download, X, FileText, BookOpen, ClipboardList, CheckSquare, MoreVertical, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import DeleteConfirmationModal from '../common/DeleteConfirmationModal';
+import { parseMentions, renderMentions } from './mentionHelpers';
 
 interface MessageBubbleProps {
   message: Message;
-  prevMessage: Message | null;
   currentUserId: string;
   selectedRoom: ChatRoom | null;
   showAvatar: boolean;
@@ -18,22 +19,22 @@ interface MessageBubbleProps {
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({
   message,
-  prevMessage,
   currentUserId,
   selectedRoom,
   showAvatar,
   showDateSeparator,
+  onDeleteMessage,
 }) => {
   const navigate = useNavigate();
   const [expandedImage, setExpandedImage] = useState<string | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const moreMenuRef = useRef<HTMLDivElement>(null);
   const [imageGallery, setImageGallery] = useState<string[]>([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const isOwnMessage = String(message.sender_id) === currentUserId;
   const isSystemMessage = !!(message.is_system || String(message.sender_id) === 'system');
 
-  // Parse shared item from message content
   const parseSharedItem = (content: string) => {
     const sharedMatch = content.match(/__SHARED_ITEM__(.+)$/);
     if (sharedMatch && sharedMatch[1]) {
@@ -48,13 +49,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   };
 
   const sharedItem = parseSharedItem(message.content || '');
-  const displayContent = sharedItem ? message.content.replace(/__SHARED_ITEM__.+$/, '').trim() : message.content;
+  const displayContent = sharedItem
+    ? message.content.replace(/__SHARED_ITEM__.+$/, '').trim()
+    : message.content;
 
-  // Get all images from attachments
-  const imageAttachments = message.attachments?.filter(att => att.type === 'image') || [];
-  const fileAttachments = message.attachments?.filter(att => att.type === 'file') || [];
+  const imageAttachments = message.attachments?.filter((att) => att.type === 'image') || [];
+  const fileAttachments = message.attachments?.filter((att) => att.type === 'file') || [];
 
-  // Hide navbar and prevent scrolling when image modal is open
   useEffect(() => {
     if (expandedImage) {
       document.documentElement.classList.add('image-modal-active');
@@ -70,8 +71,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     };
   }, [expandedImage]);
 
-  // Close more menu when clicking outside
   useEffect(() => {
+    if (!showMoreMenu) return;
+
     function handleClickOutside(event: MouseEvent) {
       if (moreMenuRef.current && !moreMenuRef.current.contains(event.target as Node)) {
         setShowMoreMenu(false);
@@ -79,11 +81,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+  }, [showMoreMenu]);
 
-  // Set image gallery when opening modal
   const handleImageClick = (url: string) => {
-    const imageUrls = imageAttachments.map(att => att.url);
+    const imageUrls = imageAttachments.map((att) => att.url);
     const index = imageUrls.indexOf(url);
     setImageGallery(imageUrls);
     setCurrentImageIndex(index >= 0 ? index : 0);
@@ -107,11 +108,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
       setExpandedImage(imageGallery[prevIndex]);
     }
   };
+
   const messageDate = new Date(message.created_at);
 
-  // Get avatar - prioritize sender, then participant, ensure URL is processed
   const senderId = String(message.sender_id);
-  const participant = selectedRoom?.participants?.find(p => String(p.id) === senderId);
+  const participant = selectedRoom?.participants?.find((p) => String(p.id) === senderId);
   let avatarToUse = message.sender?.avatar;
   if (!avatarToUse && participant?.avatar) {
     avatarToUse = getAvatarUrl(participant.avatar);
@@ -120,11 +121,40 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
   }
   const usernameToUse = message.sender?.username || participant?.username;
 
+  const participantsList = selectedRoom?.participants || [];
+  const participantsById = new Map<string, User>();
+  participantsList.forEach((p) => participantsById.set(String(p.id), p));
+
+  const rawMentions = parseMentions(displayContent);
+  const mentionedUserIds = new Set<string>();
+
+  for (const mention of rawMentions) {
+    if (mention.kind === 'everyone') {
+      for (const participant of participantsList) {
+        const pid = String(participant.id);
+        if (pid !== senderId) {
+          mentionedUserIds.add(pid);
+        }
+      }
+      continue;
+    }
+
+    const participant = participantsList.find(
+      (p) => (p.username || '').toLowerCase() === mention.username.toLowerCase(),
+    );
+    if (participant) {
+      const pid = String(participant.id);
+      if (pid !== senderId) {
+        mentionedUserIds.add(pid);
+      }
+    }
+  }
+
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return '';
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
   const systemContent = isSystemMessage ? message.content : message.content;
@@ -145,168 +175,233 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               weekday: 'long',
               year: 'numeric',
               month: 'long',
-              day: 'numeric'
+              day: 'numeric',
             })}
           </span>
         </div>
       )}
       {!isSystemMessage && (
-        <div className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'}`}>
-        {showAvatar && !isOwnMessage && (
-          <MessageAvatar 
-            avatar={avatarToUse}
-            username={usernameToUse}
-          />
-        )}
-        {!showAvatar && !isOwnMessage && <div className="w-8 h-8 flex-shrink-0" />}
-        <div className={`flex flex-col max-w-[70%] ${isOwnMessage ? 'items-end' : 'items-start'}`}>
-          {showAvatar && !isOwnMessage && usernameToUse && (
-            <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-              {usernameToUse}
-            </span>
+        <div
+          className={`flex gap-3 ${isOwnMessage ? 'flex-row-reverse' : 'flex-row'} group/${isOwnMessage ? 'own' : 'other'}`}
+        >
+          {showAvatar && !isOwnMessage && (
+            <MessageAvatar avatar={avatarToUse} username={usernameToUse} />
           )}
-          {/* Shared Item Card */}
-          {sharedItem && (
-            <div className={`rounded-lg border-2 ${
-              isOwnMessage
-                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
-                : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'
-            } p-4 max-w-sm`}>
-              <div className="flex items-start gap-3">
-                {sharedItem.itemType === 'note' || sharedItem.itemType === 'notebook' ? (
-                  <FileText className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`} size={24} />
-                ) : sharedItem.itemType === 'reviewer' ? (
-                  <BookOpen className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`} size={24} />
-                ) : sharedItem.itemType === 'task' ? (
-                  <CheckSquare className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`} size={24} />
-                ) : (
-                  <ClipboardList className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`} size={24} />
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className={`text-xs font-semibold mb-1 ${
-                    isOwnMessage ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300'
-                  }`}>
-                    Shared {sharedItem.itemType}
-                  </p>
-                  <p className={`text-sm font-medium mb-2 truncate ${
-                    isOwnMessage ? 'text-indigo-900 dark:text-indigo-100' : 'text-gray-900 dark:text-white'
-                  }`}>
-                    {sharedItem.itemTitle}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs px-2 py-1 rounded ${
-                      isOwnMessage
-                        ? 'bg-indigo-200 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200'
-                        : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
-                    }`}>
-                      {sharedItem.permissionLevel}
-                    </span>
+          {!showAvatar && !isOwnMessage && <div className="w-8 h-8 flex-shrink-0" />}
+          <div
+            className={`flex flex-col max-w-[70%] ${isOwnMessage ? 'items-end' : 'items-start'} relative`}
+          >
+            {showAvatar && !isOwnMessage && usernameToUse && (
+              <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                {usernameToUse}
+              </span>
+            )}
+            {isOwnMessage && (
+              <div ref={moreMenuRef} className="absolute right-full top-1 z-10 mr-2">
+                <button
+                  type="button"
+                  onClick={() => setShowMoreMenu((prev) => !prev)}
+                  className="
+                    flex-shrink-0 p-1.5 rounded-full text-gray-400 hover:text-gray-600
+                    dark:text-gray-500 dark:hover:text-gray-300 dark:bg-[#2C2C2C] hover:bg-gray-200
+                    dark:hover:bg-gray-600 transition-colors opacity-0 group-hover/own:opacity-100
+                    group-hover/other:opacity-100 focus:opacity-100
+                  "
+                  aria-label="More options"
+                >
+                  <MoreVertical className="h-4 w-4" />
+                </button>
+                {showMoreMenu && (
+                  <div
+                    className="
+                      absolute right-full top-0 z-50 mr-1 min-w-[140px] rounded-lg border border-gray-200
+                      bg-white py-1 text-sm shadow-lg dark:border-gray-700 dark:bg-gray-800
+                    "
+                  >
                     <button
-                      onClick={async () => {
-                        try {
-                          if (sharedItem.itemType === 'note') {
-                            // Fetch note to get notebook ID using axiosInstance (which has auth configured)
-                            const axiosInstance = (await import('../../utils/axiosConfig')).default;
-                            
-                            try {
-                              const response = await axiosInstance.get(`/notes/${sharedItem.itemId}/`);
-                              const note = response.data;
-                              
-                              console.log('✅ Note fetched for navigation:', { 
-                                noteId: note.id, 
-                                notebookId: note.notebook,
-                                title: note.title 
-                              });
-                              
-                              // Navigate to note: /notebooks/:notebookId/note/:noteId
-                              const targetUrl = `/notebooks/${note.notebook}/note/${note.id}`;
-                              console.log('🔗 Navigating to:', targetUrl);
-                              navigate(targetUrl, { replace: false });
-                              
-                              // Wait for navigation to complete, then trigger custom event to open the note
-                              // Use a shorter delay since we're handling this in URL navigation now
-                              setTimeout(() => {
-                                console.log('📨 Dispatching openSharedNote event:', { noteId: note.id, notebookId: note.notebook });
-                                window.dispatchEvent(new CustomEvent('openSharedNote', { 
-                                  detail: { noteId: note.id, notebookId: note.notebook } 
-                                }));
-                              }, 300);
-                            } catch (error: any) {
-                              console.error('❌ Failed to fetch note:', error.response?.status, error.response?.statusText || error.message);
-                              // Only navigate away if it's a real error
-                              if (error.response?.status === 404 || error.response?.status === 403) {
-                                console.warn('⚠️ Note not accessible, redirecting to /notes');
-                                navigate('/notebooks');
-                              } else if (error.response?.status === 401) {
-                                console.error('🔐 Authentication failed, check token');
-                                // Don't navigate away on auth error, let user see the error
-                              }
-                            }
-                          } else if (sharedItem.itemType === 'notebook') {
-                            // Navigate to notebook view
-                            navigate(`/notebooks/${sharedItem.itemId}`);
-                          } else if (sharedItem.itemType === 'reviewer') {
-                            navigate(`/reviewer/${sharedItem.itemId}`);
-                          } else if (sharedItem.itemType === 'task') {
-                            navigate('/tasks');
-                          }
-                        } catch (error) {
-                          console.error('Error loading shared item:', error);
-                          // Fallback navigation
-                          if (sharedItem.itemType === 'note' || sharedItem.itemType === 'notebook') {
-                            navigate('/notebooks');
-                          } else if (sharedItem.itemType === 'reviewer') {
-                            navigate('/reviewer');
-                          } else if (sharedItem.itemType === 'task') {
-                            navigate('/tasks');
-                          }
-                        }
+                      type="button"
+                      onClick={() => {
+                        setShowMoreMenu(false);
+                        setShowDeleteConfirm(true);
                       }}
-                      className={`text-xs font-medium ${
-                        isOwnMessage
-                          ? 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-700'
-                          : 'text-blue-600 dark:text-blue-400 hover:text-blue-700'
-                      } hover:underline`}
+                      className="
+                        flex items-center gap-2 w-full px-3 py-1.5 text-left text-red-600 dark:text-red-400
+                        hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors
+                      "
                     >
-                      View →
+                      <Trash2 className="h-4 w-4" />
+                      Delete
                     </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {sharedItem && (
+              <div
+                className={`rounded-lg border-2 ${
+                  isOwnMessage
+                    ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/20'
+                    : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800'
+                } p-4 max-w-sm`}
+              >
+                <div className="flex items-start gap-3">
+                  {sharedItem.itemType === 'note' || sharedItem.itemType === 'notebook' ? (
+                    <FileText
+                      className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`}
+                      size={24}
+                    />
+                  ) : sharedItem.itemType === 'reviewer' ? (
+                    <BookOpen
+                      className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`}
+                      size={24}
+                    />
+                  ) : sharedItem.itemType === 'task' ? (
+                    <CheckSquare
+                      className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`}
+                      size={24}
+                    />
+                  ) : (
+                    <ClipboardList
+                      className={`flex-shrink-0 ${isOwnMessage ? 'text-indigo-600' : 'text-gray-600 dark:text-gray-400'}`}
+                      size={24}
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-xs font-semibold mb-1 ${
+                        isOwnMessage ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-700 dark:text-gray-300'
+                      }`}
+                    >
+                      Shared {sharedItem.itemType}
+                    </p>
+                    <p
+                      className={`text-sm font-medium mb-2 truncate ${
+                        isOwnMessage ? 'text-indigo-900 dark:text-indigo-100' : 'text-gray-900 dark:text-white'
+                      }`}
+                    >
+                      {sharedItem.itemTitle}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-xs px-2 py-1 rounded ${
+                          isOwnMessage
+                            ? 'bg-indigo-200 dark:bg-indigo-800 text-indigo-800 dark:text-indigo-200'
+                            : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300'
+                        }`}
+                      >
+                        {sharedItem.permissionLevel}
+                      </span>
+                      <button
+                        onClick={async () => {
+                          try {
+                            if (sharedItem.itemType === 'note') {
+                              const axiosInstance = (await import('../../utils/axiosConfig')).default;
+
+                              try {
+                                const response = await axiosInstance.get(`/notes/${sharedItem.itemId}/`);
+                                const note = response.data;
+
+                                console.log('OK Note fetched for navigation:', {
+                                  noteId: note.id,
+                                  notebookId: note.notebook,
+                                  title: note.title,
+                                });
+
+                                const targetUrl = `/notebooks/${note.notebook}/note/${note.id}`;
+                                console.log('OK Navigating to:', targetUrl);
+                                navigate(targetUrl, { replace: false });
+
+                                setTimeout(() => {
+                                  console.log('OK Dispatching openSharedNote event:', {
+                                    noteId: note.id,
+                                    notebookId: note.notebook,
+                                  });
+                                  window.dispatchEvent(
+                                    new CustomEvent('openSharedNote', {
+                                      detail: { noteId: note.id, notebookId: note.notebook },
+                                    }),
+                                  );
+                                }, 300);
+                              } catch (error: any) {
+                                console.error(
+                                  'OK Failed to fetch note:',
+                                  error.response?.status,
+                                  error.response?.statusText || error.message,
+                                );
+                                if (error.response?.status === 404 || error.response?.status === 403) {
+                                  console.warn('?? Note not accessible, redirecting to /notes');
+                                  navigate('/notebooks');
+                                } else if (error.response?.status === 401) {
+                                  console.error('! Authentication failed, check token');
+                                }
+                              }
+                            } else if (sharedItem.itemType === 'notebook') {
+                              navigate(`/notebooks/${sharedItem.itemId}`);
+                            } else if (sharedItem.itemType === 'reviewer') {
+                              navigate(`/reviewer/${sharedItem.itemId}`);
+                            } else if (sharedItem.itemType === 'task') {
+                              navigate('/tasks');
+                            }
+                          } catch (error) {
+                            console.error('Error loading shared item:', error);
+                            if (sharedItem.itemType === 'note' || sharedItem.itemType === 'notebook') {
+                              navigate('/notebooks');
+                            } else if (sharedItem.itemType === 'reviewer') {
+                              navigate('/reviewer');
+                            } else if (sharedItem.itemType === 'task') {
+                              navigate('/tasks');
+                            }
+                          }
+                        }}
+                        className={`text-xs font-medium ${
+                          isOwnMessage
+                            ? 'text-indigo-600 dark:text-indigo-400 hover:text-indigo-700'
+                            : 'text-blue-600 dark:text-blue-400 hover:text-blue-700'
+                        } hover:underline`}
+                      >
+                        View →
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          )}
+            )}
 
-          {/* Text Content with Background Bubble */}
-          {displayContent && (
-            <div
-              className={`px-4 py-2 rounded-2xl ${
-                isOwnMessage
-                  ? 'bg-indigo-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
-              } ${sharedItem ? 'mt-2' : ''}`}
-            >
-              <p className="text-sm whitespace-pre-wrap break-words">{displayContent}</p>
-            </div>
-          )}
+            {displayContent && (
+              <div
+                className={`px-4 py-2 rounded-2xl ${
+                  isOwnMessage
+                    ? 'bg-indigo-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white'
+                } ${sharedItem ? 'mt-2' : ''}`}
+              >
+                <p className="text-sm whitespace-pre-wrap break-words">
+                  {renderMentions(displayContent, {
+                    participants: participantsList,
+                    mentionedUserIds,
+                  })}
+                </p>
+              </div>
+            )}
 
-          {/* Attachments without Background Container – use explicit check so we never render "0" */}
-          {Array.isArray(message.attachments) && message.attachments.length > 0 ? (
-            <div className={`${message.content ? 'mt-2' : ''}`}>
-                {/* Image Gallery - Messenger Style */}
+            {Array.isArray(message.attachments) && message.attachments.length > 0 ? (
+              <div className={`${message.content ? 'mt-2' : ''}`}>
                 {imageAttachments.length > 0 && (
-                  <div className={`rounded-lg overflow-hidden ${
-                    imageAttachments.length === 1 
-                      ? 'max-w-sm' 
-                      : imageAttachments.length === 2
-                      ? 'grid grid-cols-2 gap-1 max-w-md'
-                      : imageAttachments.length === 3
-                      ? 'grid grid-cols-2 gap-1 max-w-md'
-                      : 'grid grid-cols-2 gap-1 max-w-md'
-                  }`}>
+                  <div
+                    className={`rounded-lg overflow-hidden ${
+                      imageAttachments.length === 1
+                        ? 'max-w-sm'
+                        : imageAttachments.length === 2
+                        ? 'grid grid-cols-2 gap-1 max-w-md'
+                        : imageAttachments.length === 3
+                        ? 'grid grid-cols-2 gap-1 max-w-md'
+                        : 'grid grid-cols-2 gap-1 max-w-md'
+                    }`}
+                  >
                     {imageAttachments.slice(0, 4).map((att, index) => {
                       const totalImages = imageAttachments.length;
                       const isLastVisible = index === 3 && totalImages > 4;
-                      
+
                       return (
                         <div
                           key={index}
@@ -338,9 +433,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                   </div>
                 )}
 
-                {/* File Attachments */}
                 {fileAttachments.length > 0 && (
-                  <div className={`space-y-2 ${imageAttachments.length > 0 ? 'mt-2' : ''}`}>
+                  <div
+                    className={`space-y-2 ${imageAttachments.length > 0 ? 'mt-2' : ''}`}
+                  >
                     {fileAttachments.map((att, index) => (
                       <a
                         key={index}
@@ -348,7 +444,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                         download={att.name}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="flex items-center gap-3 p-3 rounded-lg border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                        className="
+                          flex items-center gap-3 p-3 rounded-lg border-2 border-gray-300 dark:border-gray-600
+                          bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors
+                        "
                       >
                         <File size={24} className="text-gray-600 dark:text-gray-300" />
                         <div className="flex-1 min-w-0">
@@ -368,60 +467,48 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
                 )}
               </div>
             ) : null}
-          <div className="flex items-center gap-2 mt-1 relative">
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              {messageDate.toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
-            </span>
-            {isOwnMessage && message.status && (
-              <span className={`text-xs ${
-                message.status === 'sending' 
-                  ? 'text-gray-400 dark:text-gray-500' 
-                  : message.status === 'failed'
-                  ? 'text-red-500 dark:text-red-400'
-                  : 'text-gray-500 dark:text-gray-400'
-              }`}>
-                {message.status === 'sending' ? 'Sending...' : message.status === 'failed' ? 'Failed' : 'Sent'}
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                {messageDate.toLocaleTimeString('en-US', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
               </span>
-            )}
-            {/* Triple dot action menu (own messages only) */}
-            {isOwnMessage && (
-              <div className="relative" ref={moreMenuRef}>
-                <button
-                  type="button"
-                  onClick={() => setShowMoreMenu(prev => !prev)}
-                  className="flex-shrink-0 p-1 rounded-md text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
-                  aria-label="More options"
+              {isOwnMessage && message.status && (
+                <span
+                  className={`text-xs ${
+                    message.status === 'sending'
+                      ? 'text-gray-400 dark:text-gray-500'
+                      : message.status === 'failed'
+                      ? 'text-red-500 dark:text-red-400'
+                      : 'text-gray-500 dark:text-gray-400'
+                  }`}
                 >
-                  <MoreVertical className="h-4 w-4" />
-                </button>
-                {showMoreMenu && (
-                  <div
-                    className="absolute right-0 top-full z-50 min-w-[140px] rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 py-1 text-sm"
-                  >
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowMoreMenu(false);
-                        if (onDeleteMessage) onDeleteMessage(message.id);
-                      }}
-                      className="flex items-center gap-2 w-full px-3 py-1.5 text-left text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Delete message
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
+                  {message.status === 'sending'
+                    ? 'Sending...'
+                    : message.status === 'failed'
+                    ? 'Failed'
+                    : 'Sent'}
+                </span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
       )}
 
-      {/* Expanded Image Modal - rendered in portal so it appears above the header */}
+      <DeleteConfirmationModal
+        isOpen={showDeleteConfirm}
+        onClose={() => setShowDeleteConfirm(false)}
+        onConfirm={() => {
+          setShowDeleteConfirm(false);
+          onDeleteMessage?.(message.id);
+        }}
+        title="Delete message"
+        message="Are you sure you want to delete this message? This action cannot be undone."
+        confirmLabel="Delete message"
+        cancelLabel="Cancel"
+      />
+
       {expandedImage && imageGallery.length > 0 && createPortal(
         <div
           className="fixed inset-0 w-full h-full z-[9999] bg-black/90 flex items-center justify-center"
@@ -455,7 +542,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               aria-label="Previous image"
             >
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M15 18l-6-6 6-6"/>
+                <path d="M15 18l-6-6 6-6" />
               </svg>
             </button>
           )}
@@ -467,7 +554,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
               aria-label="Next image"
             >
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M9 18l6-6-6-6"/>
+                <path d="M9 18l6-6-6-6" />
               </svg>
             </button>
           )}
@@ -485,7 +572,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({
             onClick={(e) => e.stopPropagation()}
           />
         </div>,
-        document.body
+        document.body,
       )}
     </>
   );

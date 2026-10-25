@@ -231,7 +231,9 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
               >
                 <Bell size={18} className="shrink-0" />
                 {unreadCount > 0 && (
-                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-[#1c1c1c]" />
+                  <span className="absolute top-0 right-0 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-xs font-medium text-white border-2 border-white dark:border-[#1c1c1c]">
+                    {unreadCount}
+                  </span>
                 )}
               </button>
             </HeaderTooltip>
@@ -273,7 +275,7 @@ const Header: React.FC<HeaderProps> = ({ pageTitle, pageDescription }) => {
                                   {iconData.icon}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-medium text-gray-900 dark:text-white truncate">{n.title}</p>
+                                  <p className={`text-xs ${!n.isRead ? 'font-bold' : 'font-medium'} text-gray-900 dark:text-white truncate`}>{n.title}</p>
                                   <p className="text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2 mt-0.5">{n.message}</p>
                                   <div className="flex items-center mt-1 text-[10px] text-gray-500 dark:text-gray-400">
                                     <Clock size={10} className="shrink-0 mr-1" />

@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useNavigate } from 'react-router-dom';
 import { ExternalLink, PlayCircle, ChevronLeft } from 'lucide-react';
+import axiosInstance from '../../utils/axiosConfig';
 import InteractiveQuiz from './InteractiveQuiz';
 
 interface Reviewer {
@@ -140,17 +141,30 @@ const ReviewerDocument: React.FC<ReviewerDocumentProps> = ({ reviewer, onClose }
   // Determine if this is a quiz (by tag or title)
   const isQuiz = (reviewer.tags && reviewer.tags.includes('quiz')) || (reviewer.title && reviewer.title.toLowerCase().startsWith('quiz:'));
 
-  const handleSourceClick = () => {
-    if (reviewer.source_note && reviewer.source_note_notebook_id) {
-      navigate(`/notebooks/${reviewer.source_note_notebook_id}/note/${reviewer.source_note}`);
-      onClose();
-    } else if (reviewer.source_note) {
-      // Fallback: go to notes page if notebook ID not available
+  const handleSourceClick = async () => {
+    // Don't call onClose here: it navigates back to /reviewer and would
+    // immediately override the source navigation.
+    if (reviewer.source_note) {
+      if (reviewer.source_note_notebook_id) {
+        navigate(`/notebooks/${reviewer.source_note_notebook_id}/note/${reviewer.source_note}`);
+        return;
+      }
+
+      // Older cached reviewers may not have the notebook id, so resolve it
+      try {
+        const { data } = await axiosInstance.get(`/notes/${reviewer.source_note}/`);
+        if (data?.notebook) {
+          navigate(`/notebooks/${data.notebook}/note/${reviewer.source_note}`);
+          return;
+        }
+      } catch (err) {
+        console.error('Failed to resolve source note notebook:', err);
+      }
+
+      // Last resort: open the notes list
       navigate('/notebooks');
-      onClose();
     } else if (reviewer.source_notebook) {
       navigate(`/notebooks?notebook=${reviewer.source_notebook}`);
-      onClose();
     }
   };
 

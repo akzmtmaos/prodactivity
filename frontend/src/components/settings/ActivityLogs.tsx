@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import axiosInstance from '../../utils/axiosConfig';
 import { supabase } from '../../lib/supabase';
 import { CheckCircle, BookOpen, Clock, Award, Trash2, Target } from 'lucide-react';
 import Pagination from '../common/Pagination';
@@ -15,6 +16,7 @@ interface ActivityLog {
 const ActivityLogs: React.FC = () => {
   const [activities, setActivities] = useState<ActivityLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | '7days' | '30days'>('7days');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(20);
@@ -26,109 +28,133 @@ const ActivityLogs: React.FC = () => {
 
   const fetchActivities = async () => {
     setLoading(true);
+    setError(null);
+
+    const merged = new Map<string, ActivityLog>();
+    let backendFailed = false;
+    let supabaseFailed = false;
+
+    const addActivity = (activity: ActivityLog) => {
+      // XP can come from either the Django log or the Supabase log; key it by
+      // the event itself so the same award isn't listed twice.
+      const key = activity.type === 'xp_earned'
+        ? `xp:${activity.timestamp}:${activity.xp_amount}`
+        : activity.id;
+      merged.set(key, activity);
+    };
+
+    const startTime = filter === '7days'
+      ? Date.now() - 7 * 24 * 60 * 60 * 1000
+      : filter === '30days'
+        ? Date.now() - 30 * 24 * 60 * 60 * 1000
+        : -Infinity;
+    const inPeriod = (timestamp: string) => new Date(timestamp).getTime() >= startTime;
+
+    // 1) Server feed: notes live in Django, plus any tasks/XP recorded there
+    try {
+      const { data } = await axiosInstance.get('/progress/activity/', {
+        params: { period: filter },
+        timeout: 15000,
+      });
+
+      (Array.isArray(data?.activities) ? data.activities : []).forEach((item: any) => {
+        if (!item?.timestamp) return;
+        addActivity({
+          id: String(item.id),
+          type: item.type,
+          description: item.description || 'Activity',
+          timestamp: item.timestamp,
+          details: item.details ?? undefined,
+          xp_amount: item.xp_amount ?? undefined,
+        });
+      });
+    } catch (err) {
+      backendFailed = true;
+      console.error('Error fetching server activity logs:', err);
+    }
+
+    // 2) Supabase feed: the Tasks page writes tasks and XP here directly
     try {
       const userData = localStorage.getItem('user');
-      if (!userData) return;
+      const rawId = userData ? JSON.parse(userData).id : null;
+      const userId = typeof rawId === 'number' ? rawId : parseInt(rawId, 10);
 
-      const user = JSON.parse(userData);
-      const userId = user.id || 11;
-
-      const now = new Date();
-      let startDate = new Date();
-      if (filter === '7days') startDate.setDate(now.getDate() - 7);
-      else if (filter === '30days') startDate.setDate(now.getDate() - 30);
-      else startDate.setDate(now.getDate() - 90);
-
-      const startDateStr = startDate.toISOString();
-      const allActivities: ActivityLog[] = [];
-
-      const { data: xpLogs } = await supabase
-        .from('xp_logs')
-        .select('*')
-        .eq('user_id', userId)
-        .gte('created_at', startDateStr)
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (xpLogs) {
-        xpLogs.forEach(log => {
-          allActivities.push({
-            id: `xp-${log.id}`,
-            type: 'xp_earned',
-            description: log.description || 'Earned XP',
-            timestamp: log.created_at,
-            xp_amount: log.xp_amount
-          });
-        });
+      if (!Number.isFinite(userId)) {
+        throw new Error('No user id available for Supabase activity');
       }
 
-      const { data: tasks } = await supabase
+      const { data: tasks, error: tasksError } = await supabase
         .from('tasks')
-        .select('id, title, completed, completed_at, created_at, is_deleted')
+        .select('id, title, completed, completed_at, created_at, deleted_at, is_deleted')
         .eq('user_id', userId)
-        .gte('created_at', startDateStr)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(500);
 
-      if (tasks) {
-        tasks.forEach(task => {
-          allActivities.push({
+      if (tasksError) throw tasksError;
+
+      (tasks || []).forEach((task: any) => {
+        if (task.created_at && inPeriod(task.created_at)) {
+          addActivity({
             id: `task-created-${task.id}`,
             type: 'task_created',
             description: `Created task: ${task.title}`,
             timestamp: task.created_at,
-            details: task.is_deleted ? 'DELETED' : undefined
+            details: task.is_deleted ? 'DELETED' : undefined,
           });
-          if (task.completed && task.completed_at) {
-            allActivities.push({
-              id: `task-completed-${task.id}`,
-              type: 'task_completed',
-              description: `Completed task: ${task.title}`,
-              timestamp: task.completed_at,
-              details: task.is_deleted ? 'DELETED' : undefined
-            });
-          }
-        });
-      }
+        }
+        if (task.completed && task.completed_at && inPeriod(task.completed_at)) {
+          addActivity({
+            id: `task-completed-${task.id}`,
+            type: 'task_completed',
+            description: `Completed task: ${task.title}`,
+            timestamp: task.completed_at,
+            details: task.is_deleted ? 'DELETED' : undefined,
+          });
+        }
+        if (task.is_deleted && task.deleted_at && inPeriod(task.deleted_at)) {
+          addActivity({
+            id: `task-deleted-${task.id}`,
+            type: 'task_deleted',
+            description: `Deleted task: ${task.title}`,
+            timestamp: task.deleted_at,
+          });
+        }
+      });
 
-      const { data: notes } = await supabase
-        .from('notes')
-        .select('id, title, created_at, updated_at, is_deleted')
+      const { data: xpLogs, error: xpError } = await supabase
+        .from('xp_logs')
+        .select('*')
         .eq('user_id', userId)
-        .gte('created_at', startDateStr)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(500);
 
-      if (notes) {
-        notes.forEach(note => {
-          allActivities.push({
-            id: `note-created-${note.id}`,
-            type: 'note_created',
-            description: `Created note: ${note.title}`,
-            timestamp: note.created_at,
-            details: note.is_deleted ? 'DELETED' : undefined
-          });
-          const createdTime = new Date(note.created_at).getTime();
-          const updatedTime = new Date(note.updated_at).getTime();
-          if (updatedTime - createdTime > 60000) {
-            allActivities.push({
-              id: `note-updated-${note.id}-${note.updated_at}`,
-              type: 'note_updated',
-              description: `Updated note: ${note.title}`,
-              timestamp: note.updated_at,
-              details: note.is_deleted ? 'DELETED' : undefined
-            });
-          }
+      if (xpError) throw xpError;
+
+      (xpLogs || []).forEach((log: any) => {
+        const timestamp = log.created_at || log.awarded_at;
+        if (!timestamp || !inPeriod(timestamp)) return;
+        addActivity({
+          id: `xp-${log.id}`,
+          type: 'xp_earned',
+          description: log.description || `Earned ${log.xp_amount ?? log.xp ?? 0} XP`,
+          timestamp,
+          xp_amount: log.xp_amount ?? log.xp,
         });
-      }
-
-      allActivities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      setActivities(allActivities);
-    } catch (error) {
-      console.error('Error fetching activity logs:', error);
-    } finally {
-      setLoading(false);
+      });
+    } catch (err) {
+      supabaseFailed = true;
+      console.error('Error fetching Supabase activity logs:', err);
     }
+
+    const items = Array.from(merged.values()).sort(
+      (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+    );
+
+    setActivities(items);
+    if (items.length === 0 && backendFailed && supabaseFailed) {
+      setError('Could not load your activity. Please try again.');
+    }
+    setLoading(false);
   };
 
   const getActivityIcon = (type: string) => {
@@ -204,6 +230,16 @@ const ActivityLogs: React.FC = () => {
         {loading ? (
           <div className="flex justify-center items-center py-12">
             <div className="animate-spin rounded-full h-6 w-6 border-2 border-indigo-500 border-t-transparent" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-10 px-4">
+            <p className="text-sm text-gray-500 dark:text-gray-400">{error}</p>
+            <button
+              onClick={fetchActivities}
+              className="mt-3 px-3 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+            >
+              Retry
+            </button>
           </div>
         ) : activities.length === 0 ? (
           <div className="text-center py-10">

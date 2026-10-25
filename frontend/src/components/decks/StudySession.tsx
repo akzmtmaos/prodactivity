@@ -109,7 +109,7 @@ const StudySession: React.FC<StudySessionProps> = ({
 
   if (flashcards.length === 0) {
     return (
-      <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto flex flex-col items-center justify-center">
+      <div className="fixed inset-0 z-40 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto flex flex-col items-center justify-center">
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-8 text-center w-full max-w-md">
           <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-4">No Flashcards</h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">This deck has no flashcards to practice. Please add some cards first!</p>
@@ -131,7 +131,7 @@ const StudySession: React.FC<StudySessionProps> = ({
     const timeSpent = Math.round((Date.now() - startTime) / 1000 / 60);
 
     return (
-      <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
+      <div className="fixed inset-0 z-40 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
         <div className="py-8 px-4 flex flex-col items-center justify-start min-h-screen">
           {/* Header */}
           <div className="flex items-center justify-between mb-8 w-full max-w-4xl">
@@ -215,7 +215,7 @@ const StudySession: React.FC<StudySessionProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
+    <div className="fixed inset-0 z-40 w-screen h-screen bg-gray-50 dark:bg-gray-900 overflow-auto">
       <div className="py-8 px-4 flex flex-col items-center justify-start min-h-screen">
         {/* Header */}
         <div className="flex items-center justify-between mb-8 w-full max-w-4xl">

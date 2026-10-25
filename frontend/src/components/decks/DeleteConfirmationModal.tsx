@@ -1,11 +1,16 @@
 import React from 'react';
-import { X, Trash2, AlertTriangle, Users } from 'lucide-react';
+import { X, Trash2, AlertTriangle } from 'lucide-react';
 
 interface DeleteConfirmationModalProps {
   isOpen: boolean;
   onClose: () => void;
   onConfirm: () => void;
+  /** Name of the thing being deleted, shown in quotes */
   deckTitle: string;
+  /** Heading; defaults to the deck wording so existing callers are unchanged */
+  title?: string;
+  /** Sentence after the item name; defaults to the irreversible-delete warning */
+  description?: string;
   loading?: boolean;
 }
 
@@ -14,6 +19,8 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
   onClose,
   onConfirm,
   deckTitle,
+  title = 'Delete Deck',
+  description = 'This cannot be undone.',
   loading = false
 }) => {
   if (!isOpen) return null;
@@ -34,7 +41,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
                 <AlertTriangle className="h-4 w-4 text-red-500 dark:text-red-400" />
               </div>
               <h2 className="text-base font-semibold leading-6 text-gray-900 dark:text-white">
-                Delete Deck
+                {title}
               </h2>
             </div>
             <button
@@ -49,7 +56,7 @@ const DeleteConfirmationModal: React.FC<DeleteConfirmationModalProps> = ({
           {/* Content */}
           <div className="px-5 py-4">
             <p className="text-sm text-gray-600 dark:text-white/80 m-0">
-              Delete <span className="font-medium text-gray-900 dark:text-white">"{deckTitle}"</span>? This cannot be undone.
+              Delete <span className="font-medium text-gray-900 dark:text-white">"{deckTitle}"</span>? {description}
             </p>
           </div>
 
