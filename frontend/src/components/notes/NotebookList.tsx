@@ -265,14 +265,16 @@ const NotebookList: React.FC<NotebookListProps> = ({
       >
         <div className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ backgroundColor: notebook.color }} />
         <Book className={`flex-shrink-0 ${selected ? 'text-indigo-600 dark:text-indigo-300' : 'text-gray-500 dark:text-gray-400'}`} size={14} />
-        <span className={`min-w-0 flex-1 truncate text-sm font-medium ${selected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-800 dark:text-gray-200'}`}>{notebook.name}</span>
-        <HeaderTooltip label={`${notebook.notes_count ?? 0} ${(notebook.notes_count ?? 0) === 1 ? 'note' : 'notes'} in this notebook`} fixed>
-          <span className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
-            {notebook.notes_count ?? 0} {(notebook.notes_count ?? 0) === 1 ? 'note' : 'notes'}
-          </span>
-        </HeaderTooltip>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className={`min-w-0 truncate text-sm font-medium ${selected ? 'text-indigo-700 dark:text-indigo-300' : 'text-gray-800 dark:text-gray-200'}`}>{notebook.name}</span>
+          <HeaderTooltip label={`${notebook.notes_count ?? 0} ${(notebook.notes_count ?? 0) === 1 ? 'note' : 'notes'} in this notebook`} fixed>
+            <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[10px] font-semibold tabular-nums text-gray-600 dark:bg-[#2f2f2f] dark:text-gray-300">
+              {notebook.notes_count ?? 0}
+            </span>
+          </HeaderTooltip>
+        </div>
         <HeaderTooltip label={`Updated ${exactTime(notebook.archived_at ?? notebook.updated_at)}`} fixed>
-          <span className="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
+          <span className="flex-shrink-0 whitespace-nowrap text-right text-xs tabular-nums text-gray-500 dark:text-gray-400">
             {formatDistanceToNow(new Date(notebook.archived_at ?? notebook.updated_at), { addSuffix: true })}
           </span>
         </HeaderTooltip>

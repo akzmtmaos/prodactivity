@@ -13,7 +13,7 @@ import TableInsertModal from './editor/TableInsertModal';
 import UnsavedChangesModal from './editor/UnsavedChangesModal';
 import EditorSettingsModal from './editor/EditorSettingsModal';
 import ExportModal from './editor/ExportModal';
-import { createSimpleTable, createCodeBlock, makeTableResizable } from './editor/tableHelpers';
+import { createSimpleTable, createCodeBlock, makeTableResizable, copyCodeBlock, normalizeCodeBlocks } from './editor/tableHelpers';
 import { convertTextToHtml, linkifyContent, insertImage, getSelection, restoreSelection, convertMarkdownToHTML } from './editor/editorUtils';
 
 // Use local worker file from public folder (most reliable)
@@ -51,6 +51,412 @@ interface NoteEditorProps {
 const AUTO_SAVE_DELAY = 2000;
 
 // Match palette in TextFormatting: first color is default (cream), no bright yellow
+/** Place the caret at the start/end of an element's contents. */
+const placeCaretIn = (el: HTMLElement, atStart = false) => {
+  const range = document.createRange();
+  range.selectNodeContents(el);
+  range.collapse(atStart);
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+};
+
+/** True when everything before the caret inside `el` is whitespace. */
+const isCaretAtStartOf = (el: HTMLElement): boolean => {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0) return false;
+  const range = selection.getRangeAt(0);
+  if (!range.collapsed) return false;
+  const probe = document.createRange();
+  probe.selectNodeContents(el);
+  probe.setEnd(range.startContainer, range.startOffset);
+  return probe.toString().replace(/[\s\u200B]/g, '') === '';
+};
+
+/**
+ * Notion-style Backspace inside a bullet/numbered item: an empty item is removed
+ * (caret steps back to the previous item) and a non-empty item at its start is
+ * lifted out into a paragraph instead of merging into the item above.
+ */
+const handleListBackspace = (e: React.KeyboardEvent<HTMLDivElement>): boolean => {
+  if (e.key !== 'Backspace' || e.ctrlKey || e.metaKey || e.altKey) return false;
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return false;
+
+  let node: Node | null = selection.anchorNode;
+  let item: HTMLElement | null = null;
+  while (node) {
+    if (node.nodeType === Node.ELEMENT_NODE && (node as HTMLElement).tagName === 'LI') {
+      item = node as HTMLElement;
+      break;
+    }
+    node = node.parentNode;
+  }
+  if (!item || !isCaretAtStartOf(item)) return false;
+
+  const list = item.parentElement;
+  if (!list) return false;
+
+  e.preventDefault();
+
+  const isEmpty = (item.textContent || '').replace(/[\s\u200B]/g, '') === '';
+  const detached = item;
+  const previousItem = detached.previousElementSibling as HTMLElement | null;
+
+  if (!isEmpty) {
+    // Turn this bullet back into a plain paragraph in place (keeps the text, drops the marker).
+    // Items after it stay a list, so the document order is preserved.
+    const siblings = [...list.children];
+    const laterItems = siblings.slice(siblings.indexOf(detached) + 1);
+    const paragraph = document.createElement('p');
+    paragraph.innerHTML = detached.innerHTML || '<br>';
+    detached.remove();
+
+    list.parentNode?.insertBefore(paragraph, list.nextSibling);
+    if (laterItems.length) {
+      const trailingList = list.cloneNode(false) as HTMLElement;
+      laterItems.forEach((node) => trailingList.appendChild(node));
+      paragraph.parentNode?.insertBefore(trailingList, paragraph.nextSibling);
+    }
+    if (!list.querySelector('li')) list.remove();
+    placeCaretIn(paragraph, true);
+    return true;
+  }
+
+  if (previousItem) {
+    detached.remove();
+    if (!list.querySelector('li')) list.remove();
+    placeCaretIn(previousItem, false);
+    return true;
+  }
+
+  // Empty first item: step out of the list entirely.
+  const paragraph = document.createElement('p');
+  paragraph.innerHTML = '<br>';
+  list.parentNode?.insertBefore(paragraph, list);
+  detached.remove();
+  if (!list.querySelector('li')) list.remove();
+  placeCaretIn(paragraph, true);
+  return true;
+};
+
+/** Distinct line tops covered by a range - one entry per rendered line of content. */
+const lineTops = (range: Range): number[] => {
+  const tops = new Set<number>();
+  Array.from(range.getClientRects()).forEach((rect) => {
+    if (rect.height > 0) tops.add(Math.round(rect.top));
+  });
+  return Array.from(tops).sort((a, b) => a - b);
+};
+
+/**
+ * Notion-style keyboard movement between table cells.
+ *
+ * Every <td> is its own contenteditable host, so once the caret sits inside one the
+ * browser cannot reach the cell vertically below: ArrowDown lands on the next editing
+ * host in DOM order (the cell to the right) instead. Step out of the cell ourselves -
+ * but only once the caret has run out of lines *inside* it, so a wrapped cell still
+ * moves by line first.
+ */
+const handleTableCellNavigation = (e: React.KeyboardEvent<HTMLDivElement>): boolean => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) return false;
+
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return false;
+
+  const anchor = selection.anchorNode;
+  if (!anchor) return false;
+  const startEl = anchor.nodeType === Node.ELEMENT_NODE ? (anchor as HTMLElement) : anchor.parentElement;
+  const cell = startEl?.closest('td, th') as HTMLTableCellElement | null;
+  const table = cell?.closest('table') as HTMLTableElement | null;
+  const rowEl = cell?.parentElement as HTMLTableRowElement | null;
+  if (!cell || !table || !rowEl) return false;
+
+  const rows = Array.from(table.rows);
+  const cells = Array.from(rowEl.cells) as HTMLTableCellElement[];
+  const row = rows.indexOf(rowEl);
+  const col = cells.indexOf(cell);
+  if (row < 0 || col < 0) return false;
+
+  const range = selection.getRangeAt(0);
+  const isEmptyText = (text: string) => text.replace(/[\s\u200B]/g, '') === '';
+  const caretAtCellStart = () => {
+    const probe = range.cloneRange();
+    probe.setStart(cell, 0);
+    return isEmptyText(probe.toString());
+  };
+  const caretAtCellEnd = () => {
+    const probe = range.cloneRange();
+    probe.setEnd(cell, cell.childNodes.length);
+    return isEmptyText(probe.toString());
+  };
+  // 0-based index of the line the caret sits on, and the cell's last line index.
+  const caretLine = (() => {
+    const before = document.createRange();
+    before.selectNodeContents(cell);
+    before.setEnd(range.startContainer, range.startOffset);
+    const whole = document.createRange();
+    whole.selectNodeContents(cell);
+    return { index: Math.max(0, lineTops(before).length - 1), last: Math.max(0, lineTops(whole).length - 1) };
+  })();
+
+  let target: HTMLTableCellElement | null = null;
+  let landAtEnd = false;
+  let keepHorizontalPosition = false;
+
+  if (e.key === 'ArrowDown') {
+    if (caretLine.index < caretLine.last) return false; // more lines below, stay in this cell
+    const nextRow = rows[row + 1];
+    target = (nextRow?.cells[Math.min(col, nextRow.cells.length - 1)] as HTMLTableCellElement) ?? null;
+    keepHorizontalPosition = true;
+  } else if (e.key === 'ArrowUp') {
+    if (caretLine.index > 0) return false; // more lines above, stay in this cell
+    const prevRow = rows[row - 1];
+    target = (prevRow?.cells[Math.min(col, prevRow.cells.length - 1)] as HTMLTableCellElement) ?? null;
+    keepHorizontalPosition = true;
+  } else if (e.key === 'ArrowRight') {
+    if (!caretAtCellEnd()) return false;
+    target = col < cells.length - 1
+      ? cells[col + 1]
+      : ((rows[row + 1]?.cells[0] as HTMLTableCellElement) ?? null);
+  } else if (e.key === 'ArrowLeft') {
+    if (!caretAtCellStart()) return false;
+    const prevRow = rows[row - 1];
+    target = col > 0
+      ? cells[col - 1]
+      : ((prevRow?.cells[prevRow.cells.length - 1] as HTMLTableCellElement) ?? null);
+    landAtEnd = true;
+  } else if (e.shiftKey) {
+    const prevRow = rows[row - 1];
+    target = col > 0
+      ? cells[col - 1]
+      : ((prevRow?.cells[prevRow.cells.length - 1] as HTMLTableCellElement) ?? null);
+    landAtEnd = true;
+  } else {
+    target = col < cells.length - 1
+      ? cells[col + 1]
+      : ((rows[row + 1]?.cells[0] as HTMLTableCellElement) ?? null);
+  }
+
+  if (!target) return false;
+  e.preventDefault();
+
+  target.focus({ preventScroll: true });
+
+  // Moving vertically should keep the caret's x position, as Notion does.
+  const caretRects = Array.from(range.getClientRects()).filter((rect) => rect.height > 0);
+  const caretX = keepHorizontalPosition && caretRects.length ? caretRects[caretRects.length - 1].right : null;
+  const targetRect = target.getBoundingClientRect();
+  const doc = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null };
+  const hit = caretX !== null && targetRect.width > 0
+    ? (doc.caretRangeFromPoint?.(
+        Math.min(Math.max(caretX, targetRect.left + 1), targetRect.right - 1),
+        Math.min(Math.max(targetRect.top + targetRect.height / 2, targetRect.top + 1), targetRect.bottom - 1)
+      ) ?? null)
+    : null;
+
+  const caret = document.createRange();
+  if (hit && target.contains(hit.startContainer)) {
+    caret.setStart(hit.startContainer, hit.startOffset);
+  } else {
+    caret.selectNodeContents(target);
+  }
+  caret.collapse(!landAtEnd);
+  const next = window.getSelection();
+  next?.removeAllRanges();
+  next?.addRange(caret);
+  return true;
+};
+
+/** The code block's editing area the caret currently sits in, if any. */
+const codeAreaAtCaret = (): HTMLElement | null => {
+  const anchor = window.getSelection()?.anchorNode;
+  if (!anchor) return null;
+  const host = anchor.nodeType === Node.ELEMENT_NODE ? (anchor as HTMLElement) : anchor.parentElement;
+  return (host?.closest('.code-block-content') as HTMLElement | null) ?? null;
+};
+
+/**
+ * Notion-style keyboard behaviour inside a code block.
+ *
+ * Delegated from the editor's onKeyDown (rather than bound per block) so blocks restored
+ * from saved HTML behave exactly like freshly inserted ones. The code area is a
+ * plain-text editing host, so Enter already inserts a real line break; what it cannot do
+ * is leave the block, and the document's markdown shortcut would otherwise rewrite code
+ * lines such as "-" or "#". This covers Tab indentation, the block's edges, and
+ * removing an empty block.
+ */
+const handleCodeBlockKeyDown = (
+  e: React.KeyboardEvent<HTMLDivElement>,
+  notifyChange: () => void
+): boolean => {
+  if (e.ctrlKey || e.metaKey || e.altKey) return false;
+  const codeArea = codeAreaAtCaret();
+  const container = codeArea?.closest('.code-block-container') as HTMLElement | null;
+  if (!codeArea || !container) return false;
+
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !selection.isCollapsed) return false;
+  const range = selection.getRangeAt(0);
+
+  const isEmptyText = (text: string) => text.replace(/[\s\u200B]/g, '').length === 0;
+  const before = document.createRange();
+  before.selectNodeContents(codeArea);
+  before.setEnd(range.startContainer, range.startOffset);
+  const beforeText = before.toString();
+  const whole = document.createRange();
+  whole.selectNodeContents(codeArea);
+  const text = codeArea.textContent || '';
+  const caretLine = Math.max(0, lineTops(before).length - 1);
+  const lastLine = Math.max(0, lineTops(whole).length - 1);
+  const caretX = (() => {
+    const rects = Array.from(range.getClientRects()).filter((rect) => rect.height > 0);
+    return rects.length ? rects[rects.length - 1].right : null;
+  })();
+
+  const previousBlock = () => container.previousElementSibling as HTMLElement | null;
+  const nextBlock = () => container.nextElementSibling as HTMLElement | null;
+
+  /** Where a caret landing from outside should actually go inside a following/preceding block. */
+  const landingSpot = (el: HTMLElement): HTMLElement => {
+    if (el.classList.contains('table-wrapper')) return (el.querySelector('td, th') as HTMLElement | null) ?? el;
+    if (el.classList.contains('code-block-container')) {
+      return (el.querySelector('.code-block-content') as HTMLElement | null) ?? el;
+    }
+    return el;
+  };
+
+  /** Put the caret in another block, staying on the line closest to the caret's x. */
+  const caretInto = (target: HTMLElement, atEnd: boolean) => {
+    const rect = target.getBoundingClientRect();
+    const doc = document as Document & { caretRangeFromPoint?: (x: number, y: number) => Range | null };
+    const hit = caretX !== null && rect.width > 0
+      ? doc.caretRangeFromPoint?.(
+          Math.min(Math.max(caretX, rect.left + 1), rect.right - 1),
+          Math.min(rect.top + 4, rect.bottom - 1)
+        ) ?? null
+      : null;
+    const caret = document.createRange();
+    if (hit && target.contains(hit.startContainer)) {
+      caret.setStart(hit.startContainer, hit.startOffset);
+    } else {
+      caret.selectNodeContents(target);
+      caret.collapse(!atEnd);
+    }
+    const next = window.getSelection();
+    next?.removeAllRanges();
+    next?.addRange(caret);
+  };
+
+  /** An empty paragraph directly after the block, for when there is nothing below it. */
+  const paragraphBelow = () => {
+    const paragraph = document.createElement('p');
+    paragraph.innerHTML = '<br>';
+    container.parentNode?.insertBefore(paragraph, container.nextSibling);
+    return paragraph;
+  };
+
+  /**
+   * Rewrite the code text and put the caret back at a text offset. The area holds
+   * plain text, so one text node is all it needs - and an offset is a far more
+   * reliable caret target than a node the browser may not have kept.
+   */
+  const setCodeText = (next: string, caretOffset: number) => {
+    codeArea.textContent = next;
+    const node = codeArea.firstChild;
+    const caret = document.createRange();
+    if (node) caret.setStart(node, Math.min(Math.max(caretOffset, 0), next.length));
+    else caret.selectNodeContents(codeArea);
+    caret.collapse(true);
+    const nextSelection = window.getSelection();
+    nextSelection?.removeAllRanges();
+    nextSelection?.addRange(caret);
+  };
+
+  // Backspace on an empty block removes it and steps back into the text above.
+  if (e.key === 'Backspace' && isEmptyText(text)) {
+    e.preventDefault();
+    const previous = previousBlock();
+    const owner = previous ?? paragraphBelow();
+    container.remove();
+    caretInto(owner, !!previous);
+    notifyChange();
+    return true;
+  }
+
+  // Tab indents with spaces instead of leaving the block; Shift+Tab shaves one indent.
+  if (e.key === 'Tab') {
+    e.preventDefault();
+    const lineStart = beforeText.lastIndexOf('\n') + 1;
+
+    if (e.shiftKey) {
+      const indent = beforeText.slice(lineStart).match(/^ {1,2}/)?.[0] || '';
+      if (indent) {
+        setCodeText(
+          text.slice(0, lineStart) + text.slice(lineStart + indent.length),
+          beforeText.length - indent.length
+        );
+        notifyChange();
+      }
+      return true;
+    }
+
+    const spaces = document.createTextNode('  ');
+    range.deleteContents();
+    range.insertNode(spaces);
+    const caret = document.createRange();
+    // Inside the inserted spaces, so the caret keeps a text node to live in.
+    caret.setStart(spaces, spaces.length);
+    caret.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(caret);
+    notifyChange();
+    return true;
+  }
+
+  // Enter in an empty block leaves it behind (Enter otherwise breaks the line, as code should).
+  if (e.key === 'Enter' && isEmptyText(text)) {
+    e.preventDefault();
+    const paragraph = paragraphBelow();
+    container.remove();
+    caretInto(paragraph, false);
+    notifyChange();
+    return true;
+  }
+
+  // Arrows walk out of the block at its edges, so the caret never gets stuck inside.
+  if (e.key === 'ArrowDown' && caretLine >= lastLine) {
+    e.preventDefault();
+    const next = nextBlock();
+    caretInto(next ? landingSpot(next) : paragraphBelow(), false);
+    return true;
+  }
+  if (e.key === 'ArrowUp' && caretLine === 0) {
+    const previous = previousBlock();
+    if (!previous) return false; // nothing above: leave the caret where it is
+    e.preventDefault();
+    caretInto(landingSpot(previous), true);
+    return true;
+  }
+  if (e.key === 'ArrowLeft' && isEmptyText(beforeText)) {
+    const previous = previousBlock();
+    if (!previous) return false;
+    e.preventDefault();
+    caretInto(landingSpot(previous), true);
+    return true;
+  }
+  if (e.key === 'ArrowRight' && isEmptyText(text.slice(beforeText.length))) {
+    const next = nextBlock();
+    if (!next) return false;
+    e.preventDefault();
+    caretInto(landingSpot(next), false);
+    return true;
+  }
+
+  return false;
+};
+
 const HIGHLIGHT_COLORS = [
   { name: 'Cream', value: '#fff3cd' },
   { name: 'Light Blue', value: '#d1ecf1' },
@@ -272,6 +678,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
           makeTableResizable(table as HTMLTableElement);
         }
       });
+    }
+  }, [content, isInitialized]);
+
+  // Bring code blocks saved with the older chrome onto the current markup
+  useEffect(() => {
+    if (contentEditableRef.current) {
+      normalizeCodeBlocks(contentEditableRef.current);
     }
   }, [content, isInitialized]);
 
@@ -531,6 +944,16 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     setShowTableGrid(true);
   };
 
+  // Mark the note dirty after an edit that only touched the DOM (code block keys).
+  // Deliberately mirrors typing: it must not rewrite the content from React state,
+  // which would replace the edited nodes and drop the caret.
+  const notifyEditorChange = () => {
+    const editor = contentEditableRef.current;
+    if (!editor) return;
+    setHasChanges(true);
+    editor.dispatchEvent(new Event('input', { bubbles: true, cancelable: true }));
+  };
+
   // Formatting
   const toggleFormatting = (command: string, value: string = '') => {
     if (!contentEditableRef.current) return;
@@ -540,7 +963,6 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
         const range = selection.getRangeAt(0);
-        const selectedText = selection.toString();
         
         const container = range.commonAncestorContainer;
         const codeBlockContainer = container.nodeType === Node.TEXT_NODE 
@@ -548,7 +970,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
           : (container as Element).closest('.code-block-container');
         
         if (codeBlockContainer) {
-          const textNode = document.createTextNode(selectedText || codeBlockContainer.textContent || '');
+          // Unwrapping the whole block, and only its code: the header labels are chrome.
+          const codeText = codeBlockContainer.querySelector('.code-block-content')?.textContent || '';
+          const textNode = document.createTextNode(codeText);
           codeBlockContainer.parentNode?.replaceChild(textNode, codeBlockContainer);
         } else {
           insertCodeBlock();
@@ -592,9 +1016,8 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
     setShowColorPicker(false);
   };
 
-  // Alignment
+  // Alignment (never touch inline formatting – removeFormat used to wipe bold/italic/highlight)
   const handleAlignment = (alignment: 'left' | 'center' | 'right' | 'justify') => {
-    document.execCommand('removeFormat', false);
     if (alignment === 'justify') {
       document.execCommand('justifyFull', false);
     } else {
@@ -907,25 +1330,50 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                 <div className="w-full" style={{ width: '100%' }}>
                   {/* Editor Styles - Using existing styles from original file */}
                   <style>{`
-                    .note-editor { width: 100% !important; max-width: 100% !important; overflow-wrap: break-word !important; word-wrap: break-word !important; word-break: normal !important; white-space: normal !important; box-sizing: border-box !important; height: auto !important; }
-                    .note-editor * { max-width: 100% !important; overflow-wrap: break-word !important; word-wrap: break-word !important; word-break: normal !important; box-sizing: border-box !important; }
-                    .note-editor h1 { font-size: 2rem !important; font-weight: 700 !important; line-height: 1.2 !important; margin-bottom: 1rem !important; margin-top: 1.5rem !important; display: block !important; max-width: 100% !important; width: 100% !important; color: #000000 !important; }
-                    .dark .note-editor h1 { color: #ffffff !important; }
-                    .note-editor h2 { font-size: 1.5rem !important; font-weight: 700 !important; line-height: 1.3 !important; margin-bottom: 0.75rem !important; margin-top: 1.25rem !important; display: block !important; max-width: 100% !important; width: 100% !important; color: #000000 !important; }
-                    .dark .note-editor h2 { color: #ffffff !important; }
-                    .note-editor h3 { font-size: 1.25rem !important; font-weight: 700 !important; line-height: 1.4 !important; margin-bottom: 0.5rem !important; margin-top: 1rem !important; display: block !important; max-width: 100% !important; width: 100% !important; color: #000000 !important; }
-                    .dark .note-editor h3 { color: #ffffff !important; }
-                    .note-editor ul { list-style-type: disc !important; padding-left: 2rem !important; margin: 0.5rem 0 !important; }
-                    .note-editor ul li { margin: 0.25rem 0 !important; line-height: 1.5 !important; position: relative !important; }
-                    .note-editor ol { list-style-type: decimal !important; padding-left: 2rem !important; margin: 0.5rem 0 !important; }
-                    .note-editor ol li { margin: 0.25rem 0 !important; line-height: 1.5 !important; }
-                    .note-editor .notion-table { border-collapse: collapse !important; width: 100% !important; max-width: 100% !important; margin: 16px 0 !important; background: white !important; border: 1px solid #e1e5e9 !important; border-radius: 6px !important; table-layout: fixed !important; word-wrap: break-word !important; overflow-wrap: break-word !important; }
-                    .dark .note-editor .notion-table { background: #1f2937 !important; border: 1px solid #374151 !important; }
-                    .note-editor .notion-table td { border: 1px solid #e1e5e9 !important; padding: 8px 12px !important; background: white !important; cursor: text !important; min-height: 32px !important; max-width: 200px !important; word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; color: #000000 !important; }
-                    .dark .note-editor .notion-table td { background: #1f2937 !important; border: 1px solid #374151 !important; color: #ffffff !important; }
-                    .note-editor .notion-table td:hover { background: #f8f9fa !important; }
-                    .dark .note-editor .notion-table td:hover { background: #374151 !important; }
-                    .note-editor .code-block-container { background-color: #1e1e1e; border-radius: 8px; margin: 16px 0; overflow: hidden; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; }
+                    /* Base document rhythm — calm, readable, Notion-like */
+                    .note-editor { width: 100%; max-width: 100%; overflow-wrap: break-word; word-wrap: break-word; word-break: normal; white-space: normal; box-sizing: border-box; height: auto; font-size: 15px; line-height: 1.65; color: #1f2937; }
+                    .dark .note-editor { color: #e5e7eb; }
+                    .note-editor * { box-sizing: border-box; }
+                    .note-editor > *:first-child { margin-top: 0; }
+                    .note-editor p { margin: 0 0 0.7rem; line-height: 1.65; }
+                    .note-editor p:last-child { margin-bottom: 0; }
+                    .note-editor h1 { font-size: 1.875rem; font-weight: 700; line-height: 1.25; margin: 1.4rem 0 0.4rem; color: #111827; }
+                    .note-editor h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.3; margin: 1.2rem 0 0.35rem; color: #111827; }
+                    .note-editor h3 { font-size: 1.25rem; font-weight: 600; line-height: 1.35; margin: 1rem 0 0.3rem; color: #111827; }
+                    .dark .note-editor h1, .dark .note-editor h2, .dark .note-editor h3 { color: #f9fafb; }
+                    .note-editor ul, .note-editor ol { padding-left: 1.5rem; margin: 0.25rem 0 0.8rem; }
+                    .note-editor ul { list-style-type: disc; }
+                    .note-editor ol { list-style-type: decimal; }
+                    .note-editor li { margin: 0.15rem 0; line-height: 1.65; }
+                    .note-editor li::marker { color: #9ca3af; }
+                    .note-editor li p { margin: 0; }
+                    .note-editor a { color: #4f46e5; text-decoration: underline; text-underline-offset: 2px; }
+                    .dark .note-editor a { color: #a5b4fc; }
+                    .note-editor blockquote { margin: 0.8rem 0; padding-left: 0.9rem; border-left: 3px solid #e5e7eb; color: #4b5563; }
+                    .dark .note-editor blockquote { border-left-color: #3f3f46; color: #d4d4d8; }
+                    .note-editor hr { border: none; border-top: 1px solid #e9e9e7; margin: 1.5rem 0; }
+                    .dark .note-editor hr { border-top-color: #333333; }
+                    .note-editor img, .note-editor iframe, .note-editor video { max-width: 100%; height: auto; border-radius: 6px; display: block; margin: 0.75rem 0; }
+                    /* Highlights stay readable in both themes (dark text on the pastel fill) */
+                    .note-editor [style*="background-color"] { color: #111827 !important; }
+                    .note-editor [style*="background-color"] a { color: #3730a3 !important; }
+                    /* Tables — every cell keeps a real line box so rows never collapse */
+                    .note-editor .table-wrapper { margin: 0.75rem 0 1rem; }
+                    .note-editor .notion-table { border-collapse: collapse !important; width: 100% !important; max-width: 100% !important; margin: 0 !important; background: transparent !important; border: none !important; table-layout: fixed !important; word-wrap: break-word !important; overflow-wrap: break-word !important; }
+                    .note-editor .notion-table td { border: 1px solid #e9e9e7 !important; padding: 6px 10px !important; background: transparent !important; cursor: text !important; height: 2.25rem !important; min-height: 2.25rem !important; max-width: 320px !important; line-height: 1.5 !important; word-wrap: break-word !important; overflow-wrap: break-word !important; white-space: normal !important; color: inherit !important; vertical-align: top !important; }
+                    .dark .note-editor .notion-table td { border: 1px solid #333333 !important; }
+                    .note-editor .notion-table td:hover { background: rgba(0, 0, 0, 0.03) !important; }
+                    .dark .note-editor .notion-table td:hover { background: rgba(255, 255, 255, 0.04) !important; }
+                    /* Code blocks - monospace editing area inside the block's own surface */
+                    .note-editor .code-block-content { margin: 0 !important; padding: 10px 12px !important; min-height: 2.5rem !important; overflow-x: auto !important; font-family: 'JetBrains Mono', 'Consolas', 'Monaco', 'Courier New', monospace !important; font-size: 12.5px !important; line-height: 1.6 !important; white-space: pre !important; tab-size: 2 !important; color: #1f2937 !important; outline: none !important; }
+                    .dark .note-editor .code-block-content { color: #d4d4d4 !important; }
+                    .note-editor .code-block-content:empty::before { content: attr(data-placeholder); color: #9ca3af; }
+                    .dark .note-editor .code-block-content:empty::before { color: #6b7280; }
+                    .note-editor .code-block-copy { line-height: 1; }
+                    /* Header labels are generated text: the block exports as code, never "Code Copy" */
+                    .note-editor .code-block-label::after { content: 'Code'; }
+                    .note-editor .code-block-copy::after { content: 'Copy'; }
+                    .note-editor .code-block-copy[data-copied]::after { content: 'Copied'; }
                   `}</style>
                   
                   {isReadOnly && (
@@ -973,6 +1421,13 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                     }}
                     onClick={(e) => {
                       const target = e.target as HTMLElement;
+                      // Code block copy buttons are delegated, so restored blocks work too.
+                      const copyButton = target.closest('.code-block-copy') as HTMLElement | null;
+                      if (copyButton) {
+                        e.preventDefault();
+                        copyCodeBlock(copyButton);
+                        return;
+                      }
                       if (target.tagName === 'A' && target instanceof HTMLAnchorElement) {
                         e.preventDefault();
                         window.open(target.href, '_blank', 'noopener,noreferrer');
@@ -993,6 +1448,18 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                       setTimeout(() => updateFormattingState(), 10);
                     }}
                     onKeyDown={(e) => {
+                      // Backspace at the start of a list item: remove the bullet instead of
+                      // merging the item into the line above.
+                      if (!isReadOnly && handleListBackspace(e)) return;
+
+                      // Inside a code block: Tab indents, arrows leave at the edges, and an
+                      // empty block is removed instead of swallowing the caret.
+                      if (!isReadOnly && handleCodeBlockKeyDown(e, notifyEditorChange)) return;
+
+                      // Arrows / Tab inside a table cell: move to the cell that is actually
+                      // next in that direction (the browser stops at the editing host).
+                      if (!isReadOnly && handleTableCellNavigation(e)) return;
+
                       // Handle Ctrl+S / Cmd+S to save note
                       if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                         e.preventDefault(); // Prevent browser's "Save As" dialog
@@ -1060,6 +1527,9 @@ const NoteEditor: React.FC<NoteEditorProps> = ({
                       
                       // Handle Space key for markdown conversion
                       if (e.key === ' ') {
+                        // Markdown shortcuts are for prose; never rewrite code.
+                        if (codeAreaAtCaret()) return;
+
                         const range = getSelection();
                         if (!range) return;
 

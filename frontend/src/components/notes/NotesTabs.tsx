@@ -329,8 +329,6 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
             )}
           </div>
         </div>
-        {/* HR Line - directly under tabs/filters */}
-        <div className="border-b border-gray-200 dark:border-gray-700 mt-0"></div>
       </div>
     );
   }
@@ -482,8 +480,6 @@ const NotesTabs: React.FC<NotesTabsProps> = ({
             )}
           </div>
         </div>
-        {/* HR Line - directly under tabs/filters */}
-        <div className="border-b border-gray-200 dark:border-gray-700 mt-0"></div>
       </div>
     );
   }

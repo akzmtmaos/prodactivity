@@ -1,5 +1,6 @@
 // frontend/src/components/notes/editor/TableInsertModal.tsx
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
+import { X } from 'lucide-react';
 
 interface TableInsertModalProps {
   isOpen: boolean;
@@ -8,164 +9,142 @@ interface TableInsertModalProps {
   onInsertTable: (rows: number, cols: number) => void;
 }
 
+const GRID_ROWS = 8;
+const GRID_COLS = 8;
+
 const TableInsertModal: React.FC<TableInsertModalProps> = ({
   isOpen,
   position,
   onClose,
   onInsertTable,
 }) => {
-  const [hoveredTableSize, setHoveredTableSize] = useState<{ rows: number; cols: number } | null>(null);
+  const [hovered, setHovered] = useState<{ rows: number; cols: number } | null>(null);
   const [customRows, setCustomRows] = useState<number | string>(3);
   const [customCols, setCustomCols] = useState<number | string>(3);
 
   if (!isOpen) return null;
 
-  const handleInsertCustomTable = () => {
+  const clamp = (value: number) => Math.max(1, Math.min(20, value));
+
+  const insertCustomTable = () => {
     const rows = typeof customRows === 'string' ? parseInt(customRows) || 3 : customRows;
     const cols = typeof customCols === 'string' ? parseInt(customCols) || 3 : customCols;
-    onInsertTable(rows, cols);
+    onInsertTable(clamp(rows), clamp(cols));
     onClose();
   };
 
   return (
     <div className="fixed inset-0 z-[9999]" onClick={onClose}>
-      <div 
-        className="absolute bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg shadow-lg p-2"
-        style={{
-          left: position.x,
-          top: position.y,
-          zIndex: 10000,
-          width: 'auto',
-          display: 'inline-block',
-        }}
+      <div
+        className="absolute w-[196px] rounded-lg border border-gray-200 bg-white p-2 shadow-lg dark:border-[#333333] dark:bg-[#252525]"
+        style={{ left: position.x, top: position.y, zIndex: 10000 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center mb-3">
-          <div className="text-lg font-bold text-gray-800">
-            Insert Table
-          </div>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+            Insert table
+          </span>
           <button
             onClick={onClose}
-            className="text-gray-500 hover:text-gray-700 text-xl font-bold"
+            type="button"
+            aria-label="Close table picker"
+            className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-700 dark:hover:bg-[#2f2f2f] dark:hover:text-gray-200"
           >
-            ×
+            <X size={14} />
           </button>
         </div>
-        
-        {/* Table Grid */}
-        <div className="inline-grid [grid-template-columns:repeat(8,min-content)] gap-x-1 gap-y-1">
-          {Array.from({ length: 64 }, (_, index) => {
-            const row = Math.floor(index / 8) + 1;
-            const col = (index % 8) + 1;
+
+        {/* Size picker */}
+        <div
+          className="grid gap-[3px]"
+          style={{ gridTemplateColumns: `repeat(${GRID_COLS}, minmax(0, 1fr))` }}
+          onMouseLeave={() => setHovered(null)}
+        >
+          {Array.from({ length: GRID_ROWS * GRID_COLS }, (_, index) => {
+            const row = Math.floor(index / GRID_COLS) + 1;
+            const col = (index % GRID_COLS) + 1;
+            const filled = hovered ? row <= hovered.rows && col <= hovered.cols : false;
+
             return (
-              <div
+              <button
                 key={index}
-                className="box-border border border-gray-300 hover:bg-blue-200 cursor-pointer transition-colors bg-gray-100 rounded-sm"
-                style={{ width: 18, height: 18 }}
-                onMouseDown={(e) => { 
-                  e.preventDefault(); 
-                  e.stopPropagation(); 
+                type="button"
+                aria-label={`Insert ${row} by ${col} table`}
+                onMouseEnter={() => setHovered({ rows: row, cols: col })}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
                   onInsertTable(row, col);
                   onClose();
                 }}
-                onMouseEnter={(e) => {
-                  setHoveredTableSize({ rows: row, cols: col });
-                  
-                  const cells = e.currentTarget.parentElement?.children;
-                  if (cells) {
-                    Array.from(cells).forEach((cell, i) => {
-                      const cellRow = Math.floor(i / 8) + 1;
-                      const cellCol = (i % 8) + 1;
-                      if (cellRow <= row && cellCol <= col) {
-                        (cell as HTMLElement).style.backgroundColor = '#3b82f6';
-                        (cell as HTMLElement).style.borderColor = '#1d4ed8';
-                      } else {
-                        (cell as HTMLElement).style.backgroundColor = '';
-                        (cell as HTMLElement).style.borderColor = '';
-                      }
-                    });
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  setHoveredTableSize(null);
-                  
-                  const cells = e.currentTarget.parentElement?.children;
-                  if (cells) {
-                    Array.from(cells).forEach((cell) => {
-                      (cell as HTMLElement).style.backgroundColor = '';
-                      (cell as HTMLElement).style.borderColor = '';
-                    });
-                  }
-                }}
+                className={`h-[18px] w-full rounded-[3px] border transition-colors ${
+                  filled
+                    ? 'border-indigo-500 bg-indigo-500/90 dark:border-indigo-400 dark:bg-indigo-500/80'
+                    : 'border-gray-200 bg-gray-50 hover:bg-gray-100 dark:border-[#3a3a3a] dark:bg-[#2f2f2f] dark:hover:bg-[#3a3a3a]'
+                }`}
               />
             );
           })}
         </div>
-        
-        {/* Custom Table Input */}
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5">
-                <label className="text-xs font-medium text-gray-600">Row</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={customRows}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '') {
-                      setCustomRows('');
-                    } else {
-                      const num = parseInt(val);
-                      if (!isNaN(num)) {
-                        setCustomRows(Math.max(1, Math.min(20, num)));
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    if (e.target.value === '' || parseInt(e.target.value) < 1) {
-                      setCustomRows(3);
-                    }
-                  }}
-                  className="w-14 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-              <div className="flex items-center gap-1.5">
-                <label className="text-xs font-medium text-gray-600">Col</label>
-                <input
-                  type="number"
-                  min="1"
-                  max="20"
-                  value={customCols}
-                  onChange={(e) => {
-                    const val = e.target.value;
-                    if (val === '') {
-                      setCustomCols('');
-                    } else {
-                      const num = parseInt(val);
-                      if (!isNaN(num)) {
-                        setCustomCols(Math.max(1, Math.min(20, num)));
-                      }
-                    }
-                  }}
-                  onBlur={(e) => {
-                    if (e.target.value === '' || parseInt(e.target.value) < 1) {
-                      setCustomCols(3);
-                    }
-                  }}
-                  className="w-14 px-2 py-1 border border-gray-300 rounded text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-            <button
-              onClick={handleInsertCustomTable}
-              className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
-            >
-              Insert
-            </button>
+
+        {/* Live size readout */}
+        <p className="mt-2 h-4 text-[11px] font-medium text-gray-600 dark:text-gray-300">
+          {hovered ? `${hovered.rows} × ${hovered.cols} table` : 'Drag to choose a size'}
+        </p>
+
+        {/* Custom size */}
+        <div className="mt-2 border-t border-gray-200 pt-2 dark:border-[#333333]">
+          <div className="flex items-end gap-2">
+            <label className="flex-1">
+              <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Rows
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={customRows}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') return setCustomRows('');
+                  const num = parseInt(val);
+                  if (!isNaN(num)) setCustomRows(clamp(num));
+                }}
+                onBlur={() => {
+                  if (customRows === '' || Number(customRows) < 1) setCustomRows(3);
+                }}
+                className="h-7 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:border-[#333333] dark:bg-[#1e1e1e] dark:text-white dark:focus:ring-[#404040]"
+              />
+            </label>
+            <label className="flex-1">
+              <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Columns
+              </span>
+              <input
+                type="number"
+                min={1}
+                max={20}
+                value={customCols}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === '') return setCustomCols('');
+                  const num = parseInt(val);
+                  if (!isNaN(num)) setCustomCols(clamp(num));
+                }}
+                onBlur={() => {
+                  if (customCols === '' || Number(customCols) < 1) setCustomCols(3);
+                }}
+                className="h-7 w-full rounded-md border border-gray-200 bg-white px-2 text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:border-[#333333] dark:bg-[#1e1e1e] dark:text-white dark:focus:ring-[#404040]"
+              />
+            </label>
           </div>
+          <button
+            onClick={insertCustomTable}
+            type="button"
+            className="mt-2 flex h-7 w-full items-center justify-center rounded-md bg-indigo-600 text-xs font-medium text-white transition-colors hover:bg-indigo-700"
+          >
+            Insert table
+          </button>
         </div>
       </div>
     </div>
@@ -173,4 +152,3 @@ const TableInsertModal: React.FC<TableInsertModalProps> = ({
 };
 
 export default TableInsertModal;
-

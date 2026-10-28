@@ -1,8 +1,10 @@
 import React, { useMemo, useState } from 'react';
 import LevelLeague from './LevelLeague';
+import LeagueInfoModal from './LeagueInfoModal';
 import StreaksCalendar from './StreaksCalendar';
 import DailyBreakdownModal from './DailyBreakdownModal';
-import { CalendarDays, Flame, List } from 'lucide-react';
+import HeaderTooltip from '../common/HeaderTooltip';
+import { CalendarDays, Flame, Info, List } from 'lucide-react';
 import { parseDateKey } from '../../utils/productivityScore';
 
 interface ProgressOverviewProps {
@@ -29,6 +31,7 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
   getProductivityColor
 }) => {
   const [showTodayBreakdown, setShowTodayBreakdown] = useState(false);
+  const [showLeagueInfo, setShowLeagueInfo] = useState(false);
 
   // The summary strip already reports the current streak, so this card counts
   // active days in the month instead of repeating the same number.
@@ -73,8 +76,20 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
             <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
               Level league
             </span>
-            <span className="text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
-              Level {userLevel.currentLevel}
+            <span className="flex items-center gap-1.5">
+              <span className="text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
+                Level {userLevel.currentLevel}
+              </span>
+              <HeaderTooltip label="About leagues" fixed>
+                <button
+                  type="button"
+                  onClick={() => setShowLeagueInfo(true)}
+                  aria-label="About leagues"
+                  className="flex h-6 w-6 items-center justify-center rounded-md text-gray-400 transition-colors hover:bg-gray-100 hover:text-gray-600 dark:text-gray-500 dark:hover:bg-[#2d2d2d] dark:hover:text-gray-300"
+                >
+                  <Info size={13} />
+                </button>
+              </HeaderTooltip>
             </span>
           </div>
           <div className="px-3.5 py-3">
@@ -158,6 +173,12 @@ const ProgressOverview: React.FC<ProgressOverviewProps> = ({
           <StreaksCalendar streakData={streakData} todaysProductivity={todaysProductivity} />
         </div>
       </section>
+
+      <LeagueInfoModal
+        isOpen={showLeagueInfo}
+        onClose={() => setShowLeagueInfo(false)}
+        currentLevel={userLevel.currentLevel}
+      />
 
       <DailyBreakdownModal
         isOpen={showTodayBreakdown}

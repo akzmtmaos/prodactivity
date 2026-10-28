@@ -2112,12 +2112,16 @@ interface NoteItem {
                           />
                         </div>
                         <BookOpen className="flex-shrink-0 text-gray-500 dark:text-gray-400" size={18} />
-                        <span className="font-medium truncate flex-1 min-w-0 text-sm text-gray-800 dark:text-gray-200">
-                          {deck.title}
-                        </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                          {deck.flashcardCount} cards
-                        </span>
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <span className="font-medium truncate min-w-0 text-sm text-gray-800 dark:text-gray-200">
+                            {deck.title}
+                          </span>
+                          <HeaderTooltip label={`${deck.flashcardCount} ${deck.flashcardCount === 1 ? 'card' : 'cards'} in this deck`} fixed>
+                            <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[10px] font-semibold tabular-nums text-gray-600 dark:bg-[#2f2f2f] dark:text-gray-300">
+                              {deck.flashcardCount}
+                            </span>
+                          </HeaderTooltip>
+                        </div>
                         <div className="flex-shrink-0">
                           <div className="relative w-28 h-3 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                             <div
@@ -2629,12 +2633,16 @@ interface NoteItem {
                             />
                           </div>
                           <BookOpen className="flex-shrink-0 text-gray-500 dark:text-gray-400" size={18} />
-                          <span className="font-medium truncate flex-1 min-w-0 text-sm text-gray-800 dark:text-gray-200">
-                            {deck.title}
-                          </span>
-                          <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
-                            {deck.flashcardCount} cards
-                          </span>
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            <span className="font-medium truncate min-w-0 text-sm text-gray-800 dark:text-gray-200">
+                              {deck.title}
+                            </span>
+                            <HeaderTooltip label={`${deck.flashcardCount} ${deck.flashcardCount === 1 ? 'card' : 'cards'} in this deck`} fixed>
+                              <span className="flex h-5 min-w-5 flex-shrink-0 items-center justify-center rounded-full bg-gray-100 px-1.5 text-[10px] font-semibold tabular-nums text-gray-600 dark:bg-[#2f2f2f] dark:text-gray-300">
+                                {deck.flashcardCount}
+                              </span>
+                            </HeaderTooltip>
+                          </div>
                           <span className="text-xs text-gray-500 dark:text-gray-400 flex-shrink-0">
                             {deck.progress}%
                           </span>

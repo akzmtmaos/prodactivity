@@ -11,7 +11,7 @@ export interface LeagueTier {
   borderClass: string;
 }
 
-const LEAGUES: LeagueTier[] = [
+export const LEAGUES: LeagueTier[] = [
   { name: 'Iron', minLevel: 1, maxLevel: 4, bgClass: 'bg-gray-600', textClass: 'text-gray-100', borderClass: 'border-gray-500' },
   { name: 'Bronze', minLevel: 5, maxLevel: 9, bgClass: 'bg-amber-700', textClass: 'text-amber-100', borderClass: 'border-amber-600' },
   { name: 'Silver', minLevel: 10, maxLevel: 14, bgClass: 'bg-slate-400', textClass: 'text-slate-900', borderClass: 'border-slate-500' },
@@ -22,7 +22,7 @@ const LEAGUES: LeagueTier[] = [
   { name: 'Legend', minLevel: 100, maxLevel: 999, bgClass: 'bg-gradient-to-r from-amber-400 to-rose-500', textClass: 'text-white', borderClass: 'border-amber-400' },
 ];
 
-function getLeagueForLevel(level: number): { league: LeagueTier; nextLeague: LeagueTier | null; progressInTier: number } {
+export function getLeagueForLevel(level: number): { league: LeagueTier; nextLeague: LeagueTier | null; progressInTier: number } {
   const clampedLevel = Math.max(1, Math.min(999, level));
   for (let i = 0; i < LEAGUES.length; i++) {
     if (clampedLevel >= LEAGUES[i].minLevel && clampedLevel <= LEAGUES[i].maxLevel) {

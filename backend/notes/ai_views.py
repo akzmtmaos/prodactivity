@@ -872,43 +872,34 @@ class NotebookSummaryView(APIView):
             try:
                 summary_prompt = get_ai_config('notebook_summary_prompt', content=combined_content)
             except ValueError:
-                # Improved prompt for better summary generation with explicit instruction to only use provided content
-                # IMPORTANT: Instruct AI to avoid tables and use alternatives like lists
+                # Prompt asks for markdown the results panel can actually render:
+                # headings, short bullets, and narrow tables with a separator row.
                 summary_prompt = (
-                    f"You are an AI assistant creating a comprehensive summary of a notebook named '{notebook.name}'.\n\n"
-                    "CRITICAL INSTRUCTION: You MUST ONLY summarize the content provided below. Do NOT include any information from other notebooks or sources.\n"
-                    "ONLY use the notes provided in the 'Notebook Content to Summarize' section below.\n\n"
-                    "FORMATTING REQUIREMENTS - DO NOT USE TABLES:\n"
-                    "- DO NOT use markdown tables (no | or table syntax).\n"
-                    "- Instead, use bullet points, numbered lists, or simple text formatting.\n"
-                    "- For structured data (like comparisons or multiple items with properties), use:\n"
-                    "  * Bullet points with labels: '• Letter ㄱ: Sound \"g/k\", Example: 가 (ga)'\n"
-                    "  * Numbered lists: '1. Letter ㄱ - Sound: \"g/k\", Example: 가 (ga)'\n"
-                    "  * Simple text with colons: 'ㄱ: \"g/k\" sound, Example: 가 (ga)'\n"
-                    "  * Line breaks between items instead of table rows\n"
-                    "- Use clear headings (##, ###) to organize sections\n"
-                    "- Use bullet points (-, •, *) for lists\n"
-                    "- Use numbered lists (1., 2., 3.) for sequences or steps\n"
-                    "- Use bold (**text**) for emphasis only\n"
-                    "- AVOID any table syntax - use lists or simple text instead\n\n"
-                    "Your task is to analyze ONLY the notes provided below and create a well-structured summary that:\n"
-                    "1. Identifies and highlights the main topics and themes across ONLY the provided notes\n"
-                    "2. Captures important concepts, definitions, and key information from ONLY these notes\n"
-                    "3. Preserves structured information like lists, steps, and numbered items from ONLY these notes\n"
-                    "4. Organizes content logically with clear sections based ONLY on the provided content\n"
-                    "5. Avoids repetition and generic statements\n\n"
-                    "Additional Guidelines:\n"
-                    "- Use clear headings and sections to organize the summary\n"
-                    "- Preserve important lists, steps, and formatted content from the provided notes\n"
-                    "- Focus on the actual content from the notes provided below, not meta-information\n"
-                    "- Do NOT include statements like 'This notebook contains X notes'\n"
-                    "- Do NOT include content from other notebooks or sources\n"
-                    "- Do NOT use markdown tables - use bullet points or lists instead\n"
-                    "- Make the summary useful for quick review and understanding\n"
-                    "- Output ONLY the summary content based on the provided notes, no preamble or explanation\n\n"
-                    f"Notebook: {notebook.name}\n"
-                    f"Number of notes provided: {len(parts)}\n\n"
-                    f"Notebook Content to Summarize (ONLY use content from these notes):\n{combined_content}"
+                    f"You are summarizing a notebook named '{notebook.name}' for a study app.\n\n"
+                    "Ground rules:\n"
+                    "- Use ONLY the notes in the 'Notebook Content' section below. Never add outside knowledge.\n"
+                    "- Do NOT mention how many notes there are, how you were asked, or that you are an AI.\n"
+                    "- Output ONLY the summary markdown: no preamble, no closing commentary.\n\n"
+                    "Structure:\n"
+                    "- Start with '## Overview' and 2-4 sentences on what this notebook covers.\n"
+                    "- Then '###' sections, one per main topic, in the order the notes present them.\n"
+                    "- Inside a section, use short bullets (-) and bold labels for important terms (**term** - meaning).\n"
+                    "- Keep bullets to one line where possible and never repeat a point twice.\n"
+                    "- End with '## Key takeaways' and 3-5 bullets.\n\n"
+                    "Tables - use them whenever the content is structured, because they organize it best:\n"
+                    "- Comparisons, glossaries, timelines, or any three-or-more items sharing the same attributes.\n"
+                    "- Markdown pipe tables only, with a header row and a separator row, like:\n"
+                    "  | Term | Meaning | Example |\n"
+                    "  | --- | --- | --- |\n"
+                    "  | ㄱ | g/k sound | 가 (ga) |\n"
+                    "- Put each row on its own line. Never merge two rows onto one line.\n"
+                    "- Keep tables to 2-4 columns so they fit a narrow side panel, and keep cells to plain text.\n"
+                    "- Do not wrap a table in a code fence.\n\n"
+                    "Formatting:\n"
+                    "- Markdown only: headings (##, ###), bullets (-), numbered lists (1.), bold (**text**), inline code (`x`).\n"
+                    "- No HTML, no images, no horizontal rules.\n\n"
+                    f"Notebook: {notebook.name}\n\n"
+                    f"Notebook Content:\n{combined_content}"
                 )
             payload = {
                 "model": OLLAMA_MODEL,  # deepseek-r1:1.5b (configured above)
@@ -918,7 +909,7 @@ class NotebookSummaryView(APIView):
                     "temperature": 0.2,
                     "top_p": 0.9,
                     "top_k": 50,
-                    "num_predict": 1800,
+                    "num_predict": 2400,
                     "repeat_penalty": 1.15
                 }
             }

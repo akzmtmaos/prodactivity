@@ -4,18 +4,19 @@ import {
   Brain, 
   MessageSquare, 
   FileText, 
-  Zap, 
   Scissors,
   BookOpen,
-  Clock,
-  Target,
   X,
   GraduationCap,
-  CreditCard
+  CreditCard,
+  Send,
+  Sparkles,
+  Check,
+  AlertTriangle
 } from 'lucide-react';
 import axiosInstance from '../../utils/axiosConfig';
 import { API_BASE_URL } from '../../config/api';
-import TypingAnimation from '../common/TypingAnimation';
+import HeaderTooltip from '../common/HeaderTooltip';
 
 // Helper to get current user's avatar URL
 const getCurrentUserAvatar = (): string | null => {
@@ -109,20 +110,9 @@ const cleanHTMLContent = (text: string): string => {
     .trim();
 };
 
-// Function to format content preview better
-const formatContentPreview = (text: string): string => {
-  if (!text) return '';
-  
-  // Clean the content first
-  let cleaned = cleanHTMLContent(text);
-  
-  // Truncate if too long
-  if (cleaned.length > 200) {
-    cleaned = cleaned.substring(0, 200) + '...';
-  }
-  
-  return cleaned;
-};
+// Plain text for previews: the line clamp in the JSX decides how much is shown,
+// so nothing gets cut off mid-sentence here.
+const plainText = (text: string): string => cleanHTMLContent(text);
 
 // Function to extract a better title from content
 const extractTitle = (content: string): string => {
@@ -155,7 +145,14 @@ const cleanThinkingProcess = (text: string): string => {
   return text.trim();
 };
 
-// Function to convert markdown to HTML
+const escapeHtml = (value: string) =>
+  value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * Markdown for the AI results. The rail is 22rem wide, so everything is set at panel
+ * scale (13px body) instead of document scale, and the tailwind typography plugin is
+ * not installed - these are explicit classes, not `prose`.
+ */
 const convertMarkdownToHTML = (text: string): string => {
   if (!text) return '';
   
@@ -164,6 +161,8 @@ const convertMarkdownToHTML = (text: string): string => {
   let html: string[] = [];
   let inUl = false;
   let inOl = false;
+  let inCode = false;
+  let tableRows: string[] = [];
 
   const closeLists = () => {
     if (inUl) { html.push('</ul>'); inUl = false; }
@@ -171,25 +170,85 @@ const convertMarkdownToHTML = (text: string): string => {
   };
 
   const renderInline = (s: string) => {
-    // Bold and italic
-    s = s.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold">$1</strong>');
+    // Bold, italic and inline code before anything else touches the text
+    s = escapeHtml(s);
+    s = s.replace(/`([^`]+?)`/g, '<code class="rounded bg-gray-100 px-1 py-0.5 font-mono text-[11px] text-indigo-700 dark:bg-[#1a1a1a] dark:text-indigo-300">$1</code>');
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-gray-900 dark:text-white">$1</strong>');
     s = s.replace(/\*(.+?)\*/g, '<em class="italic">$1</em>');
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer" class="text-indigo-600 underline underline-offset-2 dark:text-indigo-400">$1</a>');
     return s;
+  };
+
+  const closeTable = () => {
+    if (!tableRows.length) return;
+    const rows = tableRows
+      .filter((row) => !/^\|[\s:|-]+\|$/.test(row.trim()))
+      .map((row) => row.trim().replace(/^\||\|$/g, '').split('|').map((cell) => renderInline(cell.trim())))
+      .filter((cells) => cells.length);
+    if (rows.length) {
+      const [head, ...body] = rows;
+      const headHtml = head.map((cell) => `<th class="border-b border-gray-200 px-2 py-1 font-semibold text-gray-500 dark:border-[#333333] dark:text-gray-400">${cell}</th>`).join('');
+      const bodyHtml = body.map((cells) => `<tr>${cells.map((cell) => `<td class="border-b border-gray-100 px-2 py-1 align-top text-gray-700 dark:border-[#2a2a2a] dark:text-gray-300">${cell}</td>`).join('')}</tr>`).join('');
+      html.push('<div class="my-2 overflow-x-auto rounded-md border border-gray-200 dark:border-[#333333]"><table class="w-full border-collapse text-left text-[11.5px]">');
+      html.push(`<thead class="bg-gray-100 dark:bg-[#252525]">${headHtml}</thead>`);
+      html.push(`<tbody>${bodyHtml}</tbody>`);
+      html.push('</table></div>');
+    }
+    tableRows = [];
   };
 
   for (let raw of lines) {
     const line = raw.trimEnd();
 
+    // Fenced code
+    if (line.trim().startsWith('```')) {
+      closeLists(); closeTable();
+      if (inCode) {
+        html.push('</code></pre>');
+        inCode = false;
+      } else {
+        html.push('<pre class="my-2 overflow-x-auto rounded-md border border-gray-200 bg-gray-100 p-2.5 font-mono text-[11px] leading-relaxed text-gray-800 dark:border-[#333333] dark:bg-[#1a1a1a] dark:text-gray-200"><code>');
+        inCode = true;
+      }
+      continue;
+    }
+    if (inCode) {
+      html.push(`${escapeHtml(raw)}\n`);
+      continue;
+    }
+
+    // Tables gather until the block ends
+    if (line.trim().startsWith('|')) {
+      closeLists();
+      tableRows.push(line);
+      continue;
+    }
+    if (tableRows.length) closeTable();
+
     // Headings
     let m;
-    if ((m = line.match(/^###\s+(.+)/))) { closeLists(); html.push(`<h3 class="text-lg font-bold mb-2 mt-4">${renderInline(m[1])}</h3>`); continue; }
-    if ((m = line.match(/^##\s+(.+)/))) { closeLists(); html.push(`<h2 class="text-xl font-bold mb-3 mt-5">${renderInline(m[1])}</h2>`); continue; }
-    if ((m = line.match(/^#\s+(.+)/)))  { closeLists(); html.push(`<h1 class="text-2xl font-bold mb-4 mt-6">${renderInline(m[1])}</h1>`); continue; }
+    if ((m = line.match(/^###\s+(.+)/))) { closeLists(); html.push(`<h3 class="mb-1.5 mt-3 text-[13px] font-semibold text-gray-900 first:mt-0 dark:text-white">${renderInline(m[1])}</h3>`); continue; }
+    if ((m = line.match(/^##\s+(.+)/))) { closeLists(); html.push(`<h2 class="mb-1.5 mt-3 text-[14px] font-semibold text-gray-900 first:mt-0 dark:text-white">${renderInline(m[1])}</h2>`); continue; }
+    if ((m = line.match(/^#\s+(.+)/)))  { closeLists(); html.push(`<h1 class="mb-2 mt-3 text-[15px] font-semibold text-gray-900 first:mt-0 dark:text-white">${renderInline(m[1])}</h1>`); continue; }
+
+    // Horizontal rule
+    if (/^\s*([-*_])\1{2,}\s*$/.test(line)) {
+      closeLists();
+      html.push('<hr class="my-3 border-gray-200 dark:border-[#333333]">');
+      continue;
+    }
+
+    // Blockquote
+    if ((m = line.match(/^>\s?(.*)/))) {
+      closeLists();
+      html.push(`<blockquote class="my-2 border-l-2 border-gray-200 pl-2.5 text-[13px] italic text-gray-600 dark:border-[#3f3f3f] dark:text-gray-400">${renderInline(m[1])}</blockquote>`);
+      continue;
+    }
 
     // Ordered list
     if ((m = line.match(/^\s{0,3}(\d+)\.\s+(.+)/))) {
       if (inUl) { html.push('</ul>'); inUl = false; }
-      if (!inOl) { html.push('<ol class="list-decimal ml-6 space-y-1">'); inOl = true; }
+      if (!inOl) { html.push('<ol class="mb-2 ml-4 list-decimal space-y-0.5 text-[13px] marker:text-gray-400">'); inOl = true; }
       html.push(`<li>${renderInline(m[2])}</li>`);
       continue;
     }
@@ -197,7 +256,7 @@ const convertMarkdownToHTML = (text: string): string => {
     // Unordered list
     if ((m = line.match(/^\s{0,3}[-*+]\s+(.+)/))) {
       if (inOl) { html.push('</ol>'); inOl = false; }
-      if (!inUl) { html.push('<ul class="list-disc ml-6 space-y-1">'); inUl = true; }
+      if (!inUl) { html.push('<ul class="mb-2 ml-4 list-disc space-y-0.5 text-[13px] marker:text-gray-400">'); inUl = true; }
       html.push(`<li>${renderInline(m[1])}</li>`);
       continue;
     }
@@ -205,18 +264,78 @@ const convertMarkdownToHTML = (text: string): string => {
     // Blank line
     if (line.trim() === '') {
       closeLists();
-      html.push('<br>');
       continue;
     }
 
     // Paragraph - inherit text color from parent
     closeLists();
-    html.push(`<p class="mb-2">${renderInline(line)}</p>`);
+    html.push(`<p class="mb-1.5 text-[13px] leading-relaxed last:mb-0">${renderInline(line)}</p>`);
   }
 
   closeLists();
+  closeTable();
+  if (inCode) html.push('</code></pre>');
   return html.join('');
 };
+
+/** Shared button, surface and skeleton language for every feature panel. */
+const PANEL_BUTTON =
+  'flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-indigo-600 px-3 text-xs font-medium text-white transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-45';
+const PANEL_BUTTON_QUIET =
+  'flex h-8 w-full items-center justify-center gap-1.5 rounded-md border border-gray-200 px-3 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-45 dark:border-[#333333] dark:text-gray-200 dark:hover:bg-[#2f2f2f]';
+const PANEL_SURFACE = 'rounded-md border border-gray-200 bg-gray-50 dark:border-[#333333] dark:bg-[#252525]';
+/** Starter questions for the empty chat panel. */
+const CHAT_PROMPTS = [
+  'Summarize this note in a few lines',
+  'Explain the key ideas in simple terms',
+  'Ask me a question about this note',
+];
+
+/** Priority dot colours, matching the task surfaces. */
+const PRIORITY_DOT: Record<string, string> = {
+  urgent: 'bg-red-500',
+  high: 'bg-orange-500',
+  medium: 'bg-amber-400',
+  low: 'bg-emerald-500',
+};
+const PANEL_LABEL = 'text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400';
+
+const PanelIntro: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <p className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">{children}</p>
+);
+
+const PanelSkeleton: React.FC<{ lines?: number }> = ({ lines = 4 }) => (
+  <div className="animate-pulse space-y-2">
+    {Array.from({ length: lines }).map((_, index) => (
+      <div
+        key={index}
+        className="h-3 rounded bg-gray-200 dark:bg-[#333333]"
+        style={{ width: index === lines - 1 ? '70%' : '100%' }}
+      />
+    ))}
+  </div>
+);
+
+/** Small inline spinner for buttons that are working. */
+const PanelSpinner = () => (
+  <span className="h-3 w-3 animate-spin rounded-full border-[1.5px] border-current border-t-transparent opacity-70" />
+);
+
+/** Quiet placeholder for a feature that hasn't produced anything yet. */
+const EmptyHint: React.FC<{ icon?: React.ComponentType<{ size?: number; className?: string }>; text: string }> = ({ icon: Icon, text }) => (
+  <div className={`${PANEL_SURFACE} flex items-start gap-2 px-3 py-2.5`}>
+    {Icon && <Icon size={13} className="mt-0.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />}
+    <p className="text-[11px] leading-relaxed text-gray-500 dark:text-gray-400">{text}</p>
+  </div>
+);
+
+/** Rendered AI result, in the rail's own type scale. */
+const MarkdownResult: React.FC<{ text: string; className?: string }> = ({ text, className = '' }) => (
+  <div
+    className={`text-gray-700 dark:text-gray-300 ${className}`}
+    dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(text) }}
+  />
+);
 
 const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({ 
   content, 
@@ -282,15 +401,12 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
     }
   }, [chatInput]);
 
-  const getAuthHeaders = () => {
-    const token = localStorage.getItem('accessToken');
-    return {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json'
-    };
-  };
-
   const handleFeatureClick = (featureId: string) => {
+    // Clicking the feature that is already open closes its panel again.
+    if (activeFeature === featureId) {
+      closePanel();
+      return;
+    }
     setActiveFeature(featureId);
     // ensure mount, then animate in
     requestAnimationFrame(() => setPanelVisible(true));
@@ -538,9 +654,6 @@ const AIFeaturesPanel: React.FC<AIFeaturesPanelProps> = ({
           return newSet;
         });
         setError(null);
-        
-        // Show success message
-        console.log('✅ Note created successfully:', response.data);
       } else {
         throw new Error('Failed to create note - no ID returned');
       }
@@ -773,21 +886,20 @@ Click "View Deck" to see your flashcards in the Decks section.`);
     }
   };
 
-  const handleChatSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim()) return;
+  /** Sends one message. The composer and the starter chips both come through here. */
+  const sendChat = async (rawText: string) => {
+    const text = rawText.trim();
+    if (!text) return;
 
-    const userMessage = { role: 'user' as const, content: chatInput };
+    const userMessage = { role: 'user' as const, content: text };
 
     // If user asks to stop, acknowledge and do not call backend
-    if (shouldHaltChat(chatInput)) {
+    if (shouldHaltChat(text)) {
       setChatMessages(prev => [...prev, userMessage, { role: 'assistant', content: 'Okay.' }]);
-      setChatInput('');
       return;
     }
 
     setChatMessages(prev => [...prev, userMessage]);
-    setChatInput('');
     setIsLoading(true);
 
     try {
@@ -805,7 +917,6 @@ Click "View Deck" to see your flashcards in the Decks section.`);
         return newMessages;
       });
       setIsTyping(true);
-      console.log('🎬 Starting typing animation, isTyping:', true);
 
       const token = localStorage.getItem('accessToken');
       const response = await fetch(`${API_BASE_URL}/notes/chat/`, {
@@ -862,7 +973,6 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                 });
                 setIsTyping(false);
                 setTypingMessageIndex(null);
-                console.log('🎬 Typing animation complete, isTyping:', false);
               }
             } catch (e) {
               console.error('Error parsing SSE data:', e);
@@ -883,16 +993,36 @@ Click "View Deck" to see your flashcards in the Decks section.`);
     }
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'bg-red-500 text-white';
-      case 'high': return 'bg-orange-500 text-white';
-      case 'medium': return 'bg-yellow-500 text-white';
-      case 'low': return 'bg-green-500 text-white';
-      default: return 'bg-gray-500 text-white';
-    }
+  const handleChatSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const text = chatInput.trim();
+    if (!text) return;
+    setChatInput('');
+    sendChat(text);
   };
 
+  /** Closes the results panel and clears whatever the last feature produced. */
+  const closePanel = () => {
+    setPanelVisible(false);
+    setTimeout(() => {
+      setActiveFeature(null);
+      if (onActiveChange) onActiveChange(false);
+    }, 200);
+    setSummaryResult('');
+    setChatMessages([]);
+    setChatInput('');
+    setIsTyping(false);
+    setTypingMessageIndex(null);
+    setChunkingAnalysis(null);
+    setNotebookSummary('');
+    setReviewResult('');
+    setFlashcards([]);
+    setFlashcardResult('');
+    setGeneratedReviewerId(null);
+    setCreatedDeckId(null);
+    setCreatedNoteIds(new Set());
+    setNoteCreationStatus({});
+  };
 
   const features = [
     {
@@ -945,444 +1075,363 @@ Click "View Deck" to see your flashcards in the Decks section.`);
     }
   ];
 
+  const activeFeatureMeta = features.find((feature) => feature.id === activeFeature);
+
   return (
     <>
       {/* AI Feature Results Panel (left of navbar) */}
       {activeFeature && (
         <div
-          className={`w-96 h-full bg-white dark:bg-gray-800 border-l border-gray-200 dark:border-gray-700 shadow-lg transform transition-all duration-200 ease-out will-change-transform ${panelVisible ? 'opacity-100 -translate-x-0' : 'opacity-0 -translate-x-4'}`}
+          className={`w-[22rem] max-w-[85vw] h-full border-l border-gray-200 bg-white dark:border-[#2f2f2f] dark:bg-[#191919] transition-all duration-200 ease-out will-change-transform ${panelVisible ? 'opacity-100 -translate-x-0' : 'opacity-0 -translate-x-4'}`}
         >
           <div className="h-full flex flex-col">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {activeFeature === 'summary' ? 'Smart Summarization' :
-                 activeFeature === 'notebook-summary' ? 'Notebook Summary' :
-                 activeFeature === 'chunking' ? 'Smart Chunking' :
-                 activeFeature === 'review' ? 'AI Reviewer' : 
-                 activeFeature === 'flashcards' ? 'Convert to Flashcards' :
-                 activeFeature === 'chat' ? 'AI Chat' : 'AI Features'}
+            <div className="flex h-11 flex-shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-3 dark:border-[#2f2f2f]">
+              <h2 className="flex min-w-0 items-center gap-2 text-[13px] font-semibold text-gray-900 dark:text-white">
+                {activeFeatureMeta && <activeFeatureMeta.icon size={14} className="flex-shrink-0 text-gray-400 dark:text-gray-500" />}
+                <span className="truncate">{activeFeatureMeta ? activeFeatureMeta.label : 'AI Features'}</span>
               </h2>
-              <div className="flex items-center space-x-2">
+              <div className="flex flex-shrink-0 items-center gap-1.5">
                 {activeFeature === 'chat' && chatMessages.length > 0 && (
-                  <button
-                    onClick={() => {
-                      setChatMessages([]);
-                      setChatInput('');
-                      setIsTyping(false);
-                      setTypingMessageIndex(null);
-                    }}
-                    className="px-2 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
-                    title="Clear chat"
-                  >
-                    Clear
-                  </button>
+                  <HeaderTooltip label="Clear chat" fixed>
+                    <button
+                      onClick={() => {
+                        setChatMessages([]);
+                        setChatInput('');
+                        setIsTyping(false);
+                        setTypingMessageIndex(null);
+                      }}
+                      className="h-7 rounded-md border border-gray-200 px-2 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 dark:border-[#333333] dark:text-gray-300 dark:hover:bg-[#2f2f2f]"
+                      aria-label="Clear chat"
+                    >
+                      Clear
+                    </button>
+                  </HeaderTooltip>
                 )}
+                <HeaderTooltip label="Close panel" fixed>
                 <button
-                  onClick={() => {
-                    setPanelVisible(false);
-                    setTimeout(() => {
-                      setActiveFeature(null);
-                      if (onActiveChange) onActiveChange(false);
-                    }, 200);
-                    setSummaryResult('');
-                    setChatMessages([]);
-                    setChatInput('');
-                    setIsTyping(false);
-                    setTypingMessageIndex(null);
-                    setChunkingAnalysis(null);
-                    setNotebookSummary('');
-                    setReviewResult('');
-                    setFlashcards([]);
-                    setFlashcardResult('');
-                    setGeneratedReviewerId(null);
-                    setCreatedDeckId(null);
-                    setCreatedNoteIds(new Set());
-                    setNoteCreationStatus({});
-                  }}
-                  className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+                  onClick={closePanel}
+                  className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-[#2f2f2f] dark:hover:text-white"
+                  aria-label="Close AI panel"
                 >
-                  <X className="h-5 w-5" />
+                  <X size={15} />
                 </button>
+                </HeaderTooltip>
               </div>
             </div>
             <div className="flex-1 overflow-hidden">
               <div className="h-full overflow-y-auto">
                 {activeFeature === 'summary' && (
-                  <>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 p-4">
-                      Get AI-powered summaries of your notes in different formats
-                    </p>
-                    <div className="space-y-4 p-4">
-                      {isLoading ? (
-                        <div className="animate-pulse space-y-4">
-                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                          <div className="space-y-2">
-                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
-                          </div>
-                        </div>
-                      ) : (
-                        <>
-                          <button
-                            onClick={handleSummarize}
-                            disabled={!content.trim()}
-                            className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                          >
-                            <Brain className="w-4 h-4 mr-2" />
-                            Generate Summary
-                          </button>
-                          
-                          {summaryResult && (
-                            <div className="space-y-4">
-                              <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 max-h-96 overflow-y-auto">
-                                <div 
-                                  className="text-sm text-gray-700 dark:text-gray-300"
-                                  dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(summaryResult) }}
-                                />
-                              </div>
-                              <button
-                                onClick={handleApplySummary}
-                                className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center justify-center"
-                              >
-                                Apply Summary
-                              </button>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  </>
+                  <div className="space-y-2.5 p-3">
+                    <PanelIntro>
+                      Condenses this note into the points worth keeping. Inserting it replaces the note's content.
+                    </PanelIntro>
+
+                    <button
+                      onClick={handleSummarize}
+                      disabled={!content.trim() || isLoading}
+                      className={PANEL_BUTTON}
+                    >
+                      {isLoading ? <PanelSpinner /> : <Brain size={13} />}
+                      {isLoading ? 'Summarizing…' : summaryResult ? 'Summarize again' : 'Summarize note'}
+                    </button>
+
+                    {isLoading && !summaryResult ? (
+                      <div className={`${PANEL_SURFACE} p-3`}>
+                        <PanelSkeleton lines={5} />
+                      </div>
+                    ) : summaryResult ? (
+                      <div className={`${PANEL_SURFACE} max-h-80 overflow-y-auto p-3`}>
+                        <MarkdownResult text={summaryResult} />
+                      </div>
+                    ) : (
+                      <EmptyHint icon={FileText} text="The summary appears here once it has been written." />
+                    )}
+
+                    {summaryResult && (
+                      <HeaderTooltip label="Replaces the note's content with this summary" fixed>
+                        <button onClick={handleApplySummary} className={PANEL_BUTTON_QUIET}>
+                          <Check size={12} />
+                          Insert into note
+                        </button>
+                      </HeaderTooltip>
+                    )}
+                  </div>
                 )}
 
                 {activeFeature === 'notebook-summary' && (
-                  <div className="space-y-4 p-4">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Generate comprehensive summaries of entire notebooks
-                    </p>
-                    {isLoading ? (
-                      <div className="animate-pulse space-y-4">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                        <div className="space-y-2">
-                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
-                        </div>
+                  <div className="space-y-2.5 p-3">
+                    <PanelIntro>
+                      Reads every note in this notebook, not just the one you have open.
+                    </PanelIntro>
+
+                    <button
+                      onClick={handleNotebookSummarize}
+                      disabled={!sourceNotebookId || isLoading}
+                      className={PANEL_BUTTON}
+                    >
+                      {isLoading ? <PanelSpinner /> : <BookOpen size={13} />}
+                      {isLoading ? 'Reading the notebook…' : notebookSummary ? 'Summarize again' : 'Summarize notebook'}
+                    </button>
+
+                    {isLoading && !notebookSummary ? (
+                      <div className={`${PANEL_SURFACE} p-3`}>
+                        <PanelSkeleton lines={5} />
+                      </div>
+                    ) : notebookSummary ? (
+                      <div className={`${PANEL_SURFACE} max-h-80 overflow-y-auto p-3`}>
+                        <MarkdownResult text={notebookSummary} />
                       </div>
                     ) : (
-                      <>
-                        <button
-                          onClick={handleNotebookSummarize}
-                          disabled={!sourceNotebookId}
-                          className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        >
-                          <BookOpen className="w-4 h-4 mr-2" />
-                          Generate Notebook Summary
-                        </button>
-                        
-                        {notebookSummary && (
-                          <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 max-h-64 overflow-y-auto">
-                            <div 
-                              className="text-sm text-gray-700 dark:text-gray-300"
-                              dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(notebookSummary) }}
-                            />
-                          </div>
-                        )}
-                      </>
+                      <EmptyHint icon={BookOpen} text="A notebook-wide summary appears here once it has been written." />
                     )}
                   </div>
                 )}
 
 
                 {activeFeature === 'chunking' && (
-                  <div className="space-y-4 p-4">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      AI suggests optimal ways to break down long topics
-                    </p>
-                    {isLoading ? (
-                      <div className="animate-pulse space-y-4">
-                        <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-                        <div className="space-y-2">
-                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-                          <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-5/6"></div>
-                        </div>
+                  <div className="space-y-2.5 p-3">
+                    <PanelIntro>
+                      Suggests how to split this note into focused study notes — one idea per note.
+                    </PanelIntro>
+
+                    <button
+                      onClick={handleSmartChunking}
+                      disabled={!content.trim() || isLoading}
+                      className={PANEL_BUTTON}
+                    >
+                      {isLoading ? <PanelSpinner /> : <Scissors size={13} />}
+                      {isLoading ? 'Reading the note…' : chunkingAnalysis ? 'Analyze again' : 'Analyze chunking'}
+                    </button>
+
+                    {isLoading && !chunkingAnalysis ? (
+                      <div className={`${PANEL_SURFACE} p-3`}>
+                        <PanelSkeleton lines={6} />
                       </div>
-                    ) : (
-                      <>
-                        <button
-                          onClick={handleSmartChunking}
-                          disabled={!content.trim()}
-                          className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                        >
-                          <Scissors className="w-4 h-4 mr-2" />
-                          Analyze Chunking
-                        </button>
-                        
-                        {chunkingAnalysis && (
-                          <div className="space-y-4">
-                            {/* Analysis Summary */}
-                            <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                              <div className="flex items-center justify-between mb-2">
-                                <h4 className="font-medium text-blue-900 dark:text-blue-100">Analysis Summary</h4>
-                                {chunkingAnalysis.content_complexity && (
-                                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                                    chunkingAnalysis.content_complexity === 'high' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                                    chunkingAnalysis.content_complexity === 'medium' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                                    'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                  }`}>
-                                    {chunkingAnalysis.content_complexity} complexity
+                    ) : chunkingAnalysis ? (
+                      <div className="space-y-2.5">
+                        {/* One summary line, instead of two stacked analysis boxes saying the same thing */}
+                        <div className={`${PANEL_SURFACE} px-3 py-2.5`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <p className="text-xs leading-relaxed text-gray-700 dark:text-gray-300">
+                              <span className="font-semibold text-gray-900 dark:text-white">
+                                {chunkingAnalysis.total_notes_suggested}
+                              </span>{' '}
+                              focused note{chunkingAnalysis.total_notes_suggested === 1 ? '' : 's'}
+                              {chunkingAnalysis.chunking_strategy ? ` · ${chunkingAnalysis.chunking_strategy} split` : ''}
+                              {chunkingAnalysis.estimated_study_time ? ` · ~${chunkingAnalysis.estimated_study_time}` : ''}
+                            </p>
+                            {chunkingAnalysis.content_complexity && (
+                              <span className="flex-shrink-0 rounded-full border border-gray-200 px-2 py-0.5 text-[10px] font-medium capitalize text-gray-600 dark:border-[#333333] dark:text-gray-300">
+                                {chunkingAnalysis.content_complexity}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {chunkingAnalysis.suggested_chunks.map((chunk, index) => (
+                          <article key={index} className="rounded-md border border-gray-200 p-3 dark:border-[#333333]">
+                            <h5 className="mb-1 line-clamp-2 text-[13px] font-semibold leading-snug text-gray-900 dark:text-white">
+                              {chunk.title || extractTitle(chunk.content_preview)}
+                            </h5>
+
+                            <div className="mb-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[10.5px] text-gray-500 dark:text-gray-400">
+                              <span className="flex items-center gap-1.5 capitalize">
+                                <span className={`h-1.5 w-1.5 rounded-full ${PRIORITY_DOT[chunk.priority] || 'bg-gray-400'}`} />
+                                {chunk.priority}
+                              </span>
+                              {chunk.difficulty_level && <span className="capitalize">{chunk.difficulty_level}</span>}
+                              <span>{chunk.estimated_length} read</span>
+                            </div>
+
+                            <p className="line-clamp-3 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                              {plainText(chunk.content_preview)}
+                            </p>
+
+                            {chunk.key_concepts && chunk.key_concepts.length > 0 && (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {chunk.key_concepts.slice(0, 4).map((concept, idx) => (
+                                  <span key={idx} className="rounded border border-gray-200 px-1.5 py-0.5 text-[10.5px] text-gray-600 dark:border-[#333333] dark:text-gray-300">
+                                    {concept}
+                                  </span>
+                                ))}
+                                {chunk.key_concepts.length > 4 && (
+                                  <span className="px-1 py-0.5 text-[10.5px] text-gray-400 dark:text-gray-500">
+                                    +{chunk.key_concepts.length - 4}
                                   </span>
                                 )}
                               </div>
-                              <div className="text-sm text-blue-800 dark:text-blue-200">
-                                AI suggests breaking this content into <strong>{chunkingAnalysis.total_notes_suggested}</strong> focused notes
-                                {chunkingAnalysis.chunking_strategy && (
-                                  <span> using a <strong>{chunkingAnalysis.chunking_strategy}</strong> approach</span>
+                            )}
+
+                            {chunk.learning_objectives && chunk.learning_objectives.length > 0 && (
+                              <ul className="mt-2 space-y-1">
+                                {chunk.learning_objectives.slice(0, 2).map((objective, idx) => (
+                                  <li key={idx} className="flex items-start gap-1.5 text-[11px] leading-relaxed text-gray-600 dark:text-gray-400">
+                                    <Check size={11} className="mt-0.5 flex-shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                    {objective}
+                                  </li>
+                                ))}
+                                {chunk.learning_objectives.length > 2 && (
+                                  <li className="text-[10.5px] text-gray-400 dark:text-gray-500">
+                                    +{chunk.learning_objectives.length - 2} more objectives
+                                  </li>
                                 )}
-                                {chunkingAnalysis.estimated_study_time && (
-                                  <span> (~{chunkingAnalysis.estimated_study_time})</span>
-                                )}
-                              </div>
-                            </div>
+                              </ul>
+                            )}
 
-                            {/* Suggested Chunks */}
-                            <div className="space-y-4">
-                              {chunkingAnalysis.suggested_chunks.map((chunk, index) => (
-                                <div key={index} className="p-5 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-600 shadow-sm hover:shadow-md transition-shadow">
-                                  {/* Header */}
-                                  <div className="flex items-start justify-between mb-4">
-                                    <div className="flex-1">
-                                      <h5 className="font-semibold text-lg text-gray-900 dark:text-white mb-2">
-                                        {extractTitle(chunk.content_preview)}
-                                      </h5>
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        {chunk.difficulty_level && (
-                                          <span className={`px-3 py-1 text-xs font-medium rounded-full ${
-                                            chunk.difficulty_level === 'advanced' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                                            chunk.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' :
-                                            'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                                          }`}>
-                                            {chunk.difficulty_level}
-                                          </span>
-                                        )}
-                                        <span className={`px-3 py-1 text-xs font-medium rounded-full ${getPriorityColor(chunk.priority)}`}>
-                                          {chunk.priority} priority
-                                        </span>
-                                        <span className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-full">
-                                          {chunk.estimated_length} read
-                                        </span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Content Preview */}
-                                  <div className="mb-4">
-                                    <div className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                                      {formatContentPreview(chunk.content_preview)}
-                                    </div>
-                                  </div>
-                                  
-                                  {/* Key Concepts */}
-                                  {chunk.key_concepts && chunk.key_concepts.length > 0 && (
-                                    <div className="mb-4">
-                                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Key Topics:</div>
-                                      <div className="flex flex-wrap gap-2">
-                                        {chunk.key_concepts.slice(0, 5).map((concept, idx) => (
-                                          <span key={idx} className="px-3 py-1 text-xs bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full border border-blue-200 dark:border-blue-700">
-                                            {concept}
-                                          </span>
-                                        ))}
-                                        {chunk.key_concepts.length > 5 && (
-                                          <span className="px-3 py-1 text-xs bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 rounded-full">
-                                            +{chunk.key_concepts.length - 5} more
-                                          </span>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {/* Learning Objectives */}
-                                  {chunk.learning_objectives && chunk.learning_objectives.length > 0 && (
-                                    <div className="mb-4">
-                                      <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">What you'll learn:</div>
-                                      <ul className="text-sm text-gray-600 dark:text-gray-400 space-y-1">
-                                        {chunk.learning_objectives.slice(0, 3).map((objective, idx) => (
-                                          <li key={idx} className="flex items-start">
-                                            <span className="text-green-500 mr-2">✓</span>
-                                            {objective}
-                                          </li>
-                                        ))}
-                                        {chunk.learning_objectives.length > 3 && (
-                                          <li className="text-xs text-gray-500 dark:text-gray-500">
-                                            +{chunk.learning_objectives.length - 3} more objectives
-                                          </li>
-                                        )}
-                                      </ul>
-                                    </div>
-                                  )}
-
-                                  {/* Action Button */}
-                                  <div className="pt-3 border-t border-gray-200 dark:border-gray-600">
-                                    {noteCreationStatus[index] === 'success' ? (
-                                      <div className="w-full px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 rounded-lg font-medium flex items-center justify-center">
-                                        <span className="mr-2">✓</span>
-                                        Note Created!
-                                      </div>
-                                    ) : noteCreationStatus[index] === 'error' ? (
-                                      <div className="w-full px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded-lg font-medium flex items-center justify-center">
-                                        <span className="mr-2">✗</span>
-                                        Failed - Try Again
-                                      </div>
-                                    ) : (
-                                      <button 
-                                        className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors font-medium"
-                                        onClick={() => handleCreateNoteFromChunk(chunk, index)}
-                                        disabled={noteCreationStatus[index] === 'creating'}
-                                      >
-                                        {noteCreationStatus[index] === 'creating' ? (
-                                          <span className="flex items-center justify-center">
-                                            <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
-                                            Creating Note...
-                                          </span>
-                                        ) : (
-                                          'Create Study Note'
-                                        )}
-                                      </button>
-                                    )}
-                                  </div>
+                            <div className="mt-2.5">
+                              {noteCreationStatus[index] === 'success' ? (
+                                <div className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-[11px] font-medium text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-300">
+                                  <Check size={12} />
+                                  Note created
                                 </div>
-                              ))}
+                              ) : (
+                                <button
+                                  onClick={() => handleCreateNoteFromChunk(chunk, index)}
+                                  disabled={noteCreationStatus[index] === 'creating'}
+                                  className={PANEL_BUTTON_QUIET}
+                                >
+                                  {noteCreationStatus[index] === 'creating' ? <PanelSpinner /> : <FileText size={12} />}
+                                  {noteCreationStatus[index] === 'creating'
+                                    ? 'Creating note…'
+                                    : noteCreationStatus[index] === 'error'
+                                      ? "Couldn't create it — try again"
+                                      : 'Create study note'}
+                                </button>
+                              )}
                             </div>
+                          </article>
+                        ))}
 
-                            {/* Analysis Details */}
-                            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 p-6 rounded-xl border border-blue-200 dark:border-gray-600">
-                              <h5 className="font-semibold text-lg text-gray-900 dark:text-white mb-4 flex items-center">
-                                <span className="w-2 h-2 bg-blue-500 rounded-full mr-3"></span>
-                                Analysis Summary
-                              </h5>
-                              
-                              <div className="space-y-4">
-                                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
-                                  <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">AI Analysis:</div>
-                                  <div className="text-sm text-gray-600 dark:text-gray-400 leading-relaxed">
-                                    {formatContentPreview(chunkingAnalysis.reasoning)}
-                                  </div>
-                                </div>
-                                
-                                {chunkingAnalysis.study_recommendations.length > 0 && (
-                                  <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-600">
-                                    <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Study Tips:</div>
-                                    <ul className="space-y-2">
-                                      {chunkingAnalysis.study_recommendations.map((rec, idx) => (
-                                        <li key={idx} className="text-sm text-gray-600 dark:text-gray-400 flex items-start">
-                                          <span className="text-blue-500 mr-2 mt-1">•</span>
-                                          {rec}
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          </div>
+                        {(chunkingAnalysis.reasoning || chunkingAnalysis.study_recommendations.length > 0) && (
+                          <section className={`${PANEL_SURFACE} px-3 py-2.5`}>
+                            <h4 className={`${PANEL_LABEL} mb-1.5`}>Why this split</h4>
+                            {chunkingAnalysis.reasoning && (
+                              <p className="line-clamp-4 text-[11.5px] leading-relaxed text-gray-600 dark:text-gray-400">
+                                {plainText(chunkingAnalysis.reasoning)}
+                              </p>
+                            )}
+                            {chunkingAnalysis.study_recommendations.length > 0 && (
+                              <ul className="mt-2 space-y-1">
+                                {chunkingAnalysis.study_recommendations.slice(0, 3).map((rec, idx) => (
+                                  <li key={idx} className="flex items-start gap-1.5 text-[11.5px] leading-relaxed text-gray-600 dark:text-gray-400">
+                                    <Sparkles size={11} className="mt-0.5 flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                                    {rec}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </section>
                         )}
-                      </>
+                      </div>
+                    ) : (
+                      <EmptyHint icon={Scissors} text="Suggestions appear here once the note has been analyzed." />
                     )}
                   </div>
                 )}
 
                 {activeFeature === 'review' && (
-                  <div className="space-y-4 p-4">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Get automated review and feedback on your note's content.
-                    </p>
+                  <div className="space-y-2.5 p-3">
+                    <PanelIntro>
+                      Turns this note into a study reviewer you can come back to before an exam.
+                    </PanelIntro>
+
                     <button
                       onClick={handleReview}
                       disabled={!content.trim() || isReviewing}
-                      className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      className={PANEL_BUTTON}
                     >
-                      <Brain className="w-4 h-4 mr-2" />
-                      {isReviewing ? 'Reviewing...' : 'Generate Review'}
+                      {isReviewing ? <PanelSpinner /> : <GraduationCap size={13} />}
+                      {isReviewing ? 'Reviewing…' : reviewResult ? 'Review again' : 'Generate review'}
                     </button>
-                    {reviewResult && (
-                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mt-2 max-h-64 overflow-y-auto">
-                        <div 
-                          className="text-sm text-gray-700 dark:text-gray-300"
-                          dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(reviewResult) }}
-                        />
+
+                    {isReviewing && !reviewResult ? (
+                      <div className={`${PANEL_SURFACE} p-3`}>
+                        <PanelSkeleton lines={5} />
+                      </div>
+                    ) : reviewResult ? (
+                      <div className="space-y-2.5">
+                        <div className={`${PANEL_SURFACE} max-h-72 overflow-y-auto p-3`}>
+                          <MarkdownResult text={reviewResult} />
+                        </div>
                         {generatedReviewerId && (
-                          <button
-                            onClick={handleViewFullReview}
-                            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                          >
-                            View Full Review
+                          <button onClick={handleViewFullReview} className={PANEL_BUTTON_QUIET}>
+                            Open in Reviewer
                           </button>
                         )}
                       </div>
+                    ) : (
+                      <EmptyHint icon={GraduationCap} text="Your reviewer appears here once it has been generated." />
                     )}
                   </div>
                 )}
 
                 {activeFeature === 'flashcards' && (
-                  <div className="space-y-4 p-4">
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Convert your note content into study flashcards automatically.
-                    </p>
+                  <div className="space-y-2.5 p-3">
+                    <PanelIntro>
+                      Builds a flashcard deck from this note's content.
+                    </PanelIntro>
+
                     <button
                       onClick={handleConvertToFlashcards}
                       disabled={!content.trim() || isConvertingToFlashcards}
-                      className="w-full px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      className={PANEL_BUTTON}
                     >
-                      <Brain className="w-4 h-4 mr-2" />
-                      {isConvertingToFlashcards ? 'Converting...' : 'Convert to Flashcards'}
+                      {isConvertingToFlashcards ? <PanelSpinner /> : <CreditCard size={13} />}
+                      {isConvertingToFlashcards ? 'Building the deck…' : 'Convert to flashcards'}
                     </button>
-                    
+
+                    {isConvertingToFlashcards && flashcards.length === 0 && (
+                      <div className={`${PANEL_SURFACE} p-3`}>
+                        <PanelSkeleton lines={4} />
+                      </div>
+                    )}
+
+                    {!isConvertingToFlashcards && !createdDeckId && !flashcardResult && flashcards.length === 0 && (
+                      <EmptyHint icon={CreditCard} text="A preview of the generated cards appears here." />
+                    )}
+
+                    {createdDeckId && flashcards.length > 0 && (
+                      <div className="flex h-8 items-center justify-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 text-[11px] font-medium text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-900/20 dark:text-emerald-300">
+                        <Check size={12} />
+                        {flashcards.length} card{flashcards.length === 1 ? '' : 's'} created
+                      </div>
+                    )}
+
                     {flashcards.length > 0 && (
-                      <div className="space-y-3">
-                        <h3 className="text-sm font-medium text-gray-900 dark:text-white">
-                          Generated Flashcards ({flashcards.length})
-                        </h3>
-                        <div className="max-h-64 overflow-y-auto space-y-3">
+                      <div className="space-y-2">
+                        <h3 className={PANEL_LABEL}>Preview · {flashcards.length} cards</h3>
+                        <div className="max-h-64 space-y-2 overflow-y-auto">
                           {flashcards.map((flashcard, index) => (
-                            <div key={index} className="bg-white dark:bg-gray-800 rounded-lg p-4 border border-gray-200 dark:border-gray-600 shadow-sm">
-                              <div className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
-                                Card {index + 1}
+                            <div key={index} className="rounded-md border border-gray-200 p-2.5 dark:border-[#333333]">
+                              <div className="mb-1 flex items-center justify-between gap-2">
+                                <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                                  Card {index + 1}
+                                </span>
                               </div>
-                              <div className="mb-3">
-                                <div className="flex items-center mb-1">
-                                  <span className="text-xs font-medium text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/30 px-2 py-1 rounded-full">Definition</span>
-                                </div>
-                                <div className="text-sm text-gray-900 dark:text-white bg-gray-50 dark:bg-gray-700 p-2 rounded">
-                                  {flashcard.front}
-                                </div>
+                              <div className="mb-2">
+                                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Front</div>
+                                <div className="text-xs leading-relaxed text-gray-800 dark:text-gray-200">{flashcard.front}</div>
                               </div>
-                              <div className="border-t border-gray-200 dark:border-gray-600 pt-3">
-                                <div className="flex items-center mb-1">
-                                  <span className="text-xs font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-2 py-1 rounded-full">Term</span>
-                                </div>
-                                <div className="text-sm font-semibold text-gray-900 dark:text-white bg-green-50 dark:bg-green-900/30 p-2 rounded border border-green-200 dark:border-green-700">
-                                  {flashcard.back}
-                                </div>
+                              <div className="border-t border-gray-100 pt-2 dark:border-[#2a2a2a]">
+                                <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Back</div>
+                                <div className="text-xs leading-relaxed text-gray-600 dark:text-gray-400">{flashcard.back}</div>
                               </div>
                             </div>
                           ))}
                         </div>
                       </div>
                     )}
-                    
-                    {flashcardResult && (
-                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mt-2 max-h-64 overflow-y-auto">
-                        <div 
-                          className="text-sm text-gray-700 dark:text-gray-300"
-                          dangerouslySetInnerHTML={{ __html: convertMarkdownToHTML(flashcardResult) }}
-                        />
-                        {createdDeckId && (
-                          <button
-                            onClick={handleViewDeck}
-                            className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-                          >
-                            View Deck
-                          </button>
-                        )}
+
+                    {flashcardResult && !createdDeckId && (
+                      <div className={`${PANEL_SURFACE} max-h-64 overflow-y-auto p-3`}>
+                        <MarkdownResult text={flashcardResult} />
                       </div>
+                    )}
+
+                    {createdDeckId && (
+                      <button onClick={handleViewDeck} className={PANEL_BUTTON_QUIET}>
+                        Open the deck
+                      </button>
                     )}
                   </div>
                 )}
@@ -1396,16 +1445,29 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                       }
                     }}>
                       {chatMessages.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-full text-center py-8">
-                          <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mb-4">
-                            <MessageSquare className="w-8 h-8 text-indigo-600 dark:text-indigo-400" />
+                        <div className="flex h-full flex-col items-center justify-center py-8 text-center">
+                          <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 dark:bg-[#252525]">
+                            <MessageSquare size={16} className="text-gray-500 dark:text-gray-400" />
                           </div>
-                          <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                            Start a conversation
+                          <h3 className="mb-1 text-[13px] font-semibold text-gray-900 dark:text-white">
+                            Chat with this note
                           </h3>
-                          <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs">
-                            Ask questions about your note content, get explanations, or request summaries.
+                          <p className="mb-3 max-w-[16rem] text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                            Answers come from this note, so questions about its content work best.
                           </p>
+                          <div className="flex w-full max-w-[17rem] flex-col gap-1.5">
+                            {CHAT_PROMPTS.map((prompt) => (
+                              <button
+                                key={prompt}
+                                onClick={() => sendChat(prompt)}
+                                disabled={isLoading}
+                                className="flex items-center gap-2 rounded-md border border-gray-200 px-2.5 py-1.5 text-left text-[11.5px] text-gray-600 transition-colors hover:bg-gray-50 disabled:opacity-45 dark:border-[#333333] dark:text-gray-300 dark:hover:bg-[#2f2f2f]"
+                              >
+                                <Sparkles size={11} className="flex-shrink-0 text-gray-400 dark:text-gray-500" />
+                                {prompt}
+                              </button>
+                            ))}
+                          </div>
                         </div>
                       ) : (
                         chatMessages.map((message, index) => (
@@ -1427,36 +1489,35 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                                       <img
                                         src={avatar}
                                         alt="You"
-                                        className="w-8 h-8 rounded-full object-cover border border-gray-200 dark:border-gray-600"
+                                        className="h-6 w-6 rounded-md object-cover border border-gray-200 dark:border-[#333333]"
                                       />
                                     ) : (
-                                      <div className="w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center text-xs font-medium">
+                                      <div className="flex h-6 w-6 items-center justify-center rounded-md bg-indigo-600 text-[10px] font-semibold text-white">
                                         U
                                       </div>
                                     );
                                   })()}
                                 </div>
                               ) : (
-                                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-600 text-gray-700 dark:text-gray-300 flex items-center justify-center text-xs font-medium">
+                                <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md bg-gray-100 text-[10px] font-semibold text-gray-600 dark:bg-[#2f2f2f] dark:text-gray-300">
                                   AI
                                 </div>
                               )}
                               
                               {/* Message bubble: same scale as profile circle (w-8/h-8), light inner, dark border */}
                               <div
-                                className={`rounded-xl border px-2 py-1.5 break-words transition-all duration-200 min-h-8 ${
-                                message.role === 'user'
-                                    ? 'bg-indigo-50 dark:bg-indigo-900/30 border-indigo-200 dark:border-indigo-700 text-indigo-900 dark:text-indigo-100'
-                                    : 'bg-gray-50 dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-gray-100'
-                              } ${
-                                message.role === 'assistant' && isTyping && typingMessageIndex === index
-                                    ? 'shadow-lg ring-2 ring-indigo-200 dark:ring-indigo-800'
-                                    : 'shadow-sm'
-                              }`}
+                                className={`max-w-full break-words rounded-lg border px-2.5 py-1.5 transition-colors ${
+                                  message.role === 'user'
+                                    ? 'border-transparent bg-indigo-600 text-white'
+                                    : 'border-gray-200 bg-gray-50 text-gray-900 dark:border-[#333333] dark:bg-[#252525] dark:text-gray-100'
+                                } ${
+                                  message.role === 'assistant' && isTyping && typingMessageIndex === index
+                                    ? 'ring-1 ring-indigo-300 dark:ring-indigo-500/50'
+                                    : ''
+                                }`}
                             >
                               {message.role === 'assistant' && isTyping && typingMessageIndex === index ? (
                                 <>
-                                  {console.log('🎬 Rendering TypingAnimation for message', index, 'content:', message.content)}
                                   <div 
                                       className="text-xs leading-relaxed [&_p:last-child]:mb-0 [&_*:last-child]:mb-0"
                                     dangerouslySetInnerHTML={{ 
@@ -1476,8 +1537,8 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                         ))
                       )}
                     </div>
-                    <div className="sticky bottom-0 left-0 right-0 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-                      <form onSubmit={handleChatSubmit} className="p-2">
+                    <div className="sticky bottom-0 left-0 right-0 border-t border-gray-200 bg-white dark:border-[#2f2f2f] dark:bg-[#191919]">
+                      <form onSubmit={handleChatSubmit} className="flex items-end gap-1.5 p-2">
                         <textarea
                           ref={chatInputRef}
                           value={chatInput}
@@ -1488,8 +1549,8 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                               handleChatSubmit(e);
                             }
                           }}
-                          placeholder="Type your message... (Enter to send)"
-                          className="w-full text-xs px-3 py-1.5 border border-gray-200 bg-gray-50 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none min-h-7 max-h-24 overflow-y-hidden"
+                          placeholder="Ask about this note…"
+                          className="min-w-0 flex-1 resize-none rounded-md border border-gray-200 bg-white px-2.5 py-1.5 text-xs text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-300 dark:border-[#333333] dark:bg-[#252525] dark:text-white dark:placeholder:text-gray-500 dark:focus:ring-[#404040] min-h-7 max-h-24 overflow-y-hidden"
                           disabled={isLoading}
                           rows={1}
                           style={{
@@ -1505,6 +1566,16 @@ Click "View Deck" to see your flashcards in the Decks section.`);
                             target.style.overflowY = newHeight >= 96 ? 'auto' : 'hidden';
                           }}
                         />
+                        <HeaderTooltip label="Send" side="left" fixed>
+                          <button
+                            type="submit"
+                            aria-label="Send message"
+                            disabled={!chatInput.trim() || isLoading}
+                            className="mb-px flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-gray-900 text-white transition-colors hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-35 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+                          >
+                            <Send size={13} />
+                          </button>
+                        </HeaderTooltip>
                       </form>
                     </div>
                   </div>
@@ -1512,15 +1583,18 @@ Click "View Deck" to see your flashcards in the Decks section.`);
 
                 {/* Error Display */}
                 {error && (
-                  <div className="p-4">
-                    <div className="p-3 bg-red-100 dark:bg-red-900 border border-red-300 dark:border-red-700 rounded-lg">
-                      <div className="text-sm text-red-700 dark:text-red-300">{error}</div>
-                      <button
-                        onClick={() => setError(null)}
-                        className="mt-2 text-xs text-red-600 dark:text-red-400 hover:underline"
-                      >
-                        Dismiss
-                      </button>
+                  <div className="p-3">
+                    <div className="flex items-start gap-2 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 dark:border-red-900/60 dark:bg-red-900/20">
+                      <AlertTriangle size={13} className="mt-0.5 flex-shrink-0 text-red-600 dark:text-red-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11.5px] leading-relaxed text-red-700 dark:text-red-300">{error}</p>
+                        <button
+                          onClick={() => setError(null)}
+                          className="mt-1 text-[11px] font-medium text-red-800 underline underline-offset-2 hover:text-red-900 dark:text-red-200"
+                        >
+                          Dismiss
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1530,27 +1604,28 @@ Click "View Deck" to see your flashcards in the Decks section.`);
         </div>
       )}
 
-      {/* AI Features Sidebar (navbar at far right - matches document header scale) */}
-      <div className="w-12 border-l border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 flex flex-col items-center py-2 space-y-0.5 min-h-12">
+      {/* AI features rail — quiet Notion-style icon column at the far right */}
+      <div className="flex w-12 flex-shrink-0 flex-col items-center gap-0.5 border-l border-gray-200 bg-white py-2 dark:border-[#2f2f2f] dark:bg-[#191919]">
         {features.filter(f => f.show).map((feature) => (
-          <button
-            key={feature.id}
-            onClick={feature.action}
-            disabled={isLoading}
-            className={`p-1.5 rounded-lg transition-colors group relative
-              ${activeFeature === feature.id 
-                ? 'bg-indigo-50 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' 
-                : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-600 dark:text-gray-400'}`}
-            title={feature.label}
-          >
-            <feature.icon className="h-5 w-5" />
-            <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 hidden group-hover:block">
-              <div className="bg-gray-900 text-white text-xs rounded py-1 px-2 whitespace-nowrap">
-                {feature.label}
-              </div>
-              <div className="absolute top-1/2 -translate-y-1/2 right-0 translate-x-1/2 rotate-45 w-2 h-2 bg-gray-900"></div>
-            </div>
-          </button>
+          <React.Fragment key={feature.id}>
+            {/* Chat is a conversation, not a one-shot tool: keep it visually separate */}
+            {feature.id === 'chat' && <span className="my-1 h-px w-5 bg-gray-200 dark:bg-[#333333]" />}
+            <HeaderTooltip label={feature.label} side="left" fixed>
+              <button
+                onClick={feature.action}
+                disabled={isLoading}
+                aria-label={feature.label}
+                aria-pressed={activeFeature === feature.id}
+                className={`flex h-8 w-8 items-center justify-center rounded-md transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  activeFeature === feature.id
+                    ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300'
+                    : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-[#2f2f2f] dark:hover:text-white'
+                }`}
+              >
+                <feature.icon size={17} />
+              </button>
+            </HeaderTooltip>
+          </React.Fragment>
         ))}
       </div>
     </>

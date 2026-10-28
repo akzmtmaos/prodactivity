@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { CheckSquare, Clock, Calendar } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { X, CheckSquare, Clock, Calendar } from 'lucide-react';
+import BreakdownModalShell from './BreakdownModalShell';
+import { getRateTextClass } from './DailyRateChart';
+import { getStatusFromRate } from '../../utils/productivityScore';
 
 interface DailyBreakdownModalProps {
   isOpen: boolean;
@@ -26,6 +28,16 @@ interface TaskData {
   updated_at?: string;
 }
 
+const PRIORITY_LABEL: Record<string, string> = { low: 'Low', medium: 'Medium', high: 'High' };
+const PRIORITY_DOT: Record<string, string> = {
+  low: 'bg-emerald-500',
+  medium: 'bg-amber-500',
+  high: 'bg-rose-500',
+};
+
+const RING_RADIUS = 26;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
 const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
   isOpen,
   onClose,
@@ -37,76 +49,12 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
   const [pendingTasks, setPendingTasks] = useState<TaskData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isRecalculating, setIsRecalculating] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
       fetchDailyTasks();
     }
   }, [isOpen, date]);
-
-  const recalculateProductivity = async () => {
-    setIsRecalculating(true);
-    
-    try {
-      const userData = localStorage.getItem('user');
-      if (!userData) {
-        alert('User not authenticated');
-        setIsRecalculating(false);
-        return;
-      }
-      
-      const user = JSON.parse(userData);
-      const userId = user.id || 11;
-      
-      // Calculate based on current tasks
-      const currentTotal = completedTasks.length + pendingTasks.length;
-      const currentRate = currentTotal > 0 ? Math.round((completedTasks.length / currentTotal) * 100) : 0;
-      
-      let status = 'Low Productive';
-      if (currentRate >= 90) status = 'Highly Productive';
-      else if (currentRate >= 70) status = 'Productive';
-      else if (currentRate >= 40) status = 'Moderately Productive';
-      
-      console.log('🔄 Recalculating productivity for', date, {
-        totalTasks: currentTotal,
-        completedTasks: completedTasks.length,
-        completionRate: currentRate,
-        status
-      });
-      
-      // Update the productivity_logs table
-      const { data: updateData, error: updateError } = await supabase
-        .from('productivity_logs')
-        .update({
-          total_tasks: currentTotal,
-          completed_tasks: completedTasks.length,
-          completion_rate: currentRate,
-          status: status,
-          logged_at: new Date().toISOString()
-        })
-        .eq('user_id', userId)
-        .eq('period_type', 'daily')
-        .eq('period_start', date)
-        .select();
-      
-      if (updateError) {
-        console.error('Error updating productivity log:', updateError);
-        alert('Failed to update productivity data');
-      } else {
-        console.log('✅ Successfully updated productivity log:', updateData);
-        alert(`Updated! Changed from ${dailyPercentage.toFixed(0)}% to ${currentRate}%`);
-        
-        // Trigger a page refresh to show the new data
-        window.location.reload();
-      }
-    } catch (err) {
-      console.error('Error recalculating:', err);
-      alert('Failed to recalculate productivity');
-    } finally {
-      setIsRecalculating(false);
-    }
-  };
 
   const fetchDailyTasks = async () => {
     setLoading(true);
@@ -302,278 +250,234 @@ const DailyBreakdownModal: React.FC<DailyBreakdownModalProps> = ({
     }
   };
 
+
   if (!isOpen) return null;
 
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString(undefined, { 
+    const parsed = new Date(dateStr);
+    return parsed.toLocaleDateString(undefined, {
       weekday: 'long',
-      year: 'numeric', 
-      month: 'long', 
-      day: 'numeric' 
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
     });
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'high':
-        return 'text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/20';
-      case 'medium':
-        return 'text-yellow-600 dark:text-yellow-400 bg-yellow-50 dark:bg-yellow-900/20';
-      case 'low':
-        return 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/20';
-      default:
-        return 'text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/20';
-    }
+  const formatShortDate = (dateStr: string) => {
+    const parsed = new Date(dateStr);
+    return parsed.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
+  const formatTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+
   const totalTasks = completedTasks.length + pendingTasks.length;
-  const status = dailyPercentage >= 90 ? 'Highly Productive' : 
-                dailyPercentage >= 70 ? 'Productive' : 
-                dailyPercentage >= 40 ? 'Moderately Productive' : 
-                'Low Productive';
+  const rate = Math.max(0, Math.min(100, dailyPercentage));
+  const completedShare = totalTasks > 0 ? (completedTasks.length / totalTasks) * 100 : 0;
+  const calculatedRate = totalTasks > 0 ? Math.round((completedTasks.length / totalTasks) * 100) : 0;
+  const status = totalTasks > 0 ? getStatusFromRate(dailyPercentage) : 'No tasks';
+  const rateTone = getRateTextClass(rate, totalTasks > 0);
 
-  return createPortal(
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-3xl w-full mx-4 max-h-[85vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-              Daily breakdown
-            </h2>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              {formatDate(date)}
-            </p>
+  const renderTask = (task: TaskData, state: 'done' | 'missing') => {
+    const priority = (task.priority || 'medium').toLowerCase();
+    return (
+      <div
+        key={task.id}
+        className={`flex items-start gap-2.5 rounded-md border px-3 py-2 ${
+          task.is_deleted
+            ? 'border-red-200 dark:border-red-900/40'
+            : 'border-gray-200 dark:border-[#2f2f2f]'
+        }`}
+      >
+        <span
+          className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${
+            state === 'done' ? 'bg-green-500 dark:bg-green-400' : 'bg-amber-500 dark:bg-amber-400'
+          }`}
+        />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="truncate text-[13px] text-gray-800 dark:text-gray-200">{task.title}</span>
+            {task.is_deleted && (
+              <span className="flex-shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-red-600 ring-1 ring-red-200 dark:text-red-400 dark:ring-red-900/50">
+                deleted
+              </span>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl font-bold leading-none"
-          >
-            ×
-          </button>
-        </div>
-
-        {/* Content */}
-        <div className="px-4 py-3 overflow-y-auto max-h-[70vh]">
-          {loading && (
-            <div className="flex items-center justify-center py-6">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-xs text-gray-600 dark:text-gray-400">Loading task breakdown...</span>
-            </div>
-          )}
-
-          {error && (
-            <div className="text-center py-6">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-              <button
-                onClick={fetchDailyTasks}
-                className="mt-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700"
-              >
-                Retry
-              </button>
-            </div>
-          )}
-
-          {!loading && !error && totalTasks === 0 && (
-            <>
-              {/* Summary for 0% day */}
-              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="flex items-center justify-between gap-4">
-                  {/* Left: Daily Completion Rate */}
-                  <div className="flex-1 text-center">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Stored rate</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">
-                      0.00%
-                    </p>
-                  </div>
-                  
-                  {/* Right: Productivity Scale */}
-                  <div className="flex-1 text-center">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Productivity scale</p>
-                    <span className={`inline-block text-xs font-semibold px-3 py-1 rounded-full ${getProductivityColor('Low Productive')}`}>
-                      Low Productive
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Show current calculation vs stored */}
-                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                  <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">
-                    📊 Current Task Count: 0 completed + 0 pending = 0 total
-                  </p>
-                  <p className="text-xs text-blue-800 dark:text-blue-200 font-medium">
-                    🧮 Current Calculation: 0/0 = 0%
-                  </p>
-                </div>
-              </div>
-
-              {/* No tasks message */}
-              <div className="text-center py-6">
-                <p className="text-sm text-gray-500 dark:text-gray-400">No tasks recorded for this day.</p>
-              </div>
-            </>
-          )}
-
-          {!loading && !error && totalTasks > 0 && (
-            <>
-              {/* Summary */}
-              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="flex items-center justify-between gap-4">
-                  {/* Left: Daily Completion Rate */}
-                  <div className="flex-1 text-center">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Stored rate</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">
-                      {dailyPercentage.toFixed(2)}%
-                    </p>
-                  </div>
-                  
-                  {/* Right: Productivity Scale */}
-                  <div className="flex-1 text-center">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Productivity scale</p>
-                    <span className={`inline-block text-xs font-semibold px-3 py-1 rounded-full ${getProductivityColor(status)}`}>
-                      {status}
-                    </span>
-                  </div>
-                </div>
-                
-                {/* Show current calculation vs stored */}
-                <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                  <p className="text-xs text-blue-800 dark:text-blue-200 font-medium mb-1">
-                    📊 Current Task Count: {completedTasks.length} completed + {pendingTasks.length} pending = {completedTasks.length + pendingTasks.length} total
-                  </p>
-                  {completedTasks.length + pendingTasks.length > 0 && (
-                    <p className="text-xs text-blue-800 dark:text-blue-200 font-medium">
-                      🧮 Current Calculation: {completedTasks.length}/{completedTasks.length + pendingTasks.length} = {Math.round((completedTasks.length / (completedTasks.length + pendingTasks.length)) * 100)}%
-                    </p>
-                  )}
-                </div>
-                
-              </div>
-
-              {/* Task Breakdown */}
-            <div className="space-y-4">
-              {/* Completed Tasks */}
-              {completedTasks.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                    <CheckSquare size={16} className="text-green-500" />
-                    Completed Tasks {/*({completedTasks.length}/{completedTasks.length + pendingTasks.length})*/}
-                  </h3>
-                  <div className="space-y-2">
-                    {completedTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className={`rounded-lg p-3 border ${task.is_deleted ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 opacity-60' : 'bg-green-50 dark:bg-green-900/10 border-green-200 dark:border-green-800'}`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1.5 flex items-center gap-2">
-                              {task.title}
-                              {task.is_deleted && (
-                                <span className="text-xs font-medium px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400">
-                                  DELETED
-                                </span>
-                              )}
-                            </h4>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`text-[11px] font-medium px-2 py-1 rounded-full ${getPriorityColor(task.priority)}`}>
-                                {task.priority?.toUpperCase() || 'MEDIUM'}
-                              </span>
-                              {task.task_category && (
-                                <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-                                  {task.task_category}
-                                </span>
-                              )}
-                              {task.category && (
-                                <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400">
-                                  {task.category}
-                                </span>
-                              )}
-                              {task.time_spent_minutes > 0 && (
-                                <span className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                  <Clock size={10} />
-                                  {task.time_spent_minutes} min
-                                </span>
-                              )}
-                              {task.due_date !== date && (
-                                <span className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                  <Calendar size={10} />
-                                  Due: {new Date(task.due_date).toLocaleDateString()}
-                                </span>
-                              )}
-                              {task.completed_at && (
-                                <span className="text-[11px] text-green-600 dark:text-green-400">
-                                  ✓ Completed at {new Date(task.completed_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Pending Tasks */}
-              {pendingTasks.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                    <Clock size={16} className="text-yellow-500" />
-                    Missing Tasks {/*({pendingTasks.length}/{completedTasks.length + pendingTasks.length})*/}
-                  </h3>
-                  <div className="space-y-2">
-                    {pendingTasks.map((task) => (
-                      <div
-                        key={task.id}
-                        className={`rounded-lg p-3 border ${task.is_deleted ? 'bg-red-50 dark:bg-red-900/10 border-red-200 dark:border-red-800 opacity-60' : 'bg-yellow-50 dark:bg-yellow-900/10 border-yellow-200 dark:border-yellow-800'}`}
-                      >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="text-sm font-medium text-gray-900 dark:text-white mb-1.5 flex items-center gap-2">
-                              {task.title}
-                              {task.is_deleted && (
-                                <span className="text-xs font-medium px-2 py-1 rounded-full bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400">
-                                  DELETED
-                                </span>
-                              )}
-                            </h4>
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className={`text-[11px] font-medium px-2 py-1 rounded-full ${getPriorityColor(task.priority)}`}>
-                                {task.priority?.toUpperCase() || 'MEDIUM'}
-                              </span>
-                              {task.task_category && (
-                                <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400">
-                                  {task.task_category}
-                                </span>
-                              )}
-                              {task.category && (
-                                <span className="text-[11px] font-medium px-2 py-1 rounded-full bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400">
-                                  {task.category}
-                                </span>
-                              )}
-                              <span className="text-[11px] text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                                <Calendar size={10} />
-                                Due: {new Date(task.due_date).toLocaleDateString()}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-            </>
-          )}
+          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
+            <span className="flex items-center gap-1.5">
+              <span className={`h-1.5 w-1.5 rounded-full ${PRIORITY_DOT[priority] || PRIORITY_DOT.medium}`} />
+              {PRIORITY_LABEL[priority] || 'Medium'}
+            </span>
+            {task.task_category && (
+              <span className="rounded bg-gray-100 px-1.5 py-0.5 dark:bg-[#2a2a2a]">{task.task_category}</span>
+            )}
+            {task.category && <span>{task.category}</span>}
+            {task.time_spent_minutes > 0 && (
+              <span className="flex items-center gap-1 tabular-nums">
+                <Clock size={10} />
+                {task.time_spent_minutes}m
+              </span>
+            )}
+            {state === 'done' && task.completed_at && (
+              <span className="tabular-nums">completed {formatTime(task.completed_at)}</span>
+            )}
+            {state === 'missing' && (
+              <span className="flex items-center gap-1 tabular-nums">
+                <Calendar size={10} />
+                due {formatShortDate(task.due_date)}
+              </span>
+            )}
+          </div>
         </div>
       </div>
-    </div>,
-    document.body
+    );
+  };
+
+  return (
+    <BreakdownModalShell
+      title="Daily breakdown"
+      subtitle={`${formatDate(date)}${
+        totalTasks > 0 ? ` · ${completedTasks.length} of ${totalTasks} tasks completed` : ' · nothing due'
+      }`}
+      onClose={onClose}
+      maxWidth="max-w-2xl"
+    >
+      {loading && (
+        <div className="flex items-center justify-center gap-2 py-8">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-b-indigo-500 dark:border-[#333333] dark:border-b-indigo-400" />
+          <span className="text-[11px] text-gray-500 dark:text-gray-400">Loading task breakdown…</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex flex-col items-center gap-2 py-8">
+          <p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
+          <button
+            type="button"
+            onClick={fetchDailyTasks}
+            className="h-7 rounded-md border border-gray-200 bg-white px-2.5 text-xs text-gray-700 transition-colors hover:bg-gray-50 dark:border-[#333333] dark:bg-[#252525] dark:text-gray-300 dark:hover:bg-[#2d2d2d]"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      {!loading && !error && (
+        <>
+          <div className="flex flex-col gap-4 rounded-md border border-gray-200 px-3.5 py-3 sm:flex-row sm:items-center dark:border-[#2f2f2f]">
+            <div className="relative h-20 w-20 flex-shrink-0">
+              <svg viewBox="0 0 64 64" className="h-20 w-20 -rotate-90">
+                <circle
+                  cx="32"
+                  cy="32"
+                  r={RING_RADIUS}
+                  fill="none"
+                  strokeWidth="6"
+                  className="stroke-gray-100 dark:stroke-[#2a2a2a]"
+                />
+                <circle
+                  cx="32"
+                  cy="32"
+                  r={RING_RADIUS}
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="6"
+                  strokeLinecap="round"
+                  strokeDasharray={RING_CIRCUMFERENCE}
+                  strokeDashoffset={RING_CIRCUMFERENCE * (1 - rate / 100)}
+                  className={`${rateTone} transition-all duration-500`}
+                />
+              </svg>
+              <span className="absolute inset-0 flex items-center justify-center text-sm font-semibold tabular-nums text-gray-900 dark:text-white">
+                {rate.toFixed(0)}%
+              </span>
+            </div>
+
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span
+                  className={`text-[13px] font-medium ${
+                    totalTasks > 0 ? getProductivityColor(status) : 'text-gray-500 dark:text-gray-400'
+                  }`}
+                >
+                  {status}
+                </span>
+                <span className="rounded-md border border-gray-200 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-gray-500 dark:border-[#333333] dark:text-gray-400">
+                  {totalTasks > 0 ? `${completedTasks.length}/${totalTasks} done` : 'no tasks'}
+                </span>
+              </div>
+
+              <div className="mt-2 flex h-2 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-[#262626]">
+                <span
+                  className="h-full bg-green-500 transition-all duration-500 dark:bg-green-400"
+                  style={{ width: `${completedShare}%` }}
+                />
+                {totalTasks > 0 && (
+                  <span
+                    className="h-full bg-amber-500/70 dark:bg-amber-400/60"
+                    style={{ width: `${100 - completedShare}%` }}
+                  />
+                )}
+              </div>
+
+              <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 dark:text-gray-400">
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-green-500 dark:bg-green-400" />
+                  Completed {completedTasks.length}
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 dark:bg-amber-400" />
+                  Missing {pendingTasks.length}
+                </span>
+              </div>
+
+              {totalTasks === 0 ? (
+                <p className="mt-1.5 text-[10px] text-gray-400 dark:text-gray-500">Nothing was due on this day.</p>
+              ) : Math.abs(calculatedRate - rate) > 1 ? (
+                <p className="mt-1.5 text-[10px] text-gray-400 dark:text-gray-500">
+                  The tasks logged for this day work out to {calculatedRate}%.
+                </p>
+              ) : null}
+            </div>
+          </div>
+
+          {completedTasks.length > 0 && (
+            <section className="mt-4">
+              <div className="mb-1.5 flex items-center gap-2">
+                <CheckSquare size={13} className="text-green-500 dark:text-green-400" />
+                <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Completed
+                </span>
+                <span className="text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
+                  {completedTasks.length}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {completedTasks.map((task) => renderTask(task, 'done'))}
+              </div>
+            </section>
+          )}
+
+          {pendingTasks.length > 0 && (
+            <section className="mt-4">
+              <div className="mb-1.5 flex items-center gap-2">
+                <Clock size={13} className="text-amber-500 dark:text-amber-400" />
+                <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  Missing
+                </span>
+                <span className="text-[11px] tabular-nums text-gray-400 dark:text-gray-500">
+                  {pendingTasks.length}
+                </span>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {pendingTasks.map((task) => renderTask(task, 'missing'))}
+              </div>
+            </section>
+          )}
+        </>
+      )}
+    </BreakdownModalShell>
   );
 };
 
 export default DailyBreakdownModal;
-

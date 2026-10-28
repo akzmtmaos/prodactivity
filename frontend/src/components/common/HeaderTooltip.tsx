@@ -3,7 +3,7 @@ import React, { useState, useLayoutEffect, useRef } from 'react';
 interface HeaderTooltipProps {
   children: React.ReactNode;
   label: string;
-  side?: 'bottom' | 'right' | 'top';
+  side?: 'bottom' | 'right' | 'top' | 'left';
   className?: string;
   /** Position the tooltip with fixed coordinates so it escapes overflow clipping (e.g. scrollable nav) */
   fixed?: boolean;
@@ -25,6 +25,8 @@ const HeaderTooltip: React.FC<HeaderTooltipProps> = ({
     const rect = wrapperRef.current.getBoundingClientRect();
     if (side === 'right') {
       setCoords({ top: rect.top + rect.height / 2, left: rect.right + 8 });
+    } else if (side === 'left') {
+      setCoords({ top: rect.top + rect.height / 2, left: rect.left - 8 });
     } else if (side === 'top') {
       setCoords({ top: rect.top - 8, left: rect.left + rect.width / 2 });
     } else {
@@ -36,9 +38,11 @@ const HeaderTooltip: React.FC<HeaderTooltipProps> = ({
     const centeringTransform =
       side === 'right'
         ? 'translateY(-50%)'
-        : side === 'top'
-          ? 'translate(-50%, -100%)'
-          : 'translateX(-50%)';
+        : side === 'left'
+          ? 'translate(-100%, -50%)'
+          : side === 'top'
+            ? 'translate(-50%, -100%)'
+            : 'translateX(-50%)';
 
     return (
       <div
@@ -67,11 +71,13 @@ const HeaderTooltip: React.FC<HeaderTooltipProps> = ({
   const positionClasses =
     side === 'right'
       ? 'left-full ml-2 top-1/2 -translate-y-1/2'
-      : side === 'top'
-        ? 'left-1/2 -translate-x-1/2 bottom-full mb-2'
-        : 'left-1/2 -translate-x-1/2 top-full mt-2';
-  const hiddenTransform = side === 'right' ? '-translate-x-1' : side === 'top' ? 'translate-y-1' : '-translate-y-1';
-  const shownTransform = side === 'right' ? 'translate-x-0' : 'translate-y-0';
+      : side === 'left'
+        ? 'right-full mr-2 top-1/2 -translate-y-1/2'
+        : side === 'top'
+          ? 'left-1/2 -translate-x-1/2 bottom-full mb-2'
+          : 'left-1/2 -translate-x-1/2 top-full mt-2';
+  const hiddenTransform = side === 'right' ? '-translate-x-1' : side === 'left' ? 'translate-x-1' : side === 'top' ? 'translate-y-1' : '-translate-y-1';
+  const shownTransform = side === 'right' || side === 'left' ? 'translate-x-0' : 'translate-y-0';
 
   return (
     <div

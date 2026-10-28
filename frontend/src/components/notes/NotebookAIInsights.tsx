@@ -1,21 +1,18 @@
 // frontend/src/components/notes/NotebookAIInsights.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { 
-  Brain, 
-  BookOpen, 
-  Target, 
-  TrendingUp, 
-  Clock, 
+import {
+  Brain,
+  RefreshCw,
+  X,
+  Copy,
+  Check,
   AlertTriangle,
-  Lightbulb,
-  BarChart3,
-  Calendar,
-  CheckCircle,
-  X
+  FileText,
 } from 'lucide-react';
 import axiosInstance from '../../utils/axiosConfig';
+import HeaderTooltip from '../common/HeaderTooltip';
 
 interface Notebook {
   id: number;
@@ -46,241 +43,266 @@ interface NotebookAIInsightsProps {
   onClose: () => void;
 }
 
-interface AIInsights {
-  overall_summary: string;
-  key_topics: string[];
-  important_items: string[];
-  study_recommendations: string[];
-  content_gaps: string[];
-  priority_distribution: {
-    urgent: number;
-    high: number;
-    medium: number;
-    low: number;
-  };
-  time_analysis: {
-    most_active_period: string;
-    study_patterns: string[];
-    recommended_schedule: string[];
-  };
-  related_concepts: string[];
-  action_items: string[];
-}
+type Priority = 'urgent' | 'high' | 'medium' | 'low';
 
-const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({ 
-  notebook, 
-  notes, 
-  isOpen, 
-  onClose 
-}) => {
-  const [insights, setInsights] = useState<AIInsights | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [aiSummary, setAiSummary] = useState<string>('');
-  const [isSummarizing, setIsSummarizing] = useState<boolean>(false);
-  const [activeTab, setActiveTab] = useState<'overview' | 'analysis' | 'recommendations'>('overview');
+/** Same priority colours the task surfaces use, so notes read the same way. */
+const PRIORITY_META: Record<Priority, { label: string; dot: string }> = {
+  urgent: { label: 'Urgent', dot: 'bg-red-500' },
+  high: { label: 'High', dot: 'bg-orange-500' },
+  medium: { label: 'Medium', dot: 'bg-amber-400' },
+  low: { label: 'Low', dot: 'bg-emerald-500' },
+};
 
-  useEffect(() => {
-    if (isOpen && notebook && notes.length > 0) {
-      generateNotebookSummary();
-    }
-  }, [isOpen, notebook, notes]);
-
-  // remove old generateInsights; using simplified generateNotebookSummary instead
-
-  // --- Simplified Notebook Summary via local Ollama ---
-  const stripHtml = (html: string) => (html || '')
+const stripHtml = (html: string) =>
+  (html || '')
     .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Clean markdown to remove empty formatting patterns and fix table formatting
-  const cleanMarkdown = (text: string): string => {
-    if (!text) return '';
-    
-    let cleaned = text;
-    
-    // Remove empty bold markers (**, **, ** **)
-    cleaned = cleaned.replace(/\*\*\s*\*\*/g, '');
-    cleaned = cleaned.replace(/\*\s+\*/g, ' ');
-    
-    // Remove empty italic markers (* *, _ _)
-    cleaned = cleaned.replace(/\*\s+\*/g, ' ');
-    cleaned = cleaned.replace(/_\s+_/g, ' ');
-    
-    // Remove standalone horizontal rules that are just dashes (---) unless it's part of a table
-    // Don't remove if it's followed by a table row
-    cleaned = cleaned.replace(/^---+\s*$(?!\n\|)/gm, '');
-    
-    // Remove empty headings (### , ## , # )
-    cleaned = cleaned.replace(/^#+\s+$/gm, '');
-    
-    // Fix table formatting - split multi-row lines, ensure proper spacing, and add missing separators
-    const lines = cleaned.split('\n');
-    const processedLines: string[] = [];
+const wordCount = (html: string) => {
+  const text = stripHtml(html);
+  return text ? text.split(/\s+/).length : 0;
+};
+
+const relativeTime = (value?: string | null): string => {
+  if (!value) return 'unknown';
+  const time = new Date(value).getTime();
+  if (Number.isNaN(time)) return 'unknown';
+  const minutes = Math.round((Date.now() - time) / 60000);
+  if (minutes < 1) return 'just now';
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  const weeks = Math.round(days / 7);
+  if (weeks < 5) return `${weeks}w ago`;
+  return new Date(value).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+const splitCells = (row: string): string[] =>
+  row
+    .split('|')
+    .map((cell) => cell.trim())
+    .filter((cell) => cell.length > 0);
+
+const formatRow = (cells: string[]): string => `| ${cells.join(' | ')} |`;
+
+const isSeparatorCells = (cells: string[]): boolean =>
+  cells.length > 0 && cells.every((cell) => /^:?-{2,}:?$/.test(cell));
+
+/** A separator row written without the outer pipes, e.g. `--- | --- | ---`. */
+const isBareSeparator = (line: string): boolean =>
+  /^:?-{2,}:?\s*(\|\s*:?-{2,}:?\s*)+$/.test(line) && splitCells(line).length > 1;
+
+/**
+ * Small models merge several rows onto one line (`| a | b | | c | d |`), which reaches us
+ * as a row with an empty middle cell. Split those back into separate rows.
+ */
+const splitMergedRows = (row: string): string[] =>
+  row.split(/\|\s+\|/).map((fragment) => `| ${fragment.trim().replace(/^\|/, '').replace(/\|$/, '').trim()} |`);
+
+/**
+ * The AI returns markdown, and the tailwind typography plugin is not installed - every
+ * `prose` class in this app is inert. Style the elements we actually get instead.
+ */
+const MarkdownBlock: React.FC<{ text: string }> = ({ text }) => (
+  <ReactMarkdown
+    remarkPlugins={[remarkGfm]}
+    components={{
+      h1: ({ children }) => (
+        <h1 className="mb-2 mt-5 border-t border-gray-200 pt-3.5 text-[14px] font-semibold text-gray-900 first:mt-0 first:border-t-0 first:pt-0 dark:border-[#333333] dark:text-white">
+          {children}
+        </h1>
+      ),
+      h2: ({ children }) => (
+        <h2 className="mb-2.5 mt-5 first:mt-0">
+          <span className="block text-[11px] font-semibold uppercase tracking-wide text-gray-900 dark:text-white">
+            {children}
+          </span>
+          <span className="mt-1 block h-px w-full bg-gray-200 dark:bg-[#333333]" />
+        </h2>
+      ),
+      h3: ({ children }) => (
+        <h3 className="mb-1.5 mt-3.5 text-[13px] font-semibold text-gray-900 first:mt-0 dark:text-white">{children}</h3>
+      ),
+      h4: ({ children }) => (
+        <h4 className="mb-1.5 mt-3 text-[11px] font-semibold uppercase tracking-wide text-gray-500 first:mt-0 dark:text-gray-400">
+          {children}
+        </h4>
+      ),
+      p: ({ children }) => (
+        <p className="mb-2 text-[13px] leading-relaxed text-gray-700 last:mb-0 dark:text-gray-300">{children}</p>
+      ),
+      ul: ({ children }) => (
+        <ul className="mb-2 ml-4 list-disc space-y-1 text-[13px] text-gray-700 marker:text-gray-400 dark:text-gray-300">
+          {children}
+        </ul>
+      ),
+      ol: ({ children }) => (
+        <ol className="mb-2 ml-4 list-decimal space-y-1 text-[13px] text-gray-700 marker:text-gray-400 dark:text-gray-300">
+          {children}
+        </ol>
+      ),
+      li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+      strong: ({ children }) => <strong className="font-semibold text-gray-900 dark:text-white">{children}</strong>,
+      em: ({ children }) => <em className="italic">{children}</em>,
+      a: ({ children, href }) => (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-indigo-600 underline underline-offset-2 hover:text-indigo-700 dark:text-indigo-400"
+        >
+          {children}
+        </a>
+      ),
+      blockquote: ({ children }) => (
+        <blockquote className="my-2 border-l-2 border-gray-200 pl-3 text-[13px] italic text-gray-600 dark:border-[#3f3f3f] dark:text-gray-400">
+          {children}
+        </blockquote>
+      ),
+      hr: () => <hr className="my-3 border-gray-200 dark:border-[#333333]" />,
+      code: ({ children }) => (
+        <code className="rounded bg-gray-100 px-1 py-0.5 font-mono text-[11.5px] text-indigo-700 dark:bg-[#252525] dark:text-indigo-300">
+          {children}
+        </code>
+      ),
+      pre: ({ children }) => (
+        <pre className="my-2 overflow-x-auto rounded-md border border-gray-200 bg-gray-50 p-3 font-mono text-[11.5px] leading-relaxed text-gray-800 dark:border-[#333333] dark:bg-[#1a1a1a] dark:text-gray-200">
+          {children}
+        </pre>
+      ),
+      table: ({ children }) => (
+        <div className="my-3 overflow-x-auto rounded-md border border-gray-200 dark:border-[#333333]">
+          <table className="w-full border-collapse text-left text-[12px]">{children}</table>
+        </div>
+      ),
+      thead: ({ children }) => <thead className="bg-gray-50 dark:bg-[#252525]">{children}</thead>,
+      tbody: ({ children }) => (
+        <tbody className="divide-y divide-gray-100 dark:divide-[#2a2a2a]">{children}</tbody>
+      ),
+      tr: ({ children }) => (
+        <tr className="align-top even:bg-gray-50/60 dark:even:bg-[#232323]">{children}</tr>
+      ),
+      th: ({ children }) => (
+        <th className="border-b border-gray-200 px-2.5 py-1.5 align-top text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:border-[#333333] dark:text-gray-400">
+          {children}
+        </th>
+      ),
+      td: ({ children }) => (
+        <td className="border-b border-gray-100 px-2.5 py-1.5 align-top leading-relaxed text-gray-700 last:border-b-0 dark:border-[#2a2a2a] dark:text-gray-300">
+          {children}
+        </td>
+      ),
+    }}
+  >
+    {text}
+  </ReactMarkdown>
+);
+
+const NotebookAIInsights: React.FC<NotebookAIInsightsProps> = ({
+  notebook,
+  notes,
+  isOpen,
+  onClose,
+}) => {
+  const [aiSummary, setAiSummary] = useState('');
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [usedFallback, setUsedFallback] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const generatedFor = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) {
+      generatedFor.current = null;
+      return;
+    }
+    if (!notebook || notes.length === 0) return;
+    // One request per open: `notes` is a fresh array on every parent render.
+    if (generatedFor.current === notebook.id) return;
+    generatedFor.current = notebook.id;
+    generateNotebookSummary();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, notebook?.id, notes.length]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [isOpen, onClose]);
+
+  /**
+   * The summary is markdown, and the model is asked to use tables because they organize
+   * structured content best. It breaks them in predictable ways: rows merged onto one
+   * line, a missing separator row, or no outer pipes at all. Repair those, leave prose alone.
+   */
+  const normalizeMarkdown = (raw: string): string => {
+    if (!raw) return '';
+
+    let text = raw.replace(/\r\n/g, '\n');
+
+    // Empty emphasis artefacts render as stray asterisks.
+    text = text.replace(/\*\*\s*\*\*/g, '');
+
+    // A table wrapped in a code fence renders as code; unwrap it.
+    text = text.replace(/```(?:markdown|md)?[ \t]*\n?(\|[\s\S]*?)\n?```/g, '$1');
+
+    const out: string[] = [];
     let inTable = false;
-    let tableHeaderRow: string | null = null;
-    let tableColCount = 0;
-    
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+
+    for (const line of text.split('\n')) {
       const trimmed = line.trim();
-      
-      // Check if this is a table row (starts with |)
-      if (trimmed.startsWith('|')) {
-        // First, detect if this line contains multiple table rows concatenated together
-        // Pattern: | cell1 | cell2 | | cell3 | cell4 | | cell5 | cell6 |
-        // The key indicator is | | | (two pipes next to each other, indicating row boundary)
-        
-        // Detect and split multiple table rows on one line
-        // Pattern: | cell1 | cell2 | cell3 | cell4 | | cell5 | cell6 | cell7 | cell8 |
-        // The key indicator is | | (two pipes with space, indicating row boundary)
-        
-        // More robust approach: split on | | pattern and reconstruct rows
-        // Pattern: | row1 end | | row2 start | ... means split between the pipes
-        if (/\|\s+\|/.test(trimmed)) {
-          // Split on | | pattern - this is the most reliable way to detect row boundaries
-          // Example: "| ㄱ | ㅏ | 가 | ga | | ㄴ | ㅏ | 나 | na |"
-          // Split on "| |" gives: ["| ㄱ | ㅏ | 가 | ga |", "ㄴ | ㅏ | 나 | na |"]
-          const parts = trimmed.split(/\|\s+\|/);
-          
-          if (parts.length > 1) {
-            // Process each part as a separate row
-            for (let idx = 0; idx < parts.length; idx++) {
-              let part = parts[idx].trim();
-              
-              // First part already has leading |, just ensure it has trailing |
-              if (idx === 0) {
-                if (!part.endsWith('|')) {
-                  part = part + ' |';
-                }
-              } 
-              // Subsequent parts need leading |, and trailing |
-              else {
-                if (!part.startsWith('|')) {
-                  part = '| ' + part;
-                }
-                if (!part.endsWith('|')) {
-                  part = part + ' |';
-                }
-              }
-              
-              // Format the row: extract cells and format properly
-              const cells = part.split('|')
-                .map(c => c.trim())
-                .filter(c => c.length > 0);
-              
-              if (cells.length > 0) {
-                const formattedRow = '| ' + cells.join(' | ') + ' |';
-                
-                // Determine if this is a header (first row of a new table)
-                const isNewTable = !inTable || tableHeaderRow === null;
-                const isFirstRowOfThisLine = idx === 0;
-                
-                if (isNewTable || isFirstRowOfThisLine) {
-                  // This is a header row - add it and a separator
-                  processedLines.push(formattedRow);
-                  tableHeaderRow = formattedRow;
-                  tableColCount = cells.length;
-                  // Add separator row
-                  const separator = Array(cells.length).fill('---').join(' | ');
-                  processedLines.push('| ' + separator + ' |');
-                  inTable = true;
-                } else {
-                  // This is a data row
-                  processedLines.push(formattedRow);
-                }
-              }
-            }
-            continue; // Skip normal table processing for this line
-          }
-        }
-        
-        // Check if it's a table separator row (contains only dashes or colons)
-        const isSeparator = /^\|\s*[-:]+\s*(\|\s*[-:]+\s*)*\|$/.test(trimmed);
-        
-        if (isSeparator) {
-          // Keep separator row but ensure proper formatting
-          const cells = trimmed.replace(/^\||\|$/g, '').split('|').map(cell => cell.trim()).filter(c => c.length > 0);
-          if (cells.length > 0) {
-            const separator = cells.map(() => '---').join(' | ');
-            processedLines.push('| ' + separator + ' |');
+      const isRow =
+        trimmed.startsWith('|') ||
+        (inTable && trimmed.includes('|') && !/^[#>]/.test(trimmed) && !trimmed.startsWith('```'));
+
+      if (!isRow) {
+        // `Term | Meaning` over `--- | ---`: the model left off the outer pipes, so the
+        // previous line is a header rather than a paragraph.
+        if (isBareSeparator(trimmed) && out.length > 0) {
+          const headerCells = splitCells(out[out.length - 1]);
+          const columns = splitCells(trimmed).length;
+          if (headerCells.length === columns) {
+            out[out.length - 1] = formatRow(headerCells);
+            out.push(formatRow(Array(columns).fill('---')));
             inTable = true;
-            tableHeaderRow = null; // Separator found, header is done
-          }
-        } else {
-          // Regular table row - ensure proper spacing around pipes
-          const fixed = trimmed.replace(/\s*\|\s*/g, '|').replace(/^\||\|$/g, '').trim();
-          // Re-add proper spacing and filter empty cells
-          const cells = fixed.split('|').map(cell => cell.trim()).filter(cell => cell.length > 0);
-          
-          if (cells.length > 0) {
-            const formattedRow = '| ' + cells.join(' | ') + ' |';
-            
-            // If this is the first row of a new table (header), remember it and add separator
-            if (!inTable || tableHeaderRow === null) {
-              processedLines.push(formattedRow);
-              tableHeaderRow = formattedRow;
-              tableColCount = cells.length;
-              // Add separator row after header
-              const separator = cells.map(() => '---').join(' | ');
-              processedLines.push('| ' + separator + ' |');
-              inTable = true;
-            } else {
-              // Regular data row
-              processedLines.push(formattedRow);
-            }
+            continue;
           }
         }
-      } else {
-        // Not a table row - reset table state if we encounter non-blank line
-        if (inTable && trimmed.length > 0 && !trimmed.match(/^\s*$/)) {
-          // Non-blank line breaks the table
-          inTable = false;
-          tableHeaderRow = null;
-          tableColCount = 0;
+
+        inTable = false;
+        if (!/^#+\s*$/.test(trimmed)) out.push(line.trimEnd());
+        continue;
+      }
+
+      for (const row of splitMergedRows(trimmed)) {
+        const cells = splitCells(row);
+        if (cells.length === 0) continue;
+
+        // The header always gets its separator below, so the model's own separator row is
+        // never needed - and it must not land after a data row.
+        if (isSeparatorCells(cells)) continue;
+
+        if (!inTable) {
+          // First table row we see is the header, but its separator may be missing.
+          out.push(formatRow(cells));
+          out.push(formatRow(cells.map(() => '---')));
+          inTable = true;
+          continue;
         }
-        // Always add non-table lines (including blank lines)
-        processedLines.push(line);
+
+        out.push(formatRow(cells));
       }
     }
-    
-    cleaned = processedLines.join('\n');
-    
-    // Remove empty code blocks (``` ```)
-    cleaned = cleaned.replace(/```\s*```/g, '');
-    
-    // Clean up multiple consecutive newlines (max 2), but preserve table spacing
-    cleaned = cleaned.replace(/(?<!\|)\n{3,}(?!\|)/g, '\n\n');
-    
-    // Remove leading/trailing whitespace from each line (but preserve table structure)
-    cleaned = cleaned.split('\n').map(line => {
-      // Don't trim table rows too aggressively
-      if (line.trim().startsWith('|')) {
-        return line; // Keep table rows as-is (already processed above)
-      }
-      return line.trimEnd();
-    }).join('\n');
-    
-    // Clean up any remaining excessive spaces (but not in table cells)
-    cleaned = cleaned.replace(/(?<!\|)\s{3,}(?!\|)/g, '  ');
-    
-    return cleaned.trim();
-  };
 
-  const buildPrompt = (nb: Notebook, ns: Note[]) => {
-    const header = `Summarize the following notebook into a clear, concise, well-structured overview.
-Guidelines:
-- Use short sections with headings and bullet points where useful.
-- Preserve any lists (bullets/numbered) found in the content.
-- Avoid repetition of titles and filler text.
-- Output only the final summary, no preamble or meta notes.`;
-    const items = ns.slice(0, 10).map((n, i) => {
-      const title = (n.title || '').trim();
-      const content = stripHtml(n.content || '').slice(0, 3000);
-      return `Note ${i + 1}\nTitle: ${title}\nContent: ${content}`;
-    }).join('\n\n');
-    return `${header}\n\nNotebook: ${nb.name}\n\n${items}`;
+    return out.join('\n').replace(/\n{3,}/g, '\n\n').trim();
   };
 
   const callBackendSummary = async (notebookId: number) => {
@@ -315,6 +337,7 @@ Guidelines:
       const summary = await callBackendSummary(notebook.id);
       if (summary && summary.trim()) {
         setAiSummary(summary);
+        setUsedFallback(false);
       } else {
         throw new Error('Empty summary received');
       }
@@ -322,179 +345,70 @@ Guidelines:
       console.error('AI summary error:', e);
       const errorMessage = e?.response?.data?.error || e?.message || 'Failed to generate summary';
       setError(errorMessage);
-      // Fallback to local summary only if there's a real error
-      const localSummary = generateLocalSummary(notes, notebook);
-      setAiSummary(localSummary);
+      // Keep the panel useful when the model is unavailable: an overview from the notes
+      // themselves, labelled as such.
+      setAiSummary(buildLocalOverview(notes, notebook));
+      setUsedFallback(true);
     } finally {
       setIsSummarizing(false);
     }
   };
 
-  // Backwards-compat handler used by existing JSX button
-  const generateInsights = async () => {
-    await generateNotebookSummary();
-  };
-
-  const extractKeyTopics = (notes: Note[]): string[] => {
-    const topics = new Set<string>();
-    notes.forEach(note => {
-      // Extract topics from titles and content
-      const words = `${note.title} ${note.content}`.toLowerCase().split(/\s+/);
-      words.forEach(word => {
-        if (word.length > 3 && !['the', 'and', 'for', 'with', 'this', 'that'].includes(word)) {
-          topics.add(word);
-        }
-      });
-    });
-    return Array.from(topics).slice(0, 10);
-  };
-
-  const extractUrgentItems = (urgencyData: any[], notes: Note[]): string[] => {
-    const urgentItems: string[] = [];
-    urgencyData.forEach((data, index) => {
-      if (data.urgency_level === 'urgent' || data.urgency_level === 'high') {
-        urgentItems.push(notes[index].title);
-      }
-    });
-    return urgentItems;
-  };
-
-  const identifyContentGaps = (notes: Note[]): string[] => {
-    const gaps: string[] = [];
-    const noteTypes = notes.map(n => n.note_type);
-    
-    if (!noteTypes.includes('lecture')) gaps.push('Lecture notes');
-    if (!noteTypes.includes('assignment')) gaps.push('Assignment details');
-    if (!noteTypes.includes('exam')) gaps.push('Exam preparation');
-    if (!noteTypes.includes('reading')) gaps.push('Reading summaries');
-    
-    return gaps;
-  };
-
-  const calculatePriorityDistribution = (urgencyData: any[]) => {
-    const distribution = { urgent: 0, high: 0, medium: 0, low: 0 };
-    urgencyData.forEach(data => {
-      const level = data.suggested_priority || 'medium';
-      distribution[level as keyof typeof distribution]++;
-    });
-    return distribution;
-  };
-
-  const analyzeTimePatterns = (notes: Note[]): any => {
-    const dates = notes.map(n => new Date(n.created_at));
-    const hours = dates.map(d => d.getHours());
-    
-    // Find most active hour
-    const hourCounts = hours.reduce((acc, hour) => {
-      acc[hour] = (acc[hour] || 0) + 1;
-      return acc;
-    }, {} as Record<number, number>);
-    
-    const mostActiveHour = Object.entries(hourCounts)
-      .sort(([,a], [,b]) => b - a)[0]?.[0] || 'unknown';
-    
-    return {
-      most_active_period: `${mostActiveHour}:00`,
-      study_patterns: ['Evening study sessions', 'Weekend focus time'],
-      recommended_schedule: ['Morning review (9-10 AM)', 'Evening study (7-9 PM)']
-    };
-  };
-
-  const extractRelatedConcepts = (notes: Note[]): string[] => {
-    const concepts = new Set<string>();
-    notes.forEach(note => {
-      // Extract potential concepts (capitalized words)
-      const matches = note.content.match(/\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\b/g);
-      if (matches) {
-        matches.forEach(match => {
-          if (match.length > 3) concepts.add(match);
-        });
-      }
-    });
-    return Array.from(concepts).slice(0, 8);
-  };
-
-  const extractActionItems = (notes: Note[], urgencyData: any[]): string[] => {
-    const actionItems: string[] = [];
-    urgencyData.forEach((data, index) => {
-      if (data.action_required) {
-        actionItems.push(`Review: ${notes[index].title}`);
-      }
-    });
-    return actionItems;
-  };
-
-  // Local helper functions for faster insights generation
-  const generateLocalSummary = (notes: Note[], notebook: Notebook): string => {
-    const totalNotes = notes.length;
-    const totalContent = notes.reduce((acc, note) => acc + note.content.length, 0);
-    const avgNoteLength = Math.round(totalContent / totalNotes);
-    
-    return `This notebook contains ${totalNotes} notes with an average length of ${avgNoteLength} characters. The content covers various topics and provides comprehensive coverage of the subject matter.`;
-  };
-
-  const extractImportantItemsLocal = (notes: Note[]): string[] => {
-    return notes
-      .filter(note => note.is_urgent || note.priority === 'urgent' || note.priority === 'high')
-      .map(note => note.title)
+  /** Fallback overview written from the notes' own data (no invented content). */
+  const buildLocalOverview = (ns: Note[], nb: Notebook): string => {
+    if (ns.length === 0) return '';
+    const totalWords = ns.reduce((sum, note) => sum + wordCount(note.content), 0);
+    const recent = [...ns]
+      .sort((a, b) => new Date(b.updated_at || b.created_at).getTime() - new Date(a.updated_at || a.created_at).getTime())
       .slice(0, 5);
-  };
 
-  const generateStudyRecommendations = (notes: Note[]): string[] => {
-    const recommendations = [
-      'Review notes within 24 hours of creation',
-      'Create flashcards for key concepts',
-      'Schedule regular review sessions',
-      'Group related notes together',
-      'Use active recall techniques'
+    const lines = [
+      `## ${nb.name || 'Notebook'} at a glance`,
+      `- **${ns.length}** note${ns.length === 1 ? '' : 's'}, about **${totalWords.toLocaleString()}** words in total`,
+      `- Last updated **${relativeTime(recent[0]?.updated_at || recent[0]?.created_at)}**`,
+      '',
+      '### Most recently touched',
+      ...recent.map((note) => `- ${(note.title || 'Untitled note').trim()} — ${relativeTime(note.updated_at || note.created_at)}`),
     ];
-    
-    // Add specific recommendations based on note types
-    const noteTypes = notes.map(n => n.note_type);
-    if (noteTypes.includes('lecture')) {
-      recommendations.push('Summarize lecture notes after class');
-    }
-    if (noteTypes.includes('exam')) {
-      recommendations.push('Create practice questions from exam notes');
-    }
-    
-    return recommendations;
+
+    return lines.join('\n');
   };
 
-  const calculatePriorityDistributionLocal = (notes: Note[]): any => {
-    const distribution = { urgent: 0, high: 0, medium: 0, low: 0 };
-    notes.forEach(note => {
-      const priority = note.priority || 'medium';
-      distribution[priority as keyof typeof distribution]++;
-    });
-    return distribution;
-  };
+  const insights = useMemo(() => {
+    const totalWords = notes.reduce((sum, note) => sum + wordCount(note.content), 0);
+    const weekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+    const lastTouched = (note: Note) => new Date(note.updated_at || note.created_at).getTime();
 
-  const extractActionItemsLocal = (notes: Note[]): string[] => {
-    const actionItems: string[] = [];
-    
-    // Check for important items
-    const importantNotes = notes.filter(n => n.is_urgent || n.priority === 'urgent');
-    importantNotes.forEach(note => {
-      actionItems.push(`Review important note: ${note.title}`);
-    });
-    
-    // Check for recent notes that need review
-    const recentNotes = notes
-      .filter(n => {
-        const daysSinceCreation = (Date.now() - new Date(n.created_at).getTime()) / (1000 * 60 * 60 * 24);
-        return daysSinceCreation > 7; // Notes older than a week
-      })
-      .slice(0, 3);
-    
-    recentNotes.forEach(note => {
-      actionItems.push(`Review older note: ${note.title}`);
-    });
-    
-    return actionItems;
+    const updatedThisWeek = notes.filter((note) => lastTouched(note) >= weekAgo).length;
+    const averageWords = notes.length ? Math.round(totalWords / notes.length) : 0;
+    const recent = [...notes].sort((a, b) => lastTouched(b) - lastTouched(a)).slice(0, 6);
+
+    return { totalWords, averageWords, updatedThisWeek, recent };
+  }, [notes]);
+
+  const copySummary = async () => {
+    const text = (aiSummary || '').trim();
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      const area = document.createElement('textarea');
+      area.value = text;
+      area.setAttribute('readonly', '');
+      area.style.position = 'fixed';
+      area.style.top = '-1000px';
+      document.body.appendChild(area);
+      area.select();
+      try { document.execCommand('copy'); } catch { /* ignore */ }
+      document.body.removeChild(area);
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
   };
 
   if (!isOpen) return null;
+
+  const hasNotes = notes.length > 0;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -504,284 +418,173 @@ Guidelines:
         aria-hidden
       />
       <div
-        className="relative bg-white dark:bg-[#1e1e1e] rounded-md shadow-xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col border border-gray-200 dark:border-[#333333] mx-4"
+        role="dialog"
+        aria-label={`AI Insights for ${notebook.name}`}
+        className="relative mx-4 flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-md border border-gray-200 bg-white shadow-xl dark:border-[#333333] dark:bg-[#1e1e1e]"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header – same style as Create Notebook / Document Settings */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-[#333333]">
-          <div className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-indigo-600 dark:text-indigo-400 flex-shrink-0" />
-            <div>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-                AI Insights for {notebook.name}
-              </h2>
-              <p className="text-xs text-gray-500 dark:text-gray-400">Notebook summary</p>
+        {/* Header */}
+        <div className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-gray-200 px-3 py-2.5 dark:border-[#333333]">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md bg-indigo-50 text-indigo-600 dark:bg-indigo-500/15 dark:text-indigo-300">
+              <Brain size={15} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="truncate text-[13px] font-semibold text-gray-900 dark:text-white">AI Insights</h2>
+              <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">
+                {notebook.name} · {notes.length} note{notes.length === 1 ? '' : 's'}
+                {notebook.notebook_type ? ` · ${notebook.notebook_type}` : ''}
+              </p>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-1.5 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 rounded-md hover:bg-gray-100 dark:hover:bg-[#2d2d2d]"
-            aria-label="Close"
-          >
-            <X size={18} />
-          </button>
-        </div>
 
-        {/* Simplified Notebook Summary (Ollama) */}
-        <div className="px-4 pt-3">
-          <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-3 rounded-md border border-gray-200 dark:border-[#333333]">
-            <div className="mb-2">
-              <h3 className="text-xs font-semibold text-gray-900 dark:text-white">Notebook Summary</h3>
-            </div>
-            {isSummarizing ? (
-              <div className="flex items-center py-6 text-sm text-gray-600 dark:text-gray-400">
-                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-500 mr-2"></div>
-                Generating summary…
-              </div>
-            ) : error ? (
-              <div className="py-4 max-h-96 overflow-y-auto pr-2">
-                <div className="text-red-600 dark:text-red-400 text-sm mb-2">
-                  ⚠️ {error}
-                </div>
-                <div className="prose prose-sm dark:prose-invert max-w-none 
-                  prose-headings:text-gray-900 dark:prose-headings:text-white prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2
-                  prose-h1:text-xl prose-h1:mt-6 prose-h1:mb-3
-                  prose-h2:text-lg prose-h2:mt-5 prose-h2:mb-2
-                  prose-h3:text-base prose-h3:mt-4 prose-h3:mb-2
-                  prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:leading-relaxed prose-p:mb-3
-                  prose-ul:my-3 prose-ul:space-y-1 prose-ul:ml-4
-                  prose-ol:my-3 prose-ol:space-y-1 prose-ol:ml-4
-                  prose-li:text-gray-700 dark:prose-li:text-gray-300 prose-li:leading-relaxed
-                  prose-strong:text-gray-900 dark:prose-strong:text-white prose-strong:font-semibold
-                  prose-code:text-indigo-600 dark:prose-code:text-indigo-400 prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
-                  prose-hr:my-4 prose-hr:border-gray-300 dark:prose-hr:border-gray-600
-                  prose-table:w-full prose-table:my-4 prose-table:border-collapse prose-table:overflow-x-auto
-                  prose-thead:bg-gray-100 dark:prose-thead:bg-gray-800
-                  prose-th:border prose-th:border-gray-300 dark:prose-th:border-gray-600 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold prose-th:text-gray-900 dark:prose-th:text-white prose-th:bg-gray-100 dark:prose-th:bg-gray-800
-                  prose-td:border prose-td:border-gray-300 dark:prose-td:border-gray-600 prose-td:px-3 prose-td:py-2 prose-td:text-gray-700 dark:prose-td:text-gray-300">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {cleanMarkdown(aiSummary || generateLocalSummary(notes, notebook))}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            ) : (
-              <div className="max-h-96 overflow-y-auto pr-2">
-                <div className="prose prose-sm dark:prose-invert max-w-none 
-                  prose-headings:text-gray-900 dark:prose-headings:text-white prose-headings:font-bold prose-headings:mt-4 prose-headings:mb-2
-                  prose-h1:text-xl prose-h1:mt-6 prose-h1:mb-3
-                  prose-h2:text-lg prose-h2:mt-5 prose-h2:mb-2
-                  prose-h3:text-base prose-h3:mt-4 prose-h3:mb-2
-                  prose-p:text-gray-700 dark:prose-p:text-gray-300 prose-p:leading-relaxed prose-p:mb-3
-                  prose-ul:my-3 prose-ul:space-y-1 prose-ul:ml-4
-                  prose-ol:my-3 prose-ol:space-y-1 prose-ol:ml-4
-                  prose-li:text-gray-700 dark:prose-li:text-gray-300 prose-li:leading-relaxed
-                  prose-strong:text-gray-900 dark:prose-strong:text-white prose-strong:font-semibold
-                  prose-code:text-indigo-600 dark:prose-code:text-indigo-400 prose-code:bg-gray-100 dark:prose-code:bg-gray-800 prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs
-                  prose-hr:my-4 prose-hr:border-gray-300 dark:prose-hr:border-gray-600
-                  prose-table:w-full prose-table:my-4 prose-table:border-collapse prose-table:overflow-x-auto
-                  prose-thead:bg-gray-100 dark:prose-thead:bg-gray-800
-                  prose-th:border prose-th:border-gray-300 dark:prose-th:border-gray-600 prose-th:px-3 prose-th:py-2 prose-th:text-left prose-th:font-semibold prose-th:text-gray-900 dark:prose-th:text-white prose-th:bg-gray-100 dark:prose-th:bg-gray-800
-                  prose-td:border prose-td:border-gray-300 dark:prose-td:border-gray-600 prose-td:px-3 prose-td:py-2 prose-td:text-gray-700 dark:prose-td:text-gray-300">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {cleanMarkdown(aiSummary || generateLocalSummary(notes, notebook))}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            )}
+          <div className="flex flex-shrink-0 items-center gap-1">
+            <HeaderTooltip label="Regenerate summary" fixed>
+              <button
+                onClick={generateNotebookSummary}
+                disabled={isSummarizing || !hasNotes}
+                aria-label="Regenerate summary"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 disabled:cursor-not-allowed disabled:opacity-40 dark:text-gray-400 dark:hover:bg-[#2f2f2f] dark:hover:text-white"
+              >
+                <RefreshCw size={14} className={isSummarizing ? 'animate-spin' : ''} />
+              </button>
+            </HeaderTooltip>
+            <HeaderTooltip label={copied ? 'Copied' : 'Copy summary'} fixed>
+              <button
+                onClick={copySummary}
+                disabled={!aiSummary}
+                aria-label="Copy summary"
+                className="flex h-7 items-center gap-1 rounded-md border border-gray-200 px-2 text-[11px] font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40 dark:border-[#333333] dark:text-gray-300 dark:hover:bg-[#2f2f2f]"
+              >
+                {copied ? <Check size={12} className="text-emerald-600 dark:text-emerald-400" /> : <Copy size={12} />}
+                {copied ? 'Copied' : 'Copy'}
+              </button>
+            </HeaderTooltip>
+            <HeaderTooltip label="Close" fixed>
+              <button
+                onClick={onClose}
+                aria-label="Close"
+                className="flex h-7 w-7 items-center justify-center rounded-md text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900 dark:text-gray-400 dark:hover:bg-[#2f2f2f] dark:hover:text-white"
+              >
+                <X size={15} />
+              </button>
+            </HeaderTooltip>
           </div>
         </div>
 
-        {/* Tabs removed for simplified summary */}
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-3 py-3">
+          {!hasNotes ? (
+            <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-gray-200 py-12 text-center dark:border-[#333333]">
+              <span className="mb-2 flex h-9 w-9 items-center justify-center rounded-lg bg-gray-100 text-gray-500 dark:bg-[#252525] dark:text-gray-400">
+                <FileText size={16} />
+              </span>
+              <p className="text-[13px] font-medium text-gray-900 dark:text-white">Nothing to look at yet</p>
+              <p className="mt-1 max-w-[16rem] text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                Insights are built from the notes in this notebook. Add one and they will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Summary */}
+              <section className="overflow-hidden rounded-md border border-gray-200 dark:border-[#333333]">
+                <div className="flex items-center justify-between gap-2 border-b border-gray-200 bg-gray-50 px-3 py-2 dark:border-[#333333] dark:bg-[#252525]">
+                  <h3 className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Notebook summary
+                  </h3>
+                  <span className="flex items-center gap-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+                    {isSummarizing ? (
+                      <>
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-500" />
+                        Writing…
+                      </>
+                    ) : (
+                      'From your notes'
+                    )}
+                  </span>
+                </div>
 
-        {/* Content */}
-        <div className="px-4 py-3 overflow-y-auto max-h-[calc(90vh-200px)]">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-10">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-500"></div>
-              <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">Generating insights...</span>
-            </div>
-          ) : error ? (
-            <div className="text-center py-10">
-              <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-3" />
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-            </div>
-          ) : insights ? (
-            <>
-              {/* Overview Tab */}
-              {activeTab === 'overview' && (
-                <div className="space-y-4">
-                  <div className="bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-indigo-900/20 dark:to-purple-900/20 p-3 rounded-md border border-gray-200 dark:border-[#333333]">
-                    <h3 className="text-xs font-semibold text-gray-900 dark:text-white mb-2">
-                      Executive Summary
-                    </h3>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                      {insights.overall_summary}
-                    </p>
+                <div className="px-3 py-3">
+                  {isSummarizing && !aiSummary ? (
+                    <div className="animate-pulse space-y-2">
+                      <div className="h-3 w-2/5 rounded bg-gray-200 dark:bg-[#333333]" />
+                      <div className="h-3 w-full rounded bg-gray-200 dark:bg-[#333333]" />
+                      <div className="h-3 w-11/12 rounded bg-gray-200 dark:bg-[#333333]" />
+                      <div className="h-3 w-3/4 rounded bg-gray-200 dark:bg-[#333333]" />
+                    </div>
+                  ) : (
+                    <MarkdownBlock text={normalizeMarkdown(aiSummary)} />
+                  )}
+
+                  {error && !isSummarizing && (
+                    <div className="mt-3 flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 dark:border-amber-900/60 dark:bg-amber-900/20">
+                      <AlertTriangle size={13} className="mt-0.5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">{error}</p>
+                        <button
+                          onClick={generateNotebookSummary}
+                          className="mt-1 text-[11px] font-medium text-amber-900 underline underline-offset-2 hover:text-amber-950 dark:text-amber-100"
+                        >
+                          {usedFallback ? 'Try the AI summary again' : 'Retry'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
+                {/* At a glance */}
+                <section className="rounded-md border border-gray-200 p-3 dark:border-[#333333]">
+                  <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    At a glance
+                  </h3>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: 'Notes', value: notes.length.toLocaleString() },
+                      { label: 'Words', value: insights.totalWords.toLocaleString() },
+                      { label: 'Avg note', value: `${insights.averageWords.toLocaleString()}w` },
+                      { label: 'This week', value: `${insights.updatedThisWeek}/${notes.length}` },
+                    ].map((stat) => (
+                      <div
+                        key={stat.label}
+                        className="rounded-md bg-gray-50 px-2.5 py-2 dark:bg-[#252525]"
+                      >
+                        <div className="text-[11px] text-gray-500 dark:text-gray-400">{stat.label}</div>
+                        <div className="text-[15px] font-semibold text-gray-900 dark:text-white">{stat.value}</div>
+                      </div>
+                    ))}
                   </div>
+                </section>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
-                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                        <Target className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                        Key Topics
-                      </h4>
-                      <div className="flex flex-wrap gap-1.5">
-                        {insights.key_topics.map((topic, index) => (
-                          <span
-                            key={index}
-                            className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200 rounded-full text-xs"
-                          >
-                            {topic}
+                {/* Recently updated */}
+                <section className="rounded-md border border-gray-200 p-3 dark:border-[#333333]">
+                  <h3 className="mb-2.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    Recently updated
+                  </h3>
+                  <ul className="space-y-2">
+                    {insights.recent.map((note) => {
+                      const priority = PRIORITY_META[(note.priority as Priority) || 'medium'] || PRIORITY_META.medium;
+                      return (
+                        <li key={note.id} className="flex items-start justify-between gap-3 text-[12px]">
+                          <span className="flex min-w-0 items-start gap-2">
+                            <span
+                              className={`mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full ${priority.dot}`}
+                              title={priority.label}
+                            />
+                            <span className="truncate text-gray-700 dark:text-gray-300">{note.title || 'Untitled note'}</span>
                           </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
-                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-2 flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-orange-600" />
-                        Important Items
-                      </h4>
-                      <div className="space-y-2">
-                        {insights.important_items.length > 0 ? (
-                          insights.important_items.map((item, index) => (
-                            <div key={index} className="flex items-center gap-2 text-xs text-orange-600 dark:text-orange-400">
-                              <div className="w-2 h-2 bg-orange-500 rounded-full"></div>
-                              {item}
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">No important items detected</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Analysis Tab */}
-              {activeTab === 'analysis' && (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
-                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                        <BarChart3 className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                        Priority Distribution
-                      </h4>
-                      <div className="space-y-2">
-                        {Object.entries(insights.priority_distribution).map(([priority, count]) => (
-                          <div key={priority} className="flex items-center justify-between text-xs">
-                            <span className="capitalize text-gray-700 dark:text-gray-300">{priority}</span>
-                            <div className="flex items-center gap-2">
-                              <div className="w-20 bg-gray-200 dark:bg-gray-600 rounded-full h-1.5">
-                                <div
-                                  className="bg-indigo-500 h-1.5 rounded-full"
-                                  style={{ width: `${(count / notes.length) * 100}%` }}
-                                ></div>
-                              </div>
-                              <span className="text-xs text-gray-600 dark:text-gray-400 w-6 text-right">
-                                {count}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
-                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                        <Clock className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                        Time Analysis
-                      </h4>
-                      <div className="space-y-2">
-                        <div>
-                          <span className="text-xs text-gray-600 dark:text-gray-400">Most Active:</span>
-                          <p className="text-sm font-medium text-gray-900 dark:text-white">{insights.time_analysis.most_active_period}</p>
-                        </div>
-                        <div>
-                          <span className="text-xs text-gray-600 dark:text-gray-400">Study Patterns:</span>
-                          <ul className="mt-1 space-y-0.5">
-                            {insights.time_analysis.study_patterns.map((pattern, index) => (
-                              <li key={index} className="text-xs text-gray-700 dark:text-gray-300">• {pattern}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
-                    <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                      <TrendingUp className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                      Content Gaps
-                    </h4>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                      {insights.content_gaps.map((gap, index) => (
-                        <div key={index} className="text-center p-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-md border border-gray-200 dark:border-[#333333]">
-                          <div className="text-yellow-600 dark:text-yellow-400 text-xs font-medium">{gap}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Recommendations Tab */}
-              {activeTab === 'recommendations' && (
-                <div className="space-y-4">
-                  <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
-                    <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                      <Lightbulb className="h-4 w-4 text-yellow-600" />
-                      Study Recommendations
-                    </h4>
-                    <div className="space-y-2">
-                      {insights.study_recommendations.map((rec, index) => (
-                        <div key={index} className="flex items-start gap-2">
-                          <CheckCircle className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                          <p className="text-xs text-gray-700 dark:text-gray-300">{rec}</p>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
-                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                        <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                        Recommended Schedule
-                      </h4>
-                      <div className="space-y-1">
-                        {insights.time_analysis.recommended_schedule.map((schedule, index) => (
-                          <div key={index} className="text-xs text-gray-700 dark:text-gray-300">
-                            • {schedule}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="bg-gray-50 dark:bg-[#252525] p-3 rounded-md border border-gray-200 dark:border-[#333333]">
-                      <h4 className="text-xs font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                        <Target className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-                        Action Items
-                      </h4>
-                      <div className="space-y-1">
-                        {insights.action_items.length > 0 ? (
-                          insights.action_items.map((item, index) => (
-                            <div key={index} className="flex items-center gap-2 text-xs text-gray-700 dark:text-gray-300">
-                              <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full flex-shrink-0"></div>
-                              {item}
-                            </div>
-                          ))
-                        ) : (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">No immediate actions required</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </>
-          ) : null}
+                          <span className="flex-shrink-0 whitespace-nowrap text-[11px] text-gray-500 dark:text-gray-400">
+                            {relativeTime(note.updated_at || note.created_at)}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </section>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>

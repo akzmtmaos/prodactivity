@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
+import BreakdownModalShell from './BreakdownModalShell';
+import DailyRateChart, { dayOfMonth, getRateBarClass, weekdayShort } from './DailyRateChart';
 import DailyBreakdownModal from './DailyBreakdownModal';
+import { getStatusFromRate } from '../../utils/productivityScore';
 
 interface WeeklyBreakdownModalProps {
   isOpen: boolean;
@@ -43,21 +45,21 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
   const fetchDailyBreakdown = async () => {
     setLoading(true);
     setError(null);
-    
+
     try {
       const startDate = new Date(weekStart);
       const endDate = new Date(weekEnd);
-      
+
       // Check if this is a future week
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      
+
       if (startDate > today) {
         setError('Cannot view breakdown for future weeks');
         setLoading(false);
         return;
       }
-      
+
       // Get current user ID
       const userData = localStorage.getItem('user');
       if (!userData) {
@@ -65,17 +67,17 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
         setLoading(false);
         return;
       }
-      
+
       const user = JSON.parse(userData);
       const userId = user.id || 11;
-      
+
       // Fetch daily data from Supabase for each day in the week
       const dailyPromises = [];
       const currentDate = new Date(startDate);
-      
+
       while (currentDate <= endDate) {
         const dateStr = currentDate.toISOString().split('T')[0];
-        
+
         dailyPromises.push(
           supabase
             .from('productivity_logs')
@@ -88,7 +90,7 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
               if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
                 console.error(`Error fetching data for ${dateStr}:`, error);
               }
-              
+
               return {
                 date: dateStr,
                 completion_rate: data?.completion_rate || 0,
@@ -98,13 +100,13 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
               };
             })
         );
-        
+
         currentDate.setDate(currentDate.getDate() + 1);
       }
-      
+
       const results = await Promise.all(dailyPromises);
       setDailyData(results);
-      
+
       console.log('📊 Weekly breakdown data from Supabase:', results);
     } catch (err) {
       console.error('Error fetching daily breakdown:', err);
@@ -116,27 +118,10 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric' 
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric'
     });
-  };
-
-  // Rate for the whole week is completed ÷ total. Averaging the daily
-  // percentages would let a one-task day outweigh a twenty-task day.
-  const calculateAverage = () => {
-    if (dailyData.length === 0) return 0;
-    const totalTasks = dailyData.reduce((sum, day) => sum + (day.total_tasks || 0), 0);
-    const completedTasks = dailyData.reduce((sum, day) => sum + (day.completed_tasks || 0), 0);
-    if (totalTasks === 0) return 0;
-    return (completedTasks / totalTasks) * 100;
-  };
-
-  const getWeeklyStatus = () => {
-    if (weekPercentage >= 90) return 'Highly Productive';
-    if (weekPercentage >= 70) return 'Productive';
-    if (weekPercentage >= 40) return 'Moderately Productive';
-    return 'Low Productive';
   };
 
   const handleDateClick = (date: string, percentage: number) => {
@@ -151,130 +136,144 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
 
   if (!isOpen) return null;
 
-  return createPortal(
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg max-w-xl w-full mx-4 max-h-[85vh] overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
-              Weekly breakdown
-            </h2>
-            <p className="text-xs text-gray-600 dark:text-gray-400">
-              {formatDate(weekStart)} – {formatDate(weekEnd)}
-            </p>
-          </div>
+  const completedTotal = dailyData.reduce((sum, day) => sum + (day.completed_tasks || 0), 0);
+  const tasksTotal = dailyData.reduce((sum, day) => sum + (day.total_tasks || 0), 0);
+  const status = tasksTotal > 0 ? getStatusFromRate(weekPercentage) : 'No tasks';
+  const ratedDays = dailyData.filter((day) => (day.total_tasks || 0) > 0);
+  const bestDay = ratedDays.reduce<DailyData | null>(
+    (best, day) => (!best || day.completion_rate > best.completion_rate ? day : best),
+    null
+  );
+  const activeDays = ratedDays.filter((day) => day.completed_tasks > 0).length;
+
+  return (
+    <BreakdownModalShell
+      title="Weekly breakdown"
+      subtitle={`${formatDate(weekStart)} – ${formatDate(weekEnd)}${
+        tasksTotal > 0 ? ` · ${completedTotal} of ${tasksTotal} tasks completed` : ' · nothing due'
+      }`}
+      onClose={onClose}
+      maxWidth="max-w-2xl"
+    >
+      {loading && (
+        <div className="flex items-center justify-center gap-2 py-8">
+          <div className="h-4 w-4 animate-spin rounded-full border-2 border-gray-200 border-b-indigo-500 dark:border-[#333333] dark:border-b-indigo-400" />
+          <span className="text-[11px] text-gray-500 dark:text-gray-400">Loading daily breakdown…</span>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex flex-col items-center gap-2 py-8">
+          <p className="text-[11px] text-red-600 dark:text-red-400">{error}</p>
           <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 text-xl font-bold leading-none"
+            type="button"
+            onClick={fetchDailyBreakdown}
+            className="h-7 rounded-md border border-gray-200 bg-white px-2.5 text-xs text-gray-700 transition-colors hover:bg-gray-50 dark:border-[#333333] dark:bg-[#252525] dark:text-gray-300 dark:hover:bg-[#2d2d2d]"
           >
-            ×
+            Retry
           </button>
         </div>
+      )}
 
-        {/* Content */}
-        <div className="px-4 py-3 overflow-y-auto max-h-[70vh]">
-          {loading && (
-            <div className="flex items-center justify-center py-6">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
-              <span className="ml-2 text-xs text-gray-600 dark:text-gray-400">Loading daily breakdown...</span>
+      {!loading && !error && dailyData.length > 0 && (
+        <>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="rounded-md border border-gray-200 px-3 py-2 dark:border-[#2f2f2f]">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Completion
+              </p>
+              <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900 dark:text-white">
+                {weekPercentage.toFixed(1)}%
+              </p>
             </div>
-          )}
-
-          {error && (
-            <div className="text-center py-6">
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-              <button
-                onClick={fetchDailyBreakdown}
-                className="mt-2 px-3 py-1.5 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            <div className="rounded-md border border-gray-200 px-3 py-2 dark:border-[#2f2f2f]">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Productivity
+              </p>
+              <p
+                className={`mt-0.5 text-[13px] font-medium ${
+                  tasksTotal > 0 ? getProductivityColor(status) : 'text-gray-500 dark:text-gray-400'
+                }`}
               >
-                Retry
-              </button>
+                {status}
+              </p>
             </div>
-          )}
-
-          {!loading && !error && dailyData.length > 0 && (
-            <>
-              {/* Summary */}
-              <div className="mb-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                <div className="flex items-center justify-between gap-4">
-                  {/* Left: Weekly Average */}
-                  <div className="flex-1 text-center">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Weekly average</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">
-                      {weekPercentage.toFixed(1)}%
-                    </p>
-                  </div>
-                  
-                  {/* Right: Productivity Scale */}
-                  <div className="flex-1 text-center">
-                    <p className="text-xs text-gray-600 dark:text-gray-400 mb-1">Productivity scale</p>
-                    <span className={`inline-block text-xs font-semibold px-3 py-1 rounded-full ${getProductivityColor(getWeeklyStatus())}`}>
-                      {getWeeklyStatus()}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Daily breakdown */}
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
-                  Daily breakdown
-                </h3>
-                {dailyData.map((day, index) => (
-                  <div 
-                    key={day.date} 
-                    className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors"
-                    onClick={() => handleDateClick(day.date, day.completion_rate)}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <span className="text-xs font-medium text-gray-900 dark:text-white">
-                          {formatDate(day.date)}
-                        </span>
-                        <span className={`text-[11px] font-semibold ${getProductivityColor(day.status)}`}>
-                          {day.status}
-                        </span>
-                      </div>
-                      <div className="flex items-center space-x-3">
-                        <div className="flex-1">
-                          <div className="w-full h-3 bg-gray-200 dark:bg-gray-600 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                day.completion_rate >= 90 ? 'bg-green-600 dark:bg-green-400' :
-                                day.completion_rate >= 70 ? 'bg-green-500 dark:bg-green-300' :
-                                day.completion_rate >= 40 ? 'bg-yellow-500 dark:bg-yellow-400' :
-                                'bg-red-500 dark:bg-red-400'
-                              }`}
-                              style={{ width: `${Math.min(day.completion_rate, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <span className="text-xs font-semibold text-gray-900 dark:text-white">
-                            {day.completion_rate.toFixed(1)}%
-                          </span>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            {day.completed_tasks}/{day.total_tasks} tasks
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-
-          {!loading && !error && dailyData.length === 0 && (
-            <div className="text-center py-8">
-              <p className="text-gray-500 dark:text-gray-400">No daily data available for this week.</p>
+            <div className="rounded-md border border-gray-200 px-3 py-2 dark:border-[#2f2f2f]">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Tasks
+              </p>
+              <p className="mt-0.5 text-lg font-semibold tabular-nums text-gray-900 dark:text-white">
+                {completedTotal}
+                <span className="text-[13px] font-normal text-gray-400 dark:text-gray-500">/{tasksTotal}</span>
+              </p>
             </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Daily Breakdown Modal */}
+            <div className="rounded-md border border-gray-200 px-3 py-2 dark:border-[#2f2f2f]">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                Best day
+              </p>
+              <p className="mt-0.5 text-[13px] font-medium text-gray-900 dark:text-white">
+                {bestDay ? `${weekdayShort(bestDay.date)} ${dayOfMonth(bestDay.date)}` : '—'}
+                {bestDay && (
+                  <span className="ml-1 tabular-nums text-gray-400 dark:text-gray-500">
+                    {bestDay.completion_rate.toFixed(0)}%
+                  </span>
+                )}
+              </p>
+            </div>
+          </div>
+
+          <section className="mt-4">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Daily completion
+              </span>
+              <span className="text-[10px] text-gray-400 dark:text-gray-500">
+                {activeDays} of {ratedDays.length} days with a task had work completed · click a bar for the day
+              </span>
+            </div>
+            <DailyRateChart days={dailyData} onSelectDay={handleDateClick} height={128} maxTicks={7} />
+          </section>
+
+          <section className="mt-4">
+            <span className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+              Days
+            </span>
+            <div className="mt-1.5 flex flex-col gap-0.5">
+              {dailyData.map((day) => (
+                <button
+                  key={day.date}
+                  type="button"
+                  onClick={() => handleDateClick(day.date, day.completion_rate)}
+                  className="flex h-9 items-center gap-3 rounded-md px-2 text-left transition-colors hover:bg-gray-50 dark:hover:bg-[#242424]"
+                >
+                  <span className="w-14 flex-shrink-0 text-[11px] text-gray-500 dark:text-gray-400">
+                    {weekdayShort(day.date)} {dayOfMonth(day.date)}
+                  </span>
+                  <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100 dark:bg-[#262626]">
+                    <span
+                      className={`block h-full rounded-full ${getRateBarClass(day.completion_rate, day.total_tasks > 0)}`}
+                      style={{ width: `${Math.min(day.completion_rate, 100)}%` }}
+                    />
+                  </span>
+                  <span className="w-11 flex-shrink-0 text-right text-[11px] font-medium tabular-nums text-gray-800 dark:text-gray-200">
+                    {day.total_tasks > 0 ? `${day.completion_rate.toFixed(0)}%` : '—'}
+                  </span>
+                  <span className="w-14 flex-shrink-0 text-right text-[11px] tabular-nums text-gray-500 dark:text-gray-400">
+                    {day.completed_tasks}/{day.total_tasks}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </section>
+        </>
+      )}
+
+      {!loading && !error && dailyData.length === 0 && (
+        <p className="py-8 text-center text-[11px] text-gray-500 dark:text-gray-400">
+          No daily data available for this week.
+        </p>
+      )}
+
       {selectedDate && (
         <DailyBreakdownModal
           isOpen={true}
@@ -284,8 +283,7 @@ const WeeklyBreakdownModal: React.FC<WeeklyBreakdownModalProps> = ({
           getProductivityColor={getProductivityColor}
         />
       )}
-    </div>,
-    document.body
+    </BreakdownModalShell>
   );
 };
 

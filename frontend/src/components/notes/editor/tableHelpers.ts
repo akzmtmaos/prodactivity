@@ -56,11 +56,11 @@ export const makeTableResizable = (table: HTMLTableElement) => {
         } else {
           // Change cursor and add visual indicator when hovering near right edge
           if (isNearRightEdge(e, cell)) {
-            cell.style.cursor = 'col-resize';
-            cell.style.boxShadow = 'inset -2px 0 0 0 #3b82f6';
-          } else {
-            cell.style.cursor = 'text';
-            cell.style.boxShadow = '';
+        cell.style.cursor = 'col-resize';
+        cell.style.boxShadow = 'inset -2px 0 0 0 #6366f1';
+      } else {
+        cell.style.cursor = 'text';
+        cell.style.boxShadow = '';
           }
         }
       };
@@ -79,7 +79,7 @@ export const makeTableResizable = (table: HTMLTableElement) => {
         rows.forEach((r) => {
           const c = r.querySelectorAll('td, th')[colIndex] as HTMLTableCellElement;
           if (c) {
-            c.style.boxShadow = 'inset -3px 0 0 0 #3b82f6';
+            c.style.boxShadow = 'inset -2px 0 0 0 #6366f1';
           }
         });
         
@@ -119,67 +119,6 @@ export const makeTableResizable = (table: HTMLTableElement) => {
   });
 };
 
-// Simple cell navigation for arrow keys
-export const addSimpleCellNavigation = (cell: HTMLTableCellElement, table: HTMLTableElement) => {
-  cell.addEventListener('keydown', (e) => {
-    if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].includes(e.key)) return;
-    
-    const currentRow = parseInt(cell.getAttribute('data-row') || '0');
-    const currentCol = parseInt(cell.getAttribute('data-col') || '0');
-    const totalRows = table.rows.length;
-    const totalCols = table.rows[0]?.cells.length || 0;
-    
-    let targetCell: HTMLTableCellElement | null = null;
-    let shouldPrevent = false;
-
-    // Tab always navigates
-    if (e.key === 'Tab') {
-      shouldPrevent = true;
-      if (e.shiftKey) {
-        // Previous cell
-        if (currentCol > 0) {
-          targetCell = table.rows[currentRow]?.cells[currentCol - 1] as HTMLTableCellElement;
-        } else if (currentRow > 0) {
-          targetCell = table.rows[currentRow - 1]?.cells[totalCols - 1] as HTMLTableCellElement;
-        }
-      } else {
-        // Next cell
-        if (currentCol < totalCols - 1) {
-          targetCell = table.rows[currentRow]?.cells[currentCol + 1] as HTMLTableCellElement;
-        } else if (currentRow < totalRows - 1) {
-          targetCell = table.rows[currentRow + 1]?.cells[0] as HTMLTableCellElement;
-        }
-      }
-    }
-    // Arrow keys - always navigate between cells (simpler, always works)
-    else if (e.key === 'ArrowRight' && currentCol < totalCols - 1) {
-      targetCell = table.rows[currentRow]?.cells[currentCol + 1] as HTMLTableCellElement;
-      shouldPrevent = true;
-    } else if (e.key === 'ArrowLeft' && currentCol > 0) {
-      targetCell = table.rows[currentRow]?.cells[currentCol - 1] as HTMLTableCellElement;
-      shouldPrevent = true;
-    } else if (e.key === 'ArrowDown' && currentRow < totalRows - 1) {
-      targetCell = table.rows[currentRow + 1]?.cells[currentCol] as HTMLTableCellElement;
-      shouldPrevent = true;
-    } else if (e.key === 'ArrowUp' && currentRow > 0) {
-      targetCell = table.rows[currentRow - 1]?.cells[currentCol] as HTMLTableCellElement;
-      shouldPrevent = true;
-    }
-
-    if (shouldPrevent && targetCell) {
-      e.preventDefault();
-      targetCell.focus();
-      // Place cursor at the end of the cell content
-      const range = document.createRange();
-      const sel = window.getSelection();
-      range.selectNodeContents(targetCell);
-      range.collapse(false); // false = end of content
-      sel?.removeAllRanges();
-      sel?.addRange(range);
-    }
-  });
-};
-
 // Create simple table (matching import feature style)
 export const createSimpleTable = (rows: number = 3, cols: number = 3) => {
   const table = document.createElement('table');
@@ -198,23 +137,20 @@ export const createSimpleTable = (rows: number = 3, cols: number = 3) => {
     for (let j = 0; j < cols; j++) {
       const td = document.createElement('td');
       td.contentEditable = 'true';
-      td.textContent = ''; // Empty, no nbsp
+      // A real line box keeps empty cells the same height as typed ones
+      td.innerHTML = '<br>';
       td.style.cursor = 'text';
-      td.setAttribute('data-row', i.toString());
-      td.setAttribute('data-col', j.toString());
-      // Adequate padding for comfortable text display
-      td.style.padding = '12px 16px';
-      td.style.border = '1px solid #d1d5db'; // gray-300
-      td.style.minWidth = '100px';
-      td.style.minHeight = '44px';
-      td.style.height = '44px';
+      // Compact Notion-style cell: light dividers, roomy-enough padding
+      td.style.padding = '6px 10px';
+      td.style.border = '1px solid #e9e9e7';
+      td.style.minWidth = '120px';
+      td.style.height = '2.25rem';
+      td.style.minHeight = '2.25rem';
       td.style.whiteSpace = 'normal';
       td.style.fontSize = 'inherit';
-      td.style.lineHeight = '1.6';
-      td.style.verticalAlign = 'middle';
+      td.style.lineHeight = '1.5';
+      td.style.verticalAlign = 'top';
       td.style.boxSizing = 'border-box';
-      
-      addSimpleCellNavigation(td, table);
       tr.appendChild(td);
     }
     table.appendChild(tr);
@@ -226,98 +162,139 @@ export const createSimpleTable = (rows: number = 3, cols: number = 3) => {
   return table;
 };
 
-// Insert code block
-export const createCodeBlock = () => {
-  // Create code block container (ChatGPT style)
-  const codeContainer = document.createElement('div');
-  codeContainer.className = 'code-block-container';
-  codeContainer.style.cssText = `
-    background-color: #1e1e1e;
-    border-radius: 8px;
-    margin: 16px 0;
-    overflow: hidden;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  `;
-  
-  // Header bar
-  const header = document.createElement('div');
-  header.className = 'code-block-header';
-  header.contentEditable = 'false';
-  header.style.cssText = `
-    background-color: #2d2d2d;
-    padding: 8px 16px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #3e3e3e;
-  `;
-  
-  const languageLabel = document.createElement('span');
-  languageLabel.textContent = 'code';
-  languageLabel.style.cssText = `
-    color: #9ca3af;
-    font-size: 12px;
-    font-weight: 500;
-  `;
-  
-  const copyButton = document.createElement('button');
-  copyButton.textContent = 'Copy';
-  copyButton.style.cssText = `
-    background: transparent;
-    border: 1px solid #4b5563;
-    color: #9ca3af;
-    padding: 4px 12px;
-    border-radius: 4px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-  `;
-  copyButton.onmouseover = () => {
-    copyButton.style.backgroundColor = '#374151';
-    copyButton.style.color = '#fff';
-  };
-  copyButton.onmouseout = () => {
-    copyButton.style.backgroundColor = 'transparent';
-    copyButton.style.color = '#9ca3af';
-  };
-  
-  header.appendChild(languageLabel);
-  header.appendChild(copyButton);
-  
-  // Code content area
-  const codeContent = document.createElement('div');
-  codeContent.contentEditable = 'plaintext-only';
-  codeContent.textContent = '// Enter your code here';
-  codeContent.style.cssText = `
-    background-color: #1e1e1e;
-    color: #d4d4d4;
-    padding: 16px;
-    margin: 0;
-    overflow-x: auto;
-    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-    font-size: 14px;
-    line-height: 1.5;
-    white-space: pre;
-    word-wrap: normal;
-    overflow-wrap: normal;
-  `;
-  
-  // Setup copy button handler
-  copyButton.onclick = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const codeText = codeContent.textContent || '';
-    navigator.clipboard.writeText(codeText).then(() => {
-      copyButton.textContent = 'Copied!';
-      setTimeout(() => {
-        copyButton.textContent = 'Copy';
-      }, 2000);
-    });
-  };
-  
-  codeContainer.appendChild(header);
-  codeContainer.appendChild(codeContent);
-  
-  return { codeContainer, codeContent };
+/** Lucide paths, inlined because this file builds raw DOM (no React). */
+const COPY_ICON =
+  '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
+const COPIED_ICON =
+  '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>';
+
+/** Hidden-textarea fallback for contexts where the Clipboard API is unavailable. */
+const fallbackCopy = (text: string) => {
+  const area = document.createElement('textarea');
+  area.value = text;
+  area.setAttribute('readonly', '');
+  area.style.position = 'fixed';
+  area.style.top = '-1000px';
+  document.body.appendChild(area);
+  area.select();
+  try {
+    document.execCommand('copy');
+  } catch {
+    // Nothing else to try - the user can still select the text manually.
+  }
+  document.body.removeChild(area);
 };
 
+const copyText = (text: string): Promise<void> => {
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text).catch(() => fallbackCopy(text));
+  }
+  fallbackCopy(text);
+  return Promise.resolve();
+};
+
+/**
+ * The block's header bar: language label on the left, copy button on the right.
+ *
+ * Both labels are CSS-generated (see the code-block rules in NoteEditor's style
+ * block) instead of text nodes, so the chrome never becomes note text - a block
+ * still exports, and reads out to the AI features, as code alone.
+ */
+const buildCodeBlockHeader = () => {
+  const header = document.createElement('div');
+  header.className =
+    'code-block-header flex items-center justify-between border-b border-gray-200 bg-gray-100 px-2.5 py-1 dark:border-[#2f2f2f] dark:bg-[#202020]';
+  header.contentEditable = 'false';
+
+  const languageLabel = document.createElement('span');
+  languageLabel.className =
+    'code-block-label font-mono text-[10px] font-medium uppercase tracking-wider text-gray-500 dark:text-gray-400';
+
+  const copyButton = document.createElement('button');
+  copyButton.type = 'button';
+  copyButton.contentEditable = 'false';
+  copyButton.setAttribute('aria-label', 'Copy code');
+  copyButton.className =
+    'code-block-copy flex h-6 items-center gap-1 rounded px-1.5 text-[10px] font-medium text-gray-500 transition-colors hover:bg-gray-200 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-[#2b2b2b] dark:hover:text-gray-200';
+  copyButton.innerHTML = COPY_ICON;
+
+  header.appendChild(languageLabel);
+  header.appendChild(copyButton);
+
+  // Clicking the label must not pull the caret out of the code area.
+  header.addEventListener('mousedown', (event) => {
+    const target = event.target as Node | null;
+    if (target && (target === copyButton || copyButton.contains(target))) return;
+    event.preventDefault();
+  });
+
+  return header;
+};
+
+/**
+ * Copy a block's code and flip its button into the Copied state.
+ *
+ * Click handling is delegated from the editor, so the button of a block restored
+ * from saved HTML works exactly like one on a freshly inserted block.
+ */
+export const copyCodeBlock = (button: HTMLElement) => {
+  const code = button.closest('.code-block-container')?.querySelector('.code-block-content');
+  const text = (code?.textContent || '').replace(/\n$/, '');
+  if (!text) return;
+
+  copyText(text).then(() => {
+    button.innerHTML = COPIED_ICON;
+    button.dataset.copied = 'true';
+    window.setTimeout(() => {
+      button.innerHTML = COPY_ICON;
+      delete button.dataset.copied;
+    }, 1800);
+  });
+};
+
+/**
+ * Bring every code block in `root` onto the current header markup.
+ *
+ * Blocks saved earlier carry their labels as text (which leaked into exported
+ * documents); swapping in a fresh header drops them and re-labels from CSS.
+ */
+export const normalizeCodeBlocks = (root: HTMLElement) => {
+  root.querySelectorAll('.code-block-container').forEach((container) => {
+    const header = container.querySelector('.code-block-header');
+    const isCurrent = !!header?.querySelector('.code-block-label') && !header.textContent?.trim();
+    if (isCurrent) return;
+
+    const fresh = buildCodeBlockHeader();
+    if (header) header.replaceWith(fresh);
+    else container.prepend(fresh);
+  });
+};
+
+/**
+ * Notion-style code block: a quiet surface with a header and a copy button
+ * wrapped around a plain-text editing area.
+ *
+ * The chrome comes from classes (plus the rules in NoteEditor's style block) so
+ * the saved HTML stays theme-aware instead of freezing one set of colours.
+ */
+export const createCodeBlock = () => {
+  const codeContainer = document.createElement('div');
+  codeContainer.className =
+    'code-block-container my-3 overflow-hidden rounded-md border border-gray-200 bg-gray-50 dark:border-[#2f2f2f] dark:bg-[#191919]';
+
+  // Editing area. "plaintext-only" keeps pasted markup out of the block.
+  const codeContent = document.createElement('div');
+  codeContent.className = 'code-block-content';
+  try {
+    codeContent.contentEditable = 'plaintext-only';
+  } catch {
+    codeContent.contentEditable = 'true';
+  }
+  codeContent.setAttribute('spellcheck', 'false');
+  codeContent.setAttribute('data-placeholder', 'Type or paste code');
+
+  codeContainer.appendChild(buildCodeBlockHeader());
+  codeContainer.appendChild(codeContent);
+
+  return { codeContainer, codeContent };
+};

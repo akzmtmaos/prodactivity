@@ -35,9 +35,13 @@ This folder contains extracted components and utilities from `NoteEditor.tsx` to
 ## Utilities
 
 ### 1. **tableHelpers.ts**
-- `addSimpleCellNavigation()` - Arrow key and Tab navigation between table cells
+- (cell keyboard navigation lives in `NoteEditor.tsx` as `handleTableCellNavigation`, so it also covers tables loaded from saved HTML)
 - `createSimpleTable()` - Creates a simple, minimal table
-- `createCodeBlock()` - Creates ChatGPT-style code block with copy button
+- `createCodeBlock()` - Creates a Notion-style code block (header + copy button around a plain-text area)
+- `copyCodeBlock(button)` - Copies a block's code and flips the button into its Copied state (click handling is delegated from the editor, so restored blocks work too)
+- `normalizeCodeBlocks(root)` - Puts every code block onto the current header markup, dropping the labels older blocks stored as text
+
+Code block keyboard behaviour (Tab indent, leaving the block at its edges, removing an empty block) also lives in `NoteEditor.tsx`, for the same reason as cell navigation.
 
 ### 2. **editorUtils.ts**
 - `convertTextToHtml()` - Converts plain text to formatted HTML
